@@ -1,0 +1,4 @@
+*.fgb
+*.geojson
+*.gpq
+matched_osm_way_ids.txt

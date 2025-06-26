@@ -3,7 +3,8 @@ applyTo: '**'
 ---
 
 # Processing
-Uses Python and libraries for processing.
+
+Uses Python, geopandas and other libraries for processing geodata and openstreetmap data.
 Located in `./processing`.
 
 # Inspector
