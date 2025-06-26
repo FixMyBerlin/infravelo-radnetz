@@ -11,8 +11,8 @@ def process_and_filter_short_segments(
     short_way_threshold=35,
     segment_length=5,
     projection_ratio_threshold=0.2,
-    angle_diff_threshold=50,
-    buffer_meters=50
+    angle_diff_threshold=60,
+    buffer_meters=30
 ):
     """
     Verbindet das Vorrangnetz, segmentiert es und filtert kurze, orthogonale OSM-Wege.
