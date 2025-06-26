@@ -1,11 +1,7 @@
 import geopandas as gpd
-from shapely.geometry import LineString, Point
-import sys
-import numpy as np
 import argparse
 import os
 from orthogonal_filter import  process_and_filter_short_segments
-import pandas as pd
 
 # Konfiguration
 OSM_FGB = './data/bikelanes.fgb'  # Pfad zu OSM-Radwege
