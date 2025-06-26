@@ -5,137 +5,146 @@ import os
 import numpy as np
 
 
+def merge_vorrangnetz_lines(vorrangnetz_gdf, output_path):
+    """
+    Verbindet Kanten im Radvorrangsnetz zu einer einzigen Geometrie und speichert das Ergebnis.
+    """
+    print("Verbinde Kanten im Radvorrangsnetz...")
+    merged_lines_geom = linemerge(vorrangnetz_gdf.geometry.unary_union)
+    vorrangnetz_verbunden_gdf = gpd.GeoDataFrame(geometry=[merged_lines_geom], crs=vorrangnetz_gdf.crs)
+    if os.path.exists(output_path):
+        os.remove(output_path)
+    vorrangnetz_verbunden_gdf.to_file(output_path, driver='FlatGeobuf')
+    print(f"Verbundenes Vorrangnetz gespeichert als {output_path}")
+    return vorrangnetz_verbunden_gdf
+
+
+def segment_lines(gdf, segment_length, output_path):
+    """
+    Teilt Linien in gleich lange Segmente und speichert sie.
+    """
+    print(f"Teile verbundenes Netz in {segment_length}m lange Stücke auf...")
+    all_segments = []
+    for line in gdf.geometry:
+        if line.geom_type == 'MultiLineString':
+            lines_to_process = line.geoms
+        else:
+            lines_to_process = [line]
+        for single_line in lines_to_process:
+            length = single_line.length
+            for dist in np.arange(0, length, segment_length):
+                start_point = single_line.interpolate(dist)
+                end_point = single_line.interpolate(dist + segment_length)
+                if not start_point.equals(end_point):
+                    all_segments.append(LineString([start_point, end_point]))
+    segments_gdf = gpd.GeoDataFrame(geometry=all_segments, crs=gdf.crs)
+    if os.path.exists(output_path):
+        os.remove(output_path)
+    segments_gdf.to_file(output_path, driver='FlatGeobuf')
+    print(f"Segmentierte Linien gespeichert als {output_path}")
+    return segments_gdf
+
+
+def filter_short_osm_ways(osm_gdf, short_way_threshold, output_path):
+    """
+    Filtert OSM-Wege, die kürzer als der Schwellenwert sind, und speichert sie.
+    """
+    print(f"Wähle OSM-Wege kürzer als {short_way_threshold}m aus...")
+    short_osm_gdf = osm_gdf[osm_gdf.geometry.length < short_way_threshold].copy()
+    short_osm_gdf = short_osm_gdf.loc[:, ~short_osm_gdf.columns.duplicated()]
+    short_osm_gdf.to_file(output_path, driver="FlatGeobuf")
+    return short_osm_gdf
+
+
+def calculate_line_angle(line):
+    """
+    Berechnet den Winkel einer Linie in Grad.
+    """
+    if line.is_empty or line.length == 0:
+        return 0
+    coords = list(line.coords)
+    start_point, end_point = coords[0], coords[-1]
+    return np.arctan2(end_point[1] - start_point[1], end_point[0] - start_point[0]) * 180 / np.pi
+
+
+def filter_orthogonal_short_ways(short_osm_gdf, segments_gdf, angle_diff_threshold, buffer_meters):
+    """
+    Identifiziert kurze OSM-Wege, die orthogonal zum Vorrangnetz verlaufen.
+    Gibt die IDs der zu entfernenden Wege zurück.
+    """
+    print(f"Wende Orthogonalitätsfilter auf {len(short_osm_gdf)} kurze Wege an...")
+    final_short_ids = set()
+    if not short_osm_gdf.empty and not segments_gdf.empty:
+        # Erzeuge einen räumlichen Index für die Segmente des Vorrangnetzes
+        segments_sindex = segments_gdf.sindex
+        for _, row in short_osm_gdf.iterrows():
+            osm_geom = row.geometry
+            if osm_geom.is_empty or osm_geom.length == 0:
+                continue
+            # Schritt 1: Erzeuge einen Buffer um den OSM-Weg
+            buffer_geom = osm_geom.buffer(buffer_meters)
+            # Schritt 2: Finde alle Segmente des Vorrangnetzes, die im Buffer liegen
+            possible_matches_index = list(segments_sindex.intersection(buffer_geom.bounds))
+            possible_matches = segments_gdf.iloc[possible_matches_index]
+            intersecting_segments = possible_matches[possible_matches.intersects(buffer_geom)]
+            if intersecting_segments.empty:
+                continue
+            # Schritt 3: Vereine die gefundenen Segmente zu einer Linie
+            unioned_geom = intersecting_segments.geometry.unary_union
+            merged_line = None
+            if unioned_geom.geom_type == 'LineString':
+                merged_line = unioned_geom
+            elif unioned_geom.geom_type == 'MultiLineString':
+                merged_line_candidate = linemerge(unioned_geom)
+                if merged_line_candidate.geom_type == 'LineString':
+                    merged_line = merged_line_candidate
+                elif merged_line_candidate.geom_type == 'MultiLineString':
+                    merged_line = max(merged_line_candidate.geoms, key=lambda line: line.length)
+            if not merged_line or merged_line.is_empty or merged_line.geom_type != 'LineString':
+                continue
+            # Schritt 4: Berechne die Winkel der OSM-Linie und des Vorrangnetz-Segments
+            angle_osm = calculate_line_angle(osm_geom)
+            angle_segment_network = calculate_line_angle(merged_line)
+            angle_diff = abs(angle_osm - angle_segment_network)
+            # Schritt 5: Normalisiere den Winkelunterschied auf den Bereich [0, 90]
+            if angle_diff > 180:
+                angle_diff = 360 - angle_diff
+            if angle_diff > 90:
+                angle_diff = 180 - angle_diff
+            # Schritt 6: Wenn der Winkelunterschied größer als der Schwellwert ist, markiere den Weg als querend
+            if angle_diff > angle_diff_threshold:
+                way_id = row.get('osm_id') or row.get('id')
+                if way_id is not None:
+                    final_short_ids.add(way_id)
+    print(f"{len(final_short_ids)} kurze Wege als querend identifiziert und zum Entfernen markiert.")
+    return final_short_ids
+
+
 def process_and_filter_short_segments(
     vorrangnetz_gdf,
     osm_gdf,
     short_way_threshold=35,
     segment_length=5,
-    projection_ratio_threshold=0.2,
     angle_diff_threshold=60,
     buffer_meters=30
 ):
     """
-    Verbindet das Vorrangnetz, segmentiert es und filtert kurze, orthogonale OSM-Wege.
-    Die Parameter angle_diff_threshold (Grad) und buffer_meters (Meter) sind konfigurierbar.
+    Orchestriert die Schritte: Mergen, Segmentieren, Filtern und Exportieren.
     """
-    # 1. Kanten im Radvorrangsnetz verbinden, um ein zusammenhängendes Netz zu erhalten
-    print("Verbinde Kanten im Radvorrangsnetz...")
-    merged_lines_geom = linemerge(vorrangnetz_gdf.geometry.unary_union)
-    vorrangnetz_verbunden_gdf = gpd.GeoDataFrame(geometry=[merged_lines_geom], crs=vorrangnetz_gdf.crs)
-
-        # Speichern des Zwischenergebnisses
-    output_path = './output/_vorrangnetz_verbunden.fgb'
-    if os.path.exists(output_path):
-        os.remove(output_path)
-    vorrangnetz_verbunden_gdf.to_file(output_path, driver='FlatGeobuf')
-    print(f"Verbundenes Vorrangnetz gespeichert als {output_path}")
-
-    # 2. Das verbundene Netz in gleich lange Segmente (z.B. 5m) aufteilen
-    #    Dies ermöglicht eine feinere Analyse der Orientierung von kurzen OSM-Wege zu lokalen Netzabschnitten
+    # 1. Vorrangnetz verbinden
+    vorrangnetz_verbunden_gdf = merge_vorrangnetz_lines(vorrangnetz_gdf, './output/_vorrangnetz_verbunden.fgb')
+    # 2. Segmentieren
     segments_output_path = './output/vorrangnetz_segments.fgb'
     if os.path.exists(segments_output_path):
         print(f"Lade segmentierte Linien aus {segments_output_path}...")
         segments_gdf = gpd.read_file(segments_output_path)
     else:
-        print(f"Teile verbundenes Netz in {segment_length}m lange Stücke auf...")
-        all_segments = []
-        for line in vorrangnetz_verbunden_gdf.geometry:
-            if line.geom_type == 'MultiLineString':
-                lines_to_process = line.geoms
-            else:
-                lines_to_process = [line]
-
-            for single_line in lines_to_process:
-                length = single_line.length
-                for dist in np.arange(0, length, segment_length):
-                    start_point = single_line.interpolate(dist)
-                    end_point = single_line.interpolate(dist + segment_length)
-                    if not start_point.equals(end_point):
-                        all_segments.append(LineString([start_point, end_point]))
-
-        segments_gdf = gpd.GeoDataFrame(geometry=all_segments, crs=vorrangnetz_gdf.crs)
-        # 3. Die erzeugten Segmente als FlatGeobuf speichern (optional, für Debugging/Analyse)
-        if os.path.exists(segments_output_path):
-            os.remove(segments_output_path)
-        segments_gdf.to_file(segments_output_path, driver='FlatGeobuf')
-        print(f"Segmentierte Linien gespeichert als {segments_output_path}")
-
-    # 4. Auswahl aller OSM-Wege, die kürzer als der Schwellenwert sind
-    #    Diese kurzen Wege sind oft Querungen oder kleine Verbindungen, die besonders geprüft werden sollen
-    print(f"Wähle OSM-Wege kürzer als {short_way_threshold}m aus...")
-    short_osm_gdf = osm_gdf[osm_gdf.geometry.length < short_way_threshold].copy()
-    short_osm_gdf = short_osm_gdf.loc[:, ~short_osm_gdf.columns.duplicated()]
-    short_osm_gdf.to_file("./output/short_osm_wege.fgb", driver="FlatGeobuf")
-
-    # 5. Für jeden kurzen OSM-Weg: Prüfe die Ausrichtung im Vergleich zum lokalen Vorrangnetz
-    print(f"Wende Orthogonalitätsfilter auf {len(short_osm_gdf)} kurze Wege an...")
-
-    def calculate_line_angle(line):
-        """Berechnet den Winkel einer Linie in Grad."""
-        if line.is_empty or line.length == 0:
-            return 0
-        coords = list(line.coords)
-        start_point, end_point = coords[0], coords[-1]
-        return np.arctan2(end_point[1] - start_point[1], end_point[0] - start_point[0]) * 180 / np.pi
-
-    # final_short_ids enthält die IDs der Wege, die aufgrund ihrer orthogonalen Ausrichtung entfernt werden.
-    final_short_ids = set()
-
-    if not short_osm_gdf.empty and not segments_gdf.empty:
-        segments_sindex = segments_gdf.sindex
-
-        for _, row in short_osm_gdf.iterrows():
-            osm_geom = row.geometry
-            if osm_geom.is_empty or osm_geom.length == 0:
-                continue
-
-            # 1. Puffer um den OSM-Weg
-            buffer_geom = osm_geom.buffer(buffer_meters)
-
-            # 2. Segmente des Radvorrangnetzes im Puffer selektieren
-            possible_matches_index = list(segments_sindex.intersection(buffer_geom.bounds))
-            possible_matches = segments_gdf.iloc[possible_matches_index]
-            intersecting_segments = possible_matches[possible_matches.intersects(buffer_geom)]
-
-            if intersecting_segments.empty:
-                continue
-
-            # 3. Vektor aus den selektierten Segmenten bilden
-            unioned_geom = intersecting_segments.geometry.unary_union
-            merged_line = None  # Initialisieren
-
-            if unioned_geom.geom_type == 'LineString':
-                merged_line = unioned_geom
-            elif unioned_geom.geom_type == 'MultiLineString':
-                # linemerge kann eine MultiLineString zurückgeben, wenn die Linien nicht zusammenhängend sind
-                merged_line_candidate = linemerge(unioned_geom)
-                if merged_line_candidate.geom_type == 'LineString':
-                    merged_line = merged_line_candidate
-                elif merged_line_candidate.geom_type == 'MultiLineString':
-                    # Wenn es immer noch eine MultiLineString ist, nimm das längste Stück
-                    merged_line = max(merged_line_candidate.geoms, key=lambda line: line.length)
-
-            if not merged_line or merged_line.is_empty or merged_line.geom_type != 'LineString':
-                continue
-
-            # 4. Winkel berechnen und Differenz prüfen
-            angle_osm = calculate_line_angle(osm_geom)
-            angle_segment_network = calculate_line_angle(merged_line)
-
-            angle_diff = abs(angle_osm - angle_segment_network)
-            if angle_diff > 180:
-                angle_diff = 360 - angle_diff
-            if angle_diff > 90:
-                angle_diff = 180 - angle_diff
-
-            # 5. Wenn Winkel > angle_diff_threshold Grad, Segment zum Entfernen vormerken
-            if angle_diff > angle_diff_threshold:
-                way_id = row.get('osm_id') or row.get('id')
-                if way_id is not None:
-                    final_short_ids.add(way_id)
-    
-    print(f"{len(final_short_ids)} kurze Wege als querend identifiziert und zum Entfernen markiert.")
-    # Exportiere herausgefilterte Wege als FlatGeobuf
+        segments_gdf = segment_lines(vorrangnetz_verbunden_gdf, segment_length, segments_output_path)
+    # 3. Kurze OSM-Wege filtern
+    short_osm_gdf = filter_short_osm_ways(osm_gdf, short_way_threshold, "./output/short_osm_wege.fgb")
+    # 4. Orthogonale kurze Wege identifizieren
+    final_short_ids = filter_orthogonal_short_ways(short_osm_gdf, segments_gdf, angle_diff_threshold, buffer_meters)
+    # 5. Exportiere herausgefilterte Wege
     export_filtered_ways(osm_gdf, final_short_ids, "./output/short_osm_herausgefiltert.fgb")
     return final_short_ids
 
