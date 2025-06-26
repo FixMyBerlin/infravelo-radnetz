@@ -5,7 +5,7 @@ import os
 import numpy as np
 
 
-def process_and_filter_short_segments(vorrangnetz_gdf, osm_gdf, short_way_threshold=20, segment_length=5, projection_ratio_threshold=0.3):
+def process_and_filter_short_segments(vorrangnetz_gdf, osm_gdf, short_way_threshold=30, segment_length=5, projection_ratio_threshold=0.3):
     """
     Verbindet das Vorrangnetz, segmentiert es und filtert kurze, orthogonale OSM-Wege.
     """
@@ -48,7 +48,7 @@ def process_and_filter_short_segments(vorrangnetz_gdf, osm_gdf, short_way_thresh
     segments_gdf.to_file(segments_output_path, driver='FlatGeobuf')
     print(f"Segmentierte Linien gespeichert als {segments_output_path}")
 
-    # 4. Auswahl aller OSM-Wege, die kürzer als der Schwellenwert sind (z.B. 20m)
+    # 4. Auswahl aller OSM-Wege, die kürzer als der Schwellenwert sind
     #    Diese kurzen Wege sind oft Querungen oder kleine Verbindungen, die besonders geprüft werden sollen
     print(f"Wähle OSM-Wege kürzer als {short_way_threshold}m aus...")
     short_osm_gdf = osm_gdf[osm_gdf.geometry.length < short_way_threshold].copy()
@@ -85,5 +85,5 @@ def process_and_filter_short_segments(vorrangnetz_gdf, osm_gdf, short_way_thresh
             except Exception:
                 continue
     
-    print(f"{len(final_short_ids)} kurze Wege nach Filterung behalten.")
+    print(f"{len(final_short_ids)} kurze Wege herausgefiltert.")
     return final_short_ids
