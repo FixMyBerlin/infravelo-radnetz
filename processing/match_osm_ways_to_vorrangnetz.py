@@ -3,6 +3,7 @@ from shapely.geometry import LineString, Point
 import sys
 import numpy as np
 import argparse
+import os
 
 # Konfiguration
 OSM_FGB = './data/bikelanes.fgb'  # Pfad zu OSM-Radwege
@@ -57,8 +58,11 @@ def main():
 
     # Entferne doppelte Spaltennamen, falls vorhanden (vor dem Speichern!)
     # Speichere das Ergebnis nach dem ersten Schritt als FlatGeoBuf
+    buffering_path = './output/bikelanes_in_buffering.fgb'
+    if os.path.exists(buffering_path):
+        os.remove(buffering_path)
     matched_gdf_step1 = matched_gdf_step1.loc[:, ~matched_gdf_step1.columns.duplicated()]
-    matched_gdf_step1.to_file('./output/bikelanes_in_buffering.fgb', driver='FlatGeoBuf')
+    matched_gdf_step1.to_file(buffering_path, driver='FlatGeoBuf')
     print('Bikelanes im Buffer gespeichert als ./output/bikelanes_in_buffering.fgb')
 
     # Optional: Orthogonalitäts-Filter anwenden
