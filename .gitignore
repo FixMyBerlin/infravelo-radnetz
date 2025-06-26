@@ -1,7 +1,7 @@
-*.fgb
-*.geojson
-*.gpq
-matched_osm_way_ids.txt
+output/*.fgb
+output/*.geojson
+output/*.gpq
+output/matched_osm_way_ids.txt
 
 --------------------------------------------------------
 

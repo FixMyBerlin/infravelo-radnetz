@@ -10,6 +10,8 @@ Start by running:
 cd inspector && npm run dev
 ```
 
+Alternatively, you can use the **QGIS** `QGIS QA Processing.qgz` Project, which displays the different output files.
+
 ## Processing
 
 *Uses Python and libraries for processing.*
@@ -18,7 +20,13 @@ Consider creating a `venv` environment for the script and then install the the d
 
 After creating the environment, run:
 ```sh
-# orthogonalfilter is optional
+# Assumed, you are in the root repo folder
+
+# Install packages in venv environment
+source .venv/bin/activate
+pip install -r processing/requirements.txt
+
+# Orthogonalfilter is optional
 ./.venv/bin/python processing/main.py --orthogonalfilter
 ```
 
