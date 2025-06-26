@@ -87,15 +87,15 @@ def main():
             osm_gdf=osm_gdf
         )
 
-        # Kombiniere die IDs aus beiden Schritten
-        final_way_ids = step1_ids.union(short_way_ids)
+        # Entferne die IDs der kurzen, orthogonalen Wege aus den bisher gematchten Wegen
+        final_way_ids = step1_ids.difference(short_way_ids)
         
         # Erstelle das finale GeoDataFrame aus dem ursprünglichen OSM-Set
         id_col_osm = 'osm_id' if 'osm_id' in osm_gdf.columns else 'id'
         matched_gdf = osm_gdf[osm_gdf[id_col_osm].isin(final_way_ids)].copy()
         id_col = id_col_osm
         
-        print(f"Gesamtzahl der gematchten Wege nach Kombination: {len(matched_gdf)}")
+        print(f"Gesamtzahl der gematchten Wege nach Herausfiltern: {len(matched_gdf)}")
 
     else:
         print("Orthogonalitäts-Filter übersprungen.")
