@@ -109,10 +109,10 @@ def main():
         matched_gdf = matched_gdf.drop(columns=['index_right'])
     matched_gdf = matched_gdf.loc[:,~matched_gdf.columns.duplicated()]
 
-    # Schreibe GeoJSON
-    geojson_file = './output/matched_osm_ways.geojson'
-    matched_gdf.to_file(geojson_file, driver='GeoJSON')
-    print(f'GeoJSON gespeichert in {geojson_file}')
+    # Schreibe FlatGeobuf
+    fgb_file = './output/matched_osm_ways.fgb'
+    matched_gdf.to_file(fgb_file, driver='FlatGeobuf')
+    print(f'FlatGeobuf gespeichert in {fgb_file}')
 
     # Optional: Schreibe weiterhin die Textliste
     with open('./output/matched_osm_way_ids.txt', 'w') as f:
