@@ -14,7 +14,15 @@ cd inspector && npm run dev
 
 *Uses Python and libraries for processing.*
 
-Consider creating a `venv` environment for the script and then install the the dependencies via requirements.txt
+Consider creating a `venv` environment for the script and then install the the dependencies via `requirements.txt`
+
+After creating the environment, run:
+```sh
+# orthogonalfilter is optional
+./.venv/bin/python processing/main.py --orthogonalfilter
+```
+
+The output is saved under `output/`.
 
 The processing uses two data sources as inputs: [Radvorrangsnetz](https://tilda-geo.de/regionen/berlin?map=9.9/52.518/13.372&config=1swjsz2.5ount0.4qfsxw.2t61&data=radverkehrsnetz--v&v=2), TILDA data and Detailnetz  is working in two steps:
 
