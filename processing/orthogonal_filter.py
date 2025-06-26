@@ -37,19 +37,20 @@ def process_and_filter_short_segments(vorrangnetz_gdf, osm_gdf, short_way_thresh
     """
     Verbindet das Vorrangnetz, segmentiert es und filtert kurze, orthogonale OSM-Wege.
     """
-    # 1. Kanten im Radvorrangsnetz verbinden
+    # 1. Kanten im Radvorrangsnetz verbinden, um ein zusammenhängendes Netz zu erhalten
     print("Verbinde Kanten im Radvorrangsnetz...")
     merged_lines_geom = linemerge(vorrangnetz_gdf.geometry.unary_union)
     vorrangnetz_verbunden_gdf = gpd.GeoDataFrame(geometry=[merged_lines_geom], crs=vorrangnetz_gdf.crs)
 
-    # Speichern des Zwischenergebnisses
+        # Speichern des Zwischenergebnisses
     output_path = './output/_vorrangnetz_verbunden.fgb'
     if os.path.exists(output_path):
         os.remove(output_path)
     vorrangnetz_verbunden_gdf.to_file(output_path, driver='FlatGeobuf')
     print(f"Verbundenes Vorrangnetz gespeichert als {output_path}")
 
-    # 2. Zusammenhängende Linien in Stücke aufteilen
+    # 2. Das verbundene Netz in gleich lange Segmente (z.B. 5m) aufteilen
+    #    Dies ermöglicht eine feinere Analyse der Orientierung von kurzen OSM-Wege zu lokalen Netzabschnitten
     print(f"Teile verbundenes Netz in {segment_length}m lange Stücke auf...")
     all_segments = []
     for line in vorrangnetz_verbunden_gdf.geometry:
@@ -68,18 +69,21 @@ def process_and_filter_short_segments(vorrangnetz_gdf, osm_gdf, short_way_thresh
 
     segments_gdf = gpd.GeoDataFrame(geometry=all_segments, crs=vorrangnetz_gdf.crs)
 
-    # Speichere die Segment-Geometrien als FlatGeobuf
+    # 3. Die erzeugten Segmente als FlatGeobuf speichern (optional, für Debugging/Analyse)
     segments_output_path = './output/vorrangnetz_segments.fgb'
     if os.path.exists(segments_output_path):
         os.remove(segments_output_path)
     segments_gdf.to_file(segments_output_path, driver='FlatGeobuf')
     print(f"Segmentierte Linien gespeichert als {segments_output_path}")
 
-    # 3. OSM-Wege kürzer als Schwellenwert auswählen
+    # 4. Auswahl aller OSM-Wege, die kürzer als der Schwellenwert sind (z.B. 20m)
+    #    Diese kurzen Wege sind oft Querungen oder kleine Verbindungen, die besonders geprüft werden sollen
     print(f"Wähle OSM-Wege kürzer als {short_way_threshold}m aus...")
     short_osm_gdf = osm_gdf[osm_gdf.geometry.length < short_way_threshold].copy()
 
-    # 4. Orthogonalitätsfilter anwenden
+    # 5. Für jeden kurzen OSM-Weg: Finde das nächste Netzsegment und prüfe die Orientierung
+    #    Die Projektion der Endpunkte des OSM-Wegs auf das Segment wird berechnet
+    #    Nur wenn der projizierte Anteil groß genug ist (d.h. der Weg verläuft nicht orthogonal), wird er behalten
     print(f"Wende Orthogonalitätsfilter auf {len(short_osm_gdf)} kurze Wege an...")
     final_short_ids = set()
     if not short_osm_gdf.empty and not segments_gdf.empty:
@@ -101,6 +105,7 @@ def process_and_filter_short_segments(vorrangnetz_gdf, osm_gdf, short_way_thresh
                 projection_len = abs(proj_end_dist - proj_start_dist)
                 ratio = projection_len / osm_geom.length
                 
+                # Nur Wege behalten, die nicht zu orthogonal zum Segment verlaufen
                 if ratio >= projection_ratio_threshold:
                     way_id = row.get('osm_id') or row.get('id')
                     if way_id is not None:
