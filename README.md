@@ -14,6 +14,8 @@ cd inspector && npm run dev
 
 *Uses Python and libraries for processing.*
 
+Consider creating a `venv` environment for the script and then install the the dependencies via requirements.txt
+
 The processing uses two data sources as inputs: [Radvorrangsnetz](https://tilda-geo.de/regionen/berlin?map=9.9/52.518/13.372&config=1swjsz2.5ount0.4qfsxw.2t61&data=radverkehrsnetz--v&v=2), TILDA data and Detailnetz  is working in two steps:
 
 1. Use the Radvorrangnetz and OpenStreetMap data to assign the Detailnetz Edge ID to the OSM Ways and the OSM Way IDs to the Detailnetz Edges.
