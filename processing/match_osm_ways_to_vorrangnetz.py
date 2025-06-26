@@ -14,7 +14,7 @@ OUTPUT_FILE = './output/matched_osm_way_ids.txt'
 
 def main():
     parser = argparse.ArgumentParser(description="Match OSM ways to Vorrangnetz with optional filters.")
-    parser.add_argument('--orthogonal', action='store_true', help='Enable orthogonality filtering (second step)')
+    parser.add_argument('--orthogonalfilter', action='store_true', help='Enable orthogonality filtering (second step)')
     args = parser.parse_args()
 
     print('Lade OSM-Radwege...')
@@ -41,33 +41,37 @@ def main():
     unified_buffer = vorrangnetz_buffer.unary_union
     unified_buffer_gdf = gpd.GeoDataFrame(geometry=[unified_buffer], crs=target_crs)
 
-    # --- Finde alle OSM-Wege, die im vereinten Buffer liegen (räumlicher Join) ---
-    print('Finde alle OSM-Wege, die den vereinten Buffer schneiden...')
-    # Alternative 1: Prüfe, ob der Großteil der OSM-Linie im Buffer liegt (z.B. >70% der Länge)
-    def line_in_buffer_fraction(line, buffer_geom):
-        if line.is_empty or line.length == 0:
-            return 0
-        intersected = line.intersection(buffer_geom)
-        return intersected.length / line.length if not intersected.is_empty else 0
+    # --- Finde alle OSM-Wege, die im vereinten Buffer liegen (oder lade aus Cache) ---
+    buffering_path = './output/bikelanes_in_buffering.fgb'
 
-    FRACTION_THRESHOLD = 0.7  # Mindestens 70% der Linie müssen im Buffer liegen
+    if os.path.exists(buffering_path):
+        print(f'Lade zwischengespeichertes Ergebnis aus {buffering_path}...')
+        matched_gdf_step1 = gpd.read_file(buffering_path)
+    else:
+        print('Finde alle OSM-Wege, die den vereinten Buffer schneiden (dies kann dauern)...')
+        
+        def line_in_buffer_fraction(line, buffer_geom):
+            if line.is_empty or line.length == 0:
+                return 0
+            intersected = line.intersection(buffer_geom)
+            return intersected.length / line.length if not intersected.is_empty else 0
 
-    mask = osm_gdf.geometry.apply(lambda geom: line_in_buffer_fraction(geom, unified_buffer) >= FRACTION_THRESHOLD)
-    matched_gdf_step1 = osm_gdf[mask].copy()
+        FRACTION_THRESHOLD = 0.7  # Mindestens 70% der Linie müssen im Buffer liegen
+
+        mask = osm_gdf.geometry.apply(lambda geom: line_in_buffer_fraction(geom, unified_buffer) >= FRACTION_THRESHOLD)
+        matched_gdf_step1 = osm_gdf[mask].copy()
+
+        # Entferne doppelte Spaltennamen vor dem Speichern
+        matched_gdf_step1 = matched_gdf_step1.loc[:, ~matched_gdf_step1.columns.duplicated()]
+        
+        # Speichere das Ergebnis für die zukünftige Verwendung
+        matched_gdf_step1.to_file(buffering_path, driver='FlatGeobuf')
+        print(f'Zwischenergebnis gespeichert in {buffering_path}')
 
     print(f'Gefundene OSM-Way-IDs nach erstem Filter: {len(matched_gdf_step1)}')
 
-    # Entferne doppelte Spaltennamen, falls vorhanden (vor dem Speichern!)
-    # Speichere das Ergebnis nach dem ersten Schritt als FlatGeoBuf
-    buffering_path = './output/bikelanes_in_buffering.fgb'
-    if os.path.exists(buffering_path):
-        os.remove(buffering_path)
-    matched_gdf_step1 = matched_gdf_step1.loc[:, ~matched_gdf_step1.columns.duplicated()]
-    matched_gdf_step1.to_file(buffering_path, driver='FlatGeoBuf')
-    print('Bikelanes im Buffer gespeichert als ./output/bikelanes_in_buffering.fgb')
-
     # Optional: Orthogonalitäts-Filter anwenden
-    if args.orthogonal:
+    if args.orthogonalfilter:
         print("Wende Orthogonalitäts-Filter an...")
         PROJECTION_RATIO_THRESHOLD = 0.3  # OSM-Weg muss zu 30% in Richtung Vorrangnetz verlaufen
         final_matched_ids = filter_orthogonal_bikelanes(matched_gdf_step1, vorrangnetz_gdf, PROJECTION_RATIO_THRESHOLD)
