@@ -10,3 +10,5 @@ The `orthogonal_filter.py` is an optional processing step, which additionally:
 These ways are usually crossings, which are not parallel to the whished Radvorrangsnetz.
 
 The script creates intermediate geodata versions. This enables to speed up the scripts speed when rerunning. But this can also relate to **caching issues**. So be aware, and be free to delete the `output` folder when having issues.
+
+*Tested with Python 3.13.3.*
