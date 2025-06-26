@@ -4,7 +4,8 @@ import sys
 import numpy as np
 import argparse
 import os
-from orthogonal_filter import filter_orthogonal_bikelanes
+from orthogonal_filter import  process_and_filter_short_segments
+import pandas as pd
 
 # Konfiguration
 OSM_FGB = './data/bikelanes.fgb'  # Pfad zu OSM-Radwege
@@ -72,12 +73,32 @@ def main():
 
     # Optional: Orthogonalitäts-Filter anwenden
     if args.orthogonalfilter:
-        print("Wende Orthogonalitäts-Filter an...")
-        PROJECTION_RATIO_THRESHOLD = 0.3  # OSM-Weg muss zu 30% in Richtung Vorrangnetz verlaufen
-        final_matched_ids = filter_orthogonal_bikelanes(matched_gdf_step1, vorrangnetz_gdf, PROJECTION_RATIO_THRESHOLD)
-        print(f'Gefundene OSM-Way-IDs nach Orthogonalitäts-Filter: {len(final_matched_ids)}')
-        id_col = 'osm_id' if 'osm_id' in osm_gdf.columns else 'id'
-        matched_gdf = osm_gdf[osm_gdf[id_col].isin(final_matched_ids)]
+        print("Wende Orthogonalitäts-Filter für kurze Segmente an...")
+        
+        # IDs aus dem ersten groben Filter (Buffer)
+        id_col_step1 = 'osm_id' if 'osm_id' in matched_gdf_step1.columns else 'id'
+        step1_ids = set(matched_gdf_step1[id_col_step1])
+
+        # Zusätzliche kurze Wege durch Orthogonalitäts-Check finden
+        # Diese Funktion arbeitet auf dem *gesamten* OSM-Datensatz, um kurze Wege zu finden,
+        # die möglicherweise nicht im Buffer lagen, aber relevant sind.
+        short_way_ids = process_and_filter_short_segments(
+            vorrangnetz_gdf=vorrangnetz_gdf,
+            osm_gdf=osm_gdf
+        )
+        
+        print(f"{len(short_way_ids)} zusätzliche kurze Wege gefunden und gefiltert.")
+
+        # Kombiniere die IDs aus beiden Schritten
+        final_way_ids = step1_ids.union(short_way_ids)
+        
+        # Erstelle das finale GeoDataFrame aus dem ursprünglichen OSM-Set
+        id_col_osm = 'osm_id' if 'osm_id' in osm_gdf.columns else 'id'
+        matched_gdf = osm_gdf[osm_gdf[id_col_osm].isin(final_way_ids)].copy()
+        id_col = id_col_osm
+        
+        print(f"Gesamtzahl der gematchten Wege nach Kombination: {len(matched_gdf)}")
+
     else:
         print("Orthogonalitäts-Filter übersprungen.")
         id_col = 'osm_id' if 'osm_id' in matched_gdf_step1.columns else 'id'
