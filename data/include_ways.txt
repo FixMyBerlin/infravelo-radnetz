@@ -1,0 +1,3 @@
+# Hier OSM-Way-IDs eintragen, die zusätzlich zum Matching hinzugefügt werden sollen. Eine ID pro Zeile.
+# Beispiel:
+# 87654321

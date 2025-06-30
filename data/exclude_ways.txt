@@ -1,0 +1,4 @@
+# Hier OSM-Way-IDs eintragen, die ausgeschlossen werden sollen. Eine ID pro Zeile.
+343030047
+199387284
+23129471

@@ -1,7 +1,9 @@
 import geopandas as gpd
+import pandas as pd
 import argparse
 import os
 from orthogonal_filter import  process_and_filter_short_segments
+from manual_interventions import get_excluded_ways, get_included_ways
 
 # Konfiguration
 OSM_FGB = './data/bikelanes.fgb'  # Pfad zu OSM-Radwege
@@ -88,6 +90,37 @@ def apply_orthogonal_filter_if_requested(args, vorrangnetz_gdf, osm_gdf, matched
     return matched_gdf, id_col
 
 
+def apply_manual_interventions(args, matched_gdf, osm_gdf):
+    """
+    Wendet manuelle Ausschlüsse und Einschlüsse von OSM Wege IDs an, falls gefordert.
+    """
+    if not args.manual_interventions:
+        return matched_gdf
+
+    print("Wende manuelle Eingriffe an...")
+    id_col = 'osm_id' if 'osm_id' in osm_gdf.columns else 'id'
+
+    # Manuelle Ausschlüsse
+    excluded_ids = get_excluded_ways()
+    if excluded_ids:
+        initial_count = len(matched_gdf)
+        matched_gdf = matched_gdf[~matched_gdf[id_col].isin(excluded_ids)]
+        print(f"{initial_count - len(matched_gdf)} Wege manuell ausgeschlossen.")
+
+    # Manuelle Einschlüsse
+    included_ids = get_included_ways()
+    if included_ids:
+        ways_to_add = osm_gdf[osm_gdf[id_col].isin(included_ids)]
+        # Verhindere Duplikate
+        ways_to_add = ways_to_add[~ways_to_add[id_col].isin(matched_gdf[id_col])]
+        
+        if not ways_to_add.empty:
+            matched_gdf = pd.concat([matched_gdf, ways_to_add], ignore_index=True)
+            print(f"{len(ways_to_add)} Wege manuell hinzugefügt.")
+
+    return matched_gdf
+
+
 def write_outputs(matched_gdf, id_col, unified_buffer, target_crs):
     """
     Schreibt die Ergebnisse als FlatGeobuf und als Textliste. Speichert auch das gebufferte Vorrangnetz.
@@ -107,13 +140,21 @@ def write_outputs(matched_gdf, id_col, unified_buffer, target_crs):
     print('Gebuffertes Vorrangnetz gespeichert als ./output/vorrangnetz_buffered.fgb')
 
 
+def parse_arguments():
+    """
+    Parst die Kommandozeilenargumente.
+    """
+    parser = argparse.ArgumentParser(description="Match OSM ways to Vorrangnetz with optional filters.")
+    parser.add_argument('--orthogonalfilter', action='store_true', help='Enable orthogonality filtering (second step)')
+    parser.add_argument('--manual-interventions', action='store_true', help='Enable manual interventions from data/exclude_ways.txt and data/include_ways.txt')
+    return parser.parse_args()
+
+
 def main():
     """
     Orchestriert den gesamten Matching- und Filterprozess.
     """
-    parser = argparse.ArgumentParser(description="Match OSM ways to Vorrangnetz with optional filters.")
-    parser.add_argument('--orthogonalfilter', action='store_true', help='Enable orthogonality filtering (second step)')
-    args = parser.parse_args()
+    args = parse_arguments()
     # Schritt 1: Daten laden und CRS prüfen
     osm_gdf, vorrangnetz_gdf = load_geodataframes(OSM_FGB, VORRANGNETZ_FGB, 'EPSG:25833')
     # Schritt 2: Buffer erzeugen
@@ -122,7 +163,9 @@ def main():
     matched_gdf_step1 = find_osm_ways_in_buffer(osm_gdf, unified_buffer, './output/bikelanes_in_buffering.fgb')
     # Schritt 4: Optional Orthogonalfilter anwenden
     matched_gdf, id_col = apply_orthogonal_filter_if_requested(args, vorrangnetz_gdf, osm_gdf, matched_gdf_step1)
-    # Schritt 5: Ergebnisse schreiben
+    # Schritt 5: Manuelle Eingriffe anwenden
+    matched_gdf = apply_manual_interventions(args, matched_gdf, osm_gdf)
+    # Schritt 6: Ergebnisse schreiben
     write_outputs(matched_gdf, id_col, unified_buffer, 'EPSG:25833')
 
 
