@@ -14,12 +14,12 @@ def merge_vorrangnetz_lines(vorrangnetz_gdf, output_path):
     """
     print("Verbinde Kanten im Radvorrangsnetz...")
     merged_lines_geom = linemerge(vorrangnetz_gdf.geometry.unary_union)
-    vorrangnetz_verbunden_gdf = gpd.GeoDataFrame(geometry=[merged_lines_geom], crs=vorrangnetz_gdf.crs)
+    vorrangnetz_connected_gdf = gpd.GeoDataFrame(geometry=[merged_lines_geom], crs=vorrangnetz_gdf.crs)
     if os.path.exists(output_path):
         os.remove(output_path)
-    vorrangnetz_verbunden_gdf.to_file(output_path, driver='FlatGeobuf')
+    vorrangnetz_connected_gdf.to_file(output_path, driver='FlatGeobuf')
     print(f"Verbundenes Vorrangnetz gespeichert als {output_path}")
-    return vorrangnetz_verbunden_gdf
+    return vorrangnetz_connected_gdf
 
 
 def segment_lines(gdf, segment_length, output_path):
@@ -199,20 +199,20 @@ def process_and_filter_short_segments(
     Orchestriert die Schritte: Mergen, Segmentieren, Filtern und Exportieren.
     """
     # 1. Vorrangnetz verbinden
-    vorrangnetz_verbunden_gdf = merge_vorrangnetz_lines(vorrangnetz_gdf, './output/_vorrangnetz_verbunden.fgb')
+    vorrangnetz_connected_gdf = merge_vorrangnetz_lines(vorrangnetz_gdf, './output/vorrangnetz_connected.fgb')
     # 2. Segmentieren
     segments_output_path = './output/vorrangnetz_segments.fgb'
     if os.path.exists(segments_output_path):
         print(f"Lade segmentierte Linien aus {segments_output_path}...")
         segments_gdf = gpd.read_file(segments_output_path)
     else:
-        segments_gdf = segment_lines(vorrangnetz_verbunden_gdf, segment_length, segments_output_path)
+        segments_gdf = segment_lines(vorrangnetz_connected_gdf, segment_length, segments_output_path)
     # 3. Kurze OSM-Wege filtern
-    short_osm_gdf = filter_short_osm_ways(osm_gdf, short_way_threshold, "./output/short_osm_wege.fgb")
+    short_osm_gdf = filter_short_osm_ways(osm_gdf, short_way_threshold, "./output/osm_orthogonal_all_ways.fgb")
     # 4. Orthogonale kurze Wege identifizieren
     final_short_ids = filter_orthogonal_short_ways(short_osm_gdf, segments_gdf, angle_diff_threshold, buffer_meters)
     # 5. Exportiere herausgefilterte Wege
-    export_filtered_ways(osm_gdf, final_short_ids, "./output/short_osm_herausgefiltert.fgb")
+    export_filtered_ways(osm_gdf, final_short_ids, "./output/osm_orthogonal_removed.fgb")
     return final_short_ids
 
 def export_filtered_ways(osm_gdf, filtered_ids, output_path):

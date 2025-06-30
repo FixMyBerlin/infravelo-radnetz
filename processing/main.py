@@ -134,8 +134,8 @@ def apply_manual_interventions(args, matched_gdf, osm_gdf):
             manual_gdf.append(removed_gdf)
         manual_gdf = pd.concat(manual_gdf, ignore_index=True)
         manual_gdf = manual_gdf.loc[:,~manual_gdf.columns.duplicated()]
-        manual_gdf.to_file('./output/manual_interventions.fgb', driver='FlatGeobuf')
-        print('Zwischen-Datei mit manuellen Eingriffen gespeichert als ./output/manual_interventions.fgb')
+        manual_gdf.to_file('./output/osm_bikelanes_manual_interventions.fgb', driver='FlatGeobuf')
+        print('Zwischen-Datei mit manuellen Eingriffen gespeichert als ./output/osm_bikelanes_manual_interventions.fgb')
 
     return matched_gdf
 
@@ -179,7 +179,7 @@ def main():
     # Schritt 2: Buffer erzeugen
     unified_buffer, _ = create_unified_buffer(vorrangnetz_gdf, BUFFER_METERS, 'EPSG:25833')
     # Schritt 3: OSM-Wege im Buffer finden
-    matched_gdf_step1 = find_osm_ways_in_buffer(osm_gdf, unified_buffer, './output/bikelanes_in_buffering.fgb')
+    matched_gdf_step1 = find_osm_ways_in_buffer(osm_gdf, unified_buffer, './output/osm_bikelanes_in_buffering.fgb')
     # Schritt 4: Optional Orthogonalfilter anwenden
     matched_gdf, id_col = apply_orthogonal_filter_if_requested(args, vorrangnetz_gdf, osm_gdf, matched_gdf_step1)
     # Schritt 5: Manuelle Eingriffe anwenden
