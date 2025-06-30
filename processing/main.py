@@ -93,6 +93,7 @@ def apply_orthogonal_filter_if_requested(args, vorrangnetz_gdf, osm_gdf, matched
 def apply_manual_interventions(args, matched_gdf, osm_gdf):
     """
     Wendet manuelle Ausschlüsse und Einschlüsse von OSM Wege IDs an, falls gefordert.
+    Erstellt eine Zwischen-Datei mit allen manuell hinzugefügten und entfernten Wegen und einem Attribut 'manual_action'.
     """
     if not args.manual_interventions:
         return matched_gdf
@@ -102,21 +103,39 @@ def apply_manual_interventions(args, matched_gdf, osm_gdf):
 
     # Manuelle Ausschlüsse
     excluded_ids = get_excluded_ways()
+    removed_gdf = None
     if excluded_ids:
+        removed_gdf = matched_gdf[matched_gdf[id_col].isin(excluded_ids)].copy()
+        removed_gdf['manual_action'] = 'removed'
         initial_count = len(matched_gdf)
         matched_gdf = matched_gdf[~matched_gdf[id_col].isin(excluded_ids)]
         print(f"{initial_count - len(matched_gdf)} Wege manuell ausgeschlossen.")
 
     # Manuelle Einschlüsse
     included_ids = get_included_ways()
+    added_gdf = None
     if included_ids:
         ways_to_add = osm_gdf[osm_gdf[id_col].isin(included_ids)]
         # Verhindere Duplikate
         ways_to_add = ways_to_add[~ways_to_add[id_col].isin(matched_gdf[id_col])]
-        
         if not ways_to_add.empty:
+            ways_to_add = ways_to_add.copy()
+            ways_to_add['manual_action'] = 'added'
+            added_gdf = ways_to_add
             matched_gdf = pd.concat([matched_gdf, ways_to_add], ignore_index=True)
             print(f"{len(ways_to_add)} Wege manuell hinzugefügt.")
+
+    # Schreibe Zwischen-Datei mit nur den manuell hinzugefügten und entfernten Wegen
+    if added_gdf is not None or removed_gdf is not None:
+        manual_gdf = []
+        if added_gdf is not None:
+            manual_gdf.append(added_gdf)
+        if removed_gdf is not None:
+            manual_gdf.append(removed_gdf)
+        manual_gdf = pd.concat(manual_gdf, ignore_index=True)
+        manual_gdf = manual_gdf.loc[:,~manual_gdf.columns.duplicated()]
+        manual_gdf.to_file('./output/manual_interventions.fgb', driver='FlatGeobuf')
+        print('Zwischen-Datei mit manuellen Eingriffen gespeichert als ./output/manual_interventions.fgb')
 
     return matched_gdf
 

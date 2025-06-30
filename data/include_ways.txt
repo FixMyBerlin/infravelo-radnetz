@@ -1,3 +1,10 @@
 # Hier OSM-Way-IDs eintragen, die zusätzlich zum Matching hinzugefügt werden sollen. Eine ID pro Zeile.
-# Beispiel:
-# 87654321
+981320816
+894814138
+1192422300
+1192422294
+1192422295
+1192422291
+1192422292
+985571367
+1192422293
