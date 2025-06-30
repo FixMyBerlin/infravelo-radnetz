@@ -1,5 +1,5 @@
 import geopandas as gpd
-from shapely.geometry import Point, LineString
+from shapely.geometry import LineString, MultiLineString
 from shapely.ops import linemerge
 import os
 import numpy as np
@@ -58,11 +58,28 @@ def filter_short_osm_ways(osm_gdf, short_way_threshold, output_path):
 
 def calculate_line_angle(line):
     """
-    Berechnet den Winkel einer Linie in Grad.
+    Berechnet den mittleren Winkel einer Linie in Grad. Funktioniert für LineString und MultiLineString.
+    Für MultiLineString wird der Mittelwert der Winkel aller Teilstücke berechnet.
     """
     if line.is_empty or line.length == 0:
         return 0
+    angles = []
+    # Falls MultiLineString: alle Teilstücke berücksichtigen
+    if isinstance(line, MultiLineString):
+        for part in line.geoms:
+            coords = list(part.coords)
+            if len(coords) < 2:
+                continue
+            start_point, end_point = coords[0], coords[-1]
+            angle = np.arctan2(end_point[1] - start_point[1], end_point[0] - start_point[0]) * 180 / np.pi
+            angles.append(angle)
+        if not angles:
+            return 0
+        return float(np.mean(angles))
+    # LineString
     coords = list(line.coords)
+    if len(coords) < 2:
+        return 0
     start_point, end_point = coords[0], coords[-1]
     return np.arctan2(end_point[1] - start_point[1], end_point[0] - start_point[0]) * 180 / np.pi
 

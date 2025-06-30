@@ -34,7 +34,7 @@ def create_unified_buffer(vorrangnetz_gdf, buffer_meters, target_crs):
     print(f'Erzeuge Buffer von {buffer_meters}m um Vorrangnetz-Kanten...')
     vorrangnetz_buffer = vorrangnetz_gdf.buffer(buffer_meters)
     print('Vereine alle Buffer zu einer einzigen Geometrie...')
-    unified_buffer = vorrangnetz_buffer.unary_union
+    unified_buffer = vorrangnetz_buffer.union_all()
     unified_buffer_gdf = gpd.GeoDataFrame(geometry=[unified_buffer], crs=target_crs)
     return unified_buffer, unified_buffer_gdf
 
