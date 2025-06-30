@@ -4,6 +4,9 @@ from shapely.ops import linemerge
 import os
 import numpy as np
 
+COMPLEX_CASES_TRESHOL_DEGREE=60
+COMPLEX_DIFFERENCE_ANGLE_BETWEEN_OSM_IV=20
+
 
 def merge_vorrangnetz_lines(vorrangnetz_gdf, output_path):
     """
@@ -84,6 +87,46 @@ def calculate_line_angle(line):
     return np.arctan2(end_point[1] - start_point[1], end_point[0] - start_point[0]) * 180 / np.pi
 
 
+def check_complex_cases(osm_geom, intersecting_segments, angle_osm):
+    """
+    Überprüft komplexe Fälle, bei denen Segmente im Buffer stark unterschiedliche Winkel haben.
+    Ein Weg wird nicht entfernt, wenn er zu mindestens einem Segment fast parallel ist.
+    """
+
+    segment_angles = [calculate_line_angle(seg) for seg in intersecting_segments.geometry]
+    
+    # Normalisiere Winkelunterschiede für den Vergleich
+    angle_diffs = []
+    for seg_angle in segment_angles:
+        diff = abs(angle_osm - seg_angle)
+        if diff > 180:
+            diff = 360 - diff
+        if diff > 90:
+            diff = 180 - diff
+        angle_diffs.append(diff)
+
+    # Prüfe, ob die maximale Abweichung der Segmente untereinander groß ist
+    if not angle_diffs:
+        return True # Sollte nicht passieren, aber zur Sicherheit
+
+    max_segment_angle_diff = 0
+    if len(segment_angles) > 1:
+        # Berechne die maximale Winkeldifferenz zwischen den Segmenten
+        # Dies ist eine Annäherung, die die Varianz der Winkel prüft
+        min_angle, max_angle = min(segment_angles), max(segment_angles)
+        diff = abs(min_angle - max_angle)
+        if diff > 180:
+            diff = 360 - diff
+        max_segment_angle_diff = diff
+
+    if max_segment_angle_diff > COMPLEX_CASES_TRESHOL_DEGREE:
+        # Wenn es eine große Varianz gibt, prüfe, ob ein Segment fast parallel ist
+        if any(diff < COMPLEX_DIFFERENCE_ANGLE_BETWEEN_OSM_IV for diff in angle_diffs):
+            return False  # Nicht entfernen, da ein Segment fast parallel ist
+    
+    return True # Im Normalfall oder wenn kein Segment parallel ist, weiter prüfen
+
+
 def filter_orthogonal_short_ways(short_osm_gdf, segments_gdf, angle_diff_threshold, buffer_meters):
     """
     Identifiziert kurze OSM-Wege, die orthogonal zum Vorrangnetz verlaufen.
@@ -106,6 +149,14 @@ def filter_orthogonal_short_ways(short_osm_gdf, segments_gdf, angle_diff_thresho
             intersecting_segments = possible_matches[possible_matches.intersects(buffer_geom)]
             if intersecting_segments.empty:
                 continue
+
+            # Winkel der OSM-Linie berechnen
+            angle_osm = calculate_line_angle(osm_geom)
+
+            # Neue Überprüfung für komplexe Fälle
+            if not check_complex_cases(osm_geom, intersecting_segments, angle_osm):
+                continue
+
             # Schritt 3: Vereine die gefundenen Segmente zu einer Linie
             unioned_geom = intersecting_segments.geometry.unary_union
             merged_line = None
@@ -120,7 +171,6 @@ def filter_orthogonal_short_ways(short_osm_gdf, segments_gdf, angle_diff_thresho
             if not merged_line or merged_line.is_empty or merged_line.geom_type != 'LineString':
                 continue
             # Schritt 4: Berechne die Winkel der OSM-Linie und des Vorrangnetz-Segments
-            angle_osm = calculate_line_angle(osm_geom)
             angle_segment_network = calculate_line_angle(merged_line)
             angle_diff = abs(angle_osm - angle_segment_network)
             # Schritt 5: Normalisiere den Winkelunterschied auf den Bereich [0, 90]
@@ -140,10 +190,10 @@ def filter_orthogonal_short_ways(short_osm_gdf, segments_gdf, angle_diff_thresho
 def process_and_filter_short_segments(
     vorrangnetz_gdf,
     osm_gdf,
-    short_way_threshold=35,
-    segment_length=5,
-    angle_diff_threshold=60,
-    buffer_meters=30
+    short_way_threshold=50, # in Metern
+    segment_length=5, # Länge eines Segments in Meter
+    angle_diff_threshold=50, # in Grad
+    buffer_meters=25 # In Metern
 ):
     """
     Orchestriert die Schritte: Mergen, Segmentieren, Filtern und Exportieren.

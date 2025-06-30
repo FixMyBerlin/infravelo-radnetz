@@ -100,11 +100,7 @@ def write_outputs(matched_gdf, id_col, unified_buffer, target_crs):
     fgb_file = './output/matched_osm_ways.fgb'
     matched_gdf.to_file(fgb_file, driver='FlatGeobuf')
     print(f'FlatGeobuf gespeichert in {fgb_file}')
-    # Schreibe weiterhin die Textliste
-    with open('./output/matched_osm_way_ids.txt', 'w') as f:
-        for way_id in sorted(matched_gdf[id_col].unique()):
-            f.write(f'{way_id}\n')
-    print(f'Ergebnis gespeichert in ./output/matched_osm_way_ids.txt')
+
     # Speichere das gebufferte Vorrangnetz zur Kontrolle
     buffered_gdf = gpd.GeoDataFrame(geometry=[unified_buffer], crs=target_crs)
     buffered_gdf.to_file('./output/vorrangnetz_buffered.fgb', driver='FlatGeobuf')
