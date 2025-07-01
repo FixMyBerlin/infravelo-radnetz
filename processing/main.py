@@ -169,6 +169,7 @@ def parse_arguments():
     parser.add_argument('--manual-interventions', action='store_true', help='Enable manual interventions from data/exclude_ways.txt and data/include_ways.txt')
     parser.add_argument('--skip-bikelanes', action='store_true', help='Skip processing of bikelanes dataset')
     parser.add_argument('--skip-streets', action='store_true', help='Skip processing of streets dataset')
+    parser.add_argument('--difference-streets-bikelanes', action='store_true', help='Berechne Differenz: nur Straßen ohne Radwege (output: output/streets_without_bikelanes.fgb)')
     return parser.parse_args()
 
 
@@ -222,6 +223,17 @@ def main():
     else:
         print("--- Überspringe Verarbeitung für streets ---")
 
-
-if __name__ == '__main__':
-    main()
+    # Differenz Straßen - Radwege berechnen
+    if args.difference_streets_bikelanes:
+        print("Berechne Differenz: nur Straßen ohne Radwege ...")
+        from processing.difference import difference_geodataframes
+        import geopandas as gpd
+        streets_gdf = gpd.read_file(STREETS_FGB)
+        bikelanes_gdf = gpd.read_file(BIKELANES_FGB)
+        # CRS angleichen
+        if streets_gdf.crs != bikelanes_gdf.crs:
+            bikelanes_gdf = bikelanes_gdf.to_crs(streets_gdf.crs)
+        diff_gdf = difference_geodataframes(streets_gdf, bikelanes_gdf)
+        output_path = './output/streets_without_bikelanes.fgb'
+        diff_gdf.to_file(output_path, driver='FlatGeobuf')
+        print(f'Differenz gespeichert als {output_path} ({len(diff_gdf)} Features)')
