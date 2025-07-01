@@ -48,15 +48,15 @@ def segment_lines(gdf, segment_length, output_path):
     return segments_gdf
 
 
-def filter_short_osm_ways(osm_gdf, short_way_threshold, output_path):
+def filter_short_ways(ways_gdf, short_way_threshold, output_path):
     """
     Filtert OSM-Wege, die kürzer als der Schwellenwert sind, und speichert sie.
     """
     print(f"Wähle OSM-Wege kürzer als {short_way_threshold}m aus...")
-    short_osm_gdf = osm_gdf[osm_gdf.geometry.length < short_way_threshold].copy()
-    short_osm_gdf = short_osm_gdf.loc[:, ~short_osm_gdf.columns.duplicated()]
-    short_osm_gdf.to_file(output_path, driver="FlatGeobuf")
-    return short_osm_gdf
+    short_ways_gdf = ways_gdf[ways_gdf.geometry.length < short_way_threshold].copy()
+    short_ways_gdf = short_ways_gdf.loc[:, ~short_ways_gdf.columns.duplicated()]
+    short_ways_gdf.to_file(output_path, driver="FlatGeobuf")
+    return short_ways_gdf
 
 
 def calculate_line_angle(line):
@@ -127,17 +127,17 @@ def check_complex_cases(osm_geom, intersecting_segments, angle_osm):
     return True # Im Normalfall oder wenn kein Segment parallel ist, weiter prüfen
 
 
-def filter_orthogonal_short_ways(short_osm_gdf, segments_gdf, angle_diff_threshold, buffer_meters):
+def filter_orthogonal_short_ways(short_ways_gdf, segments_gdf, angle_diff_threshold, buffer_meters):
     """
     Identifiziert kurze OSM-Wege, die orthogonal zum Vorrangnetz verlaufen.
     Gibt die IDs der zu entfernenden Wege zurück.
     """
-    print(f"Wende Orthogonalitätsfilter auf {len(short_osm_gdf)} kurze Wege an...")
+    print(f"Wende Orthogonalitätsfilter auf {len(short_ways_gdf)} kurze Wege an...")
     final_short_ids = set()
-    if not short_osm_gdf.empty and not segments_gdf.empty:
+    if not short_ways_gdf.empty and not segments_gdf.empty:
         # Erzeuge einen räumlichen Index für die Segmente des Vorrangnetzes
         segments_sindex = segments_gdf.sindex
-        for _, row in short_osm_gdf.iterrows():
+        for _, row in short_ways_gdf.iterrows():
             osm_geom = row.geometry
             if osm_geom.is_empty or osm_geom.length == 0:
                 continue
@@ -190,10 +190,11 @@ def filter_orthogonal_short_ways(short_osm_gdf, segments_gdf, angle_diff_thresho
 def process_and_filter_short_segments(
     vorrangnetz_gdf,
     osm_gdf,
-    short_way_threshold=50, # in Metern
+    output_prefix, # z.B. 'bikelanes' oder 'streets'
+    short_way_threshold=50, # Länge in Metern
     segment_length=5, # Länge eines Segments in Meter
     angle_diff_threshold=50, # in Grad
-    buffer_meters=25 # In Metern
+    buffer_meters=25 # Buffer in Metern
 ):
     """
     Orchestriert die Schritte: Mergen, Segmentieren, Filtern und Exportieren.
@@ -208,11 +209,13 @@ def process_and_filter_short_segments(
     else:
         segments_gdf = segment_lines(vorrangnetz_connected_gdf, segment_length, segments_output_path)
     # 3. Kurze OSM-Wege filtern
-    short_osm_gdf = filter_short_osm_ways(osm_gdf, short_way_threshold, "./output/osm_orthogonal_all_ways.fgb")
+    short_osm_output_path = f"./output/osm_{output_prefix}_orthogonal_all_ways.fgb"
+    short_osm_gdf = filter_short_ways(osm_gdf, short_way_threshold, short_osm_output_path)
     # 4. Orthogonale kurze Wege identifizieren
     final_short_ids = filter_orthogonal_short_ways(short_osm_gdf, segments_gdf, angle_diff_threshold, buffer_meters)
     # 5. Exportiere herausgefilterte Wege
-    export_filtered_ways(osm_gdf, final_short_ids, "./output/osm_orthogonal_removed.fgb")
+    removed_output_path = f"./output/osm_{output_prefix}_orthogonal_removed.fgb"
+    export_filtered_ways(osm_gdf, final_short_ids, removed_output_path)
     return final_short_ids
 
 def export_filtered_ways(osm_gdf, filtered_ids, output_path):

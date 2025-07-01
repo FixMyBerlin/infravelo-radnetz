@@ -2,31 +2,27 @@ import geopandas as gpd
 import pandas as pd
 import argparse
 import os
-from orthogonal_filter import  process_and_filter_short_segments
+from orthogonal_filter import process_and_filter_short_segments
 from manual_interventions import get_excluded_ways, get_included_ways
 
 # Konfiguration
-OSM_FGB = './data/bikelanes.fgb'  # Pfad zu OSM-Radwege
+BIKELANES_FGB = './data/bikelanes.fgb'  # Pfad zu OSM-Radwegen
+STREETS_FGB = './data/TILDA Straßen Berlin.fgb'  # Pfad zu OSM-Straßen
 VORRANGNETZ_FGB = './data/Berlin Radvorrangsnetz.fgb'  # Pfad zum Vorrangnetz
-BUFFER_METERS = 30  # Buffer-Radius in Metern
-OUTPUT_FILE = './output/matched_osm_way_ids.txt'
+BIKELANES_BUFFER_METERS = 30  # Buffer-Radius in Metern für Radwege
+STREETS_BUFFER_METERS = 15    # Buffer-Radius in Metern für Straßen
+TARGET_CRS = 'EPSG:25833'
 
-def load_geodataframes(osm_path, vorrangnetz_path, target_crs):
+def load_geodataframe(path, name, target_crs):
     """
-    Lädt OSM- und Vorrangnetz-Geodaten und transformiert sie ins Ziel-CRS.
+    Lädt ein Geodaten-Set, transformiert es ins Ziel-CRS und gibt es zurück.
     """
-    print('Lade OSM-Radwege...')
-    osm_gdf = gpd.read_file(osm_path)
-    print(f'OSM-Radwege geladen: {len(osm_gdf)} Features')
-    print('Lade Vorrangnetz...')
-    vorrangnetz_gdf = gpd.read_file(vorrangnetz_path)
-    print(f'Vorrangnetz geladen: {len(vorrangnetz_gdf)} Features')
-    # Transformiere CRS falls nötig
-    if osm_gdf.crs != target_crs:
-        osm_gdf = osm_gdf.to_crs(target_crs)
-    if vorrangnetz_gdf.crs != target_crs:
-        vorrangnetz_gdf = vorrangnetz_gdf.to_crs(target_crs)
-    return osm_gdf, vorrangnetz_gdf
+    print(f'Lade {name}...')
+    gdf = gpd.read_file(path)
+    print(f'{name} geladen: {len(gdf)} Features')
+    if gdf.crs != target_crs:
+        gdf = gdf.to_crs(target_crs)
+    return gdf
 
 
 def create_unified_buffer(vorrangnetz_gdf, buffer_meters, target_crs):
@@ -38,6 +34,10 @@ def create_unified_buffer(vorrangnetz_gdf, buffer_meters, target_crs):
     print('Vereine alle Buffer zu einer einzigen Geometrie...')
     unified_buffer = vorrangnetz_buffer.union_all()
     unified_buffer_gdf = gpd.GeoDataFrame(geometry=[unified_buffer], crs=target_crs)
+    # Speichere das gebufferte Vorrangnetz zur Kontrolle
+    buffered_gdf = gpd.GeoDataFrame(geometry=[unified_buffer], crs=target_crs)
+    buffered_gdf.to_file('./output/vorrangnetz_buffered.fgb', driver='FlatGeobuf')
+    print('Gebuffertes Vorrangnetz gespeichert als ./output/vorrangnetz_buffered.fgb')
     return unified_buffer, unified_buffer_gdf
 
 
@@ -64,18 +64,22 @@ def find_osm_ways_in_buffer(osm_gdf, unified_buffer, cache_path, fraction_thresh
     return matched_gdf
 
 
-def apply_orthogonal_filter_if_requested(args, vorrangnetz_gdf, osm_gdf, matched_gdf_step1):
+def apply_orthogonal_filter_if_requested(args, vorrangnetz_gdf, osm_gdf, matched_gdf_step1, output_prefix):
     """
     Wendet optional den Orthogonalitätsfilter an und gibt das finale GeoDataFrame zurück.
     """
-    if args.orthogonalfilter:
-        print("Wende Orthogonalitäts-Filter für kurze Segmente an...")
+    use_orthogonal_filter = (output_prefix == 'bikelanes' and args.orthogonalfilter_bikelanes) or \
+                            (output_prefix == 'streets' and args.orthogonalfilter_streets)
+
+    if use_orthogonal_filter:
+        print(f"Wende Orthogonalitäts-Filter für kurze Segmente für {output_prefix} an...")
         id_col_step1 = 'osm_id' if 'osm_id' in matched_gdf_step1.columns else 'id'
         step1_ids = set(matched_gdf_step1[id_col_step1])
         # Zusätzliche kurze Wege durch Orthogonalitäts-Check finden
         short_way_ids = process_and_filter_short_segments(
             vorrangnetz_gdf=vorrangnetz_gdf,
-            osm_gdf=osm_gdf
+            osm_gdf=osm_gdf,
+            output_prefix=output_prefix
         )
         # Entferne die IDs der kurzen, orthogonalen Wege aus den bisher gematchten Wegen
         final_way_ids = step1_ids.difference(short_way_ids)
@@ -84,13 +88,13 @@ def apply_orthogonal_filter_if_requested(args, vorrangnetz_gdf, osm_gdf, matched
         id_col = id_col_osm
         print(f"Gesamtzahl der gematchten Wege nach Herausfiltern: {len(matched_gdf)}")
     else:
-        print("Orthogonalitäts-Filter übersprungen.")
+        print(f"Orthogonalitäts-Filter für {output_prefix} übersprungen.")
         id_col = 'osm_id' if 'osm_id' in matched_gdf_step1.columns else 'id'
         matched_gdf = matched_gdf_step1
     return matched_gdf, id_col
 
 
-def apply_manual_interventions(args, matched_gdf, osm_gdf):
+def apply_manual_interventions(args, matched_gdf, osm_gdf, output_prefix):
     """
     Wendet manuelle Ausschlüsse und Einschlüsse von OSM Wege IDs an, falls gefordert.
     Erstellt eine Zwischen-Datei mit allen manuell hinzugefügten und entfernten Wegen und einem Attribut 'manual_action'.
@@ -134,29 +138,25 @@ def apply_manual_interventions(args, matched_gdf, osm_gdf):
             manual_gdf.append(removed_gdf)
         manual_gdf = pd.concat(manual_gdf, ignore_index=True)
         manual_gdf = manual_gdf.loc[:,~manual_gdf.columns.duplicated()]
-        manual_gdf.to_file('./output/osm_bikelanes_manual_interventions.fgb', driver='FlatGeobuf')
-        print('Zwischen-Datei mit manuellen Eingriffen gespeichert als ./output/osm_bikelanes_manual_interventions.fgb')
+        output_path = f'./output/osm_{output_prefix}_manual_interventions.fgb'
+        manual_gdf.to_file(output_path, driver='FlatGeobuf')
+        print(f'Zwischen-Datei mit manuellen Eingriffen gespeichert als {output_path}')
 
     return matched_gdf
 
 
-def write_outputs(matched_gdf, id_col, unified_buffer, target_crs):
+def write_outputs(matched_gdf, output_prefix):
     """
-    Schreibt die Ergebnisse als FlatGeobuf und als Textliste. Speichert auch das gebufferte Vorrangnetz.
+    Schreibt die Ergebnisse als FlatGeobuf.
     """
     # Entferne doppelte Spaltennamen, die durch sjoin entstehen können
     if 'index_right' in matched_gdf.columns:
         matched_gdf = matched_gdf.drop(columns=['index_right'])
     matched_gdf = matched_gdf.loc[:,~matched_gdf.columns.duplicated()]
     # Schreibe FlatGeobuf
-    fgb_file = './output/matched_osm_ways.fgb'
+    fgb_file = f'./output/matched_osm_{output_prefix}_ways.fgb'
     matched_gdf.to_file(fgb_file, driver='FlatGeobuf')
     print(f'FlatGeobuf gespeichert in {fgb_file}')
-
-    # Speichere das gebufferte Vorrangnetz zur Kontrolle
-    buffered_gdf = gpd.GeoDataFrame(geometry=[unified_buffer], crs=target_crs)
-    buffered_gdf.to_file('./output/vorrangnetz_buffered.fgb', driver='FlatGeobuf')
-    print('Gebuffertes Vorrangnetz gespeichert als ./output/vorrangnetz_buffered.fgb')
 
 
 def parse_arguments():
@@ -164,9 +164,40 @@ def parse_arguments():
     Parst die Kommandozeilenargumente.
     """
     parser = argparse.ArgumentParser(description="Match OSM ways to Vorrangnetz with optional filters.")
-    parser.add_argument('--orthogonalfilter', action='store_true', help='Enable orthogonality filtering (second step)')
+    parser.add_argument('--orthogonalfilter-bikelanes', action='store_true', help='Enable orthogonality filtering for bikelanes')
+    parser.add_argument('--orthogonalfilter-streets', action='store_true', help='Enable orthogonality filtering for streets')
     parser.add_argument('--manual-interventions', action='store_true', help='Enable manual interventions from data/exclude_ways.txt and data/include_ways.txt')
+    parser.add_argument('--skip-bikelanes', action='store_true', help='Skip processing of bikelanes dataset')
+    parser.add_argument('--skip-streets', action='store_true', help='Skip processing of streets dataset')
     return parser.parse_args()
+
+
+def process_data_source(osm_fgb_path, output_prefix, vorrangnetz_gdf, unified_buffer, args):
+    """
+    Führt den kompletten Verarbeitungsprozess für eine Datenquelle durch.
+    """
+    print(f"\n--- Starte Verarbeitung für: {output_prefix} ---")
+    # Schritt 1: OSM-Daten laden
+    osm_gdf = load_geodataframe(osm_fgb_path, f"OSM {output_prefix}", TARGET_CRS)
+    # Schritt 2: OSM-Wege im Buffer finden
+    cache_path = f'./output/osm_{output_prefix}_in_buffering.fgb'
+    matched_gdf_step1 = find_osm_ways_in_buffer(osm_gdf, unified_buffer, cache_path)
+    # Schritt 3: Optional Orthogonalfilter anwenden
+    use_orthogonal_filter = (output_prefix == 'bikelanes' and args.orthogonalfilter_bikelanes) or \
+                            (output_prefix == 'streets' and args.orthogonalfilter_streets)
+
+    if use_orthogonal_filter:
+        matched_gdf, _ = apply_orthogonal_filter_if_requested(args, vorrangnetz_gdf, osm_gdf, matched_gdf_step1, output_prefix)
+    else:
+        print(f"Orthogonalitäts-Filter für {output_prefix} übersprungen.")
+        id_col = 'osm_id' if 'osm_id' in matched_gdf_step1.columns else 'id'
+        matched_gdf = matched_gdf_step1
+
+    # Schritt 4: Manuelle Eingriffe anwenden
+    matched_gdf = apply_manual_interventions(args, matched_gdf, osm_gdf, output_prefix)
+    # Schritt 5: Ergebnisse schreiben
+    write_outputs(matched_gdf, output_prefix)
+    print(f"--- Verarbeitung für {output_prefix} abgeschlossen ---")
 
 
 def main():
@@ -174,18 +205,22 @@ def main():
     Orchestriert den gesamten Matching- und Filterprozess.
     """
     args = parse_arguments()
-    # Schritt 1: Daten laden und CRS prüfen
-    osm_gdf, vorrangnetz_gdf = load_geodataframes(OSM_FGB, VORRANGNETZ_FGB, 'EPSG:25833')
-    # Schritt 2: Buffer erzeugen
-    unified_buffer, _ = create_unified_buffer(vorrangnetz_gdf, BUFFER_METERS, 'EPSG:25833')
-    # Schritt 3: OSM-Wege im Buffer finden
-    matched_gdf_step1 = find_osm_ways_in_buffer(osm_gdf, unified_buffer, './output/osm_bikelanes_in_buffering.fgb')
-    # Schritt 4: Optional Orthogonalfilter anwenden
-    matched_gdf, id_col = apply_orthogonal_filter_if_requested(args, vorrangnetz_gdf, osm_gdf, matched_gdf_step1)
-    # Schritt 5: Manuelle Eingriffe anwenden
-    matched_gdf = apply_manual_interventions(args, matched_gdf, osm_gdf)
-    # Schritt 6: Ergebnisse schreiben
-    write_outputs(matched_gdf, id_col, unified_buffer, 'EPSG:25833')
+    # Vorrangnetz und Buffer einmalig laden/erstellen
+    vorrangnetz_gdf = load_geodataframe(VORRANGNETZ_FGB, "Vorrangnetz", TARGET_CRS)
+
+    # Verarbeitung für Fahrradwege
+    if not args.skip_bikelanes:
+        bikelanes_buffer, _ = create_unified_buffer(vorrangnetz_gdf, BIKELANES_BUFFER_METERS, TARGET_CRS)
+        process_data_source(BIKELANES_FGB, 'bikelanes', vorrangnetz_gdf, bikelanes_buffer, args)
+    else:
+        print("--- Überspringe Verarbeitung für bikelanes ---")
+
+    # Verarbeitung für Straßen
+    if not args.skip_streets:
+        streets_buffer, _ = create_unified_buffer(vorrangnetz_gdf, STREETS_BUFFER_METERS, TARGET_CRS)
+        process_data_source(STREETS_FGB, 'streets', vorrangnetz_gdf, streets_buffer, args)
+    else:
+        print("--- Überspringe Verarbeitung für streets ---")
 
 
 if __name__ == '__main__':
