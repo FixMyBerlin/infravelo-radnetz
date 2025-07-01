@@ -44,3 +44,11 @@ Useful, when developing on another processing step.
 
 **`--skip-bikelanes`** skips the processing of bikelanes dataset completely.
 **`--skip-streets`** skips the processing of streets dataset completely.
+
+## Prepare data for `/inspector`
+
+The main process will create pmtiles in `/inspector/src/data`. You can run this on existing data with…
+
+```
+./.venv/bin/python processing/export_pmtiles.py
+```
