@@ -1,18 +1,6 @@
 ---
-applyTo: '**'
+applyTo: './inspector/**'
 ---
-
-Copilot Docs: https://code.visualstudio.com/docs/copilot/copilot-customization#_custom-instructions-examples
-
-# Processing
-
-Uses Python, geopandas and other libraries for processing geodata and openstreetmap data.
-Located in `./processing`.
-
-# Inspector
-
-Uses npm packages.
-Located in `./inspector`.
 
 ## Code Style
 
