@@ -22,16 +22,21 @@ After creating the environment, run:
 ```sh
 # Assumed, you are in the root repo folder
 
-# Install packages in venv environment
-# python3 -m venv .venv # If needed…
+# Create a venv environment, if not existing:
+python3 -m venv .venv
+
+# Activate the venv environment, when opening a new shell:
 source .venv/bin/activate
+
+# Install packages in venv environment
 pip install -r processing/requirements.txt
 
-# Orthogonalfilter is optional
-./.venv/bin/python processing/main.py --orthogonalfilter
+# Add desired flags for extra processing steps.
+# For overview of the flags, see ./processing/README.md
+./.venv/bin/python processing/main.py
 ```
 
-The output is saved under `output/`.
+The output is saved in `output/`.
 
 The processing uses two data sources as inputs: [Radvorrangsnetz](https://tilda-geo.de/regionen/berlin?map=9.9/52.518/13.372&config=1swjsz2.5ount0.4qfsxw.2t61&data=radverkehrsnetz--v&v=2), TILDA data and Detailnetz  is working in two steps:
 

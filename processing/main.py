@@ -169,7 +169,7 @@ def parse_arguments():
     parser.add_argument('--manual-interventions', action='store_true', help='Enable manual interventions from data/exclude_ways.txt and data/include_ways.txt')
     parser.add_argument('--skip-bikelanes', action='store_true', help='Skip processing of bikelanes dataset')
     parser.add_argument('--skip-streets', action='store_true', help='Skip processing of streets dataset')
-    parser.add_argument('--difference-streets-bikelanes', action='store_true', help='Berechne Differenz: nur Straßen ohne Radwege (output: output/streets_without_bikelanes.fgb)')
+    parser.add_argument('--difference-streets-bikelanes', action='store_true', help='Berechne Differenz: nur Straßen ohne Radwege')
     return parser.parse_args()
 
 
