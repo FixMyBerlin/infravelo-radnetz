@@ -17,6 +17,7 @@ import { BackgroundLayer } from './components/BackgroundLayer'
 import { Inspector } from './components/Inspector'
 import { UnknownLayersSection } from './components/UnknownLayersSection'
 import { useMapParam } from './components/useMapParam/useMapParam'
+import { StaticLayers } from './components/StaticLayers'
 
 const TILE_URLS = {
   Production: 'https://tiles.tilda-geo.de',
@@ -330,6 +331,8 @@ const App = () => {
             <NavigationControl position="bottom-right" />
 
             <BackgroundLayer />
+
+            <StaticLayers />
 
             {layers.map((layer) => (
               <Source
