@@ -12,6 +12,15 @@ const backgroundMaps = [
     attributionHtml: '',
   },
   {
+    id: 'areal2025',
+    name: 'Berlin: Luftbilder 2025',
+    tiles: 'https://tiles.codefor.de/berlin/geoportal/luftbilder/2025-dop20rgb/{z}/{x}/{y}.png',
+    tileSize: 256,
+    maxzoom: 21,
+    minzoom: 10,
+    attributionHtml: '',
+  },
+  {
     id: 'areal2024',
     name: 'Berlin: Luftbilder 2024',
     tiles: 'https://tiles.codefor.de/berlin-2024-dop20rgbi/{z}/{x}/{y}.png',
