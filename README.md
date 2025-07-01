@@ -23,6 +23,7 @@ After creating the environment, run:
 # Assumed, you are in the root repo folder
 
 # Install packages in venv environment
+# python3 -m venv .venv # If needed…
 source .venv/bin/activate
 pip install -r processing/requirements.txt
 
