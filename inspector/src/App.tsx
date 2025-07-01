@@ -15,7 +15,6 @@ import Map, {
 import { AddMapImage } from './components/AddMapImage'
 import { BackgroundLayer } from './components/BackgroundLayer'
 import { Inspector } from './components/Inspector'
-import { UnknownLayersSection } from './components/UnknownLayersSection'
 import { useMapParam } from './components/useMapParam/useMapParam'
 import { StaticLayers } from './components/StaticLayers'
 
@@ -62,6 +61,12 @@ const typeStyles = [
 
 const arrowImageId = 'arrow-image'
 
+const FIXED_LAYERS = [
+  { key: 'bikelanes', color: '#1E90FF' },
+  { key: 'roads', color: '#32CD32' },
+  { key: 'roadsPathClasses', color: '#FF8C00' },
+] as const
+
 const App = () => {
   const sources = ['Production', 'Staging', 'Development'] as const
   const [source, setSource] = useQueryState(
@@ -77,12 +82,7 @@ const App = () => {
   const [sourceLayerMap, setSourceLayerMap] = useState<Record<string, string>>({})
   const [mapLoaded, setMapLoaded] = useState(false)
   const [searchTerm, setSearchTerm] = useQueryState('search', parseAsString.withDefault(''))
-
   const [showLayerPanel, setShowLayerPanel] = useState(true)
-
-  const filteredLayers = layers
-    .filter((layer) => layer.toLowerCase().includes(searchTerm.toLowerCase()))
-    .sort((a, b) => a.localeCompare(b))
 
   useEffect(() => {
     const fetchLayers = async () => {
@@ -94,9 +94,16 @@ const App = () => {
         console.error('Error fetching layers:', error)
       }
     }
-
     fetchLayers()
   }, [source])
+
+  // Only use the fixed layers
+  const fixedLayers = FIXED_LAYERS.map(l => l.key)
+
+  // Filtered layers based on search
+  const filteredLayers = fixedLayers
+    .filter((layer) => layer.toLowerCase().includes(searchTerm.toLowerCase()))
+    .sort((a, b) => a.localeCompare(b))
 
   const toggleLayer = (layer: string) => {
     setActiveLayers((prev) =>
@@ -121,7 +128,14 @@ const App = () => {
     }
   }
 
-  const [sourceColor, setSourceColors] = useState<Record<string, string>>({})
+  // Set initial color for each fixed layer
+  const [sourceColor, setSourceColors] = useState<Record<string, string>>(() => {
+    const initial: Record<string, string> = {}
+    for (const { key, color } of FIXED_LAYERS) {
+      initial[key] = color
+    }
+    return initial
+  })
   const handleColorChange = (layer: string, color: string) => {
     setSourceColors((prev) => ({
       ...prev,
@@ -295,12 +309,6 @@ const App = () => {
                 ))}
               </ul>
             </section>
-
-            <UnknownLayersSection
-              activeLayers={activeLayers}
-              layers={layers}
-              setActiveLayers={setActiveLayers}
-            />
           </nav>
         )}
 
