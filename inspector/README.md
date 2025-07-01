@@ -1,6 +1,4 @@
-# TILDA Tiles Inspector
+# InfraVelo Radvorrangnetz Quickviewer
 
-Tiles preview for [TILDA](https://www.tilda-geo.de) ([`tilda-geo`](https://github.com/FixMyBerlin/tilda-geo))
-
-- Live at https://viewer.tilda-geo.de/
-- Deployment https://app.netlify.com/sites/tiles-inspector/deploys
+- Live at TODO
+- Deployment TODO
