@@ -1,5 +1,5 @@
 ---
-applyTo: './inspector/**'
+applyTo: '**/*.ts,**/*.tsx'
 ---
 
 ## Code Style

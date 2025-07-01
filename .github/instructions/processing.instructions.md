@@ -1,5 +1,5 @@
 ---
-applyTo: './processing/**'
+applyTo: '*/**.py'
 ---
 
 Uses Python, geopandas and other libraries for processing geodata and openstreetmap data.
