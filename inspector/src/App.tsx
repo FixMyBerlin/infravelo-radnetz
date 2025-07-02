@@ -16,7 +16,6 @@ import Map, {
 } from 'react-map-gl/maplibre'
 import { AddMapImage } from './components/AddMapImage'
 import { BackgroundLayer } from './components/BackgroundLayer'
-import { DataLayer } from './components/DataLayer'
 import { Inspector } from './components/Inspector'
 import { StaticLayers } from './components/StaticLayers'
 import { useMapParam } from './components/useMapParam/useMapParam'
@@ -352,7 +351,6 @@ const App = () => {
 
             <BackgroundLayer />
 
-            <DataLayer />
             <StaticLayers />
 
             {layers.map((layer) => (

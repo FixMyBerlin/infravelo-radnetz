@@ -6,7 +6,7 @@ import subprocess
 from orthogonal_filter import process_and_filter_short_segments
 from manual_interventions import get_excluded_ways, get_included_ways
 from difference import get_or_create_difference_fgb
-from processing.export_pmtiles import export_all_pmtiles
+from processing.export_geojson import export_all_geojson
 
 # Konfiguration
 BIKELANES_FGB = './data/bikelanes.fgb'  # Pfad zu OSM-Radwegen
@@ -247,8 +247,8 @@ def main():
         print("--- Überspringe Differenz-Berechnung für Straßen ohne Radwege ---")
 
     # PMTiles-Export am Ende
-    print('Exportiere alle .fgb als .pmtiles ...')
-    export_all_pmtiles()
+    print('Exportiere alle .fgb als .geojson ...')
+    export_all_geojson()
 
 if __name__ == '__main__':
     main()

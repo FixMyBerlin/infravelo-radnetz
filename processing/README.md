@@ -45,10 +45,10 @@ Useful, when developing on another processing step.
 **`--skip-bikelanes`** skips the processing of bikelanes dataset completely.
 **`--skip-streets`** skips the processing of streets dataset completely.
 
-## Prepare data for `/inspector`
+## Prepare static data
 
-The main process will create pmtiles in `/inspector/src/data`. You can run this on existing data with…
+The main process will create geojson files in `/output-static-data-transfer`. You can run this on existing data with…
 
 ```
-./.venv/bin/python processing/export_pmtiles.py
+./.venv/bin/python processing/export_geojson.py
 ```
