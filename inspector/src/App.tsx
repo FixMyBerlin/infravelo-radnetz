@@ -1,6 +1,8 @@
 import { Square3Stack3DIcon, XMarkIcon } from '@heroicons/react/24/outline'
+import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { parseAsArrayOf, parseAsString, parseAsStringLiteral, useQueryState } from 'nuqs'
+import { Protocol } from 'pmtiles'
 import { Fragment, useEffect, useState } from 'react'
 import Map, {
   Layer,
@@ -14,9 +16,10 @@ import Map, {
 } from 'react-map-gl/maplibre'
 import { AddMapImage } from './components/AddMapImage'
 import { BackgroundLayer } from './components/BackgroundLayer'
+import { DataLayer } from './components/DataLayer'
 import { Inspector } from './components/Inspector'
-import { useMapParam } from './components/useMapParam/useMapParam'
 import { StaticLayers } from './components/StaticLayers'
+import { useMapParam } from './components/useMapParam/useMapParam'
 
 const TILE_URLS = {
   Production: 'https://tiles.tilda-geo.de',
@@ -85,11 +88,22 @@ const App = () => {
   const [showLayerPanel, setShowLayerPanel] = useState(true)
 
   useEffect(() => {
+    // Register pmtiles protocol globally for all maplibre usage
+    const protocol = new Protocol()
+    maplibregl.addProtocol('pmtiles', protocol.tile)
+    return () => {
+      maplibregl.removeProtocol('pmtiles')
+    }
+  }, [])
+
+  useEffect(() => {
     const fetchLayers = async () => {
       try {
         const response = await fetch(`${TILE_URLS[source]}/catalog`)
         const catalog = await response.json()
-        setLayers(Object.keys(catalog.tiles))
+        // Only use the fixed layers that are present in the catalog
+        const available = Object.keys(catalog.tiles)
+        setLayers(FIXED_LAYERS.map((l) => l.key).filter((key) => available.includes(key)))
       } catch (error) {
         console.error('Error fetching layers:', error)
       }
@@ -97,11 +111,8 @@ const App = () => {
     fetchLayers()
   }, [source])
 
-  // Only use the fixed layers
-  const fixedLayers = FIXED_LAYERS.map(l => l.key)
-
   // Filtered layers based on search
-  const filteredLayers = fixedLayers
+  const filteredLayers = layers
     .filter((layer) => layer.toLowerCase().includes(searchTerm.toLowerCase()))
     .sort((a, b) => a.localeCompare(b))
 
@@ -320,6 +331,7 @@ const App = () => {
               latitude: mapParam.lat,
               zoom: mapParam.zoom,
             }}
+            minZoom={9}
             interactiveLayerIds={activeLayers
               .map((l) => typeStyles.map(({ type }) => `${l}-${type}`))
               .flat()}
@@ -340,6 +352,7 @@ const App = () => {
 
             <BackgroundLayer />
 
+            <DataLayer />
             <StaticLayers />
 
             {layers.map((layer) => (

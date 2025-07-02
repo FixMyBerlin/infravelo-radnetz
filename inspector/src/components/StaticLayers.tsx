@@ -3,9 +3,7 @@ import { Protocol } from 'pmtiles'
 import { Fragment, useEffect } from 'react'
 import { Layer, Source } from 'react-map-gl/maplibre'
 
-export function StaticLayers() {
-  // Add PMTiles Protocol to be use by "Datasets"
-  // Docs https://docs.protomaps.com/pmtiles/maplibre#react
+export const StaticLayers = () => {
   useEffect(() => {
     const protocol = new Protocol()
     maplibregl.addProtocol('pmtiles', protocol.tile)

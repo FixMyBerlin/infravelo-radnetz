@@ -1,0 +1,51 @@
+export const staticLayerDefs = [
+  {
+    id: 'vorrangnetz-verbunden',
+    url: 'pmtile://http://localhost:5173/data/_vorrangnetz_verbunden.pmtiles',
+    color: '#1e293b',
+    type: 'line',
+    defaultColor: '#1e293b',
+  },
+  {
+    id: 'bikelanes-in-buffering',
+    url: 'pmtile://http://localhost:5173/data/bikelanes_in_buffering.pmtiles',
+    color: '#1E90FF',
+    type: 'line',
+    defaultColor: '#1E90FF',
+  },
+  {
+    id: 'matched-osm-ways',
+    url: 'pmtile://http://localhost:5173/data/matched_osm_ways.pmtiles',
+    color: '#22c55e',
+    type: 'line',
+    defaultColor: '#22c55e',
+  },
+  {
+    id: 'short-osm-herausgefiltert',
+    url: 'pmtile://http://localhost:5173/data/short_osm_herausgefiltert.pmtiles',
+    color: '#f59e42',
+    type: 'line',
+    defaultColor: '#f59e42',
+  },
+  {
+    id: 'short-osm-wege',
+    url: 'pmtile://http://localhost:5173/data/short_osm_wege.pmtiles',
+    color: '#f43f5e',
+    type: 'line',
+    defaultColor: '#f43f5e',
+  },
+  {
+    id: 'vorrangnetz-buffered',
+    url: 'pmtile://http://localhost:5173/data/vorrangnetz_buffered.pmtiles',
+    color: '#6366f1',
+    type: 'fill',
+    defaultColor: '#6366f1',
+  },
+  {
+    id: 'vorrangnetz-segments',
+    url: 'pmtile://http://localhost:5173/data/vorrangnetz_segments.pmtiles',
+    color: '#eab308',
+    type: 'line',
+    defaultColor: '#eab308',
+  },
+];
