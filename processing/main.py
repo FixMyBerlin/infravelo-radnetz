@@ -4,6 +4,7 @@ import argparse
 import os
 from orthogonal_filter import process_and_filter_short_segments
 from manual_interventions import get_excluded_ways, get_included_ways
+from difference import get_or_create_difference_fgb
 
 # Konfiguration
 BIKELANES_FGB = './data/bikelanes.fgb'  # Pfad zu OSM-Radwegen
@@ -226,18 +227,13 @@ def main():
 
     # Differenz Straßen - Radwege berechnen
     if not args.skip_difference_streets_bikelanes:
-        print("Berechne Differenz: nur Straßen ohne Radwege ...")
-        from processing.difference import difference_geodataframes
-        import geopandas as gpd
-        streets_gdf = gpd.read_file(STREETS_FGB)
-        bikelanes_gdf = gpd.read_file(BIKELANES_FGB)
-        # CRS angleichen
-        if streets_gdf.crs != bikelanes_gdf.crs:
-            bikelanes_gdf = bikelanes_gdf.to_crs(streets_gdf.crs)
-        diff_gdf = difference_geodataframes(streets_gdf, bikelanes_gdf)
-        output_path = './output/streets_without_bikelanes.fgb'
-        diff_gdf.to_file(output_path, driver='FlatGeobuf')
-        print(f'Differenz gespeichert als {output_path} ({len(diff_gdf)} Features)')
+        output_path = './output/matched_osm_streets_without_bikelanes.fgb'
+        _ = get_or_create_difference_fgb(
+            STREETS_FGB,
+            BIKELANES_FGB,
+            output_path,
+            target_crs=TARGET_CRS
+        )
     else:
         print("--- Überspringe Differenz-Berechnung für Straßen ohne Radwege ---")
 
