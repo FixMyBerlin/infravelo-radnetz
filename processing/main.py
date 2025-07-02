@@ -178,6 +178,7 @@ def parse_arguments():
 def process_data_source(osm_fgb_path, output_prefix, vorrangnetz_gdf, unified_buffer, args):
     """
     Führt den kompletten Verarbeitungsprozess für eine Datenquelle durch.
+    Gibt das finale GeoDataFrame zurück.
     """
     print(f"\n--- Starte Verarbeitung für: {output_prefix} ---")
     # Schritt 1: OSM-Daten laden
@@ -201,6 +202,7 @@ def process_data_source(osm_fgb_path, output_prefix, vorrangnetz_gdf, unified_bu
     # Schritt 5: Ergebnisse schreiben
     write_outputs(matched_gdf, output_prefix)
     print(f"--- Verarbeitung für {output_prefix} abgeschlossen ---")
+    return matched_gdf
 
 
 def main():
@@ -212,28 +214,33 @@ def main():
     vorrangnetz_gdf = load_geodataframe(VORRANGNETZ_FGB, "Vorrangnetz", TARGET_CRS)
 
     # Verarbeitung für Fahrradwege
+    bikelanes_gdf = None
     if not args.skip_bikelanes:
         bikelanes_buffer, _ = create_unified_buffer(vorrangnetz_gdf, BIKELANES_BUFFER_METERS, TARGET_CRS)
-        process_data_source(BIKELANES_FGB, 'bikelanes', vorrangnetz_gdf, bikelanes_buffer, args)
+        bikelanes_gdf = process_data_source(BIKELANES_FGB, 'bikelanes', vorrangnetz_gdf, bikelanes_buffer, args)
     else:
         print("--- Überspringe Verarbeitung für bikelanes ---")
 
     # Verarbeitung für Straßen
+    streets_gdf = None
     if not args.skip_streets:
         streets_buffer, _ = create_unified_buffer(vorrangnetz_gdf, STREETS_BUFFER_METERS, TARGET_CRS)
-        process_data_source(STREETS_FGB, 'streets', vorrangnetz_gdf, streets_buffer, args)
+        streets_gdf = process_data_source(STREETS_FGB, 'streets', vorrangnetz_gdf, streets_buffer, args)
     else:
         print("--- Überspringe Verarbeitung für streets ---")
 
     # Differenz Straßen - Radwege berechnen
     if not args.skip_difference_streets_bikelanes:
         output_path = './output/matched_osm_streets_without_bikelanes.fgb'
-        _ = get_or_create_difference_fgb(
-            STREETS_FGB,
-            BIKELANES_FGB,
-            output_path,
-            target_crs=TARGET_CRS
-        )
+        if streets_gdf is not None and bikelanes_gdf is not None:
+            _ = get_or_create_difference_fgb(
+                streets_gdf,
+                bikelanes_gdf,
+                output_path,
+                target_crs=TARGET_CRS
+            )
+        else:
+            print("Warnung: Differenz kann nicht berechnet werden, da eine der Eingabedateien fehlt.")
     else:
         print("--- Überspringe Differenz-Berechnung für Straßen ohne Radwege ---")
 

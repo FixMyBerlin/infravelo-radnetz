@@ -27,7 +27,7 @@ def difference_streets_without_bikelanes(streets_gdf, bikelanes_gdf, target_crs=
     return result_gdf
 
 
-def get_or_create_difference_fgb(streets_path, bikelanes_path, output_path, target_crs=None):
+def get_or_create_difference_fgb(streets_gdf, bikelanes_gdf, output_path, target_crs=None):
     """
     Loads the difference result from output_path if it exists, otherwise computes and writes it.
     Returns the resulting GeoDataFrame.
@@ -36,8 +36,6 @@ def get_or_create_difference_fgb(streets_path, bikelanes_path, output_path, targ
         print(f"Lade vorhandene Differenzdatei: {output_path}")
         return gpd.read_file(output_path)
     print("Berechne Differenz: nur Straßen ohne Radwege ...")
-    streets_gdf = gpd.read_file(streets_path)
-    bikelanes_gdf = gpd.read_file(bikelanes_path)
     diff_gdf = difference_streets_without_bikelanes(streets_gdf, bikelanes_gdf, target_crs=target_crs)
     diff_gdf.to_file(output_path, driver='FlatGeobuf')
     print(f'Differenz gespeichert als {output_path} ({len(diff_gdf)} Features)')
