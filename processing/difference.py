@@ -46,6 +46,3 @@ def main():
     result_gdf.to_file(output_path, driver='FlatGeobuf')
     print(f"Differenz erfolgreich gespeichert. {len(result_gdf)} Features.")
 
-
-if __name__ == "__main__":
-    main()

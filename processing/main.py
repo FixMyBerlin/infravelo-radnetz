@@ -68,8 +68,8 @@ def apply_orthogonal_filter_if_requested(args, vorrangnetz_gdf, osm_gdf, matched
     """
     Wendet optional den Orthogonalitätsfilter an und gibt das finale GeoDataFrame zurück.
     """
-    use_orthogonal_filter = (output_prefix == 'bikelanes' and args.orthogonalfilter_bikelanes) or \
-                            (output_prefix == 'streets' and args.orthogonalfilter_streets)
+    use_orthogonal_filter = (output_prefix == 'bikelanes' and not args.skip_orthogonalfilter_bikelanes) or \
+                            (output_prefix == 'streets' and not args.skip_orthogonalfilter_streets)
 
     if use_orthogonal_filter:
         print(f"Wende Orthogonalitäts-Filter für kurze Segmente für {output_prefix} an...")
@@ -99,7 +99,7 @@ def apply_manual_interventions(args, matched_gdf, osm_gdf, output_prefix):
     Wendet manuelle Ausschlüsse und Einschlüsse von OSM Wege IDs an, falls gefordert.
     Erstellt eine Zwischen-Datei mit allen manuell hinzugefügten und entfernten Wegen und einem Attribut 'manual_action'.
     """
-    if not args.manual_interventions:
+    if args.skip_manual_interventions:
         return matched_gdf
 
     print("Wende manuelle Eingriffe an...")
@@ -164,12 +164,13 @@ def parse_arguments():
     Parst die Kommandozeilenargumente.
     """
     parser = argparse.ArgumentParser(description="Match OSM ways to Vorrangnetz with optional filters.")
-    parser.add_argument('--orthogonalfilter-bikelanes', action='store_true', help='Enable orthogonality filtering for bikelanes')
-    parser.add_argument('--orthogonalfilter-streets', action='store_true', help='Enable orthogonality filtering for streets')
-    parser.add_argument('--manual-interventions', action='store_true', help='Enable manual interventions from data/exclude_ways.txt and data/include_ways.txt')
+    # Orthogonal filter and manual interventions are now enabled by default, use --skip-* to disable
+    parser.add_argument('--skip-orthogonalfilter-bikelanes', action='store_true', help='Skip orthogonality filtering for bikelanes')
+    parser.add_argument('--skip-orthogonalfilter-streets', action='store_true', help='Skip orthogonality filtering for streets')
+    parser.add_argument('--skip-manual-interventions', action='store_true', help='Skip manual interventions from data/exclude_ways.txt and data/include_ways.txt')
     parser.add_argument('--skip-bikelanes', action='store_true', help='Skip processing of bikelanes dataset')
     parser.add_argument('--skip-streets', action='store_true', help='Skip processing of streets dataset')
-    parser.add_argument('--difference-streets-bikelanes', action='store_true', help='Berechne Differenz: nur Straßen ohne Radwege')
+    parser.add_argument('--skip-difference-streets-bikelanes', action='store_true', help='Skip difference: only streets without bikelanes')
     return parser.parse_args()
 
 
@@ -184,8 +185,8 @@ def process_data_source(osm_fgb_path, output_prefix, vorrangnetz_gdf, unified_bu
     cache_path = f'./output/osm_{output_prefix}_in_buffering.fgb'
     matched_gdf_step1 = find_osm_ways_in_buffer(osm_gdf, unified_buffer, cache_path)
     # Schritt 3: Optional Orthogonalfilter anwenden
-    use_orthogonal_filter = (output_prefix == 'bikelanes' and args.orthogonalfilter_bikelanes) or \
-                            (output_prefix == 'streets' and args.orthogonalfilter_streets)
+    use_orthogonal_filter = (output_prefix == 'bikelanes' and not args.skip_orthogonalfilter_bikelanes) or \
+                            (output_prefix == 'streets' and not args.skip_orthogonalfilter_streets)
 
     if use_orthogonal_filter:
         matched_gdf, _ = apply_orthogonal_filter_if_requested(args, vorrangnetz_gdf, osm_gdf, matched_gdf_step1, output_prefix)
@@ -224,7 +225,7 @@ def main():
         print("--- Überspringe Verarbeitung für streets ---")
 
     # Differenz Straßen - Radwege berechnen
-    if args.difference_streets_bikelanes:
+    if not args.skip_difference_streets_bikelanes:
         print("Berechne Differenz: nur Straßen ohne Radwege ...")
         from processing.difference import difference_geodataframes
         import geopandas as gpd
@@ -237,3 +238,8 @@ def main():
         output_path = './output/streets_without_bikelanes.fgb'
         diff_gdf.to_file(output_path, driver='FlatGeobuf')
         print(f'Differenz gespeichert als {output_path} ({len(diff_gdf)} Features)')
+    else:
+        print("--- Überspringe Differenz-Berechnung für Straßen ohne Radwege ---")
+
+if __name__ == '__main__':
+    main()
