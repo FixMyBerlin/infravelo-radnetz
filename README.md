@@ -42,3 +42,7 @@ The processing uses two data sources as inputs: [Radvorrangsnetz](https://tilda-
 
 1. Use the Radvorrangnetz and OpenStreetMap data to assign the Detailnetz Edge ID to the OSM Ways and the OSM Way IDs to the Detailnetz Edges.
 2. Glue the OSM data to the Detailnetz, creating bicycle edges in Detailnetz.
+
+At the end of the process, the file `matched_osm_ways.fgb` contains all OSM Ways, which are...
+* part of the RVN
+* are part of the bikelanes, roads or roadsPathClasses TILDA export
