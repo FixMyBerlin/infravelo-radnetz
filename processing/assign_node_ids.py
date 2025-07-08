@@ -53,6 +53,8 @@ def assign_node_ids(nodes_path, segments_path, output_path):
         segments_path (str): Pfad zur Straßenabschnitts-Datei.
         output_path (str): Pfad zum Speichern der aktualisierten Knotenpunkt-Datei.
     """
+    print("Starte Zuweisung der Knotenpunkt‐IDs basierend auf den Straßenabschnitten...")
+    print("-----------------------------------------------------")
     # Laden der Geodaten
     print(f"Lade Knotenpunkte von {nodes_path}")
     nodes_gdf = gpd.read_file(nodes_path)
@@ -85,7 +87,7 @@ def assign_node_ids(nodes_path, segments_path, output_path):
     # Räumlicher Join, um die Knotenpunkt‐ID den Knotenpunkten zuzuordnen
     # Wir verwenden einen kleinen Puffer, um Ungenauigkeiten bei den Koordinaten zu berücksichtigen
     nodes_gdf_buffered = nodes_gdf.copy()
-    nodes_gdf_buffered['geometry'] = nodes_gdf.geometry.buffer(0.1) # 100mm Puffer, anpassbar
+    nodes_gdf_buffered['geometry'] = nodes_gdf.geometry.buffer(0.1) # 10 cm Puffer, anpassbar
 
     joined_gdf = gpd.sjoin(nodes_gdf, segment_nodes, how="left", predicate="intersects")
 
@@ -106,6 +108,7 @@ def assign_node_ids(nodes_path, segments_path, output_path):
     print("Skript erfolgreich abgeschlossen.")
     print(f"Zusammenfassung: {len(nodes_gdf)} Knotenpunkte verarbeitet.")
     print(f"{nodes_gdf['Knotenpunkt‐ID'].notna().sum()} Knotenpunkte haben eine Knotenpunkt‐ID erhalten.")
+    print("-----------------------------------------------------")
 
 
 if __name__ == '__main__':
