@@ -4,7 +4,25 @@
 
 The script creates intermediate geodata versions. This enables to speed up the scripts speed when rerunning. But this can also relate to **caching issues**. So be aware, and be free to delete the `output` folder when having issues.
 
+See [REQUIREMENTS.md](./REQUIREMENTS.md) for geodata requirements.
+
 *Tested with Python 3.13.3.*
+
+## Phases
+
+- [ ] Get all OSM Ways, which are part of the RVN
+  - [x] Get all bikelanes
+  - [x] Get all streets
+  - [ ] Get all other types of ways
+  - [ ] Merge all differente way types
+  - [x] Enable manual inclusion and exclusion
+- [ ] Attributes on RVN edges
+  - [ ] Snap geometry to RVN edges
+  - [ ] Assign OSM Way attributes to RVN edges
+  - [ ] Calculate direction of the edges (oneway)
+  - [ ] Solve direction based snapping of edges 
+  - [ ] Find way to calculate the length of the edges
+- [ ] RVN edges on OSM Ways
 
 ## Filters
 
