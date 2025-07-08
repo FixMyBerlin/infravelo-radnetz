@@ -3,3 +3,7 @@ shapely
 pyogrio
 numpy
 scipy
+
+# OSM traffic signal
+osmnx
+scikit-learn
