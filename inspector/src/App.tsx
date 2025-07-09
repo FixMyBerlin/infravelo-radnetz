@@ -56,12 +56,34 @@ const arrowImageId = 'arrow-image'
 const categories = [
   // Bike lanes and their variants
   { id: 'bikelanes', source: 'bikelanes' },
-  { id: 'bikelanesAge', source: 'bikelanes' },
-  { id: 'bikelanesOneway', source: 'bikelanes' },
-  { id: 'bikelanesSurface', source: 'bikelanes' },
-  { id: 'bikelanSurfaceColor', source: 'bikelanes' },
-  { id: 'bikelanesTrafficSign', source: 'bikelanes' },
-  { id: 'bikelanesMapillary', source: 'bikelanes' },
+  { id: 'bikelanesAge', source: 'bikelanes', inspectorHighlightTags: ['updated_at'] },
+  { id: 'bikelanesOneway', source: 'bikelanes', inspectorHighlightTags: ['oneway', 'oneway_bike'] },
+  {
+    id: 'bikelanesSurface',
+    source: 'bikelanes',
+    inspectorHighlightTags: ['surface'],
+  },
+  {
+    id: 'bikelanSurfaceColor',
+    source: 'bikelanes',
+    inspectorHighlightTags: ['surface_color'],
+  },
+  {
+    id: 'bikelanesTrafficSign',
+    source: 'bikelanes',
+    inspectorHighlightTags: ['traffic_sign'],
+  },
+  {
+    id: 'bikelanesMapillary',
+    source: 'bikelanes',
+    inspectorHighlightTags: [
+      'mapillary',
+      'mapillary_left',
+      'mapillary_right',
+      'mapillary_traffic_sign',
+      'traffic_sign',
+    ],
+  },
 
   // Roads and their variants
   { id: 'roads', source: 'roads' },
@@ -452,7 +474,10 @@ const App = () => {
         </div>
 
         {/* Sidebar Panel */}
-        <Inspector inspectorFeatures={inspectorFeatures} />
+        <Inspector
+          inspectorFeatures={inspectorFeatures}
+          activeLayerConfigs={layers.filter((layer) => activeLayers.includes(layer.id))}
+        />
       </main>
     </MapProvider>
   )

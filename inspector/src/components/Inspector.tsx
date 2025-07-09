@@ -1,4 +1,5 @@
 import { TableCellsIcon, XMarkIcon } from '@heroicons/react/24/outline'
+import { clsx } from 'clsx'
 import { formatDistanceToNow, parseISO } from 'date-fns'
 import { useState } from 'react'
 import type { MapGeoJSONFeature } from 'react-map-gl/maplibre'
@@ -16,11 +17,18 @@ const longOsmType = {
   relation: 'relation',
 }
 
-type Props = {
-  inspectorFeatures: MapGeoJSONFeature[]
+type LayerConfig = {
+  id: string
+  source: string
+  inspectorHighlightTags?: readonly string[]
 }
 
-export const Inspector = ({ inspectorFeatures }: Props) => {
+type Props = {
+  inspectorFeatures: MapGeoJSONFeature[]
+  activeLayerConfigs: LayerConfig[]
+}
+
+export const Inspector = ({ inspectorFeatures, activeLayerConfigs }: Props) => {
   const [open, setOpen] = useState(true)
 
   if (!open) {
@@ -74,42 +82,53 @@ export const Inspector = ({ inspectorFeatures }: Props) => {
                         if (keyB === 'id') return 1
                         return keyA.localeCompare(keyB)
                       })
-                      .map(([key, value]) => (
-                        <li key={key} className="group flex flex-col">
-                          <div className="flex items-center justify-between">
-                            <div className="flex gap-2">
-                              <strong className="inline-block min-w-20 font-semibold">
-                                {key}:
-                              </strong>{' '}
-                              <div>
-                                {typeof value === 'boolean' ? value.toString() : value}
+                      .map(([key, value]) => {
+                        const highlightKey = activeLayerConfigs.some((config) =>
+                          config.inspectorHighlightTags?.includes(key),
+                        )
+                        return (
+                          <li
+                            key={key}
+                            className={clsx(
+                              'group flex flex-col',
+                              highlightKey ? 'bg-yellow-100 ring-4 ring-yellow-100' : '',
+                            )}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex gap-2">
+                                <strong className="inline-block min-w-20 font-semibold">
+                                  {key}:
+                                </strong>{' '}
+                                <div>
+                                  {typeof value === 'boolean' ? value.toString() : value}
 
-                                {key.endsWith('_at') && typeof value === 'string' && (
-                                  <div className="text-xs text-gray-500">
-                                    {formatDistanceToNow(parseISO(value))} ago
-                                  </div>
-                                )}
+                                  {key.endsWith('_at') && typeof value === 'string' && (
+                                    <div className="text-xs text-gray-500">
+                                      {formatDistanceToNow(parseISO(value))} ago
+                                    </div>
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                            <span
-                              className="invisible text-xs text-gray-500 group-hover:visible"
-                              title={
-                                typeof value === 'boolean'
-                                  ? 'boolean'
+                              <span
+                                className="invisible text-xs text-gray-500 group-hover:visible"
+                                title={
+                                  typeof value === 'boolean'
+                                    ? 'boolean'
+                                    : typeof value === 'number'
+                                      ? 'number'
+                                      : 'string'
+                                }
+                              >
+                                {typeof value === 'boolean'
+                                  ? 'b'
                                   : typeof value === 'number'
-                                    ? 'number'
-                                    : 'string'
-                              }
-                            >
-                              {typeof value === 'boolean'
-                                ? 'b'
-                                : typeof value === 'number'
-                                  ? 'n'
-                                  : 's'}
-                            </span>
-                          </div>
-                        </li>
-                      ))}
+                                    ? 'n'
+                                    : 's'}
+                              </span>
+                            </div>
+                          </li>
+                        )
+                      })}
                   </ul>
                   <details className="font-xs">
                     <summary className="cursor-pointer hover:underline">Raw</summary>
