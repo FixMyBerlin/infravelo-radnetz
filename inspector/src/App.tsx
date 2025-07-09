@@ -70,7 +70,6 @@ const FIXED_LAYERS = [
   { key: 'roadsPathClasses', color: '#FF8C00' },
 ] as const
 
-
 const App = () => {
   const sources = ['Production', 'Staging', 'Development'] as const
   const [source, setSource] = useQueryState(
@@ -361,7 +360,6 @@ const App = () => {
 
             <BackgroundLayer />
 
-            <TildaLayers source={source} />
             <StaticLayers />
 
             {layers.map((layer) => (
