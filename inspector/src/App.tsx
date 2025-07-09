@@ -5,7 +5,6 @@ import { parseAsArrayOf, parseAsString, parseAsStringLiteral, useQueryState } fr
 import { Protocol } from 'pmtiles'
 import { Fragment, useEffect, useState } from 'react'
 import Map, {
-  Layer,
   MapProvider,
   NavigationControl,
   Source,
@@ -16,9 +15,11 @@ import Map, {
 } from 'react-map-gl/maplibre'
 import { AddMapImage } from './components/AddMapImage'
 import { BackgroundLayer } from './components/BackgroundLayer'
+import { BikeLaneLayer } from './components/BikeLaneLayer'
 import { Inspector } from './components/Inspector'
+import { RoadLayer } from './components/RoadLayer'
+import { RoadPathLayer } from './components/RoadPathLayer'
 import { StaticLayers } from './components/StaticLayers'
-import { TildaLayers } from './components/TildaLayers'
 import { useMapParam } from './components/useMapParam/useMapParam'
 
 const TILE_URLS = {
@@ -29,38 +30,6 @@ const TILE_URLS = {
 
 const baseMapStyle =
   'https://api.maptiler.com/maps/08357855-50d4-44e1-ac9f-ea099d9de4a5/style.json?key=ECOoUBmpqklzSCASXxcu'
-
-const string2RandColor = (str: string) => {
-  let hash = 0
-  for (let i = 0; i < str.length; i++) {
-    hash = str.charCodeAt(i) + ((hash << 5) - hash)
-  }
-  const r = (hash >> 24) & 0xff
-  const g = (hash >> 16) & 0xff
-  const b = (hash >> 8) & 0xff
-  return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`
-}
-
-const typeStyles = [
-  {
-    type: 'circle',
-    geoType: 'Point',
-    alpha: 0.8,
-    styles: {},
-  },
-  {
-    type: 'line',
-    geoType: 'LineString',
-    alpha: 0.8,
-    styles: { 'line-width': 3 },
-  },
-  {
-    type: 'fill',
-    geoType: 'Polygon',
-    alpha: 0.4,
-    styles: {},
-  },
-] as const
 
 const arrowImageId = 'arrow-image'
 
@@ -340,9 +309,11 @@ const App = () => {
               zoom: mapParam.zoom,
             }}
             minZoom={9}
-            interactiveLayerIds={activeLayers
-              .map((l) => typeStyles.map(({ type }) => `${l}-${type}`))
-              .flat()}
+            interactiveLayerIds={[
+              'roads-line',
+              'roadsPathClasses-line',
+              'bikelanes-line',
+            ]}
             cursor={cursorStyle}
             onMoveEnd={handleMoveEnd}
             onMouseMove={handleMouseMove}
@@ -355,11 +326,8 @@ const App = () => {
             mapStyle={baseMapStyle}
           >
             <AddMapImage name={arrowImageId} url="/map-style-line-direction-arrow.png" sdf={true} />
-
             <NavigationControl position="bottom-right" />
-
             <BackgroundLayer />
-
             <StaticLayers />
 
             {layers.map((layer) => (
@@ -372,81 +340,21 @@ const App = () => {
               />
             ))}
 
-            {mapLoaded == true &&
-              activeLayers.map((layer) => (
-                <Fragment key={layer}>
-                  {typeStyles.map(({ type, geoType, alpha, styles }) => {
-                    if (!sourceLayerMap[layer]) {
-                      console.log(
-                        'ERROR: `sourceLayerMap` does not know the source-layer for the current layer',
-                        layer,
-                        sourceLayerMap,
-                      )
-                      return null
-                    }
+            {mapLoaded && (
+              <Fragment>
+                {activeLayers.includes('roads') && sourceLayerMap['roads'] && (
+                  <RoadLayer sourceLayer={sourceLayerMap['roads']}  />
+                )}
 
-                    return (
-                      <Fragment key={`${layer}-${type}`}>
-                        {/* @ts-expect-error the `...styles` does not work for TS */}
-                        <Layer
-                          key={`${layer}-${type}`}
-                          id={`${layer}-${type}`}
-                          type={type}
-                          source={layer}
-                          paint={{
-                            [`${type}-color`]: [
-                              'case',
-                              ['boolean', ['feature-state', 'hover'], false],
-                              'black',
-                              ['boolean', ['feature-state', 'selected'], false],
-                              'red',
-                              sourceColor[layer],
-                            ],
-                            [`${type}-opacity`]: [
-                              'case',
-                              ['boolean', ['feature-state', 'selected'], false],
-                              1,
-                              alpha,
-                            ],
-                            ...styles,
-                          }}
-                          filter={['==', '$type', geoType]}
-                          source-layer={sourceLayerMap[layer]}
-                        />
+                {activeLayers.includes('roadsPathClasses') && sourceLayerMap['roadsPathClasses'] && (
+                  <RoadPathLayer sourceLayer={sourceLayerMap['roadsPathClasses']}  />
+                )}
 
-                        {type === 'line' && (
-                          <Layer
-                            key={`${layer}-arrow`}
-                            id={`${layer}-arrow`}
-                            type="symbol"
-                            source={layer}
-                            layout={{
-                              'symbol-placement': 'line',
-                              'icon-image': arrowImageId,
-                              'icon-size': 0.25,
-                              'icon-allow-overlap': true,
-                              'icon-ignore-placement': true,
-                              'icon-rotation-alignment': 'map',
-                            }}
-                            paint={{
-                              'icon-color': [
-                                'case',
-                                ['boolean', ['feature-state', 'hover'], false],
-                                'black',
-                                ['boolean', ['feature-state', 'selected'], false],
-                                'red',
-                                sourceColor[layer],
-                              ],
-                            }}
-                            filter={['==', '$type', geoType]}
-                            source-layer={sourceLayerMap[layer]}
-                          />
-                        )}
-                      </Fragment>
-                    )
-                  })}
-                </Fragment>
-              ))}
+                {activeLayers.includes('bikelanes') && sourceLayerMap['bikelanes'] && (
+                  <BikeLaneLayer sourceLayer={sourceLayerMap['bikelanes']}  />
+                )}
+              </Fragment>
+            )}
           </Map>
         </div>
 
