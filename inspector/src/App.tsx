@@ -22,6 +22,7 @@ import { RoadAgeLayer } from './components/RoadAgeLayer'
 import { RoadLayer } from './components/RoadLayer'
 import { RoadPathAgeLayer } from './components/RoadPathAgeLayer'
 import { RoadPathLayer } from './components/RoadPathLayer'
+import { INTERACTIVE_LAYER_IDS } from './components/shared/layerIds'
 import { StaticLayers } from './components/StaticLayers'
 import { useMapParam } from './components/useMapParam/useMapParam'
 
@@ -280,7 +281,7 @@ const App = () => {
               zoom: mapParam.zoom,
             }}
             minZoom={9}
-            interactiveLayerIds={['roads-line', 'roadsPathClasses-line', 'bikelanes-line']}
+            interactiveLayerIds={[...INTERACTIVE_LAYER_IDS]}
             cursor={cursorStyle}
             onMoveEnd={handleMoveEnd}
             onMouseMove={handleMouseMove}
