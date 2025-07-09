@@ -17,6 +17,7 @@ import { AddMapImage } from './components/AddMapImage'
 import { BackgroundLayer } from './components/BackgroundLayer'
 import { BikeLaneAgeLayer } from './components/BikeLaneAgeLayer'
 import { BikeLaneLayer } from './components/BikeLaneLayer'
+import { BikeLaneMapillaryLayer } from './components/BikeLaneMapillaryLayer'
 import { BikeLaneOnewayLayer } from './components/BikeLaneOnewayLayer'
 import { BikelaneSurfaceColorLayer } from './components/BikelaneSurfaceColorLayer'
 import { BikeLaneSurfaceSettLayer } from './components/BikeLaneSurfaceSettLayer'
@@ -60,6 +61,7 @@ const categories = [
   { id: 'bikelanesSurface', source: 'bikelanes' },
   { id: 'bikelanSurfaceColor', source: 'bikelanes' },
   { id: 'bikelanesTrafficSign', source: 'bikelanes' },
+  { id: 'bikelanesMapillary', source: 'bikelanes' },
 
   // Roads and their variants
   { id: 'roads', source: 'roads' },
@@ -382,6 +384,8 @@ const App = () => {
                         return <BikeLaneSurfaceSettLayer key={layer.id} sourceLayer={sourceLayer} />
                       case 'bikelanesTrafficSign':
                         return <BikeLaneTrafficSignLayer key={layer.id} sourceLayer={sourceLayer} />
+                      case 'bikelanesMapillary':
+                        return <BikeLaneMapillaryLayer key={layer.id} sourceLayer={sourceLayer} />
                       case 'roadsCyclewayNo':
                         return <RoadCyclewayNoLayer key={layer.id} sourceLayer={sourceLayer} />
                       case 'roadDualCarriageway':

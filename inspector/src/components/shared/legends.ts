@@ -1,9 +1,10 @@
 import { getAgeLegend } from './ageBasedStyle'
 import { getCyclewayNoLayerLegend } from './cyclewayNoStyle'
 import { getDualCarrigewayLegend } from './dualCarrigewayStyle'
+import { getMapillaryLegend } from './mapillaryStyle'
 import { getBikeLaneOnewayLegend, getRoadOnewayLegend } from './onewayBasedStyle'
-import { getSurfaceSettLegend } from './surfaceSettStyle'
 import { getSurfaceColorLegend } from './surfaceColorStyle'
+import { getSurfaceSettLegend } from './surfaceSettStyle'
 import { getTrafficSignLegend } from './trafficSignStyle'
 
 export const LAYER_LEGENDS = {
@@ -12,6 +13,7 @@ export const LAYER_LEGENDS = {
   bikelanesSurface: getSurfaceSettLegend(),
   bikelanesSurfaceColor: getSurfaceColorLegend(),
   bikelanesTrafficSign: getTrafficSignLegend(),
+  bikelanesMapillary: getMapillaryLegend(),
   roadsAge: getAgeLegend(),
   roadsOneway: getRoadOnewayLegend(),
   roadsSurface: getSurfaceSettLegend(),
