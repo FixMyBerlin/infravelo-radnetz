@@ -1,17 +1,7 @@
-import maplibregl from 'maplibre-gl'
-import { Protocol } from 'pmtiles'
-import { Fragment, useEffect } from 'react'
+import { Fragment } from 'react'
 import { Layer, Source } from 'react-map-gl/maplibre'
 
 export const StaticLayers = () => {
-  useEffect(() => {
-    const protocol = new Protocol()
-    maplibregl.addProtocol('pmtiles', protocol.tile)
-    return () => {
-      maplibregl.removeProtocol('pmtiles')
-    }
-  }, [])
-
   return (
     <Fragment>
       <Source

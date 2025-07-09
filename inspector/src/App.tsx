@@ -18,6 +18,7 @@ import { AddMapImage } from './components/AddMapImage'
 import { BackgroundLayer } from './components/BackgroundLayer'
 import { Inspector } from './components/Inspector'
 import { StaticLayers } from './components/StaticLayers'
+import { TildaLayers } from './components/TildaLayers'
 import { useMapParam } from './components/useMapParam/useMapParam'
 
 const TILE_URLS = {
@@ -222,6 +223,14 @@ const App = () => {
     setCursorStyle('grab')
     handleFeatureHover([], map)
   }
+
+  useEffect(() => {
+    const protocol = new Protocol()
+    maplibregl.addProtocol('pmtiles', protocol.tile)
+    return () => {
+      maplibregl.removeProtocol('pmtiles')
+    }
+  }, [])
 
   return (
     <MapProvider>
