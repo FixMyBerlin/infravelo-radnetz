@@ -18,6 +18,7 @@ import { BackgroundLayer } from './components/BackgroundLayer'
 import { BikeLaneAgeLayer } from './components/BikeLaneAgeLayer'
 import { BikeLaneLayer } from './components/BikeLaneLayer'
 import { BikeLaneOnewayLayer } from './components/BikeLaneOnewayLayer'
+import { BikeLaneSurfaceSettLayer } from './components/BikeLaneSurfaceSettLayer'
 import { Inspector } from './components/Inspector'
 import { Legend } from './components/Legend'
 import { RoadAgeLayer } from './components/RoadAgeLayer'
@@ -26,6 +27,8 @@ import { RoadOnewayLayer } from './components/RoadOnewayLayer'
 import { RoadPathAgeLayer } from './components/RoadPathAgeLayer'
 import { RoadPathLayer } from './components/RoadPathLayer'
 import { RoadPathOnewayLayer } from './components/RoadPathOnewayLayer'
+import { RoadPathSurfaceSettLayer } from './components/RoadPathSurfaceSettLayer'
+import { RoadSurfaceSettLayer } from './components/RoadSurfaceSettLayer'
 import {
   getInteractionLineColor,
   getInteractionLineWidth,
@@ -50,16 +53,19 @@ const categories = [
   { id: 'bikelanes', source: 'bikelanes' },
   { id: 'bikelanesAge', source: 'bikelanes' },
   { id: 'bikelanesOneway', source: 'bikelanes' },
+  { id: 'bikelanesSurface', source: 'bikelanes' },
 
   // Roads and their variants
   { id: 'roads', source: 'roads' },
   { id: 'roadsAge', source: 'roads' },
   { id: 'roadsOneway', source: 'roads' },
+  { id: 'roadsSurface', source: 'roads' },
 
   // Road paths and their variants
   { id: 'roadsPath', source: 'roadsPathClasses' },
   { id: 'roadsPathAge', source: 'roadsPathClasses' },
   { id: 'roadsPathOneway', source: 'roadsPathClasses' },
+  { id: 'roadsPathSurface', source: 'roadsPathClasses' },
 ] as const
 
 const App = () => {
@@ -356,6 +362,12 @@ const App = () => {
                         return <RoadPathOnewayLayer key={layer.id} sourceLayer={sourceLayer} />
                       case 'bikelanesOneway':
                         return <BikeLaneOnewayLayer key={layer.id} sourceLayer={sourceLayer} />
+                      case 'roadsSurface':
+                        return <RoadSurfaceSettLayer key={layer.id} sourceLayer={sourceLayer} />
+                      case 'roadsPathSurface':
+                        return <RoadPathSurfaceSettLayer key={layer.id} sourceLayer={sourceLayer} />
+                      case 'bikelanesSurface':
+                        return <BikeLaneSurfaceSettLayer key={layer.id} sourceLayer={sourceLayer} />
                     }
                   })}
 
