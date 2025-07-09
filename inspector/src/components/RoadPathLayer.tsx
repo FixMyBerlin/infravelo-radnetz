@@ -18,7 +18,7 @@ export const RoadPathLayer = ({ sourceLayer }: Props) => {
             ['boolean', ['feature-state', 'hover'], false],
             'black',
             ['boolean', ['feature-state', 'selected'], false],
-            'red',
+            'pink',
             'purple',
           ],
           'line-opacity': ['case', ['boolean', ['feature-state', 'selected'], false], 1, 0.8],
@@ -45,7 +45,7 @@ export const RoadPathLayer = ({ sourceLayer }: Props) => {
             ['boolean', ['feature-state', 'hover'], false],
             'black',
             ['boolean', ['feature-state', 'selected'], false],
-            'red',
+            'pink',
             'purple',
           ],
         }}

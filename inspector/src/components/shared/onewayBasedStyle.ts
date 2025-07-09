@@ -12,7 +12,7 @@ export const getBikeLaneOnewayColor: DataDrivenPropertyValueSpecification<string
   ['boolean', ['feature-state', 'hover'], false],
   'black',
   ['boolean', ['feature-state', 'selected'], false],
-  'red',
+  'pink',
   [
     'case',
     // Allow implicit_yes for advisory or exclusive cycleways
@@ -49,7 +49,7 @@ export const getRoadOnewayColor: DataDrivenPropertyValueSpecification<string> = 
   ['boolean', ['feature-state', 'hover'], false],
   'black',
   ['boolean', ['feature-state', 'selected'], false],
-  'red',
+  'pink',
   [
     'case',
     ['all', ['has', 'oneway'], ['==', ['get', 'oneway'], 'yes'], ['has', 'oneway_bicycle']],
