@@ -287,7 +287,6 @@ const App = () => {
             <AddMapImage name={arrowImageId} url="/map-style-line-direction-arrow.png" sdf={true} />
             <NavigationControl position="bottom-right" />
             <BackgroundLayer />
-            <StaticLayers />
 
             {layers.map((layer) => (
               <Source
@@ -314,6 +313,7 @@ const App = () => {
                 )}
               </Fragment>
             )}
+            <StaticLayers />
           </Map>
         </div>
 
