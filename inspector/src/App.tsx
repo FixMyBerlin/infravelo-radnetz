@@ -5,6 +5,7 @@ import { parseAsArrayOf, parseAsString, parseAsStringLiteral, useQueryState } fr
 import { Protocol } from 'pmtiles'
 import { Fragment, useEffect, useState } from 'react'
 import Map, {
+  Layer,
   MapProvider,
   NavigationControl,
   Source,
@@ -24,7 +25,10 @@ import { RoadOnewayLayer } from './components/RoadOnewayLayer'
 import { RoadPathAgeLayer } from './components/RoadPathAgeLayer'
 import { RoadPathLayer } from './components/RoadPathLayer'
 import { RoadPathOnewayLayer } from './components/RoadPathOnewayLayer'
-import { INTERACTIVE_LAYER_IDS } from './components/shared/layerIds'
+import {
+  getInteractionLineColor,
+  getInteractionLineWidth,
+} from './components/shared/interactionStyle'
 import { StaticLayers } from './components/StaticLayers'
 import { useMapParam } from './components/useMapParam/useMapParam'
 
@@ -286,7 +290,11 @@ const App = () => {
               zoom: mapParam.zoom,
             }}
             minZoom={9}
-            interactiveLayerIds={[...INTERACTIVE_LAYER_IDS]}
+            interactiveLayerIds={[
+              'roads-interaction',
+              'roadsPathClasses-interaction',
+              'bikelanes-interaction',
+            ]}
             cursor={cursorStyle}
             onMoveEnd={handleMoveEnd}
             onMouseMove={handleMouseMove}
@@ -340,6 +348,59 @@ const App = () => {
                         return <RoadPathOnewayLayer key={layer.id} sourceLayer={sourceLayer} />
                       case 'bikelanesOneway':
                         return <BikeLaneOnewayLayer key={layer.id} sourceLayer={sourceLayer} />
+                    }
+                  })}
+
+                {layers
+                  .filter((layer) => activeLayers.includes(layer.id))
+                  .map((layer) => {
+                    const sourceLayer = sourceLayerMap[layer.source]
+                    if (!sourceLayer) return null
+
+                    // Interaction layer (hover/selected states)
+                    switch (sourceLayer) {
+                      case 'roads':
+                        return (
+                          <Layer
+                            id="roads-interaction"
+                            type="line"
+                            source="roads"
+                            paint={{
+                              'line-color': getInteractionLineColor,
+                              'line-width': getInteractionLineWidth,
+                              'line-opacity': 0.5,
+                            }}
+                            source-layer={sourceLayer}
+                          />
+                        )
+                      case 'roadsPathClasses':
+                        return (
+                          <Layer
+                            id="roadsPathClasses-interaction"
+                            type="line"
+                            source="roadsPathClasses"
+                            paint={{
+                              'line-color': getInteractionLineColor,
+                              'line-width': getInteractionLineWidth,
+                              'line-opacity': 0.5,
+                            }}
+                            source-layer={sourceLayer}
+                          />
+                        )
+                      case 'bikelanes':
+                        return (
+                          <Layer
+                            id="bikelanes-interaction"
+                            type="line"
+                            source="bikelanes"
+                            paint={{
+                              'line-color': getInteractionLineColor,
+                              'line-width': getInteractionLineWidth,
+                              'line-opacity': 0.5,
+                            }}
+                            source-layer={sourceLayer}
+                          />
+                        )
                     }
                   })}
               </Fragment>

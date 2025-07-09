@@ -6,8 +6,8 @@ export const ONEWAY_NO_COLOR = '#32CD32' // green
 export const ONEWAY_MISSING_COLOR = '#FF0000' // red
 export const ONEWAY_NEUTRAL_COLOR = '#808080' // gray
 
-// Default opacity for all layers
-export const getOnewayOpacity: DataDrivenPropertyValueSpecification<number> = 0.8
+// Default opacity for all oneway layers
+export const DEFAULT_OPACITY = 0.8
 
 // Style for bikelanes and paths
 export const getBikeLaneOnewayColor: DataDrivenPropertyValueSpecification<string> = [

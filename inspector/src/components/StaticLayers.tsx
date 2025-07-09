@@ -18,7 +18,7 @@ export const StaticLayers = () => {
         paint={{
           'line-width': ['interpolate', ['linear'], ['zoom'], 0, 0, 12.5, 0, 13, 1],
           'line-color': '#27272a',
-          'line-opacity': 0.7,
+          'line-opacity': 0.8,
           'line-offset': ['interpolate', ['linear'], ['zoom'], 0, 0, 12.5, 0, 13, -0.5],
         }}
       />
@@ -30,7 +30,7 @@ export const StaticLayers = () => {
         filter={['==', '$type', 'Polygon']}
         paint={{
           'fill-color': '#27272a',
-          'fill-opacity': 0.3,
+          'fill-opacity': 0.5,
         }}
       />
     </Fragment>

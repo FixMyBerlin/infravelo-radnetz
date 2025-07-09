@@ -8,25 +8,20 @@ type Props = {
 export const RoadLayer = ({ sourceLayer }: Props) => {
   return (
     <Fragment>
+      {/* Main style layer */}
       <Layer
         id="roads-line"
         type="line"
         source="roads"
         paint={{
-          'line-color': [
-            'case',
-            ['boolean', ['feature-state', 'hover'], false],
-            'black',
-            ['boolean', ['feature-state', 'selected'], false],
-            'pink',
-            'pink',
-          ],
-          'line-opacity': ['case', ['boolean', ['feature-state', 'selected'], false], 1, 0.8],
+          'line-color': 'pink',
+          'line-opacity': 0.8,
           'line-width': 3,
         }}
         source-layer={sourceLayer}
       />
 
+      {/* Arrow layer */}
       <Layer
         id="roads-arrow"
         type="symbol"
@@ -40,14 +35,7 @@ export const RoadLayer = ({ sourceLayer }: Props) => {
           'icon-rotation-alignment': 'map',
         }}
         paint={{
-          'icon-color': [
-            'case',
-            ['boolean', ['feature-state', 'hover'], false],
-            'black',
-            ['boolean', ['feature-state', 'selected'], false],
-            'pink',
-            'pink',
-          ],
+          'icon-color': 'pink',
         }}
         source-layer={sourceLayer}
       />
