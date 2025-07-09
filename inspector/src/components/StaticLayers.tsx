@@ -33,6 +33,25 @@ export const StaticLayers = () => {
           'fill-opacity': 0.5,
         }}
       />
+
+      <Source
+        id="gebiete-mapper"
+        type="vector"
+        url="pmtiles://https://tilda-geo.de/api/uploads/infravelo-mapping-aufteilung"
+      />
+      <Layer
+        id="gebiete-mapper-border"
+        type="line"
+        source="gebiete-mapper"
+        source-layer="default"
+        filter={['==', '$type', 'Polygon']}
+        paint={{
+          'line-width': 1,
+          'line-color': 'black',
+          'line-opacity': 1,
+          'line-offset': 0,
+        }}
+      />
     </Fragment>
   )
 }
