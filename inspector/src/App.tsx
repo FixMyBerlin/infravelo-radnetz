@@ -1,7 +1,7 @@
 import { Square3Stack3DIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { parseAsArrayOf, parseAsStringLiteral, useQueryState } from 'nuqs'
+import { parseAsArrayOf, parseAsString, parseAsStringLiteral, useQueryState } from 'nuqs'
 import { Protocol } from 'pmtiles'
 import { Fragment, useEffect, useState } from 'react'
 import Map, {
@@ -15,9 +15,12 @@ import Map, {
 } from 'react-map-gl/maplibre'
 import { AddMapImage } from './components/AddMapImage'
 import { BackgroundLayer } from './components/BackgroundLayer'
+import { BikeLaneAgeLayer } from './components/BikeLaneAgeLayer'
 import { BikeLaneLayer } from './components/BikeLaneLayer'
 import { Inspector } from './components/Inspector'
+import { RoadAgeLayer } from './components/RoadAgeLayer'
 import { RoadLayer } from './components/RoadLayer'
+import { RoadPathAgeLayer } from './components/RoadPathAgeLayer'
 import { RoadPathLayer } from './components/RoadPathLayer'
 import { StaticLayers } from './components/StaticLayers'
 import { useMapParam } from './components/useMapParam/useMapParam'
@@ -33,7 +36,19 @@ const baseMapStyle =
 
 const arrowImageId = 'arrow-image'
 
-const FIXED_LAYERS = ['bikelanes', 'roads', 'roadsPathClasses'] as const
+const categories = [
+  // Bike lanes and their variants
+  { id: 'bikelanes', source: 'bikelanes' },
+  { id: 'bikelanesAge', source: 'bikelanes' },
+
+  // Roads and their variants
+  { id: 'roads', source: 'roads' },
+  { id: 'roadsAge', source: 'roads' },
+
+  // Road paths and their variants
+  { id: 'roadsPath', source: 'roadsPathClasses' },
+  { id: 'roadsPathAge', source: 'roadsPathClasses' },
+] as const
 
 const App = () => {
   const sources = ['Production', 'Staging', 'Development'] as const
@@ -44,9 +59,9 @@ const App = () => {
   const { mapParam, setMapParam } = useMapParam()
   const [activeLayers, setActiveLayers] = useQueryState(
     'layers',
-    parseAsArrayOf(parseAsStringLiteral(FIXED_LAYERS)).withDefault([]),
+    parseAsArrayOf(parseAsString).withDefault([]),
   )
-  const [layers, setLayers] = useState<Array<typeof FIXED_LAYERS[number]>>([])
+  const [layers, setLayers] = useState<Array<(typeof categories)[number]>>([])
   const [sourceLayerMap, setSourceLayerMap] = useState<Record<string, string>>({})
   const [mapLoaded, setMapLoaded] = useState(false)
   const [showLayerPanel, setShowLayerPanel] = useState(true)
@@ -65,9 +80,9 @@ const App = () => {
       try {
         const response = await fetch(`${TILE_URLS[source]}/catalog`)
         const catalog = await response.json()
-        // Only use the fixed layers that are present in the catalog
+        // Only use the fixed layers that have their source present in the catalog
         const available = Object.keys(catalog.tiles)
-        setLayers(FIXED_LAYERS.filter((key) => available.includes(key)))
+        setLayers(categories.filter((layer) => available.includes(layer.source)))
       } catch (error) {
         console.error('Error fetching layers:', error)
       }
@@ -75,11 +90,9 @@ const App = () => {
     fetchLayers()
   }, [source])
 
-  const sortedLayers = layers.sort((a, b) => a.localeCompare(b))
-
-  const toggleLayer = (layer: typeof FIXED_LAYERS[number]) => {
+  const toggleLayer = (layer: (typeof categories)[number]) => {
     setActiveLayers((prev) =>
-      prev.includes(layer) ? prev.filter((l) => l !== layer) : [...prev, layer],
+      prev.includes(layer.id) ? prev.filter((l) => l !== layer.id) : [...prev, layer.id],
     )
   }
 
@@ -214,7 +227,7 @@ const App = () => {
                       {key}
                       {source === key && (
                         <a
-                          href={`${TILE_URLS[source]}/catalog`}
+                          href={`${TILE_URLS[source as keyof typeof TILE_URLS]}/catalog`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-[0.5rem] text-blue-500 hover:underline"
@@ -230,19 +243,19 @@ const App = () => {
             <section>
               <h2 className="mb-2 font-bold">Layers</h2>
               <ul>
-                {layers.sort((a, b) => a.localeCompare(b)).map((layer) => (
-                  <li key={layer} className="flex items-center justify-between">
+                {layers.map((layer) => (
+                  <li key={layer.id} className="flex items-center justify-between">
                     <label className="flex w-full items-center gap-2">
                       <input
                         type="checkbox"
-                        checked={activeLayers.includes(layer)}
+                        checked={activeLayers.includes(layer.id)}
                         onChange={() => toggleLayer(layer)}
                       />
-                      {layer}
+                      {layer.id}
 
-                      {activeLayers.includes(layer) && (
+                      {activeLayers.includes(layer.id) && (
                         <a
-                          href={`${TILE_URLS[source]}/${layer}`}
+                          href={`${TILE_URLS[source as keyof typeof TILE_URLS]}/${layer.source}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-[0.5rem] whitespace-nowrap text-blue-500 hover:underline"
@@ -251,7 +264,6 @@ const App = () => {
                         </a>
                       )}
                     </label>
-
                   </li>
                 ))}
               </ul>
@@ -268,11 +280,7 @@ const App = () => {
               zoom: mapParam.zoom,
             }}
             minZoom={9}
-            interactiveLayerIds={[
-              'roads-line',
-              'roadsPathClasses-line',
-              'bikelanes-line',
-            ]}
+            interactiveLayerIds={['roads-line', 'roadsPathClasses-line', 'bikelanes-line']}
             cursor={cursorStyle}
             onMoveEnd={handleMoveEnd}
             onMouseMove={handleMouseMove}
@@ -288,29 +296,40 @@ const App = () => {
             <NavigationControl position="bottom-right" />
             <BackgroundLayer />
 
-            {layers.map((layer) => (
+            {/* Group sources by unique source names to avoid duplicate sources */}
+            {Array.from(new Set(layers.map((l) => l.source))).map((sourceId) => (
               <Source
-                key={layer}
-                id={layer}
+                key={sourceId}
+                id={sourceId}
                 type="vector"
-                url={`${TILE_URLS[source]}/${layer}`}
+                url={`${TILE_URLS[source as keyof typeof TILE_URLS]}/${sourceId}`}
                 promoteId="id"
               />
             ))}
 
             {mapLoaded && (
               <Fragment>
-                {activeLayers.includes('roads') && sourceLayerMap['roads'] && (
-                  <RoadLayer sourceLayer={sourceLayerMap['roads']} />
-                )}
+                {layers
+                  .filter((layer) => activeLayers.includes(layer.id))
+                  .map((layer) => {
+                    const sourceLayer = sourceLayerMap[layer.source]
+                    if (!sourceLayer) return null
 
-                {activeLayers.includes('roadsPathClasses') && sourceLayerMap['roadsPathClasses'] && (
-                  <RoadPathLayer sourceLayer={sourceLayerMap['roadsPathClasses']} />
-                )}
-
-                {activeLayers.includes('bikelanes') && sourceLayerMap['bikelanes'] && (
-                  <BikeLaneLayer sourceLayer={sourceLayerMap['bikelanes']} />
-                )}
+                    switch (layer.id) {
+                      case 'roads':
+                        return <RoadLayer key={layer.id} sourceLayer={sourceLayer} />
+                      case 'roadsAge':
+                        return <RoadAgeLayer key={layer.id} sourceLayer={sourceLayer} />
+                      case 'roadsPath':
+                        return <RoadPathLayer key={layer.id} sourceLayer={sourceLayer} />
+                      case 'roadsPathAge':
+                        return <RoadPathAgeLayer key={layer.id} sourceLayer={sourceLayer} />
+                      case 'bikelanes':
+                        return <BikeLaneLayer key={layer.id} sourceLayer={sourceLayer} />
+                      case 'bikelanesAge':
+                        return <BikeLaneAgeLayer key={layer.id} sourceLayer={sourceLayer} />
+                    }
+                  })}
               </Fragment>
             )}
             <StaticLayers />
