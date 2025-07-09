@@ -21,12 +21,7 @@ export const RoadPathLayer = ({ sourceLayer }: Props) => {
             'red',
             'purple',
           ],
-          'line-opacity': [
-            'case',
-            ['boolean', ['feature-state', 'selected'], false],
-            1,
-            0.8,
-          ],
+          'line-opacity': ['case', ['boolean', ['feature-state', 'selected'], false], 1, 0.8],
           'line-width': 3,
         }}
         source-layer={sourceLayer}
