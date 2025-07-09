@@ -1,5 +1,5 @@
 import { Square3Stack3DIcon, XMarkIcon } from '@heroicons/react/24/outline'
-import maplibregl from 'maplibre-gl'
+import maplibregl, { type MapSourceDataEvent } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { parseAsArrayOf, parseAsString, parseAsStringLiteral, useQueryState } from 'nuqs'
 import { Protocol } from 'pmtiles'
@@ -10,18 +10,20 @@ import Map, {
   Source,
   type MapGeoJSONFeature,
   type MapLayerMouseEvent,
-  type MapSourceDataEvent,
   type ViewStateChangeEvent,
 } from 'react-map-gl/maplibre'
 import { AddMapImage } from './components/AddMapImage'
 import { BackgroundLayer } from './components/BackgroundLayer'
 import { BikeLaneAgeLayer } from './components/BikeLaneAgeLayer'
 import { BikeLaneLayer } from './components/BikeLaneLayer'
+import { BikeLaneOnewayLayer } from './components/BikeLaneOnewayLayer'
 import { Inspector } from './components/Inspector'
 import { RoadAgeLayer } from './components/RoadAgeLayer'
 import { RoadLayer } from './components/RoadLayer'
+import { RoadOnewayLayer } from './components/RoadOnewayLayer'
 import { RoadPathAgeLayer } from './components/RoadPathAgeLayer'
 import { RoadPathLayer } from './components/RoadPathLayer'
+import { RoadPathOnewayLayer } from './components/RoadPathOnewayLayer'
 import { INTERACTIVE_LAYER_IDS } from './components/shared/layerIds'
 import { StaticLayers } from './components/StaticLayers'
 import { useMapParam } from './components/useMapParam/useMapParam'
@@ -41,14 +43,17 @@ const categories = [
   // Bike lanes and their variants
   { id: 'bikelanes', source: 'bikelanes' },
   { id: 'bikelanesAge', source: 'bikelanes' },
+  { id: 'bikelanesOneway', source: 'bikelanes' },
 
   // Roads and their variants
   { id: 'roads', source: 'roads' },
   { id: 'roadsAge', source: 'roads' },
+  { id: 'roadsOneway', source: 'roads' },
 
   // Road paths and their variants
   { id: 'roadsPath', source: 'roadsPathClasses' },
   { id: 'roadsPathAge', source: 'roadsPathClasses' },
+  { id: 'roadsPathOneway', source: 'roadsPathClasses' },
 ] as const
 
 const App = () => {
@@ -329,6 +334,12 @@ const App = () => {
                         return <BikeLaneLayer key={layer.id} sourceLayer={sourceLayer} />
                       case 'bikelanesAge':
                         return <BikeLaneAgeLayer key={layer.id} sourceLayer={sourceLayer} />
+                      case 'roadsOneway':
+                        return <RoadOnewayLayer key={layer.id} sourceLayer={sourceLayer} />
+                      case 'roadsPathOneway':
+                        return <RoadPathOnewayLayer key={layer.id} sourceLayer={sourceLayer} />
+                      case 'bikelanesOneway':
+                        return <BikeLaneOnewayLayer key={layer.id} sourceLayer={sourceLayer} />
                     }
                   })}
               </Fragment>

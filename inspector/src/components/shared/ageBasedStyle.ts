@@ -6,11 +6,7 @@ const OLD_COLOR = '#8B4513' // rust-brown
 
 export const getAgeColor: DataDrivenPropertyValueSpecification<string> = [
   'case',
-  [
-    '>', 
-    ['get', 'updated_at'],
-    CUTOFF_DATE
-  ],
+  ['>', ['get', 'updated_at'], CUTOFF_DATE],
   FRESH_COLOR,
   OLD_COLOR,
 ]

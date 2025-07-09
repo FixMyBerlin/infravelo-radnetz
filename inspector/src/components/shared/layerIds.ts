@@ -6,6 +6,9 @@ export const INTERACTIVE_LAYER_IDS = [
   'roads-age-line',
   'roadsPath-age-line',
   'bikelanes-age-line',
+  'roads-oneway-line',
+  'roadsPath-oneway-line',
+  'bikelanes-oneway-line',
 ] as const
 
 export type InteractiveLayerId = (typeof INTERACTIVE_LAYER_IDS)[number]
