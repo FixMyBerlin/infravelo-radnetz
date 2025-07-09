@@ -1,7 +1,7 @@
 import { Square3Stack3DIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { parseAsArrayOf, parseAsString, parseAsStringLiteral, useQueryState } from 'nuqs'
+import { parseAsArrayOf, parseAsStringLiteral, useQueryState } from 'nuqs'
 import { Protocol } from 'pmtiles'
 import { Fragment, useEffect, useState } from 'react'
 import Map, {
@@ -33,11 +33,7 @@ const baseMapStyle =
 
 const arrowImageId = 'arrow-image'
 
-const FIXED_LAYERS = [
-  { key: 'bikelanes', color: '#1E90FF' },
-  { key: 'roads', color: '#32CD32' },
-  { key: 'roadsPathClasses', color: '#FF8C00' },
-] as const
+const FIXED_LAYERS = ['bikelanes', 'roads', 'roadsPathClasses'] as const
 
 const App = () => {
   const sources = ['Production', 'Staging', 'Development'] as const
@@ -48,12 +44,11 @@ const App = () => {
   const { mapParam, setMapParam } = useMapParam()
   const [activeLayers, setActiveLayers] = useQueryState(
     'layers',
-    parseAsArrayOf(parseAsString).withDefault([]),
+    parseAsArrayOf(parseAsStringLiteral(FIXED_LAYERS)).withDefault([]),
   )
-  const [layers, setLayers] = useState<string[]>([])
+  const [layers, setLayers] = useState<Array<typeof FIXED_LAYERS[number]>>([])
   const [sourceLayerMap, setSourceLayerMap] = useState<Record<string, string>>({})
   const [mapLoaded, setMapLoaded] = useState(false)
-  const [searchTerm, setSearchTerm] = useQueryState('search', parseAsString.withDefault(''))
   const [showLayerPanel, setShowLayerPanel] = useState(true)
 
   useEffect(() => {
@@ -72,7 +67,7 @@ const App = () => {
         const catalog = await response.json()
         // Only use the fixed layers that are present in the catalog
         const available = Object.keys(catalog.tiles)
-        setLayers(FIXED_LAYERS.map((l) => l.key).filter((key) => available.includes(key)))
+        setLayers(FIXED_LAYERS.filter((key) => available.includes(key)))
       } catch (error) {
         console.error('Error fetching layers:', error)
       }
@@ -80,12 +75,9 @@ const App = () => {
     fetchLayers()
   }, [source])
 
-  // Filtered layers based on search
-  const filteredLayers = layers
-    .filter((layer) => layer.toLowerCase().includes(searchTerm.toLowerCase()))
-    .sort((a, b) => a.localeCompare(b))
+  const sortedLayers = layers.sort((a, b) => a.localeCompare(b))
 
-  const toggleLayer = (layer: string) => {
+  const toggleLayer = (layer: typeof FIXED_LAYERS[number]) => {
     setActiveLayers((prev) =>
       prev.includes(layer) ? prev.filter((l) => l !== layer) : [...prev, layer],
     )
@@ -102,25 +94,6 @@ const App = () => {
       prev[event.sourceId] = layerId
       return prev
     })
-
-    if (!sourceColor[event.sourceId]) {
-      handleColorChange(event.sourceId, string2RandColor(event.sourceId))
-    }
-  }
-
-  // Set initial color for each fixed layer
-  const [sourceColor, setSourceColors] = useState<Record<string, string>>(() => {
-    const initial: Record<string, string> = {}
-    for (const { key, color } of FIXED_LAYERS) {
-      initial[key] = color
-    }
-    return initial
-  })
-  const handleColorChange = (layer: string, color: string) => {
-    setSourceColors((prev) => ({
-      ...prev,
-      [layer]: color,
-    }))
   }
 
   const handleMoveEnd = (event: ViewStateChangeEvent) => {
@@ -255,18 +228,9 @@ const App = () => {
               </ul>
             </section>
             <section>
-              <div className="mb-2 flex items-center justify-between">
-                <h2 className="font-bold">Layers</h2>
-                <input
-                  type="text"
-                  placeholder="Search layers..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="rounded border px-2 py-1 text-sm"
-                />
-              </div>
+              <h2 className="mb-2 font-bold">Layers</h2>
               <ul>
-                {filteredLayers.map((layer) => (
+                {layers.sort((a, b) => a.localeCompare(b)).map((layer) => (
                   <li key={layer} className="flex items-center justify-between">
                     <label className="flex w-full items-center gap-2">
                       <input
@@ -287,12 +251,7 @@ const App = () => {
                         </a>
                       )}
                     </label>
-                    <input
-                      type="color"
-                      defaultValue={sourceColor[layer]}
-                      onChange={(e) => handleColorChange(layer, e.target.value)}
-                      className="size-5 flex-none overflow-clip rounded-4xl"
-                    />
+
                   </li>
                 ))}
               </ul>
@@ -343,15 +302,15 @@ const App = () => {
             {mapLoaded && (
               <Fragment>
                 {activeLayers.includes('roads') && sourceLayerMap['roads'] && (
-                  <RoadLayer sourceLayer={sourceLayerMap['roads']}  />
+                  <RoadLayer sourceLayer={sourceLayerMap['roads']} />
                 )}
 
                 {activeLayers.includes('roadsPathClasses') && sourceLayerMap['roadsPathClasses'] && (
-                  <RoadPathLayer sourceLayer={sourceLayerMap['roadsPathClasses']}  />
+                  <RoadPathLayer sourceLayer={sourceLayerMap['roadsPathClasses']} />
                 )}
 
                 {activeLayers.includes('bikelanes') && sourceLayerMap['bikelanes'] && (
-                  <BikeLaneLayer sourceLayer={sourceLayerMap['bikelanes']}  />
+                  <BikeLaneLayer sourceLayer={sourceLayerMap['bikelanes']} />
                 )}
               </Fragment>
             )}
