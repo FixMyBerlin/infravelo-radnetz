@@ -23,6 +23,7 @@ import { Inspector } from './components/Inspector'
 import { Legend } from './components/Legend'
 import { RoadAgeLayer } from './components/RoadAgeLayer'
 import { RoadCyclewayNoLayer } from './components/RoadCyclewayNoLayer'
+import { RoadDualCarriagewayLayer } from './components/RoadDualCarriagewayLayer'
 import { RoadLayer } from './components/RoadLayer'
 import { RoadOnewayLayer } from './components/RoadOnewayLayer'
 import { RoadPathAgeLayer } from './components/RoadPathAgeLayer'
@@ -62,6 +63,7 @@ const categories = [
   { id: 'roadsOneway', source: 'roads' },
   { id: 'roadsSurface', source: 'roads' },
   { id: 'roadsCyclewayNo', source: 'roads' },
+  { id: 'roadDualCarriageway', source: 'roads' },
 
   // Road paths and their variants
   { id: 'roadsPath', source: 'roadsPathClasses' },
@@ -372,6 +374,8 @@ const App = () => {
                         return <BikeLaneSurfaceSettLayer key={layer.id} sourceLayer={sourceLayer} />
                       case 'roadsCyclewayNo':
                         return <RoadCyclewayNoLayer key={layer.id} sourceLayer={sourceLayer} />
+                      case 'roadDualCarriageway':
+                        return <RoadDualCarriagewayLayer key={layer.id} sourceLayer={sourceLayer} />
                     }
                   })}
 
