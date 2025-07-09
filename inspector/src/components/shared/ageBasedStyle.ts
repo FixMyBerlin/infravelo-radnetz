@@ -1,4 +1,5 @@
 import type { DataDrivenPropertyValueSpecification } from 'maplibre-gl'
+import type { LayerLegend } from './types'
 
 const CUTOFF_DATE = '2025-07-01'
 const FRESH_COLOR = '#32CD32' // green
@@ -19,3 +20,10 @@ export const getAgeOpacity: DataDrivenPropertyValueSpecification<number> = [
   1,
   0.8,
 ]
+
+export const getAgeLegend = (): LayerLegend => ({
+  items: [
+    { color: FRESH_COLOR, label: `Nach ${CUTOFF_DATE.split('-').join('.')} aktualisiert` },
+    { color: OLD_COLOR, label: `Vor ${CUTOFF_DATE.split('-').join('.')} aktualisiert` },
+  ],
+})

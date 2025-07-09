@@ -19,6 +19,7 @@ import { BikeLaneAgeLayer } from './components/BikeLaneAgeLayer'
 import { BikeLaneLayer } from './components/BikeLaneLayer'
 import { BikeLaneOnewayLayer } from './components/BikeLaneOnewayLayer'
 import { Inspector } from './components/Inspector'
+import { Legend } from './components/Legend'
 import { RoadAgeLayer } from './components/RoadAgeLayer'
 import { RoadLayer } from './components/RoadLayer'
 import { RoadOnewayLayer } from './components/RoadOnewayLayer'
@@ -29,6 +30,7 @@ import {
   getInteractionLineColor,
   getInteractionLineWidth,
 } from './components/shared/interactionStyle'
+import { LAYER_LEGENDS } from './components/shared/legends'
 import { StaticLayers } from './components/StaticLayers'
 import { useMapParam } from './components/useMapParam/useMapParam'
 
@@ -254,26 +256,32 @@ const App = () => {
               <h2 className="mb-2 font-bold">Layers</h2>
               <ul>
                 {layers.map((layer) => (
-                  <li key={layer.id} className="flex items-center justify-between">
-                    <label className="flex w-full items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={activeLayers.includes(layer.id)}
-                        onChange={() => toggleLayer(layer)}
-                      />
-                      {layer.id}
+                  <li key={layer.id}>
+                    <div className="flex items-center justify-between">
+                      <label className="flex w-full items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={activeLayers.includes(layer.id)}
+                          onChange={() => toggleLayer(layer)}
+                        />
+                        {layer.id}
 
-                      {activeLayers.includes(layer.id) && (
-                        <a
-                          href={`${TILE_URLS[source as keyof typeof TILE_URLS]}/${layer.source}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-[0.5rem] whitespace-nowrap text-blue-500 hover:underline"
-                        >
-                          Tile JSON
-                        </a>
+                        {activeLayers.includes(layer.id) && (
+                          <a
+                            href={`${TILE_URLS[source as keyof typeof TILE_URLS]}/${layer.source}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[0.5rem] whitespace-nowrap text-blue-500 hover:underline"
+                          >
+                            Tile JSON
+                          </a>
+                        )}
+                      </label>
+                    </div>
+                    {activeLayers.includes(layer.id) &&
+                      LAYER_LEGENDS[layer.id as keyof typeof LAYER_LEGENDS] && (
+                        <Legend legend={LAYER_LEGENDS[layer.id as keyof typeof LAYER_LEGENDS]} />
                       )}
-                    </label>
                   </li>
                 ))}
               </ul>

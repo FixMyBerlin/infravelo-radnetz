@@ -1,4 +1,5 @@
 import type { DataDrivenPropertyValueSpecification } from 'maplibre-gl'
+import type { LayerLegend } from './types'
 
 // Color constants
 export const ONEWAY_YES_COLOR = '#0000FF' // blue
@@ -22,9 +23,21 @@ export const getBikeLaneOnewayColor: DataDrivenPropertyValueSpecification<string
       ['==', ['get', 'category'], 'cyclewayOnHighway_advisory'],
       ['==', ['get', 'category'], 'cyclewayOnHighway_exclusive'],
       ['==', ['get', 'category'], 'cyclewayOnHighwayProtected'],
+      ['==', ['get', 'category'], 'footAndCyclewayShared_adjoining'],
     ],
   ],
   ONEWAY_YES_COLOR,
+  [
+    'all',
+    ['has', 'oneway'],
+    ['==', ['get', 'oneway'], 'assumed_no'],
+    [
+      'any',
+      ['==', ['get', 'category'], 'bicycleRoad_vehicleDestination'],
+      ['==', ['get', 'category'], 'pedestrianAreaBicycleYes'],
+    ],
+  ],
+  ONEWAY_NO_COLOR,
   // Normal oneway handling
   ['has', 'oneway'],
   [
@@ -33,6 +46,8 @@ export const getBikeLaneOnewayColor: DataDrivenPropertyValueSpecification<string
     'yes',
     ONEWAY_YES_COLOR,
     'no',
+    ONEWAY_NO_COLOR,
+    'car_not_bike',
     ONEWAY_NO_COLOR,
     ONEWAY_MISSING_COLOR,
   ],
@@ -48,3 +63,25 @@ export const getRoadOnewayColor: DataDrivenPropertyValueSpecification<string> = 
   ONEWAY_MISSING_COLOR,
   ONEWAY_NEUTRAL_COLOR,
 ]
+
+export const getBikeLaneOnewayLegend = (): LayerLegend => ({
+  items: [
+    { color: ONEWAY_YES_COLOR, label: 'Einbahnstraße (explizit oder implizit)' },
+    { color: ONEWAY_NO_COLOR, label: 'Keine Einbahnstraße (explizit oder nur für Autos)' },
+    { color: ONEWAY_MISSING_COLOR, label: '[TODO] Keine oder fehlerhafte Angabe' },
+  ],
+})
+
+export const getRoadOnewayLegend = (): LayerLegend => ({
+  items: [
+    {
+      color: ONEWAY_YES_COLOR,
+      label: 'Einbahnstraße (Auto) mit vollständiger Angabe zu bicycle:oneway',
+    },
+    {
+      color: ONEWAY_MISSING_COLOR,
+      label: '[TODO] Einbahnstraße (Auto) aber bicycle:oneway fehlt',
+    },
+    { color: ONEWAY_NEUTRAL_COLOR, label: 'Keine Einbahnstraße' },
+  ],
+})
