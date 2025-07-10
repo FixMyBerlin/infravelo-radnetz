@@ -1,4 +1,4 @@
 # InfraVelo Radvorrangnetz Quickviewer
 
-- Live at TODO
-- Deployment TODO
+- Live at https://infravelo-qa.netlify.app/
+- Hosting https://app.netlify.com/projects/infravelo-qa/overview
