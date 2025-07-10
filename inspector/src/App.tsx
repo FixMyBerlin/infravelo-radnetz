@@ -1,5 +1,5 @@
 import { Square3Stack3DIcon, XMarkIcon } from '@heroicons/react/24/outline'
-import maplibregl from 'maplibre-gl'
+import maplibregl, { type MapSourceDataEvent } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { parseAsArrayOf, parseAsString, parseAsStringLiteral, useQueryState } from 'nuqs'
 import { Protocol } from 'pmtiles'
@@ -11,12 +11,34 @@ import Map, {
   Source,
   type MapGeoJSONFeature,
   type MapLayerMouseEvent,
-  type MapSourceDataEvent,
   type ViewStateChangeEvent,
 } from 'react-map-gl/maplibre'
 import { AddMapImage } from './components/AddMapImage'
 import { BackgroundLayer } from './components/BackgroundLayer'
+import { BikeLaneAgeLayer } from './components/BikeLaneAgeLayer'
+import { BikeLaneLayer } from './components/BikeLaneLayer'
+import { BikeLaneMapillaryLayer } from './components/BikeLaneMapillaryLayer'
+import { BikeLaneOnewayLayer } from './components/BikeLaneOnewayLayer'
+import { BikelaneSurfaceColorLayer } from './components/BikelaneSurfaceColorLayer'
+import { BikeLaneSurfaceSettLayer } from './components/BikeLaneSurfaceSettLayer'
+import { BikeLaneTrafficSignLayer } from './components/BikeLaneTrafficSignLayer'
 import { Inspector } from './components/Inspector'
+import { Legend } from './components/Legend'
+import { RoadAgeLayer } from './components/RoadAgeLayer'
+import { RoadCyclewayNoLayer } from './components/RoadCyclewayNoLayer'
+import { RoadDualCarriagewayLayer } from './components/RoadDualCarriagewayLayer'
+import { RoadLayer } from './components/RoadLayer'
+import { RoadOnewayLayer } from './components/RoadOnewayLayer'
+import { RoadPathAgeLayer } from './components/RoadPathAgeLayer'
+import { RoadPathLayer } from './components/RoadPathLayer'
+import { RoadPathOnewayLayer } from './components/RoadPathOnewayLayer'
+import { RoadPathSurfaceSettLayer } from './components/RoadPathSurfaceSettLayer'
+import { RoadSurfaceSettLayer } from './components/RoadSurfaceSettLayer'
+import {
+  getInteractionLineColor,
+  getInteractionLineWidth,
+} from './components/shared/interactionStyle'
+import { LAYER_LEGENDS } from './components/shared/legends'
 import { StaticLayers } from './components/StaticLayers'
 import { useMapParam } from './components/useMapParam/useMapParam'
 
@@ -29,44 +51,53 @@ const TILE_URLS = {
 const baseMapStyle =
   'https://api.maptiler.com/maps/08357855-50d4-44e1-ac9f-ea099d9de4a5/style.json?key=ECOoUBmpqklzSCASXxcu'
 
-const string2RandColor = (str: string) => {
-  let hash = 0
-  for (let i = 0; i < str.length; i++) {
-    hash = str.charCodeAt(i) + ((hash << 5) - hash)
-  }
-  const r = (hash >> 24) & 0xff
-  const g = (hash >> 16) & 0xff
-  const b = (hash >> 8) & 0xff
-  return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`
-}
-
-const typeStyles = [
-  {
-    type: 'circle',
-    geoType: 'Point',
-    alpha: 0.8,
-    styles: {},
-  },
-  {
-    type: 'line',
-    geoType: 'LineString',
-    alpha: 0.8,
-    styles: { 'line-width': 3 },
-  },
-  {
-    type: 'fill',
-    geoType: 'Polygon',
-    alpha: 0.4,
-    styles: {},
-  },
-] as const
-
 const arrowImageId = 'arrow-image'
 
-const FIXED_LAYERS = [
-  { key: 'bikelanes', color: '#1E90FF' },
-  { key: 'roads', color: '#32CD32' },
-  { key: 'roadsPathClasses', color: '#FF8C00' },
+const categories = [
+  // Bike lanes and their variants
+  { id: 'bikelanes', source: 'bikelanes' },
+  { id: 'bikelanesAge', source: 'bikelanes', inspectorHighlightTags: ['updated_at'] },
+  { id: 'bikelanesOneway', source: 'bikelanes', inspectorHighlightTags: ['oneway', 'oneway_bike'] },
+  {
+    id: 'bikelanesSurface',
+    source: 'bikelanes',
+    inspectorHighlightTags: ['surface'],
+  },
+  {
+    id: 'bikelanSurfaceColor',
+    source: 'bikelanes',
+    inspectorHighlightTags: ['surface_color'],
+  },
+  {
+    id: 'bikelanesTrafficSign',
+    source: 'bikelanes',
+    inspectorHighlightTags: ['traffic_sign'],
+  },
+  {
+    id: 'bikelanesMapillary',
+    source: 'bikelanes',
+    inspectorHighlightTags: [
+      'mapillary',
+      'mapillary_left',
+      'mapillary_right',
+      'mapillary_traffic_sign',
+      'traffic_sign',
+    ],
+  },
+
+  // Roads and their variants
+  { id: 'roads', source: 'roads' },
+  { id: 'roadsAge', source: 'roads' },
+  { id: 'roadsOneway', source: 'roads' },
+  { id: 'roadsSurface', source: 'roads' },
+  { id: 'roadsCyclewayNo', source: 'roads' },
+  { id: 'roadDualCarriageway', source: 'roads' },
+
+  // Road paths and their variants
+  { id: 'roadsPath', source: 'roadsPathClasses' },
+  { id: 'roadsPathAge', source: 'roadsPathClasses' },
+  { id: 'roadsPathOneway', source: 'roadsPathClasses' },
+  { id: 'roadsPathSurface', source: 'roadsPathClasses' },
 ] as const
 
 const App = () => {
@@ -80,10 +111,9 @@ const App = () => {
     'layers',
     parseAsArrayOf(parseAsString).withDefault([]),
   )
-  const [layers, setLayers] = useState<string[]>([])
+  const [layers, setLayers] = useState<Array<(typeof categories)[number]>>([])
   const [sourceLayerMap, setSourceLayerMap] = useState<Record<string, string>>({})
   const [mapLoaded, setMapLoaded] = useState(false)
-  const [searchTerm, setSearchTerm] = useQueryState('search', parseAsString.withDefault(''))
   const [showLayerPanel, setShowLayerPanel] = useState(true)
 
   useEffect(() => {
@@ -100,9 +130,9 @@ const App = () => {
       try {
         const response = await fetch(`${TILE_URLS[source]}/catalog`)
         const catalog = await response.json()
-        // Only use the fixed layers that are present in the catalog
+        // Only use the fixed layers that have their source present in the catalog
         const available = Object.keys(catalog.tiles)
-        setLayers(FIXED_LAYERS.map((l) => l.key).filter((key) => available.includes(key)))
+        setLayers(categories.filter((layer) => available.includes(layer.source)))
       } catch (error) {
         console.error('Error fetching layers:', error)
       }
@@ -110,14 +140,9 @@ const App = () => {
     fetchLayers()
   }, [source])
 
-  // Filtered layers based on search
-  const filteredLayers = layers
-    .filter((layer) => layer.toLowerCase().includes(searchTerm.toLowerCase()))
-    .sort((a, b) => a.localeCompare(b))
-
-  const toggleLayer = (layer: string) => {
+  const toggleLayer = (layer: (typeof categories)[number]) => {
     setActiveLayers((prev) =>
-      prev.includes(layer) ? prev.filter((l) => l !== layer) : [...prev, layer],
+      prev.includes(layer.id) ? prev.filter((l) => l !== layer.id) : [...prev, layer.id],
     )
   }
 
@@ -132,25 +157,6 @@ const App = () => {
       prev[event.sourceId] = layerId
       return prev
     })
-
-    if (!sourceColor[event.sourceId]) {
-      handleColorChange(event.sourceId, string2RandColor(event.sourceId))
-    }
-  }
-
-  // Set initial color for each fixed layer
-  const [sourceColor, setSourceColors] = useState<Record<string, string>>(() => {
-    const initial: Record<string, string> = {}
-    for (const { key, color } of FIXED_LAYERS) {
-      initial[key] = color
-    }
-    return initial
-  })
-  const handleColorChange = (layer: string, color: string) => {
-    setSourceColors((prev) => ({
-      ...prev,
-      [layer]: color,
-    }))
   }
 
   const handleMoveEnd = (event: ViewStateChangeEvent) => {
@@ -223,6 +229,14 @@ const App = () => {
     handleFeatureHover([], map)
   }
 
+  useEffect(() => {
+    const protocol = new Protocol()
+    maplibregl.addProtocol('pmtiles', protocol.tile)
+    return () => {
+      maplibregl.removeProtocol('pmtiles')
+    }
+  }, [])
+
   return (
     <MapProvider>
       <main className="flex h-screen">
@@ -263,7 +277,7 @@ const App = () => {
                       {key}
                       {source === key && (
                         <a
-                          href={`${TILE_URLS[source]}/catalog`}
+                          href={`${TILE_URLS[source as keyof typeof TILE_URLS]}/catalog`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-[0.5rem] text-blue-500 hover:underline"
@@ -277,44 +291,35 @@ const App = () => {
               </ul>
             </section>
             <section>
-              <div className="mb-2 flex items-center justify-between">
-                <h2 className="font-bold">Layers</h2>
-                <input
-                  type="text"
-                  placeholder="Search layers..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="rounded border px-2 py-1 text-sm"
-                />
-              </div>
+              <h2 className="mb-2 font-bold">Layers</h2>
               <ul>
-                {filteredLayers.map((layer) => (
-                  <li key={layer} className="flex items-center justify-between">
-                    <label className="flex w-full items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={activeLayers.includes(layer)}
-                        onChange={() => toggleLayer(layer)}
-                      />
-                      {layer}
+                {layers.map((layer) => (
+                  <li key={layer.id}>
+                    <div className="flex items-center justify-between">
+                      <label className="flex w-full items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={activeLayers.includes(layer.id)}
+                          onChange={() => toggleLayer(layer)}
+                        />
+                        {layer.id}
 
-                      {activeLayers.includes(layer) && (
-                        <a
-                          href={`${TILE_URLS[source]}/${layer}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-[0.5rem] whitespace-nowrap text-blue-500 hover:underline"
-                        >
-                          Tile JSON
-                        </a>
+                        {activeLayers.includes(layer.id) && (
+                          <a
+                            href={`${TILE_URLS[source as keyof typeof TILE_URLS]}/${layer.source}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[0.5rem] whitespace-nowrap text-blue-500 hover:underline"
+                          >
+                            Tile JSON
+                          </a>
+                        )}
+                      </label>
+                    </div>
+                    {activeLayers.includes(layer.id) &&
+                      LAYER_LEGENDS[layer.id as keyof typeof LAYER_LEGENDS] && (
+                        <Legend legend={LAYER_LEGENDS[layer.id as keyof typeof LAYER_LEGENDS]} />
                       )}
-                    </label>
-                    <input
-                      type="color"
-                      defaultValue={sourceColor[layer]}
-                      onChange={(e) => handleColorChange(layer, e.target.value)}
-                      className="size-5 flex-none overflow-clip rounded-4xl"
-                    />
                   </li>
                 ))}
               </ul>
@@ -331,9 +336,11 @@ const App = () => {
               zoom: mapParam.zoom,
             }}
             minZoom={9}
-            interactiveLayerIds={activeLayers
-              .map((l) => typeStyles.map(({ type }) => `${l}-${type}`))
-              .flat()}
+            interactiveLayerIds={[
+              'roads-interaction',
+              'roadsPathClasses-interaction',
+              'bikelanes-interaction',
+            ]}
             cursor={cursorStyle}
             onMoveEnd={handleMoveEnd}
             onMouseMove={handleMouseMove}
@@ -346,103 +353,131 @@ const App = () => {
             mapStyle={baseMapStyle}
           >
             <AddMapImage name={arrowImageId} url="/map-style-line-direction-arrow.png" sdf={true} />
-
             <NavigationControl position="bottom-right" />
-
             <BackgroundLayer />
 
-            <StaticLayers />
-
-            {layers.map((layer) => (
+            {/* Group sources by unique source names to avoid duplicate sources */}
+            {Array.from(new Set(layers.map((l) => l.source))).map((sourceId) => (
               <Source
-                key={layer}
-                id={layer}
+                key={sourceId}
+                id={sourceId}
                 type="vector"
-                url={`${TILE_URLS[source]}/${layer}`}
+                url={`${TILE_URLS[source as keyof typeof TILE_URLS]}/${sourceId}`}
                 promoteId="id"
               />
             ))}
 
-            {mapLoaded == true &&
-              activeLayers.map((layer) => (
-                <Fragment key={layer}>
-                  {typeStyles.map(({ type, geoType, alpha, styles }) => {
-                    if (!sourceLayerMap[layer]) {
-                      console.log(
-                        'ERROR: `sourceLayerMap` does not know the source-layer for the current layer',
-                        layer,
-                        sourceLayerMap,
-                      )
-                      return null
+            {mapLoaded && (
+              <Fragment>
+                {layers
+                  .filter((layer) => activeLayers.includes(layer.id))
+                  .map((layer) => {
+                    const sourceLayer = sourceLayerMap[layer.source]
+                    if (!sourceLayer) return null
+
+                    switch (layer.id) {
+                      case 'roads':
+                        return <RoadLayer key={layer.id} sourceLayer={sourceLayer} />
+                      case 'roadsAge':
+                        return <RoadAgeLayer key={layer.id} sourceLayer={sourceLayer} />
+                      case 'roadsPath':
+                        return <RoadPathLayer key={layer.id} sourceLayer={sourceLayer} />
+                      case 'roadsPathAge':
+                        return <RoadPathAgeLayer key={layer.id} sourceLayer={sourceLayer} />
+                      case 'bikelanes':
+                        return <BikeLaneLayer key={layer.id} sourceLayer={sourceLayer} />
+                      case 'bikelanesAge':
+                        return <BikeLaneAgeLayer key={layer.id} sourceLayer={sourceLayer} />
+                      case 'bikelanSurfaceColor':
+                        return (
+                          <BikelaneSurfaceColorLayer key={layer.id} sourceLayer={sourceLayer} />
+                        )
+                      case 'roadsOneway':
+                        return <RoadOnewayLayer key={layer.id} sourceLayer={sourceLayer} />
+                      case 'roadsPathOneway':
+                        return <RoadPathOnewayLayer key={layer.id} sourceLayer={sourceLayer} />
+                      case 'bikelanesOneway':
+                        return <BikeLaneOnewayLayer key={layer.id} sourceLayer={sourceLayer} />
+                      case 'roadsSurface':
+                        return <RoadSurfaceSettLayer key={layer.id} sourceLayer={sourceLayer} />
+                      case 'roadsPathSurface':
+                        return <RoadPathSurfaceSettLayer key={layer.id} sourceLayer={sourceLayer} />
+                      case 'bikelanesSurface':
+                        return <BikeLaneSurfaceSettLayer key={layer.id} sourceLayer={sourceLayer} />
+                      case 'bikelanesTrafficSign':
+                        return <BikeLaneTrafficSignLayer key={layer.id} sourceLayer={sourceLayer} />
+                      case 'bikelanesMapillary':
+                        return <BikeLaneMapillaryLayer key={layer.id} sourceLayer={sourceLayer} />
+                      case 'roadsCyclewayNo':
+                        return <RoadCyclewayNoLayer key={layer.id} sourceLayer={sourceLayer} />
+                      case 'roadDualCarriageway':
+                        return <RoadDualCarriagewayLayer key={layer.id} sourceLayer={sourceLayer} />
                     }
-
-                    return (
-                      <Fragment key={`${layer}-${type}`}>
-                        {/* @ts-expect-error the `...styles` does not work for TS */}
-                        <Layer
-                          key={`${layer}-${type}`}
-                          id={`${layer}-${type}`}
-                          type={type}
-                          source={layer}
-                          paint={{
-                            [`${type}-color`]: [
-                              'case',
-                              ['boolean', ['feature-state', 'hover'], false],
-                              'black',
-                              ['boolean', ['feature-state', 'selected'], false],
-                              'red',
-                              sourceColor[layer],
-                            ],
-                            [`${type}-opacity`]: [
-                              'case',
-                              ['boolean', ['feature-state', 'selected'], false],
-                              1,
-                              alpha,
-                            ],
-                            ...styles,
-                          }}
-                          filter={['==', '$type', geoType]}
-                          source-layer={sourceLayerMap[layer]}
-                        />
-
-                        {type === 'line' && (
-                          <Layer
-                            key={`${layer}-arrow`}
-                            id={`${layer}-arrow`}
-                            type="symbol"
-                            source={layer}
-                            layout={{
-                              'symbol-placement': 'line',
-                              'icon-image': arrowImageId,
-                              'icon-size': 0.25,
-                              'icon-allow-overlap': true,
-                              'icon-ignore-placement': true,
-                              'icon-rotation-alignment': 'map',
-                            }}
-                            paint={{
-                              'icon-color': [
-                                'case',
-                                ['boolean', ['feature-state', 'hover'], false],
-                                'black',
-                                ['boolean', ['feature-state', 'selected'], false],
-                                'red',
-                                sourceColor[layer],
-                              ],
-                            }}
-                            filter={['==', '$type', geoType]}
-                            source-layer={sourceLayerMap[layer]}
-                          />
-                        )}
-                      </Fragment>
-                    )
                   })}
-                </Fragment>
-              ))}
+
+                {layers
+                  .filter((layer) => activeLayers.includes(layer.id))
+                  .map((layer) => {
+                    const sourceLayer = sourceLayerMap[layer.source]
+                    if (!sourceLayer) return null
+
+                    // Interaction layer (hover/selected states)
+                    switch (sourceLayer) {
+                      case 'roads':
+                        return (
+                          <Layer
+                            id="roads-interaction"
+                            type="line"
+                            source="roads"
+                            paint={{
+                              'line-color': getInteractionLineColor,
+                              'line-width': getInteractionLineWidth,
+                              'line-opacity': 0.5,
+                            }}
+                            source-layer={sourceLayer}
+                          />
+                        )
+                      case 'roadsPathClasses':
+                        return (
+                          <Layer
+                            id="roadsPathClasses-interaction"
+                            type="line"
+                            source="roadsPathClasses"
+                            paint={{
+                              'line-color': getInteractionLineColor,
+                              'line-width': getInteractionLineWidth,
+                              'line-opacity': 0.5,
+                            }}
+                            source-layer={sourceLayer}
+                          />
+                        )
+                      case 'bikelanes':
+                        return (
+                          <Layer
+                            id="bikelanes-interaction"
+                            type="line"
+                            source="bikelanes"
+                            paint={{
+                              'line-color': getInteractionLineColor,
+                              'line-width': getInteractionLineWidth,
+                              'line-opacity': 0.5,
+                            }}
+                            source-layer={sourceLayer}
+                          />
+                        )
+                    }
+                  })}
+              </Fragment>
+            )}
+            <StaticLayers />
           </Map>
         </div>
 
         {/* Sidebar Panel */}
-        <Inspector inspectorFeatures={inspectorFeatures} />
+        <Inspector
+          inspectorFeatures={inspectorFeatures}
+          activeLayerConfigs={layers.filter((layer) => activeLayers.includes(layer.id))}
+        />
       </main>
     </MapProvider>
   )

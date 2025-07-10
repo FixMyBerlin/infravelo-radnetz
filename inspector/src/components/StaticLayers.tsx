@@ -1,17 +1,7 @@
-import maplibregl from 'maplibre-gl'
-import { Protocol } from 'pmtiles'
-import { Fragment, useEffect } from 'react'
+import { Fragment } from 'react'
 import { Layer, Source } from 'react-map-gl/maplibre'
 
 export const StaticLayers = () => {
-  useEffect(() => {
-    const protocol = new Protocol()
-    maplibregl.addProtocol('pmtiles', protocol.tile)
-    return () => {
-      maplibregl.removeProtocol('pmtiles')
-    }
-  }, [])
-
   return (
     <Fragment>
       <Source
@@ -28,7 +18,7 @@ export const StaticLayers = () => {
         paint={{
           'line-width': ['interpolate', ['linear'], ['zoom'], 0, 0, 12.5, 0, 13, 1],
           'line-color': '#27272a',
-          'line-opacity': 0.7,
+          'line-opacity': 0.8,
           'line-offset': ['interpolate', ['linear'], ['zoom'], 0, 0, 12.5, 0, 13, -0.5],
         }}
       />
@@ -40,7 +30,26 @@ export const StaticLayers = () => {
         filter={['==', '$type', 'Polygon']}
         paint={{
           'fill-color': '#27272a',
-          'fill-opacity': 0.3,
+          'fill-opacity': 0.5,
+        }}
+      />
+
+      <Source
+        id="gebiete-mapper"
+        type="vector"
+        url="pmtiles://https://tilda-geo.de/api/uploads/infravelo-mapping-aufteilung"
+      />
+      <Layer
+        id="gebiete-mapper-border"
+        type="line"
+        source="gebiete-mapper"
+        source-layer="default"
+        filter={['==', '$type', 'Polygon']}
+        paint={{
+          'line-width': 1,
+          'line-color': 'black',
+          'line-opacity': 1,
+          'line-offset': 0,
         }}
       />
     </Fragment>

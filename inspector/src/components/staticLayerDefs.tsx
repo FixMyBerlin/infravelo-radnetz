@@ -48,4 +48,4 @@ export const staticLayerDefs = [
     type: 'line',
     defaultColor: '#eab308',
   },
-];
+]
