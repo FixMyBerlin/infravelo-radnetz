@@ -6,12 +6,14 @@ import { getBikeLaneOnewayLegend, getRoadOnewayLegend } from './onewayBasedStyle
 import { getSurfaceColorLegend } from './surfaceColorStyle'
 import { getSurfaceSettLegend } from './surfaceSettStyle'
 import { getTrafficSignLegend } from './trafficSignStyle'
+import { getWidthLegend } from './widthStyle'
 
 export const LAYER_LEGENDS = {
   bikelanesAge: getAgeLegend(),
   bikelanesOneway: getBikeLaneOnewayLegend(),
   bikelanesSurface: getSurfaceSettLegend(),
   bikelanesSurfaceColor: getSurfaceColorLegend(),
+  bikelanesWidth: getWidthLegend(),
   bikelanesTrafficSign: getTrafficSignLegend(),
   bikelanesMapillary: getMapillaryLegend(),
   roadsAge: getAgeLegend(),

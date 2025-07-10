@@ -64,6 +64,11 @@ const categories = [
     inspectorHighlightTags: ['surface'],
   },
   {
+    id: 'bikelanesWidth',
+    source: 'bikelanes',
+    inspectorHighlightTags: ['width', 'width_source', 'category'],
+  },
+  {
     id: 'bikelanSurfaceColor',
     source: 'bikelanes',
     inspectorHighlightTags: ['surface_color'],
