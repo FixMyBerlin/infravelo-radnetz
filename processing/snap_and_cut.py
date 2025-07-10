@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 import geopandas as gpd
-from shapely.ops import snap, split, nearest_points, substring
-from shapely.geometry import LineString, MultiLineString, Point
-import numpy as np
+from shapely.ops import substring
+from shapely.geometry import Point
 import pandas as pd
+from processing.helpers.progressbar import print_progressbar
 
 # --- Konfiguration ---
 INPUT_OSM_WAYS = './output/matched_osm_ways.fgb'
@@ -99,7 +99,6 @@ def snap_and_cut_osm_ways():
     print("Erzeuge gesnappte Geometrien...")
     snapped_geometries = []
     total = len(snapped_ways_raw)
-    progress_step = 10  # Ladebalken alle 10 Geometrien aktualisieren
     for idx, (row_idx, row) in enumerate(snapped_ways_raw.iterrows()):
         osm_line = row.geometry
         # Die entsprechende Ziellinie aus dem Join-Index holen
@@ -113,10 +112,7 @@ def snap_and_cut_osm_ways():
             # Wenn der Teilstring leer ist, None anhängen, um die Ausrichtung beizubehalten
             snapped_geometries.append(None)
         # Ladebalken anzeigen
-        if (idx + 1) % progress_step == 0 or (idx + 1) == total:
-            percent = int((idx + 1) / total * 100)
-            bar = '█' * (percent // 2) + '-' * (50 - percent // 2)
-            print(f"\r[{bar}] {percent}% ({idx + 1}/{total})", end='', flush=True)
+        print_progressbar(idx + 1, total, prefix="Snapping: ", length=50)
         # Nach 10% abbrechen und Zwischenergebnis speichern
         if (idx + 1) == max(1, int(total * 0.1)):
             print("\n10% erreicht – Zwischenergebnis wird gespeichert und Verarbeitung abgebrochen.")

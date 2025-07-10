@@ -10,3 +10,5 @@ Uses Python, geopandas and other libraries for processing geodata and openstreet
 - Add useful and structured comments to the code in german.
 - Structure the code in useful functions with sensible function size.
 - Use english function names.
+- Use logging instead of print statements.
+- Import packages only once at the top of the file.

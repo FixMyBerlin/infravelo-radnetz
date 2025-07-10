@@ -18,14 +18,14 @@ Aufrufbeispiel:
            --osm  matched_osm_ways.fgb \
            --out  netz_enriched.gpkg
 """
-import argparse, sys, uuid
+import argparse, sys
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 import geopandas as gpd
 from shapely.geometry import LineString, MultiLineString, Point, MultiPoint
 from shapely.ops import split as shp_split, linemerge
+from processing.helpers.progressbar import print_progressbar
 
 
 # -------------------------------------------------------------- Konstanten --
@@ -100,15 +100,16 @@ def new_neg_id(counter):
     return counter["val"]
 
 
-def segmentiere_netz_in_meterabschnitte(net_gdf, crs, segmentlaenge=1.0):
+def segment_network_in_meter_sections(net_gdf, crs, segment_length=1.0):
     """
     Teilt alle Linien im Netz in ca. 1-Meter-Abschnitte auf.
     Gibt ein neues GeoDataFrame mit Segmenten und okstra_id zurück.
     """
     segmente = []
-    for _, row in net_gdf.iterrows():
+    total = len(net_gdf)
+    for idx, (_, row) in enumerate(net_gdf.iterrows(), 1):
         geom = ls_from_geom(row.geometry)
-        n_seg = max(1, int(np.ceil(geom.length / segmentlaenge)))
+        n_seg = max(1, int(np.ceil(geom.length / segment_length)))
         breakpoints = np.linspace(0, geom.length, n_seg + 1)
         for i in range(n_seg):
             seg = LineString([
@@ -118,22 +119,26 @@ def segmentiere_netz_in_meterabschnitte(net_gdf, crs, segmentlaenge=1.0):
             seg_row = row.copy()
             seg_row["geometry"] = seg
             segmente.append(seg_row)
+        print_progressbar(idx, total, prefix="Segmentiere: ")
     return gpd.GeoDataFrame(segmente, crs=crs)
 
 
-def verschmelze_segmente(gdf, id_feld, osm_felder):
+def merge_segments(gdf, id_field, osm_fields):
     """
     Verschmilzt benachbarte Segmente mit gleicher okstra_id und identischen OSM-Attributen.
+    Zeigt einen Fortschrittsbalken an.
     """
     from shapely.ops import linemerge
     gruppen = []
-    for _, gruppe in gdf.groupby([id_feld] + osm_felder):
-        # Sortiere nach Reihenfolge im Netz (optional: nach Startpunkt)
+    grouped = list(gdf.groupby([id_field] + osm_fields))
+    total = len(grouped)
+    for idx, (_, gruppe) in enumerate(grouped, 1):
         geoms = list(gruppe.geometry)
         merged = linemerge(geoms)
         merged_row = gruppe.iloc[0].copy()
         merged_row["geometry"] = merged
         gruppen.append(merged_row)
+        print_progressbar(idx, total, prefix="Verschmelze: ")
     return gpd.GeoDataFrame(gruppen, crs=gdf.crs)
 
 
@@ -161,11 +166,17 @@ def process(net_path, osm_path, out_path, crs, buf):
             sys.exit(f"Pflichtfeld “{fld}” fehlt im Netz!")
 
     # ---------- Netz segmentieren und speichern -----------------------------
-    print("Segmentiere Netz in 1-Meter-Abschnitte ...")
-    net_segmented = segmentiere_netz_in_meterabschnitte(net, crs, segmentlaenge=1.0)
+    import os, logging
+    logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
     seg_path = "./output/qa-snapping/rvn-segmented.fgb"
-    net_segmented.to_file(seg_path, driver="FlatGeobuf")
-    print(f"✔  Segmentiertes Netz gespeichert als {seg_path}")
+    if os.path.exists(seg_path):
+        logging.info(f"Lade bereits segmentiertes Netz aus {seg_path} ...")
+        net_segmented = gpd.read_file(seg_path)
+    else:
+        logging.info("Segmentiere Netz in 1-Meter-Abschnitte ...")
+        net_segmented = segment_network_in_meter_sections(net, crs, segment_length=1.0)
+        net_segmented.to_file(seg_path, driver="FlatGeobuf")
+        logging.info(f"✔  Segmentiertes Netz gespeichert als {seg_path}")
 
     # ---------- Snapping/Attributübernahme auf Segmente ---------------------
     print("Führe Snapping und OSM-Attributübernahme auf Segmente durch ...")
@@ -176,34 +187,39 @@ def process(net_path, osm_path, out_path, crs, buf):
 
     # Für jedes Segment: nächstgelegene OSM-Geometrie im Buffer suchen und Attribute übernehmen
     snapped_records = []
-    for idx, seg in net_segmented.iterrows():
+    total = len(net_segmented)
+    for idx, seg in enumerate(net_segmented.itertuples(), 1):
         g = seg.geometry
         # Kandidaten im Buffer suchen
         cand_idx = list(osm_sidx.intersection(g.buffer(buf).bounds))
         if not cand_idx:
-            snapped_records.append(seg)
+            snapped_records.append(seg._asdict())
+            print_progressbar(idx, total, prefix="Snapping: ")
             continue
         cand = osm.iloc[cand_idx].copy()
         # Nur Kandidaten im Buffer behalten
         cand["d"] = cand.geometry.distance(g)
         cand = cand[cand["d"] <= buf]
         if cand.empty:
-            snapped_records.append(seg)
+            snapped_records.append(seg._asdict())
+            print_progressbar(idx, total, prefix="Snapping: ")
             continue
         # Nächstgelegene OSM-Geometrie bestimmen
         mid = g.interpolate(0.5, normalized=True)
         dist = cand.geometry.distance(mid)
         nearest = cand.loc[dist.idxmin()]
         # OSM-Attribute übernehmen
+        seg_dict = seg._asdict()
         for c in ["osm_road", "osm_surface", "osm_surface:colour", "osm_oneway"]:
-            seg[c] = nearest.get(c, None)
-        snapped_records.append(seg)
+            seg_dict[c] = nearest.get(c, None)
+        snapped_records.append(seg_dict)
+        print_progressbar(idx, total, prefix="Snapping: ")
     net_segmented = gpd.GeoDataFrame(snapped_records, crs=crs)
 
     # ---------- Segmente verschmelzen ---------------------------------------
     print("Fasse Segmente mit gleicher okstra_id und OSM-Attributen zusammen ...")
     osm_felder = ["osm_road", "osm_surface", "osm_surface:colour", "osm_oneway"]
-    out_gdf = verschmelze_segmente(net_segmented, "okstra_id", osm_felder)
+    out_gdf = merge_segments(net_segmented, "okstra_id", osm_felder)
 
     # ---------- Ergebnis speichern ------------------------------------------
     p, *layer = out_path.split(":")

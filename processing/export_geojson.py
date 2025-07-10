@@ -1,9 +1,10 @@
 import os
 import glob
 import geopandas as gpd
+from processing.helpers.globals import DEFAULT_CRS, DEFAULT_OUTPUT_DIR
 
 def export_all_geojson():
-    OUTPUT_DIR = './output'
+    OUTPUT_DIR = DEFAULT_OUTPUT_DIR
     TARGET_DIR = './output-static-data-transfer'
     os.makedirs(TARGET_DIR, exist_ok=True)
     # Write .gitignore to ignore all .geojson files

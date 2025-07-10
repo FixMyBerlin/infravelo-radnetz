@@ -3,30 +3,37 @@ from shapely.geometry import LineString, MultiLineString
 from shapely.ops import linemerge
 import os
 import numpy as np
+import logging
+from processing.helpers.globals import DEFAULT_CRS, DEFAULT_OUTPUT_DIR
 
 COMPLEX_CASES_TRESHOL_DEGREE=60
 COMPLEX_DIFFERENCE_ANGLE_BETWEEN_OSM_IV=20
 
 
-def merge_vorrangnetz_lines(vorrangnetz_gdf, output_path):
+def merge_vorrangnetz_lines(vorrangnetz_gdf, output_path=None):
     """
     Verbindet Kanten im Radvorrangsnetz zu einer einzigen Geometrie und speichert das Ergebnis.
     """
-    print("Verbinde Kanten im Radvorrangsnetz...")
+    if output_path is None:
+        output_path = os.path.join(DEFAULT_OUTPUT_DIR, "vorrangnetz_connected.fgb")
+    logging.info("Verbinde Kanten im Radvorrangsnetz...")
     merged_lines_geom = linemerge(vorrangnetz_gdf.geometry.unary_union)
     vorrangnetz_connected_gdf = gpd.GeoDataFrame(geometry=[merged_lines_geom], crs=vorrangnetz_gdf.crs)
     if os.path.exists(output_path):
         os.remove(output_path)
     vorrangnetz_connected_gdf.to_file(output_path, driver='FlatGeobuf')
-    print(f"Verbundenes Vorrangnetz gespeichert als {output_path}")
+    logging.info(f"Verbundenes Vorrangnetz gespeichert als {output_path}")
     return vorrangnetz_connected_gdf
 
 
-def segment_lines(gdf, segment_length, output_path):
+def segment_lines(gdf, segment_length, output_path=None):
     """
     Teilt Linien in gleich lange Segmente und speichert sie.
     """
-    print(f"Teile verbundenes Netz in {segment_length}m lange Stücke auf...")
+    import logging
+    if output_path is None:
+        output_path = os.path.join(DEFAULT_OUTPUT_DIR, "vorrangnetz_segments.fgb")
+    logging.info(f"Teile verbundenes Netz in {segment_length}m lange Stücke auf...")
     all_segments = []
     for line in gdf.geometry:
         if line.geom_type == 'MultiLineString':
@@ -44,15 +51,17 @@ def segment_lines(gdf, segment_length, output_path):
     if os.path.exists(output_path):
         os.remove(output_path)
     segments_gdf.to_file(output_path, driver='FlatGeobuf')
-    print(f"Segmentierte Linien gespeichert als {output_path}")
+    logging.info(f"Segmentierte Linien gespeichert als {output_path}")
     return segments_gdf
 
 
-def filter_short_ways(ways_gdf, short_way_threshold, output_path):
+def filter_short_ways(ways_gdf, short_way_threshold, output_path=None):
     """
     Filtert OSM-Wege, die kürzer als der Schwellenwert sind, und speichert sie.
     """
-    print(f"Wähle OSM-Wege kürzer als {short_way_threshold}m aus...")
+    if output_path is None:
+        output_path = os.path.join(DEFAULT_OUTPUT_DIR, "osm_short_ways.fgb")
+    logging.info(f"Wähle OSM-Wege kürzer als {short_way_threshold}m aus...")
     short_ways_gdf = ways_gdf[ways_gdf.geometry.length < short_way_threshold].copy()
     short_ways_gdf = short_ways_gdf.loc[:, ~short_ways_gdf.columns.duplicated()]
     short_ways_gdf.to_file(output_path, driver="FlatGeobuf")

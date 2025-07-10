@@ -1,3 +1,4 @@
+from processing.helpers.globals import DEFAULT_CRS, DEFAULT_OUTPUT_DIR
 import geopandas as gpd
 import os
 
@@ -16,6 +17,8 @@ def difference_streets_without_bikelanes(streets_gdf, bikelanes_gdf, target_crs=
             streets_gdf = streets_gdf.to_crs(target_crs)
         if bikelanes_gdf.crs != target_crs:
             bikelanes_gdf = bikelanes_gdf.to_crs(target_crs)
+    else:
+        target_crs = f"EPSG:{DEFAULT_CRS}"
     print(f"Erzeuge {BUFFER_METERS}m Buffer um Radwege ...")
     bikelanes_buffer = bikelanes_gdf.buffer(BUFFER_METERS)
     bikelanes_union = bikelanes_buffer.unary_union

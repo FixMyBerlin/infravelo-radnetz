@@ -2,7 +2,6 @@ import geopandas as gpd
 import pandas as pd
 import argparse
 import os
-import subprocess
 from orthogonal_filter import process_and_filter_short_segments
 from manual_interventions import get_excluded_ways, get_included_ways
 from difference import get_or_create_difference_fgb
