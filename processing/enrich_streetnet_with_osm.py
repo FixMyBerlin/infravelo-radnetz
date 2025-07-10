@@ -26,10 +26,10 @@ import geopandas as gpd
 from shapely.geometry import LineString, MultiLineString, Point, MultiPoint
 from shapely.ops import split as shp_split, linemerge
 from processing.helpers.progressbar import print_progressbar
+from processing.helpers.globals import CRS_DEFAULT
 
 
 # -------------------------------------------------------------- Konstanten --
-CRS_DEFAULT   = 25832     # EPSG-Code für Standard-Koordinatensystem
 BUFFER_DEFAULT = 20.0     # Standard-Puffergröße in Metern für Matching
 
 # Feldnamen für das Netz
