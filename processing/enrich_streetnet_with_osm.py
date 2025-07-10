@@ -100,10 +100,47 @@ def new_neg_id(counter):
     return counter["val"]
 
 
+def segmentiere_netz_in_meterabschnitte(net_gdf, crs, segmentlaenge=1.0):
+    """
+    Teilt alle Linien im Netz in ca. 1-Meter-Abschnitte auf.
+    Gibt ein neues GeoDataFrame mit Segmenten und okstra_id zurück.
+    """
+    segmente = []
+    for _, row in net_gdf.iterrows():
+        geom = ls_from_geom(row.geometry)
+        n_seg = max(1, int(np.ceil(geom.length / segmentlaenge)))
+        breakpoints = np.linspace(0, geom.length, n_seg + 1)
+        for i in range(n_seg):
+            seg = LineString([
+                geom.interpolate(breakpoints[i]),
+                geom.interpolate(breakpoints[i+1])
+            ])
+            seg_row = row.copy()
+            seg_row["geometry"] = seg
+            segmente.append(seg_row)
+    return gpd.GeoDataFrame(segmente, crs=crs)
+
+
+def verschmelze_segmente(gdf, id_feld, osm_felder):
+    """
+    Verschmilzt benachbarte Segmente mit gleicher okstra_id und identischen OSM-Attributen.
+    """
+    from shapely.ops import linemerge
+    gruppen = []
+    for _, gruppe in gdf.groupby([id_feld] + osm_felder):
+        # Sortiere nach Reihenfolge im Netz (optional: nach Startpunkt)
+        geoms = list(gruppe.geometry)
+        merged = linemerge(geoms)
+        merged_row = gruppe.iloc[0].copy()
+        merged_row["geometry"] = merged
+        gruppen.append(merged_row)
+    return gpd.GeoDataFrame(gruppen, crs=gdf.crs)
+
+
 # ------------------------------------------------------------- Hauptablauf --
 def process(net_path, osm_path, out_path, crs, buf):
     """
-    Hauptfunktion: Überträgt OSM-Attribute auf das Netz und splittet Kanten an Schnittpunkten.
+    Hauptfunktion: Segmentiert das Netz, führt das Snapping durch und verschmilzt die Segmente wieder.
     net_path: Pfad zum Netz (mit Layer)
     osm_path: Pfad zu OSM-Ways (mit Layer)
     out_path: Ausgabepfad (mit Layer)
@@ -115,135 +152,65 @@ def process(net_path, osm_path, out_path, crs, buf):
         f, *layer = path.split(":")
         return gpd.read_file(f, layer=layer[0] if layer else None)
 
-    net = read(net_path).to_crs(crs)  # Netz einlesen und ins Ziel-CRS bringen
-    osm = read(osm_path).to_crs(crs)  # OSM-Ways einlesen und ins Ziel-CRS bringen
+    net = read(net_path).to_crs(crs)
+    osm = read(osm_path).to_crs(crs)
 
     # Prüfen, ob alle Pflichtfelder im Netz vorhanden sind
-    for fld in (FLD_EDGE, FLD_FROM, FLD_TO, FLD_DIR):
+    for fld in (FLD_EDGE, FLD_FROM, FLD_TO, FLD_DIR, "okstra_id"):
         if fld not in net.columns:
             sys.exit(f"Pflichtfeld “{fld}” fehlt im Netz!")
 
-    # ---------- Richtungs-Kopien -------------------------------------------
-    # Für jede Kante werden ggf. zwei Kopien (vorwärts/rückwärts) erzeugt
-    copies = []
-    for _, r in net.iterrows():
-        vr = str(r[FLD_DIR]).upper()
-        geom = ls_from_geom(r.geometry)
+    # ---------- Netz segmentieren und speichern -----------------------------
+    print("Segmentiere Netz in 1-Meter-Abschnitte ...")
+    net_segmented = segmentiere_netz_in_meterabschnitte(net, crs, segmentlaenge=1.0)
+    seg_path = "./output/qa-snapping/rvn-segmented.fgb"
+    net_segmented.to_file(seg_path, driver="FlatGeobuf")
+    print(f"✔  Segmentiertes Netz gespeichert als {seg_path}")
 
-        if vr in {"R", "B"}:          # forward
-            copies.append({**r, "dir_copy": "F", "geometry": geom})
-
-        if vr in {"G", "B"}:          # backward
-            copies.append({**r, "dir_copy": "B", "geometry": reverse_geom(geom)})
-
-    net_dir = gpd.GeoDataFrame(copies, crs=crs)
-
-    # ---------- OSM-Spalten vorbereiten ------------------------------------
-    # Alle OSM-Spalten (außer Geometrie) werden umbenannt (Präfix 'osm_')
+    # ---------- Snapping/Attributübernahme auf Segmente ---------------------
+    print("Führe Snapping und OSM-Attributübernahme auf Segmente durch ...")
+    # OSM-Spalten (außer Geometrie) umbenennen (Präfix 'osm_')
     osm_attrs = [c for c in osm.columns if c != "geometry"]
     osm = osm.rename(columns={c: f"osm_{c}" for c in osm_attrs})
     osm_sidx = osm.sindex  # Räumlicher Index für OSM-Ways
 
-    # ---------- Verarbeitung ------------------------------------------------
-    segrecs, node_ctr, split_nodes = [], {"val": 0}, {}
-
-    total_edges = len(net_dir)
-    print(f"Starte Verarbeitung von {total_edges} Kanten...")
-
-    # Fortschrittsanzeige initialisieren
-    log_step = max(1, total_edges // 100)  # 1% Schritte für Ladebalken
-    bar_length = 40  # Länge des Ladebalkens in Zeichen
-
-    def print_progress(current, total):
-        percent = current / total
-        filled = int(bar_length * percent)
-        bar = '\u2588' * filled + '-' * (bar_length - filled)
-        print(f"\r[{bar}] {current}/{total} ({percent:.0%})", end='', flush=True)
-
-    # Iteration über alle Kanten (mit Richtung)
-    for i, (_, e) in enumerate(net_dir.iterrows()):
-        g = e.geometry
-        g_len = g.length
-
-        # Fortschrittsanzeige als Ladebalken
-        if (i + 1) % log_step == 0 or (i + 1) == total_edges:
-            print_progress(i + 1, total_edges)
-
-        # Kandidaten aus OSM suchen, die im Puffer liegen
+    # Für jedes Segment: nächstgelegene OSM-Geometrie im Buffer suchen und Attribute übernehmen
+    snapped_records = []
+    for idx, seg in net_segmented.iterrows():
+        g = seg.geometry
+        # Kandidaten im Buffer suchen
         cand_idx = list(osm_sidx.intersection(g.buffer(buf).bounds))
         if not cand_idx:
-            segrecs.append(e.to_dict())
+            snapped_records.append(seg)
             continue
-
         cand = osm.iloc[cand_idx].copy()
-
-        # Seitenprüfung: nur OSM-Ways auf der richtigen Seite behalten
-        mids = cand.geometry.apply(lambda gg: gg.interpolate(0.5, normalized=True))
-        ok_side = [
-            not is_left(g, p) if e.dir_copy == "F" else is_left(g, p) for p in mids
-        ]
-        cand = cand[ok_side]
-
-        # Nur Kandidaten im Puffer behalten
-        cand["d"] = cand.geometry.distance(g)   # Distanzspalte anlegen
-        cand = cand[cand["d"] <= buf]           # Kandidaten auf Puffer beschränken
-
+        # Nur Kandidaten im Buffer behalten
+        cand["d"] = cand.geometry.distance(g)
+        cand = cand[cand["d"] <= buf]
         if cand.empty:
-            # Falls keine passenden OSM-Ways gefunden, Originalkante übernehmen
-            segrecs.append(e.to_dict())
+            snapped_records.append(seg)
             continue
+        # Nächstgelegene OSM-Geometrie bestimmen
+        mid = g.interpolate(0.5, normalized=True)
+        dist = cand.geometry.distance(mid)
+        nearest = cand.loc[dist.idxmin()]
+        # OSM-Attribute übernehmen
+        for c in ["osm_road", "osm_surface", "osm_surface:colour", "osm_oneway"]:
+            seg[c] = nearest.get(c, None)
+        snapped_records.append(seg)
+    net_segmented = gpd.GeoDataFrame(snapped_records, crs=crs)
 
-        # Breakpoints bestimmen (Schnittpunkte mit OSM-Ways)
-        bps = {0.0, g_len}
-        for gg in cand.geometry:
-            bps.update(
-                d for d in (g.project(Point(xy)) for xy in iter_coords(gg))
-                if 0.0 < d < g_len
-            )
+    # ---------- Segmente verschmelzen ---------------------------------------
+    print("Fasse Segmente mit gleicher okstra_id und OSM-Attributen zusammen ...")
+    osm_felder = ["osm_road", "osm_surface", "osm_surface:colour", "osm_oneway"]
+    out_gdf = verschmelze_segmente(net_segmented, "okstra_id", osm_felder)
 
-        # Kante an Breakpoints splitten und Attribute übernehmen
-        for part in split_line(g, sorted(bps)):
-            mid = part.interpolate(0.5, normalized=True)
-            # Statt cand.sindex.nearest: Nächstgelegene OSM-Geometrie bestimmen
-            dist = cand.geometry.distance(mid)       # Punkt-zu-Linie-Distanz
-            nearest = cand.loc[dist.idxmin()]        # eine Zeile mit kleinstem Abstand
-
-            def node_id(off, orig):
-                # Bestimmt die Node-ID für Start/Ende des Segments
-                if np.isclose(off, 0.0):
-                    return e[FLD_FROM]
-                if np.isclose(off, g_len):
-                    return e[FLD_TO]
-                key = (e[FLD_EDGE], round(off, 3))
-                return split_nodes.setdefault(key, new_neg_id(node_ctr))
-
-            off0 = g.project(Point(part.coords[0]))
-            off1 = g.project(Point(part.coords[-1]))
-
-            # Attribute zusammenführen: Netz, OSM, Geometrie, Split-IDs
-            rec = (
-                {**e.drop(labels="geometry"), **nearest.drop(labels="geometry")}
-                | {
-                    "geometry": part,
-                    "orig_edge_id": e[FLD_EDGE],
-                    FLD_FROM: node_id(off0, e[FLD_FROM]),
-                    FLD_TO: node_id(off1, e[FLD_TO]),
-                    "edge_split_id": uuid.uuid4().hex[:12],
-                }
-            )
-            segrecs.append(rec)
-
-    print_progress(total_edges, total_edges)
-    print()  # Zeilenumbruch nach Ladebalken
-    print(f"Verarbeitung abgeschlossen. {total_edges} Kanten wurden bearbeitet.")
-
-    # Ergebnis als GeoDataFrame speichern
-    out = gpd.GeoDataFrame(segrecs, crs=crs)
+    # ---------- Ergebnis speichern ------------------------------------------
     p, *layer = out_path.split(":")
     layer = layer[0] if layer else "edges_enriched"
-    Path(p).unlink(missing_ok=True)  # Vorherige Datei ggf. löschen
-    out.to_file(p, layer=layer, driver="GPKG")
-    print(f"✔  {len(out)} Kanten → {p}:{layer}")
+    Path(p).unlink(missing_ok=True)
+    out_gdf.to_file(p, layer=layer, driver="GPKG")
+    print(f"✔  {len(out_gdf)} Kanten → {p}:{layer}")
 
 
 # ------------------------------------------------------------- CLI Wrapper --

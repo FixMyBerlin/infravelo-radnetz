@@ -8,8 +8,8 @@ import pandas as pd
 # --- Konfiguration ---
 INPUT_OSM_WAYS = './output/matched_osm_ways.fgb'
 INPUT_TARGET_NETWORK = './output/vorrangnetz_details_combined_rvn.fgb'
-OUTPUT_SNAPPED_WAYS = './output/snapped_osm_ways.fgb'
-OUTPUT_UNSNAPPED_WAYS = './output/unsnapped_osm_ways.fgb'
+OUTPUT_SNAPPED_WAYS = './output/qa-snapping/snapped_osm_ways.fgb'
+OUTPUT_UNSNAPPED_WAYS = './output/qa-snapping/unsnapped_osm_ways.fgb'
 CRS_TARGET = 'EPSG:25833'
 SNAP_DISTANCE_TOLERANCE = 35  # in Metern
 

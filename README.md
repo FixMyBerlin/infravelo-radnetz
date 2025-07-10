@@ -34,6 +34,8 @@ pip install -r processing/requirements.txt
 # Add desired flags for extra processing steps.
 # For overview of the flags, see ./processing/README.md
 ./.venv/bin/python processing/main.py
+
+# Snapping algo is separately and not in main.py (yet)
 ```
 
 The output is saved in `output/`.
