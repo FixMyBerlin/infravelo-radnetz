@@ -147,10 +147,27 @@ def process(net_path, osm_path, out_path, crs, buf):
     # ---------- Verarbeitung ------------------------------------------------
     segrecs, node_ctr, split_nodes = [], {"val": 0}, {}
 
+    total_edges = len(net_dir)
+    print(f"Starte Verarbeitung von {total_edges} Kanten...")
+
+    # Fortschrittsanzeige initialisieren
+    log_step = max(1, total_edges // 100)  # 1% Schritte für Ladebalken
+    bar_length = 40  # Länge des Ladebalkens in Zeichen
+
+    def print_progress(current, total):
+        percent = current / total
+        filled = int(bar_length * percent)
+        bar = '\u2588' * filled + '-' * (bar_length - filled)
+        print(f"\r[{bar}] {current}/{total} ({percent:.0%})", end='', flush=True)
+
     # Iteration über alle Kanten (mit Richtung)
-    for _, e in net_dir.iterrows():
+    for i, (_, e) in enumerate(net_dir.iterrows()):
         g = e.geometry
         g_len = g.length
+
+        # Fortschrittsanzeige als Ladebalken
+        if (i + 1) % log_step == 0 or (i + 1) == total_edges:
+            print_progress(i + 1, total_edges)
 
         # Kandidaten aus OSM suchen, die im Puffer liegen
         cand_idx = list(osm_sidx.intersection(g.buffer(buf).bounds))
@@ -215,6 +232,10 @@ def process(net_path, osm_path, out_path, crs, buf):
                 }
             )
             segrecs.append(rec)
+
+    print_progress(total_edges, total_edges)
+    print()  # Zeilenumbruch nach Ladebalken
+    print(f"Verarbeitung abgeschlossen. {total_edges} Kanten wurden bearbeitet.")
 
     # Ergebnis als GeoDataFrame speichern
     out = gpd.GeoDataFrame(segrecs, crs=crs)
