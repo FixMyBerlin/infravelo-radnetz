@@ -11,12 +11,6 @@ enrich_streetnet_with_osm.py
       endet_bei_vp       = To-Node
       verkehrsrichtung   = R / G / B
 --------------------------------------------------------------------
-Aufrufbeispiel:
-
-    python enrich_streetnet_with_osm.py \
-           --net  vorrangnetz_details_combined_rvn.fgb \
-           --osm  matched_osm_ways.fgb \
-           --out  netz_enriched.gpkg
 """
 import argparse, sys
 from pathlib import Path
@@ -40,15 +34,16 @@ FLD_DIR  = "verkehrsrichtung"     # Werte: R / G / B (Richtung)
 
 
 # --------------------------------------------------------- Hilfsfunktionen --
-def ls_from_geom(g):
-    """Stellt sicher, dass die Geometrie ein LineString ist. Falls MultiLineString, wird gemergt oder erster Teil genommen."""
+def lines_from_geom(g):
+    """
+    Gibt alle Linien einer Geometrie als Liste von LineStrings zurück.
+    Falls MultiLineString, werden alle Teile einzeln zurückgegeben.
+    Falls LineString, wird eine Liste mit diesem einen Element zurückgegeben.
+    """
     if isinstance(g, LineString):
-        return g
+        return [g]
     if isinstance(g, MultiLineString):
-        merged = linemerge(g)
-        if isinstance(merged, LineString):
-            return merged
-        return LineString(list(g.geoms[0].coords))
+        return list(g.geoms)
     raise TypeError(f"Geometry {g.geom_type} nicht unterstützt")
 
 
@@ -80,27 +75,13 @@ def is_left(line: LineString, p: Point) -> bool:
     return ((b_x - a_x) * (p.y - a_y) - (b_y - a_y) * (p.x - a_x)) > 0
 
 
-def split_line(line, distances):
-    """Teilt eine Linie an gegebenen Abständen in Teilstücke."""
-    distances = [d for d in distances if 0.0 < d < line.length]
-    if not distances:
-        return [line]
-
-    pts = [line.interpolate(d) for d in distances]
-    result = shp_split(line, MultiPoint(pts))
-
-    # Shapely 2.x: GeometryCollection → Teile über .geoms auslesen
-    return list(result.geoms)          # statt  list(result)
-
-
-
 def new_neg_id(counter):
     """Erzeugt eine neue negative ID für Zwischennoten (Splits)."""
     counter["val"] -= 1
     return counter["val"]
 
 
-def segment_network_in_meter_sections(net_gdf, crs, segment_length=1.0):
+def split_network_into_segments(net_gdf, crs, segment_length=1.0):
     """
     Teilt alle Linien im Netz in ca. 1-Meter-Abschnitte auf.
     Gibt ein neues GeoDataFrame mit Segmenten und okstra_id zurück.
@@ -178,7 +159,7 @@ def process(net_path, osm_path, out_path, crs, buf):
         net_segmented = gpd.read_file(seg_path)
     else:
         logging.info("Segmentiere Netz in 1-Meter-Abschnitte ...")
-        net_segmented = segment_network_in_meter_sections(net, crs, segment_length=1.0)
+        net_segmented = split_network_into_segments(net, crs, segment_length=1.0)
         net_segmented.to_file(seg_path, driver="FlatGeobuf")
         logging.info(f"✔  Segmentiertes Netz gespeichert als {seg_path}")
 

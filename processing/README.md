@@ -80,5 +80,5 @@ Execute with CLI Arguments:
 python ./processing/enrich_streetnet_with_osm.py \
   --net ./output/vorrangnetz_details_combined_rvn.fgb \
   --osm ./output/matched_osm_ways.fgb \
-  --out ./output/snapping_netz_enriched.gpkg
+  --out ./output/snapping_network_enriched.fgb
 ```
