@@ -18,9 +18,9 @@ from pathlib import Path
 import numpy as np
 import geopandas as gpd
 from shapely.geometry import LineString, MultiLineString, Point, MultiPoint
-from shapely.ops import split as shp_split, linemerge
 from helpers.progressbar import print_progressbar
 from helpers.globals import DEFAULT_CRS
+import math
 
 
 # -------------------------------------------------------------- Konstanten --
@@ -100,17 +100,16 @@ def find_matching_osm_features(network_geom, osm_gdf, osm_sindex, buffer_distanc
     return intersecting_features
 
 
-def transfer_osm_attributes(network_row, osm_matches):
+def transfer_osm_attributes(network_row, osm_matches, max_angle_diff=35.0):
     """
     Überträgt OSM-Attribute auf eine Netzwerk-Kante.
+    Berücksichtigt dabei sowohl die Überschneidungslänge als auch die Ausrichtung der Segmente.
     """
     if osm_matches.empty:
         return network_row
     
-    # Wähle das beste Match (das mit der größten Überschneidung)
-    best_match = None
-    best_intersection_length = 0
-    
+    # Sammle alle kompatiblen Matches mit ihren Bewertungen
+    compatible_matches = []
     network_geom = network_row.geometry
     
     for _, osm_row in osm_matches.iterrows():
@@ -126,12 +125,29 @@ def transfer_osm_attributes(network_row, osm_matches):
         else:
             intersection_length = 0
         
-        if intersection_length > best_intersection_length:
-            best_intersection_length = intersection_length
-            best_match = osm_row
+        # Prüfe Ausrichtungskompatibilität
+        is_compatible, angle_diff = is_alignment_compatible(network_geom, osm_geom, max_angle_diff)
+        
+        if is_compatible:
+            # Bewertung: Kombination aus Überschneidungslänge und Winkelgenauigkeit
+            # Je kleiner der Winkelunterschied, desto besser die Bewertung
+            angle_score = (max_angle_diff - angle_diff) / max_angle_diff  # 0-1, höher ist besser
+            
+            # Kombiniere Länge und Winkel-Score (beide gleichgewichtet)
+            combined_score = intersection_length * (1 + angle_score)
+            
+            compatible_matches.append({
+                'osm_row': osm_row,
+                'intersection_length': intersection_length,
+                'angle_diff': angle_diff,
+                'combined_score': combined_score
+            })
     
-    # Übertrage Attribute vom besten Match
-    if best_match is not None:
+    # Wähle das beste Match basierend auf der kombinierten Bewertung
+    if compatible_matches:
+        best_match_info = max(compatible_matches, key=lambda x: x['combined_score'])
+        best_match = best_match_info['osm_row']
+        
         enriched_row = network_row.copy()
         
         # Übertrage relevante OSM-Attribute
@@ -141,16 +157,28 @@ def transfer_osm_attributes(network_row, osm_matches):
             if attr in best_match.index:
                 enriched_row[f'osm_{attr}'] = best_match[attr]
         
+        # Zusätzliche Metadaten für Debugging
+        enriched_row['match_length'] = best_match_info['intersection_length']
+        enriched_row['match_angle_diff'] = best_match_info['angle_diff']
+        enriched_row['match_score'] = best_match_info['combined_score']
+        
         return enriched_row
     
     return network_row
 
 
-def process_network_edges(network_gdf, osm_gdf, buffer_distance=BUFFER_DEFAULT):
+def process_network_edges(network_gdf, osm_gdf, buffer_distance=BUFFER_DEFAULT, max_angle_diff=35.0):
     """
     Verarbeitet alle Kanten des Netzwerks und reichert sie mit OSM-Attributen an.
+    
+    Args:
+        network_gdf: Netzwerk-GeoDataFrame
+        osm_gdf: OSM-GeoDataFrame
+        buffer_distance: Puffergröße für räumliche Suche
+        max_angle_diff: Maximaler erlaubter Winkelunterschied in Grad
     """
     print(f"Verarbeite {len(network_gdf)} Netzwerk-Kanten...")
+    print(f"Verwende Puffergröße: {buffer_distance}m, max. Winkelunterschied: {max_angle_diff}°")
     
     # Räumlicher Index für OSM-Daten
     osm_sindex = build_spatial_index(osm_gdf)
@@ -170,8 +198,8 @@ def process_network_edges(network_gdf, osm_gdf, buffer_distance=BUFFER_DEFAULT):
             buffer_distance
         )
         
-        # Übertrage Attribute
-        enriched_row = transfer_osm_attributes(network_row, osm_matches)
+        # Übertrage Attribute mit Winkelprüfung
+        enriched_row = transfer_osm_attributes(network_row, osm_matches, max_angle_diff)
         enriched_rows.append(enriched_row)
     
     # Abschluss der Fortschrittsanzeige
@@ -183,9 +211,16 @@ def process_network_edges(network_gdf, osm_gdf, buffer_distance=BUFFER_DEFAULT):
     return enriched_gdf
 
 
-def enrich_network_with_osm(network_path, osm_path, output_path, buffer_distance=BUFFER_DEFAULT):
+def enrich_network_with_osm(network_path, osm_path, output_path, buffer_distance=BUFFER_DEFAULT, max_angle_diff=35.0):
     """
     Hauptfunktion zur Anreicherung des Straßennetzes mit OSM-Daten.
+    
+    Args:
+        network_path: Pfad zur Netzwerk-Datei
+        osm_path: Pfad zur OSM-Datei
+        output_path: Pfad für die Ausgabe-Datei
+        buffer_distance: Puffergröße für räumliche Suche
+        max_angle_diff: Maximaler erlaubter Winkelunterschied in Grad
     """
     print(f"Lade Straßennetz aus: {network_path}")
     network_gdf = gpd.read_file(network_path)
@@ -203,7 +238,7 @@ def enrich_network_with_osm(network_path, osm_path, output_path, buffer_distance
         osm_gdf = osm_gdf.to_crs(target_crs)
     
     # Anreicherung durchführen
-    enriched_gdf = process_network_edges(network_gdf, osm_gdf, buffer_distance)
+    enriched_gdf = process_network_edges(network_gdf, osm_gdf, buffer_distance, max_angle_diff)
     
     # Ergebnis speichern
     print(f"Speichere angereichertes Netz: {output_path}")
@@ -223,6 +258,8 @@ def main():
     parser.add_argument('output_path', help='Pfad für die Ausgabe-Datei')
     parser.add_argument('--buffer', type=float, default=BUFFER_DEFAULT, 
                         help=f'Puffergröße in Metern (Standard: {BUFFER_DEFAULT})')
+    parser.add_argument('--max-angle', type=float, default=35.0,
+                        help='Maximaler erlaubter Winkelunterschied in Grad (Standard: 35.0)')
     
     args = parser.parse_args()
     
@@ -236,8 +273,102 @@ def main():
         sys.exit(1)
     
     # Führe Anreicherung durch
-    enrich_network_with_osm(args.network_path, args.osm_path, args.output_path, args.buffer)
+    enrich_network_with_osm(args.network_path, args.osm_path, args.output_path, 
+                           args.buffer, args.max_angle)
 
 
 if __name__ == "__main__":
     main()
+
+
+def calculate_line_bearing(line_geom):
+    """
+    Berechnet die Ausrichtung (Bearing) einer Linie in Grad.
+    
+    Args:
+        line_geom: LineString-Geometrie
+        
+    Returns:
+        float: Ausrichtung in Grad (0-360)
+    """
+    if isinstance(line_geom, MultiLineString):
+        # Für MultiLineString nimm die erste Linie
+        if len(line_geom.geoms) > 0:
+            line_geom = line_geom.geoms[0]
+        else:
+            return 0.0
+    
+    if not isinstance(line_geom, LineString) or len(line_geom.coords) < 2:
+        return 0.0
+    
+    # Nimm Start- und Endpunkt der Linie
+    start_point = line_geom.coords[0]
+    end_point = line_geom.coords[-1]
+    
+    # Berechne Differenzen
+    dx = end_point[0] - start_point[0]
+    dy = end_point[1] - start_point[1]
+    
+    # Berechne Winkel in Radiant und konvertiere zu Grad
+    angle_rad = math.atan2(dy, dx)
+    angle_deg = math.degrees(angle_rad)
+    
+    # Normalisiere auf 0-360 Grad
+    if angle_deg < 0:
+        angle_deg += 360
+    
+    return angle_deg
+
+
+def calculate_angle_difference(bearing1, bearing2):
+    """
+    Berechnet den minimalen Winkelunterschied zwischen zwei Ausrichtungen.
+    Berücksichtigt dabei auch die umgekehrte Richtung (bearing + 180°).
+    
+    Args:
+        bearing1: Ausrichtung 1 in Grad
+        bearing2: Ausrichtung 2 in Grad
+        
+    Returns:
+        float: Minimaler Winkelunterschied in Grad (0-90)
+    """
+    # Berechne direkte Differenz
+    diff = abs(bearing1 - bearing2)
+    
+    # Normalisiere auf 0-180 Grad
+    if diff > 180:
+        diff = 360 - diff
+    
+    # Berechne auch die umgekehrte Richtung (bearing2 + 180°)
+    bearing2_reversed = (bearing2 + 180) % 360
+    diff_reversed = abs(bearing1 - bearing2_reversed)
+    
+    if diff_reversed > 180:
+        diff_reversed = 360 - diff_reversed
+    
+    # Nimm den kleineren Winkel
+    min_diff = min(diff, diff_reversed)
+    
+    return min_diff
+
+
+def is_alignment_compatible(network_geom, osm_geom, max_angle_diff=35.0):
+    """
+    Prüft, ob die Ausrichtung zweier Geometrien kompatibel ist.
+    
+    Args:
+        network_geom: Netzwerk-Geometrie
+        osm_geom: OSM-Geometrie
+        max_angle_diff: Maximaler erlaubter Winkelunterschied in Grad
+        
+    Returns:
+        tuple: (is_compatible, angle_difference)
+    """
+    network_bearing = calculate_line_bearing(network_geom)
+    osm_bearing = calculate_line_bearing(osm_geom)
+    
+    angle_diff = calculate_angle_difference(network_bearing, osm_bearing)
+    
+    is_compatible = angle_diff <= max_angle_diff
+    
+    return is_compatible, angle_diff
