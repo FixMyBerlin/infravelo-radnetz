@@ -25,7 +25,7 @@ def __getattr__(name):
         elif name == 'calculate_snapping_percentage':
             return calculate_snapping_percentage
     elif name in ('enrich_network_with_osm', 'process_network_edges'):
-        from .enrich_streetnet_with_osm import enrich_network_with_osm, process_network_edges
+        from ..start_snapping import enrich_network_with_osm, process_network_edges
         if name == 'enrich_network_with_osm':
             return enrich_network_with_osm
         elif name == 'process_network_edges':
