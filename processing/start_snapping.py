@@ -25,6 +25,7 @@ from helpers.globals import DEFAULT_CRS
 
 # -------------------------------------------------------------- Konstanten --
 BUFFER_DEFAULT = 20.0     # Standard-Puffergröße in Metern für Matching
+MAX_ANGLE_DIFFERENCE = 50.0 # Maximaler Winkelunterschied für Ausrichtung in Grad
 
 # Feldnamen für das Netz
 FLD_EDGE = "element_nr"           # Kanten-ID
@@ -74,6 +75,34 @@ def is_left(line: LineString, p: Point) -> bool:
     b_x, b_y = line.coords[-1]
     return ((b_x - a_x) * (p.y - a_y) - (b_y - a_y) * (p.x - a_x)) > 0
 
+# TODO MultiLineString-Handling behandelt nur den ersten LineString
+def calculate_line_angle(line: LineString | MultiLineString) -> float:
+    """
+    Berechnet den Winkel einer Linie (Anfangs- zu Endpunkt) in Grad.
+    Der Winkel wird im Bereich [0, 360) zurückgegeben.
+    Bei MultiLineStrings wird nur der erste LineString zur Berechnung verwendet.
+    """
+    if isinstance(line, MultiLineString):
+        # Bei MultiLineString nur den ersten Teil für die Winkelberechnung verwenden
+        line = line.geoms[0]
+
+    coords = list(line.coords)
+    if len(coords) < 2:
+        return 0.0
+    p1 = coords[0]
+    p2 = coords[-1]
+    angle = np.degrees(np.arctan2(p2[1] - p1[1], p2[0] - p1[0]))
+    return angle if angle >= 0 else angle + 360
+
+
+def angle_difference(angle1: float, angle2: float) -> float:
+    """
+    Berechnet die kleinste Differenz zwischen zwei Winkeln (in Grad).
+    Das Ergebnis liegt immer zwischen 0 und 180.
+    """
+    diff = abs(angle1 - angle2)
+    return min(diff, 360 - diff)
+
 
 def new_neg_id(counter):
     """Erzeugt eine neue negative ID für Zwischennoten (Splits)."""
@@ -89,17 +118,17 @@ def split_network_into_segments(net_gdf, crs, segment_length=1.0):
     segmente = []
     total = len(net_gdf)
     for idx, (_, row) in enumerate(net_gdf.iterrows(), 1):
-        geom = ls_from_geom(row.geometry)
-        n_seg = max(1, int(np.ceil(geom.length / segment_length)))
-        breakpoints = np.linspace(0, geom.length, n_seg + 1)
-        for i in range(n_seg):
-            seg = LineString([
-                geom.interpolate(breakpoints[i]),
-                geom.interpolate(breakpoints[i+1])
-            ])
-            seg_row = row.copy()
-            seg_row["geometry"] = seg
-            segmente.append(seg_row)
+        for geom in lines_from_geom(row.geometry):
+            n_seg = max(1, int(np.ceil(geom.length / segment_length)))
+            breakpoints = np.linspace(0, geom.length, n_seg + 1)
+            for i in range(n_seg):
+                seg = LineString([
+                    geom.interpolate(breakpoints[i]),
+                    geom.interpolate(breakpoints[i+1])
+                ])
+                seg_row = row.copy()
+                seg_row["geometry"] = seg
+                segmente.append(seg_row)
         print_progressbar(idx, total, prefix="Segmentiere: ")
     return gpd.GeoDataFrame(segmente, crs=crs)
 
@@ -171,13 +200,16 @@ def process(net_path, osm_path, out_path, crs, buf):
     else:
         logging.info("Führe Snapping und OSM-Attributübernahme auf 10% der Segmente durch ...")
         # OSM-Spalten (außer Geometrie) umbenennen (Präfix 'osm_')
+        # Erstelle eine Liste aller Spaltennamen aus dem OSM-DataFrame, außer der Geometrie-Spalte
         osm_attrs = [c for c in osm.columns if c != "geometry"]
+        # Benenne alle OSM-Spalten (außer Geometrie) um, indem ein 'osm_' Präfix hinzugefügt wird
         osm = osm.rename(columns={c: f"osm_{c}" for c in osm_attrs})
+        # Erzeuge einen räumlichen Index für die OSM-Ways, um schnelle räumliche Abfragen zu ermöglichen
         osm_sidx = osm.sindex  # Räumlicher Index für OSM-Ways
 
         # Für Test: nur 10% der Segmente bearbeiten
         total = len(net_segmented)
-        n_test = max(1, int(total * 0.1))
+        n_test = max(1, int(total * 0.05))
         snapped_records = []
         for idx, seg in enumerate(net_segmented.itertuples(), 1):
             if idx > n_test:
@@ -187,7 +219,7 @@ def process(net_path, osm_path, out_path, crs, buf):
             cand_idx = list(osm_sidx.intersection(g.buffer(buf).bounds))
             if not cand_idx:
                 snapped_records.append(seg._asdict())
-                print_progressbar(idx, n_test, prefix="Snapping (Test 10%): ")
+                print_progressbar(idx, n_test, prefix="Snapping (Test 5%): ")
                 continue
             cand = osm.iloc[cand_idx].copy()
             # Nur Kandidaten im Buffer behalten
@@ -195,18 +227,33 @@ def process(net_path, osm_path, out_path, crs, buf):
             cand = cand[cand["d"] <= buf]
             if cand.empty:
                 snapped_records.append(seg._asdict())
-                print_progressbar(idx, n_test, prefix="Snapping (Test 10%): ")
+                print_progressbar(idx, n_test, prefix="Snapping (Test 5%): ")
                 continue
-            # Nächstgelegene OSM-Geometrie bestimmen
+
+            # Winkel des Netzsegments berechnen
+            seg_angle = calculate_line_angle(g)
+
+            # Winkel und Winkeldifferenz für alle Kandidaten berechnen
+            cand["angle"] = cand.geometry.apply(calculate_line_angle)
+            cand["angle_diff"] = cand["angle"].apply(lambda a: angle_difference(a, seg_angle))
+
+            # Bevorzugte Kandidaten mit passender Ausrichtung auswählen
+            oriented_cand = cand[cand["angle_diff"] <= MAX_ANGLE_DIFFERENCE]
+
+            # Wenn es ausgerichtete Kandidaten gibt, diese verwenden, sonst alle
+            target_cand = oriented_cand if not oriented_cand.empty else cand
+
+            # Nächstgelegene OSM-Geometrie aus der Zielgruppe bestimmen
             mid = g.interpolate(0.5, normalized=True)
-            dist = cand.geometry.distance(mid)
-            nearest = cand.loc[dist.idxmin()]
+            dist = target_cand.geometry.distance(mid)
+            nearest = target_cand.loc[dist.idxmin()]
+
             # OSM-Attribute übernehmen
             seg_dict = seg._asdict()
-            for c in ["id", "osm_road", "osm_surface", "osm_surface_colour", "osm_oneway", "osm_traffic_sign", "osm_width", "osm_bikelane_self"]:
+            for c in ["osm_id", "osm_category", "osm_road", "osm_name", "osm_surface", "osm_surface_colour", "osm_oneway", "osm_traffic_sign", "osm_width", "osm_bikelane_self"]:
                 seg_dict[c] = nearest.get(c, None)
             snapped_records.append(seg_dict)
-            print_progressbar(idx, n_test, prefix="Snapping (Test 10%): ")
+            print_progressbar(idx, n_test, prefix="Snapping (Test 5%): ")
         net_segmented = gpd.GeoDataFrame(snapped_records, crs=crs)
         net_segmented.to_file(seg_attr_path, driver="FlatGeobuf")
         logging.info(f"✔  Attributierte Test-Segmente gespeichert als {seg_attr_path}")
