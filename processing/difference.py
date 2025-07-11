@@ -1,4 +1,4 @@
-from processing.helpers.globals import DEFAULT_CRS, DEFAULT_OUTPUT_DIR
+from helpers.globals import DEFAULT_CRS
 import geopandas as gpd
 import os
 

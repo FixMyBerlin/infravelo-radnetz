@@ -5,7 +5,7 @@ import os
 from orthogonal_filter import process_and_filter_short_segments
 from manual_interventions import get_excluded_ways, get_included_ways
 from difference import get_or_create_difference_fgb
-from processing.export_geojson import export_all_geojson
+from export_geojson import export_all_geojson
 
 # Konfiguration
 BIKELANES_FGB = './data/bikelanes.fgb'  # Pfad zu OSM-Radwegen

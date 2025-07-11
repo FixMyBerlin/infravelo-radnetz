@@ -4,7 +4,7 @@ from shapely.ops import linemerge
 import os
 import numpy as np
 import logging
-from processing.helpers.globals import DEFAULT_CRS, DEFAULT_OUTPUT_DIR
+from helpers.globals import DEFAULT_OUTPUT_DIR
 
 COMPLEX_CASES_TRESHOL_DEGREE=60
 COMPLEX_DIFFERENCE_ANGLE_BETWEEN_OSM_IV=20

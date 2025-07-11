@@ -12,3 +12,6 @@ Uses Python, geopandas and other libraries for processing geodata and openstreet
 - Use english function and variables names.
 - Use logging instead of print statements.
 - Import packages only once at the top of the file.
+- Use the globals.py if possible to import constants like DEFAULT_CRS or DEFAULT_OUTPUT_DIR.
+- Use helpers from the helpers folder if possible.
+- Add new helpers, if they can be used in different modules, to the helpers folder.

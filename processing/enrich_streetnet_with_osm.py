@@ -25,8 +25,8 @@ import numpy as np
 import geopandas as gpd
 from shapely.geometry import LineString, MultiLineString, Point, MultiPoint
 from shapely.ops import split as shp_split, linemerge
-from processing.helpers.progressbar import print_progressbar
-from processing.helpers.globals import CRS_DEFAULT
+from helpers.progressbar import print_progressbar
+from helpers.globals import DEFAULT_CRS
 
 
 # -------------------------------------------------------------- Konstanten --
@@ -188,22 +188,25 @@ def process(net_path, osm_path, out_path, crs, buf):
         logging.info(f"Lade bereits attributierte Segmente aus {seg_attr_path} ...")
         net_segmented = gpd.read_file(seg_attr_path)
     else:
-        logging.info("Führe Snapping und OSM-Attributübernahme auf Segmente durch ...")
+        logging.info("Führe Snapping und OSM-Attributübernahme auf 10% der Segmente durch ...")
         # OSM-Spalten (außer Geometrie) umbenennen (Präfix 'osm_')
         osm_attrs = [c for c in osm.columns if c != "geometry"]
         osm = osm.rename(columns={c: f"osm_{c}" for c in osm_attrs})
         osm_sidx = osm.sindex  # Räumlicher Index für OSM-Ways
 
-        # Für jedes Segment: nächstgelegene OSM-Geometrie im Buffer suchen und Attribute übernehmen
-        snapped_records = []
+        # Für Test: nur 10% der Segmente bearbeiten
         total = len(net_segmented)
+        n_test = max(1, int(total * 0.1))
+        snapped_records = []
         for idx, seg in enumerate(net_segmented.itertuples(), 1):
+            if idx > n_test:
+                break
             g = seg.geometry
             # Kandidaten im Buffer suchen
             cand_idx = list(osm_sidx.intersection(g.buffer(buf).bounds))
             if not cand_idx:
                 snapped_records.append(seg._asdict())
-                print_progressbar(idx, total, prefix="Snapping: ")
+                print_progressbar(idx, n_test, prefix="Snapping (Test 10%): ")
                 continue
             cand = osm.iloc[cand_idx].copy()
             # Nur Kandidaten im Buffer behalten
@@ -211,7 +214,7 @@ def process(net_path, osm_path, out_path, crs, buf):
             cand = cand[cand["d"] <= buf]
             if cand.empty:
                 snapped_records.append(seg._asdict())
-                print_progressbar(idx, total, prefix="Snapping: ")
+                print_progressbar(idx, n_test, prefix="Snapping (Test 10%): ")
                 continue
             # Nächstgelegene OSM-Geometrie bestimmen
             mid = g.interpolate(0.5, normalized=True)
@@ -219,17 +222,18 @@ def process(net_path, osm_path, out_path, crs, buf):
             nearest = cand.loc[dist.idxmin()]
             # OSM-Attribute übernehmen
             seg_dict = seg._asdict()
-            for c in ["osm_road", "osm_surface", "osm_surface:colour", "osm_oneway"]:
+            for c in ["", "osm_road", "osm_surface", "osm_surface:colour", "osm_oneway"]:
                 seg_dict[c] = nearest.get(c, None)
             snapped_records.append(seg_dict)
-            print_progressbar(idx, total, prefix="Snapping: ")
+            print_progressbar(idx, n_test, prefix="Snapping (Test 10%): ")
         net_segmented = gpd.GeoDataFrame(snapped_records, crs=crs)
         net_segmented.to_file(seg_attr_path, driver="FlatGeobuf")
-        logging.info(f"✔  Attributierte Segmente gespeichert als {seg_attr_path}")
+        logging.info(f"✔  Attributierte Test-Segmente gespeichert als {seg_attr_path}")
 
     # ---------- Segmente verschmelzen ---------------------------------------
     print("Fasse Segmente mit gleicher okstra_id und OSM-Attributen zusammen ...")
-    osm_felder = ["osm_road", "osm_surface", "osm_surface:colour", "osm_oneway"]
+    # TODO: Funktioniert nur, wenn die OSM-Attribute nicht NULL sind
+    osm_felder = ["osm_road"] #, "osm_surface", "osm_surface:colour", "osm_oneway"]
     out_gdf = merge_segments(net_segmented, "okstra_id", osm_felder)
 
     # ---------- Ergebnis speichern ------------------------------------------
@@ -247,8 +251,8 @@ if __name__ == "__main__":
     ap.add_argument("--net",  required=True, help="Netz-Layer  (Pfad[:Layer])")
     ap.add_argument("--osm",  required=True, help="OSM-Ways   (Pfad[:Layer])")
     ap.add_argument("--out",  required=True, help="Ausgabe    (Pfad[:Layer])")
-    ap.add_argument("--crs",  type=int,   default=CRS_DEFAULT,
-                    help=f"Ziel-EPSG (default {CRS_DEFAULT})")
+    ap.add_argument("--crs",  type=int,   default=DEFAULT_CRS,
+                    help=f"Ziel-EPSG (default {DEFAULT_CRS})")
     ap.add_argument("--buffer", type=float, default=BUFFER_DEFAULT,
                     help=f"Matching-Puffer in m (default {BUFFER_DEFAULT})")
     args = ap.parse_args()
