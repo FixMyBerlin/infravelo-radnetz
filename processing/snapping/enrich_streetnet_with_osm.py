@@ -25,6 +25,7 @@ import math
 
 # -------------------------------------------------------------- Konstanten --
 BUFFER_DEFAULT = 20.0     # Standard-Puffergröße in Metern für Matching
+MAX_ANGLE_DEFAULT = 65.0 # Standard für maximalen Winkelunterschied
 
 # Feldnamen für das Netz
 FLD_EDGE = "element_nr"           # Kanten-ID
@@ -100,7 +101,7 @@ def find_matching_osm_features(network_geom, osm_gdf, osm_sindex, buffer_distanc
     return intersecting_features
 
 
-def transfer_osm_attributes(network_row, osm_matches, max_angle_diff=35.0):
+def transfer_osm_attributes(network_row, osm_matches, max_angle_diff=MAX_ANGLE_DEFAULT):
     """
     Überträgt OSM-Attribute auf eine Netzwerk-Kante.
     Berücksichtigt dabei sowohl die Überschneidungslänge als auch die Ausrichtung der Segmente.
@@ -151,7 +152,7 @@ def transfer_osm_attributes(network_row, osm_matches, max_angle_diff=35.0):
         enriched_row = network_row.copy()
         
         # Übertrage relevante OSM-Attribute
-        osm_attributes = ['highway', 'name', 'maxspeed', 'lanes', 'surface', 'cycleway', 'cycleway:left', 'cycleway:right']
+        osm_attributes = ["osm_id", "road", "surface", "surface:colour", "oneway"]
         
         for attr in osm_attributes:
             if attr in best_match.index:
@@ -167,7 +168,7 @@ def transfer_osm_attributes(network_row, osm_matches, max_angle_diff=35.0):
     return network_row
 
 
-def process_network_edges(network_gdf, osm_gdf, buffer_distance=BUFFER_DEFAULT, max_angle_diff=35.0):
+def process_network_edges(network_gdf, osm_gdf, buffer_distance=BUFFER_DEFAULT, max_angle_diff=MAX_ANGLE_DEFAULT):
     """
     Verarbeitet alle Kanten des Netzwerks und reichert sie mit OSM-Attributen an.
     
@@ -211,7 +212,7 @@ def process_network_edges(network_gdf, osm_gdf, buffer_distance=BUFFER_DEFAULT, 
     return enriched_gdf
 
 
-def enrich_network_with_osm(network_path, osm_path, output_path, buffer_distance=BUFFER_DEFAULT, max_angle_diff=35.0):
+def enrich_network_with_osm(network_path, osm_path, output_path, buffer_distance=BUFFER_DEFAULT, max_angle_diff=MAX_ANGLE_DEFAULT):
     """
     Hauptfunktion zur Anreicherung des Straßennetzes mit OSM-Daten.
     
@@ -258,8 +259,8 @@ def main():
     parser.add_argument('output_path', help='Pfad für die Ausgabe-Datei')
     parser.add_argument('--buffer', type=float, default=BUFFER_DEFAULT, 
                         help=f'Puffergröße in Metern (Standard: {BUFFER_DEFAULT})')
-    parser.add_argument('--max-angle', type=float, default=35.0,
-                        help='Maximaler erlaubter Winkelunterschied in Grad (Standard: 35.0)')
+    parser.add_argument('--max-angle', type=float, default=MAX_ANGLE_DEFAULT,
+                        help=f'Maximaler erlaubter Winkelunterschied in Grad (Standard: {MAX_ANGLE_DEFAULT})')
     
     args = parser.parse_args()
     
@@ -352,7 +353,7 @@ def calculate_angle_difference(bearing1, bearing2):
     return min_diff
 
 
-def is_alignment_compatible(network_geom, osm_geom, max_angle_diff=35.0):
+def is_alignment_compatible(network_geom, osm_geom, max_angle_diff=MAX_ANGLE_DEFAULT):
     """
     Prüft, ob die Ausrichtung zweier Geometrien kompatibel ist.
     

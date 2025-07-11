@@ -94,7 +94,7 @@ The main process will create geojson files in `/output-static-data-transfer`. Yo
 Empfohlener Start über das Wrapper-Skript:
 
 ```sh
-python ./processing/start_enrich.py \
+python ./processing/start_snapping.py \
   ./output/vorrangnetz_details_combined_rvn.fgb \
   ./output/matched_osm_ways.fgb \
   ./output/snapping_network_enriched.fgb \
