@@ -1,12 +1,29 @@
 # Processing Script
 
-**`main.py`** is the start of the processing script. It selects all OSM ways, which are in `BUFFER_METERS` distance to the Radvorrangsnetz.
+**`main.py`** ist der Startpunkt des Verarbeitungsprozesses. Es wählt alle OSM-Wege aus, die sich in `BUFFER_METERS` Entfernung zum Radvorrangsnetz befinden.
 
-The script creates intermediate geodata versions. This enables to speed up the scripts speed when rerunning. But this can also relate to **caching issues**. So be aware, and be free to delete the `output` folder when having issues.
+Das Skript erstellt Zwischendateien für die Geodaten. Dies ermöglicht es, die Geschwindigkeit des Skripts bei Wiederholungen zu verbessern. Dies kann jedoch auch zu **Caching-Problemen** führen. Seien Sie sich dessen bewusst und löschen Sie gerne den `output`-Ordner, wenn Sie Probleme haben.
 
-See [REQUIREMENTS.md](./REQUIREMENTS.md) for geodata requirements.
+Siehe [REQUIREMENTS.md](./REQUIREMENTS.md) für Geodaten-Anforderungen.
 
-*Tested with Python 3.13.3.*
+*Getestet mit Python 3.13.3.*
+
+## Modul Struktur
+
+Die Module sind nach Funktionalität organisiert:
+
+### `/matching/` - Matching-Algorithmen
+- `difference.py` - Differenzbildung zwischen Straßen und Radwegen
+- `manual_interventions.py` - Manuelle Eingriffe (Ausschluss/Einschluss von OSM-Wegen)
+- `orthogonal_filter.py` - Orthogonalitätsfilter für kurze Segmente
+
+### `/snapping/` - Snapping-Algorithmen  
+- `snap_and_cut.py` - Snapping von OSM-Wegen auf Zielnetzwerke
+- `enrich_streetnet_with_osm.py` - Anreicherung von Straßennetzen mit OSM-Attributen
+
+### Hauptmodule
+- `main.py` - Orchestriert den gesamten Verarbeitungsprozess
+- `export_geojson.py` - Exportiert alle .fgb-Dateien als .geojson
 
 ## Phases
 

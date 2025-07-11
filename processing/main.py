@@ -2,9 +2,9 @@ import geopandas as gpd
 import pandas as pd
 import argparse
 import os
-from orthogonal_filter import process_and_filter_short_segments
-from manual_interventions import get_excluded_ways, get_included_ways
-from difference import get_or_create_difference_fgb
+from matching.orthogonal_filter import process_and_filter_short_segments
+from matching.manual_interventions import get_excluded_ways, get_included_ways
+from matching.difference import get_or_create_difference_fgb
 from export_geojson import export_all_geojson
 from helpers.progressbar import print_progressbar
 

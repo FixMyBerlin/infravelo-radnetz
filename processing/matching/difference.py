@@ -43,4 +43,3 @@ def get_or_create_difference_fgb(streets_gdf, bikelanes_gdf, output_path, target
     diff_gdf.to_file(output_path, driver='FlatGeobuf')
     print(f'Differenz gespeichert als {output_path} ({len(diff_gdf)} Features)')
     return diff_gdf
-
