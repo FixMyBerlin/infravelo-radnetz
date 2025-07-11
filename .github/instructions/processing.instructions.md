@@ -17,3 +17,4 @@ Uses Python, geopandas and other libraries for processing geodata and openstreet
 - Add new helpers, if they can be used in different modules, to the helpers folder.
 - Remove unused imports.
 - When there are many different possibilites in the method or implementation, first ask the user for their preferences.
+- Update the requirements.txt file with the new packages used in the code.
