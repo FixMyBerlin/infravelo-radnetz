@@ -134,12 +134,16 @@ def merge_segments(gdf, id_field, osm_fields):
     total = len(grouped)
     for idx, (_, gruppe) in enumerate(grouped, 1):
         geoms = list(gruppe.geometry)
+        if not geoms:
+            continue
         merged = linemerge(geoms)
         merged_row = gruppe.iloc[0].copy()
         merged_row["geometry"] = merged
         gruppen.append(merged_row)
         print_progressbar(idx, total, prefix="Verschmelze: ")
-    return gpd.GeoDataFrame(gruppen, crs=gdf.crs)
+    if not gruppen:
+        raise ValueError("No segments to merge. Check input data and grouping fields.")
+    return gpd.GeoDataFrame(gruppen, geometry="geometry", crs=gdf.crs)
 
 
 # ------------------------------------------------------------- Hauptablauf --
@@ -179,42 +183,49 @@ def process(net_path, osm_path, out_path, crs, buf):
         logging.info(f"✔  Segmentiertes Netz gespeichert als {seg_path}")
 
     # ---------- Snapping/Attributübernahme auf Segmente ---------------------
-    print("Führe Snapping und OSM-Attributübernahme auf Segmente durch ...")
-    # OSM-Spalten (außer Geometrie) umbenennen (Präfix 'osm_')
-    osm_attrs = [c for c in osm.columns if c != "geometry"]
-    osm = osm.rename(columns={c: f"osm_{c}" for c in osm_attrs})
-    osm_sidx = osm.sindex  # Räumlicher Index für OSM-Ways
+    seg_attr_path = "./output/qa-snapping/rvn-segmented-attributed-osm.fgb"
+    if os.path.exists(seg_attr_path):
+        logging.info(f"Lade bereits attributierte Segmente aus {seg_attr_path} ...")
+        net_segmented = gpd.read_file(seg_attr_path)
+    else:
+        logging.info("Führe Snapping und OSM-Attributübernahme auf Segmente durch ...")
+        # OSM-Spalten (außer Geometrie) umbenennen (Präfix 'osm_')
+        osm_attrs = [c for c in osm.columns if c != "geometry"]
+        osm = osm.rename(columns={c: f"osm_{c}" for c in osm_attrs})
+        osm_sidx = osm.sindex  # Räumlicher Index für OSM-Ways
 
-    # Für jedes Segment: nächstgelegene OSM-Geometrie im Buffer suchen und Attribute übernehmen
-    snapped_records = []
-    total = len(net_segmented)
-    for idx, seg in enumerate(net_segmented.itertuples(), 1):
-        g = seg.geometry
-        # Kandidaten im Buffer suchen
-        cand_idx = list(osm_sidx.intersection(g.buffer(buf).bounds))
-        if not cand_idx:
-            snapped_records.append(seg._asdict())
+        # Für jedes Segment: nächstgelegene OSM-Geometrie im Buffer suchen und Attribute übernehmen
+        snapped_records = []
+        total = len(net_segmented)
+        for idx, seg in enumerate(net_segmented.itertuples(), 1):
+            g = seg.geometry
+            # Kandidaten im Buffer suchen
+            cand_idx = list(osm_sidx.intersection(g.buffer(buf).bounds))
+            if not cand_idx:
+                snapped_records.append(seg._asdict())
+                print_progressbar(idx, total, prefix="Snapping: ")
+                continue
+            cand = osm.iloc[cand_idx].copy()
+            # Nur Kandidaten im Buffer behalten
+            cand["d"] = cand.geometry.distance(g)
+            cand = cand[cand["d"] <= buf]
+            if cand.empty:
+                snapped_records.append(seg._asdict())
+                print_progressbar(idx, total, prefix="Snapping: ")
+                continue
+            # Nächstgelegene OSM-Geometrie bestimmen
+            mid = g.interpolate(0.5, normalized=True)
+            dist = cand.geometry.distance(mid)
+            nearest = cand.loc[dist.idxmin()]
+            # OSM-Attribute übernehmen
+            seg_dict = seg._asdict()
+            for c in ["osm_road", "osm_surface", "osm_surface:colour", "osm_oneway"]:
+                seg_dict[c] = nearest.get(c, None)
+            snapped_records.append(seg_dict)
             print_progressbar(idx, total, prefix="Snapping: ")
-            continue
-        cand = osm.iloc[cand_idx].copy()
-        # Nur Kandidaten im Buffer behalten
-        cand["d"] = cand.geometry.distance(g)
-        cand = cand[cand["d"] <= buf]
-        if cand.empty:
-            snapped_records.append(seg._asdict())
-            print_progressbar(idx, total, prefix="Snapping: ")
-            continue
-        # Nächstgelegene OSM-Geometrie bestimmen
-        mid = g.interpolate(0.5, normalized=True)
-        dist = cand.geometry.distance(mid)
-        nearest = cand.loc[dist.idxmin()]
-        # OSM-Attribute übernehmen
-        seg_dict = seg._asdict()
-        for c in ["osm_road", "osm_surface", "osm_surface:colour", "osm_oneway"]:
-            seg_dict[c] = nearest.get(c, None)
-        snapped_records.append(seg_dict)
-        print_progressbar(idx, total, prefix="Snapping: ")
-    net_segmented = gpd.GeoDataFrame(snapped_records, crs=crs)
+        net_segmented = gpd.GeoDataFrame(snapped_records, crs=crs)
+        net_segmented.to_file(seg_attr_path, driver="FlatGeobuf")
+        logging.info(f"✔  Attributierte Segmente gespeichert als {seg_attr_path}")
 
     # ---------- Segmente verschmelzen ---------------------------------------
     print("Fasse Segmente mit gleicher okstra_id und OSM-Attributen zusammen ...")
