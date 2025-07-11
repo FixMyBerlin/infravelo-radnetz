@@ -6,6 +6,7 @@ from orthogonal_filter import process_and_filter_short_segments
 from manual_interventions import get_excluded_ways, get_included_ways
 from difference import get_or_create_difference_fgb
 from export_geojson import export_all_geojson
+from helpers.progressbar import print_progressbar
 
 # Konfiguration
 BIKELANES_FGB = './data/bikelanes.fgb'  # Pfad zu OSM-Radwegen
@@ -206,6 +207,86 @@ def process_data_source(osm_fgb_path, output_prefix, vorrangnetz_gdf, unified_bu
     return matched_gdf
 
 
+def combine_street_and_bikelane_data(streets_gdf, bikelanes_gdf, output_path):
+    """
+    Kombiniert die Daten von Straßen und Fahrradwegen zu einem einzigen GeoDataFrame.
+    Behandelt doppelte Spaltennamen und stellt sicher, dass keine Daten verloren gehen.
+    """
+    print("\n--- Kombiniere Straßen- und Fahrradwegdaten ---")
+    
+    combined_gdfs = []
+    
+    # Füge Datenquellen-Attribut hinzu
+    if streets_gdf is not None:
+        streets_copy = streets_gdf.copy()
+        streets_copy['data_source'] = 'streets'
+        combined_gdfs.append(streets_copy)
+    
+    if bikelanes_gdf is not None:
+        bikelanes_copy = bikelanes_gdf.copy()
+        bikelanes_copy['data_source'] = 'bikelanes'
+        combined_gdfs.append(bikelanes_copy)
+    
+    if not combined_gdfs:
+        print("Keine Daten zum Kombinieren verfügbar.")
+        return None
+    
+    # Ermittle alle vorhandenen Spalten
+    all_columns = set()
+    for gdf in combined_gdfs:
+        all_columns.update(gdf.columns)
+    
+    # Sortiere die Spalten für eine konsistente Reihenfolge
+    all_columns = sorted(all_columns)
+    
+    # Harmonisiere die Spalten für alle GeoDataFrames
+    print("Harmonisiere Spalten...")
+    harmonized_gdfs = []
+    for i, gdf in enumerate(combined_gdfs):
+        print_progressbar(i + 1, len(combined_gdfs), prefix="Harmonisiere: ", length=50)
+        
+        # Füge fehlende Spalten hinzu
+        for col in all_columns:
+            if col not in gdf.columns and col != 'geometry':
+                gdf[col] = None
+        
+        # Stelle sicher, dass alle Spalten in der gleichen Reihenfolge sind
+        gdf = gdf.reindex(columns=all_columns)
+        harmonized_gdfs.append(gdf)
+    
+    # Kombiniere die GeoDataFrames
+    print("\nKombiniere GeoDataFrames...")
+    combined_gdf = pd.concat(harmonized_gdfs, ignore_index=True)
+    
+    # Entferne doppelte Spaltennamen (falls vorhanden)
+    if combined_gdf.columns.duplicated().any():
+        print("Entferne doppelte Spaltennamen...")
+        combined_gdf = combined_gdf.loc[:, ~combined_gdf.columns.duplicated()]
+    
+    # Prüfe auf doppelte Geometrien/IDs
+    id_col = 'osm_id' if 'osm_id' in combined_gdf.columns else 'id'
+    if id_col in combined_gdf.columns:
+        initial_count = len(combined_gdf)
+        combined_gdf = combined_gdf.drop_duplicates(subset=[id_col])
+        if len(combined_gdf) < initial_count:
+            print(f"Warnung: {initial_count - len(combined_gdf)} doppelte Einträge basierend auf {id_col} entfernt.")
+    
+    # Speichere das kombinierte GeoDataFrame
+    print(f"Speichere kombinierte Daten als {output_path}...")
+    combined_gdf.to_file(output_path, driver='FlatGeobuf')
+    
+    print(f"Kombinierte Daten erfolgreich gespeichert:")
+    print(f"  - Gesamtanzahl Features: {len(combined_gdf)}")
+    if streets_gdf is not None:
+        streets_count = len(combined_gdf[combined_gdf['data_source'] == 'streets'])
+        print(f"  - Straßen: {streets_count}")
+    if bikelanes_gdf is not None:
+        bikelanes_count = len(combined_gdf[combined_gdf['data_source'] == 'bikelanes'])
+        print(f"  - Fahrradwege: {bikelanes_count}")
+    
+    return combined_gdf
+
+
 def main():
     """
     Orchestriert den gesamten Matching- und Filterprozess.
@@ -244,6 +325,15 @@ def main():
             print("Warnung: Differenz kann nicht berechnet werden, da eine der Eingabedateien fehlt.")
     else:
         print("--- Überspringe Differenz-Berechnung für Straßen ohne Radwege ---")
+
+    # Kombiniere Straßen- und Fahrradwegdaten
+    if streets_gdf is not None or bikelanes_gdf is not None:
+        combined_path = './output/matched_osm_ways.fgb'
+        combined_gdf = combine_street_and_bikelane_data(streets_gdf, bikelanes_gdf, combined_path)
+        if combined_gdf is not None:
+            print(f"Kombinierte Daten gespeichert: {combined_path}")
+    else:
+        print("Warnung: Keine Daten zum Kombinieren verfügbar.")
 
     # PMTiles-Export am Ende
     print('Exportiere alle .fgb als .geojson ...')
