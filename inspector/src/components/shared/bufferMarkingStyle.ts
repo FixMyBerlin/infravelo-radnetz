@@ -75,12 +75,7 @@ export const getBufferMarkingStyle: DataDrivenPropertyValueSpecification<string>
       ['==', ['get', 'category'], 'bicycleRoad'],
       ['==', ['get', 'category'], 'bicycleRoad_vehicleDestination'],
     ],
-    [
-      'any',
-      ['has', 'marking_right'],
-      ['has', 'marking_left'],
-      ['has', 'marking_both'],
-    ],
+    ['any', ['has', 'marking_right'], ['has', 'marking_left'], ['has', 'marking_both']],
     ['!=', ['get', 'marking'], 'no'],
     [
       'all',
