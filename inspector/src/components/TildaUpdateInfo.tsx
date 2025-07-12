@@ -36,11 +36,14 @@ export const TildaUpdateInfo = () => {
   }
 
   return (
-    <div className="text-xs text-gray-600">
-      TILDA last updated: {formatDistanceToNow(data.processed_at)} ago
-      <div className="text-[0.6rem] text-gray-400">
+    <div className="text-xs text-gray-500">
+      <abbr title={data.osm_data_from.toISOString()}>
         OSM data from: {formatDistanceToNow(data.osm_data_from)} ago
-      </div>
+      </abbr>
+      <br />
+      <abbr title={data.processed_at.toISOString()}>
+        TILDA update finished: {formatDistanceToNow(data.processed_at)} ago
+      </abbr>
     </div>
   )
 }
