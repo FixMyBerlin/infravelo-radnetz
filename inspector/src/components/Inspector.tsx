@@ -81,7 +81,7 @@ export const Inspector = ({ inspectorFeatures, activeLayerConfigs }: Props) => {
                             getWayCoordinates(feature).center.lat
                           }/${
                             getWayCoordinates(feature).center.lng
-                          }&config=l6jzgk.5mct1h.4&v=2&f=10|way/${feature.properties.osm_id}|${
+                          }&config=l6jzgk.5mct1h.4&v=2&data=radverkehrsnetz-vorrangnetz-mask&f=10|way/${feature.properties.osm_id}|${
                             getWayCoordinates(feature).bbox.lng1
                           }|${getWayCoordinates(feature).bbox.lat1}|${
                             getWayCoordinates(feature).bbox.lng2
