@@ -17,6 +17,7 @@ import Map, {
 import { AddMapImage } from './components/AddMapImage'
 import { BackgroundLayer } from './components/BackgroundLayer'
 import { BikeLaneAgeLayer } from './components/BikeLaneAgeLayer'
+import { BikelaneCategoryLayer } from './components/BikelaneCategoryLayer'
 import { BikeLaneLayer } from './components/BikeLaneLayer'
 import { BikeLaneMapillaryLayer } from './components/BikeLaneMapillaryLayer'
 import { BikeLaneOnewayLayer } from './components/BikeLaneOnewayLayer'
@@ -59,6 +60,7 @@ const arrowImageId = 'arrow-image'
 const categories = [
   // Bike lanes and their variants
   { id: 'bikelanes', source: 'bikelanes' },
+  { id: 'bikelanesCategory', source: 'bikelanes', inspectorHighlightTags: ['category'] },
   { id: 'bikelanesAge', source: 'bikelanes', inspectorHighlightTags: ['updated_at'] },
   { id: 'bikelanesOneway', source: 'bikelanes', inspectorHighlightTags: ['oneway', 'oneway_bike'] },
   {
@@ -406,6 +408,8 @@ const App = () => {
                           return <BikeLaneLayer key={layer.id} sourceLayer={sourceLayer} />
                         case 'bikelanesAge':
                           return <BikeLaneAgeLayer key={layer.id} sourceLayer={sourceLayer} />
+                        case 'bikelanesCategory':
+                          return <BikelaneCategoryLayer key={layer.id} sourceLayer={sourceLayer} />
                         case 'bikelanesWidth':
                           return <BikelaneWidthLayer key={layer.id} sourceLayer={sourceLayer} />
                         case 'bikelanSurfaceColor':
