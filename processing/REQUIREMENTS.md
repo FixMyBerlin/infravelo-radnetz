@@ -159,3 +159,8 @@ Ist nur bei `Geschützter Radfahrstreifen` (`category=protectedCyclewayOnHighway
   - `traffic_sign=Straßenschäden`, `traffic_sign=Gehwegschäden`, `traffic_sign=Radwegschäden`
   - UND `source:traffic_sign:mapillary=ID`
 - "keine"
+
+### `Bemerkung`
+
+- Wenn temporary=yes => Bemerkung "Weg als temporärer Weg eingetragen; vermutlich Baustellen-Weg"
+- OSM-Description mit übernehmen(?) Aber da sind ein paar Hinweise drin, die nicht so relevant sind für diesen Datensatz. Sollten wir also ggf. mit einem Prefix versehen.
