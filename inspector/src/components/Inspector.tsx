@@ -66,14 +66,34 @@ export const Inspector = ({ inspectorFeatures, activeLayerConfigs }: Props) => {
                 <section key={index} className="mb-4">
                   <div className="mb-1 flex items-center justify-between border-b border-b-gray-300 pb-1">
                     <h3 className="font-bold">{feature.sourceLayer}</h3>
-                    <a
-                      href={`https://www.openstreetmap.org/${urlPart}/history`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs whitespace-nowrap text-blue-500 hover:underline"
-                    >
-                      OSM
-                    </a>
+                    <div className="flex items-center gap-2">
+                      <a
+                        href={`https://www.openstreetmap.org/${urlPart}/history`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs whitespace-nowrap text-blue-500 hover:underline"
+                      >
+                        OSM
+                      </a>
+                      {feature.properties.osm_id && (
+                        <a
+                          href={`https://tilda-geo.de/regionen/infravelo?map=15/${
+                            getWayCoordinates(feature).center.lat
+                          }/${
+                            getWayCoordinates(feature).center.lng
+                          }&config=l6jzgk.5mct1h.4&v=2&f=10|way/${feature.properties.osm_id}|${
+                            getWayCoordinates(feature).bbox.lng1
+                          }|${getWayCoordinates(feature).bbox.lat1}|${
+                            getWayCoordinates(feature).bbox.lng2
+                          }|${getWayCoordinates(feature).bbox.lat2}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs whitespace-nowrap text-blue-500 hover:underline"
+                        >
+                          TILDA
+                        </a>
+                      )}
+                    </div>
                   </div>
                   <ul className="space-y-0.5">
                     {Object.entries(feature.properties)
@@ -144,4 +164,31 @@ export const Inspector = ({ inspectorFeatures, activeLayerConfigs }: Props) => {
       </article>
     </aside>
   )
+}
+
+// Get the coordinates needed for the TILDA URL
+const getWayCoordinates = (feature: MapGeoJSONFeature) => {
+  if (feature.geometry.type === 'LineString') {
+    const coords = feature.geometry.coordinates as [number, number][]
+    const firstCoord = coords[0]
+    const lastCoord = coords[coords.length - 1]
+    return {
+      center: {
+        lng: firstCoord[0],
+        lat: firstCoord[1],
+      },
+      bbox: {
+        lng1: firstCoord[0],
+        lat1: firstCoord[1],
+        lng2: lastCoord[0],
+        lat2: lastCoord[1],
+      },
+    }
+  }
+
+  // This project only has LineStrings, but provide a fallback just in case
+  return {
+    center: { lng: 13.367, lat: 52.507 },
+    bbox: { lng1: 13.367, lat1: 52.507, lng2: 13.367, lat2: 52.507 },
+  }
 }
