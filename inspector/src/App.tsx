@@ -17,6 +17,7 @@ import Map, {
 import { AddMapImage } from './components/AddMapImage'
 import { BackgroundLayer } from './components/BackgroundLayer'
 import { BikeLaneAgeLayer } from './components/BikeLaneAgeLayer'
+import { BikelaneBufferMarkingLayer } from './components/BikelaneBufferMarkingLayer'
 import { BikelaneCategoryLayer } from './components/BikelaneCategoryLayer'
 import { BikeLaneLayer } from './components/BikeLaneLayer'
 import { BikeLaneMapillaryLayer } from './components/BikeLaneMapillaryLayer'
@@ -61,6 +62,22 @@ const categories = [
   // Bike lanes and their variants
   { id: 'bikelanes', source: 'bikelanes' },
   { id: 'bikelanesCategory', source: 'bikelanes', inspectorHighlightTags: ['category'] },
+  {
+    id: 'bikelanesBufferMarking',
+    source: 'bikelanes',
+    inspectorHighlightTags: [
+      'category',
+      'buffer_right',
+      'buffer_left',
+      'buffer_both',
+      'marking_right',
+      'marking_left',
+      'marking_both',
+      'separation_right',
+      'separation_left',
+      'separation_both',
+    ],
+  },
   { id: 'bikelanesAge', source: 'bikelanes', inspectorHighlightTags: ['updated_at'] },
   { id: 'bikelanesOneway', source: 'bikelanes', inspectorHighlightTags: ['oneway', 'oneway_bike'] },
   {
@@ -410,6 +427,10 @@ const App = () => {
                           return <BikeLaneAgeLayer key={layer.id} sourceLayer={sourceLayer} />
                         case 'bikelanesCategory':
                           return <BikelaneCategoryLayer key={layer.id} sourceLayer={sourceLayer} />
+                        case 'bikelanesBufferMarking':
+                          return (
+                            <BikelaneBufferMarkingLayer key={layer.id} sourceLayer={sourceLayer} />
+                          )
                         case 'bikelanesWidth':
                           return <BikelaneWidthLayer key={layer.id} sourceLayer={sourceLayer} />
                         case 'bikelanSurfaceColor':

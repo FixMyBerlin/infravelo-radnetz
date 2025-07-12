@@ -1,4 +1,5 @@
 import { getAgeLegend } from './ageBasedStyle'
+import { getBufferMarkingLegend } from './bufferMarkingStyle'
 import { getCategoryLegend } from './categoryStyle'
 import { getCyclewayNoLayerLegend } from './cyclewayNoStyle'
 import { getDualCarrigewayLegend } from './dualCarrigewayStyle'
@@ -11,6 +12,7 @@ import { getWidthLegend } from './widthStyle'
 
 export const LAYER_LEGENDS = {
   bikelanesAge: getAgeLegend(),
+  bikelanesBufferMarking: getBufferMarkingLegend(),
   bikelanesCategory: getCategoryLegend(),
   bikelanesOneway: getBikeLaneOnewayLegend(),
   bikelanesSurface: getSurfaceSettLegend(),
