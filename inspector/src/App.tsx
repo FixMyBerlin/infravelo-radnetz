@@ -25,6 +25,7 @@ import { BikeLaneOnewayLayer } from './components/BikeLaneOnewayLayer'
 import { BikelaneSurfaceColorLayer } from './components/BikelaneSurfaceColorLayer'
 import { BikeLaneSurfaceSettLayer } from './components/BikeLaneSurfaceSettLayer'
 import { BikeLaneTrafficSignLayer } from './components/BikeLaneTrafficSignLayer'
+import { BikelaneUpdateSourceLayer } from './components/BikelaneUpdateSourceLayer'
 import { BikelaneWidthLayer } from './components/BikelaneWidthLayer'
 import { Inspector } from './components/Inspector'
 import { Legend } from './components/Legend'
@@ -37,7 +38,9 @@ import { RoadPathAgeLayer } from './components/RoadPathAgeLayer'
 import { RoadPathLayer } from './components/RoadPathLayer'
 import { RoadPathOnewayLayer } from './components/RoadPathOnewayLayer'
 import { RoadPathSurfaceSettLayer } from './components/RoadPathSurfaceSettLayer'
+import { RoadPathUpdateSourceLayer } from './components/RoadPathUpdateSourceLayer'
 import { RoadSurfaceSettLayer } from './components/RoadSurfaceSettLayer'
+import { RoadUpdateSourceLayer } from './components/RoadUpdateSourceLayer'
 import { categories } from './components/shared/categories'
 import {
   getInteractionLineColor,
@@ -396,6 +399,16 @@ const App = () => {
                         case 'roadDualCarriageway':
                           return (
                             <RoadDualCarriagewayLayer key={layer.id} sourceLayer={sourceLayer} />
+                          )
+                        case 'bikelanesUpdateSource':
+                          return (
+                            <BikelaneUpdateSourceLayer key={layer.id} sourceLayer={sourceLayer} />
+                          )
+                        case 'roadsUpdateSource':
+                          return <RoadUpdateSourceLayer key={layer.id} sourceLayer={sourceLayer} />
+                        case 'roadsPathsUpdateSource':
+                          return (
+                            <RoadPathUpdateSourceLayer key={layer.id} sourceLayer={sourceLayer} />
                           )
                       }
                     })}

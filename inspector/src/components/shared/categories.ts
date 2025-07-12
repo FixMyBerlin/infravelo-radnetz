@@ -53,6 +53,11 @@ export const categories = [
       'traffic_sign',
     ],
   },
+  {
+    id: 'bikelanesUpdateSource',
+    source: 'bikelanes',
+    inspectorHighlightTags: ['updated_at', 'updated_by'],
+  },
 
   // Roads and their variants
   { id: 'roads', source: 'roads' },
@@ -61,10 +66,20 @@ export const categories = [
   { id: 'roadsSurface', source: 'roads' },
   { id: 'roadsCyclewayNo', source: 'roads' },
   { id: 'roadDualCarriageway', source: 'roads' },
+  {
+    id: 'roadsUpdateSource',
+    source: 'roads',
+    inspectorHighlightTags: ['updated_at', 'updated_by'],
+  },
 
   // Road paths and their variants
   { id: 'roadsPath', source: 'roadsPathClasses' },
   { id: 'roadsPathAge', source: 'roadsPathClasses' },
   { id: 'roadsPathOneway', source: 'roadsPathClasses' },
   { id: 'roadsPathSurface', source: 'roadsPathClasses' },
+  {
+    id: 'roadsPathsUpdateSource',
+    source: 'roadsPathClasses',
+    inspectorHighlightTags: ['updated_at', 'updated_by'],
+  },
 ] as const

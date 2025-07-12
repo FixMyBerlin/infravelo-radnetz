@@ -10,6 +10,7 @@ import { getSurfaceColorLegend } from './surfaceColorStyle'
 import { getSurfaceSettLegend } from './surfaceSettStyle'
 import { getTrafficSignLegend } from './trafficSignStyle'
 import type { LayerLegend } from './types'
+import { getUpdateSourceLegend } from './updateSourceStyle'
 import { getWidthLegend } from './widthStyle'
 
 export const LAYER_LEGENDS: Record<CategoryId, LayerLegend | null> = {
@@ -24,6 +25,7 @@ export const LAYER_LEGENDS: Record<CategoryId, LayerLegend | null> = {
   bikelanesWidth: getWidthLegend(),
   bikelanesTrafficSign: getTrafficSignLegend(),
   bikelanesMapillary: getMapillaryLegend(),
+  bikelanesUpdateSource: getUpdateSourceLegend(),
 
   // Roads and their variants
   roads: null,
@@ -32,10 +34,12 @@ export const LAYER_LEGENDS: Record<CategoryId, LayerLegend | null> = {
   roadsSurface: getSurfaceSettLegend(),
   roadsCyclewayNo: getCyclewayNoLayerLegend(),
   roadDualCarriageway: getDualCarrigewayLegend(),
+  roadsUpdateSource: getUpdateSourceLegend(),
 
   // Road paths and their variants
   roadsPath: null,
   roadsPathAge: getAgeLegend(),
   roadsPathOneway: getBikeLaneOnewayLegend(),
   roadsPathSurface: getSurfaceSettLegend(),
+  roadsPathsUpdateSource: getUpdateSourceLegend(),
 }

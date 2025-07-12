@@ -1,13 +1,22 @@
 import type { DataDrivenPropertyValueSpecification } from 'maplibre-gl'
 import type { LayerLegend } from './types'
 
-const CUTOFF_DATE = '2025-07-01'
+// Project cutoff date
+export const CUTOFF_DATE = '2025-07-01'
+
+// Calculate days between cutoff date and today
+const cutoffDate = new Date(CUTOFF_DATE)
+const today = new Date()
+export const DAYS_SINCE_CUTOFF = Math.floor(
+  (today.getTime() - cutoffDate.getTime()) / (1000 * 60 * 60 * 24),
+)
+
 const FRESH_COLOR = '#32CD32' // green
 const OLD_COLOR = '#8B4513' // rust-brown
 
 export const getAgeColor: DataDrivenPropertyValueSpecification<string> = [
   'case',
-  ['>', ['get', 'updated_at'], CUTOFF_DATE],
+  ['<=', ['get', 'updated_age'], DAYS_SINCE_CUTOFF],
   FRESH_COLOR,
   OLD_COLOR,
 ]
