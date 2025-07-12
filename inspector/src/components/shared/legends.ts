@@ -1,5 +1,6 @@
 import { getAgeLegend } from './ageBasedStyle'
 import { getBufferMarkingLegend } from './bufferMarkingStyle'
+import type { CategoryId } from './categories'
 import { getCategoryLegend } from './categoryStyle'
 import { getCyclewayNoLayerLegend } from './cyclewayNoStyle'
 import { getDualCarrigewayLegend } from './dualCarrigewayStyle'
@@ -8,9 +9,12 @@ import { getBikeLaneOnewayLegend, getRoadOnewayLegend } from './onewayBasedStyle
 import { getSurfaceColorLegend } from './surfaceColorStyle'
 import { getSurfaceSettLegend } from './surfaceSettStyle'
 import { getTrafficSignLegend } from './trafficSignStyle'
+import type { LayerLegend } from './types'
 import { getWidthLegend } from './widthStyle'
 
-export const LAYER_LEGENDS = {
+export const LAYER_LEGENDS: Record<CategoryId, LayerLegend | null> = {
+  // Bike lanes and their variants
+  bikelanes: null,
   bikelanesAge: getAgeLegend(),
   bikelanesBufferMarking: getBufferMarkingLegend(),
   bikelanesCategory: getCategoryLegend(),
@@ -20,11 +24,17 @@ export const LAYER_LEGENDS = {
   bikelanesWidth: getWidthLegend(),
   bikelanesTrafficSign: getTrafficSignLegend(),
   bikelanesMapillary: getMapillaryLegend(),
+
+  // Roads and their variants
+  roads: null,
   roadsAge: getAgeLegend(),
   roadsOneway: getRoadOnewayLegend(),
   roadsSurface: getSurfaceSettLegend(),
   roadsCyclewayNo: getCyclewayNoLayerLegend(),
   roadDualCarriageway: getDualCarrigewayLegend(),
+
+  // Road paths and their variants
+  roadsPath: null,
   roadsPathAge: getAgeLegend(),
   roadsPathOneway: getBikeLaneOnewayLegend(),
   roadsPathSurface: getSurfaceSettLegend(),

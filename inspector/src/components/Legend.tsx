@@ -1,10 +1,12 @@
 import { type LayerLegend } from './shared/types'
 
 type Props = {
-  legend: LayerLegend
+  legend: LayerLegend | null
 }
 
 export const Legend = ({ legend }: Props) => {
+  if (!legend) return null
+
   const { items } = legend
 
   return (

@@ -365,7 +365,7 @@ const App = () => {
                           )
                         case 'bikelanesWidth':
                           return <BikelaneWidthLayer key={layer.id} sourceLayer={sourceLayer} />
-                        case 'bikelanSurfaceColor':
+                        case 'bikelanesSurfaceColor':
                           return (
                             <BikelaneSurfaceColorLayer key={layer.id} sourceLayer={sourceLayer} />
                           )

@@ -1,3 +1,5 @@
+export type CategoryId = (typeof categories)[number]['id']
+
 export const categories = [
   // Bike lanes and their variants
   { id: 'bikelanes', source: 'bikelanes' },
@@ -31,7 +33,7 @@ export const categories = [
     inspectorHighlightTags: ['width', 'width_source', 'category'],
   },
   {
-    id: 'bikelanSurfaceColor',
+    id: 'bikelanesSurfaceColor',
     source: 'bikelanes',
     inspectorHighlightTags: ['surface_color'],
   },
