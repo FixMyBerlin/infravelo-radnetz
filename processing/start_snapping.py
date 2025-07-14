@@ -34,6 +34,7 @@ RVN_ATTRIBUT_ENDE_VP   = "endet_bei_vp"         # Endknoten-ID
 RVN_ATTRIBUT_VERKEHRSRICHTUNG  = "verkehrsrichtung"     # Werte: R / G / B (Richtung)
 
 FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES = ["osm_road", "ri", "verkehrsri", "pflicht", "breite"]
+#FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES = ["osm_road"]
 
 # Prioritäten für OSM-Weg-Auswahl (höhere Zahl = höhere Priorität)
 TILDA_TRAFFIC_SIGN_PRIORITÄTEN = {
@@ -261,19 +262,26 @@ def merge_segments(gdf, id_field, osm_fields):
     """
     from shapely.ops import linemerge
     gruppen = []
+    # Gruppiere die Segmente nach okstra_id und den übergebenen OSM-Attributen
     grouped = list(gdf.groupby([id_field] + osm_fields))
     total = len(grouped)
     for idx, (_, gruppe) in enumerate(grouped, 1):
+        # Extrahiere die Geometrien der aktuellen Gruppe
         geoms = list(gruppe.geometry)
         if not geoms:
             continue
+        # Verschmelze die Geometrien zu einer Linie (MultiLineStrings werden zusammengeführt)
         merged = linemerge(geoms)
+        # Übernehme die Attribute der ersten Zeile der Gruppe für das verschmolzene Segment
         merged_row = gruppe.iloc[0].copy()
         merged_row["geometry"] = merged
         gruppen.append(merged_row)
+        # Zeige Fortschritt für den Nutzer
         print_progressbar(idx, total, prefix="Verschmelze: ")
     if not gruppen:
+        # Fehlerfall: Es wurden keine Gruppen gefunden
         raise ValueError("No segments to merge. Check input data and grouping fields.")
+    # Erzeuge ein neues GeoDataFrame aus den verschmolzenen Segmenten
     return gpd.GeoDataFrame(gruppen, geometry="geometry", crs=gdf.crs)
 
 
