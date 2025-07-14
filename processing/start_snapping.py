@@ -33,10 +33,12 @@ RVN_ATTRIBUT_BEGINN_VP = "beginnt_bei_vp"       # Startknoten-ID
 RVN_ATTRIBUT_ENDE_VP   = "endet_bei_vp"         # Endknoten-ID
 RVN_ATTRIBUT_VERKEHRSRICHTUNG  = "verkehrsrichtung"     # Werte: R / G / B (Richtung)
 
+FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES = ["osm_road", "ri", "verkehrsri", "pflicht", "breite"]
+
 # Prioritäten für OSM-Weg-Auswahl (höhere Zahl = höhere Priorität)
 TILDA_TRAFFIC_SIGN_PRIORITÄTEN = {
-    "240": 3,  # Gemeinsamer Geh- und Radweg
     "237": 3,  # Radweg
+    "240": 3,  # Gemeinsamer Geh- und Radweg
     "241": 3,  # Getrennter Rad- und Gehweg
 }
 
@@ -503,10 +505,8 @@ def process(net_path, osm_path, out_path, crs, buf):
         logging.info(f"✔  Attributierte Test-Segmente gespeichert als {seg_attr_path}")
 
     # ---------- Segmente verschmelzen ---------------------------------------
-    print("Fasse Segmente mit gleicher okstra_id und OSM-Attributen zusammen ...")
-    # Erweiterte OSM-Felder inklusive der neuen Richtungsattribute
-    osm_felder = ["osm_road", "ri", "verkehrsri", "pflicht", "breite"] #, "osm_surface", "osm_surface_color", "osm_oneway"]
-    out_gdf = merge_segments(net_segmented, "okstra_id", osm_felder)
+    logging.info("Fasse Segmente mit gleicher okstra_id und OSM-Attributen zusammen ...")
+    out_gdf = merge_segments(net_segmented, "okstra_id", FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES)
 
     # ---------- Ergebnis speichern ------------------------------------------
     p, *layer = out_path.split(":")

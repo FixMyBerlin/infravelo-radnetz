@@ -14,7 +14,7 @@ INPUT_BIKELANES_FGB = './data/bikelanes.fgb'  # Pfad zu OSM-Radwegen
 INPUT_STREETS_FGB = './data/TILDA Straßen Berlin.fgb'  # Pfad zu OSM-Straßen
 INPUT_PATHS_FGB = './data/TILDA Wege Berlin.fgb'  # Pfad zu OSM-Wegen
 INPUT_VORRANGNETZ_FGB = './data/Berlin Radvorrangsnetz.fgb'  # Pfad zum Vorrangnetz
-BUFFER_BIKELANES_METERS = 30  # Buffer-Radius in Metern für Radwege
+BUFFER_BIKELANES_METERS = 25  # Buffer-Radius in Metern für Radwege
 BUFFER_STREETS_METERS = 15    # Buffer-Radius in Metern für Straßen
 BUFFER_PATHS_METERS = 15      # Buffer-Radius in Metern für Wege
 TARGET_CRS = 'EPSG:25833'
@@ -239,7 +239,6 @@ def parse_arguments():
     parser.add_argument('--skip-streets', action='store_true', help='Skip processing of streets dataset')
     parser.add_argument('--skip-paths', action='store_true', help='Skip processing of paths dataset')
     parser.add_argument('--skip-difference-streets-bikelanes', action='store_true', help='Skip difference: only streets without bikelanes')
-    parser.add_argument('--skip-difference-paths-bikelanes', action='store_true', help='Skip difference: only paths without bikelanes')
     parser.add_argument('--skip-difference-paths-streets-bikelanes', action='store_true', help='Skip difference: only paths without streets and bikelanes')
     return parser.parse_args()
 
@@ -448,9 +447,10 @@ def main():
 
     # Differenz-Berechnungen
     # Straßen ohne Radwege
+    streets_without_bikelanes = None
     if not args.skip_difference_streets_bikelanes:
         output_path = './output/matching/matched_osm_streets_without_bikelanes.fgb'
-        calculate_difference_datasets(
+        streets_without_bikelanes = calculate_difference_datasets(
             processed_datasets.get('streets'),
             processed_datasets.get('bikelanes'),
             output_path,
@@ -458,18 +458,7 @@ def main():
             'bikelanes'
         )
 
-    # Wege ohne Radwege (alte Logik, falls gewünscht)
-    if not args.skip_difference_paths_bikelanes:
-        output_path = './output/matching/matched_osm_paths_without_bikelanes.fgb'
-        calculate_difference_datasets(
-            processed_datasets.get('paths'),
-            processed_datasets.get('bikelanes'),
-            output_path,
-            'paths',
-            'bikelanes'
-        )
-
-    # Wege ohne Straßen UND Radwege (neue Hauptlogik)
+    # Wege ohne Straßen UND Radwege
     paths_without_streets_and_bikelanes = None
     if not args.skip_difference_paths_streets_bikelanes:
         output_path = './output/matching/matched_osm_paths_without_streets_and_bikelanes.fgb'
@@ -481,18 +470,17 @@ def main():
             ['streets', 'bikelanes']
         )
 
-    # Kombiniere alle verfügbaren Datensätze (verwende gefilterte Wege)
+    # Kombiniere alle verfügbaren Datensätze (ohne Überschneidungen)
     datasets_for_combination = {}
+    # Verwende alle Radwege
     if processed_datasets.get('bikelanes') is not None:
         datasets_for_combination['bikelanes'] = processed_datasets['bikelanes']
-    if processed_datasets.get('streets') is not None:
-        datasets_for_combination['streets'] = processed_datasets['streets']
+    # Verwende nur Straßen ohne Radwege (um Überschneidungen zu vermeiden)
+    if streets_without_bikelanes is not None:
+        datasets_for_combination['streets'] = streets_without_bikelanes
     # Verwende die gefilterten Wege (ohne Streets und Bikelanes) anstatt der ursprünglichen Wege
     if paths_without_streets_and_bikelanes is not None:
         datasets_for_combination['paths'] = paths_without_streets_and_bikelanes
-    elif processed_datasets.get('paths') is not None and args.skip_difference_paths_streets_bikelanes:
-        # Fallback: Verwende ungefilterte Wege, wenn Filterung übersprungen wurde
-        datasets_for_combination['paths'] = processed_datasets['paths']
 
     if datasets_for_combination:
         combined_path = './output/matching/matched_osm_ways.fgb'
