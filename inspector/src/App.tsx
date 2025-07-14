@@ -41,7 +41,7 @@ import { RoadPathSurfaceSettLayer } from './components/RoadPathSurfaceSettLayer'
 import { RoadPathUpdateSourceLayer } from './components/RoadPathUpdateSourceLayer'
 import { RoadSurfaceSettLayer } from './components/RoadSurfaceSettLayer'
 import { RoadUpdateSourceLayer } from './components/RoadUpdateSourceLayer'
-import { categories } from './components/shared/categories'
+import { categories, QA_CATEGORY, type LayerCategory } from './components/shared/categories'
 import {
   getInteractionLineColor,
   getInteractionLineWidth,
@@ -64,6 +64,9 @@ const arrowImageId = 'arrow-image'
 
 const queryClient = new QueryClient()
 
+type CategoryEntry = (typeof categories)[number]
+type CategoryArray = CategoryEntry[]
+
 const App = () => {
   const sources = ['Production', 'Staging', 'Development'] as const
   const [source, setSource] = useQueryState(
@@ -75,7 +78,7 @@ const App = () => {
     'layers',
     parseAsArrayOf(parseAsString).withDefault([]),
   )
-  const [layers, setLayers] = useState<Array<(typeof categories)[number]>>([])
+  const [layers, setLayers] = useState<CategoryArray>([])
   const [sourceLayerMap, setSourceLayerMap] = useState<Record<string, string>>({})
   const [mapLoaded, setMapLoaded] = useState(false)
   const [showLayerPanel, setShowLayerPanel] = useState(true)
@@ -104,9 +107,31 @@ const App = () => {
     fetchLayers()
   }, [source])
 
-  const toggleLayer = (layer: (typeof categories)[number]) => {
+  const toggleLayer = (layer: CategoryEntry) => {
+    setActiveLayers((prev) => {
+      // Remove any other layers from the same category
+      const filtered = prev.filter((id) => {
+        const layerConfig = categories.find((c) => c.id === id)
+        return layerConfig?.category !== layer.category
+      })
+      // Add the new layer
+      return [...filtered, layer.id]
+    })
+  }
+
+  const getSelectedLayerForCategory = (category: LayerCategory) => {
+    return activeLayers.find((layerId) => {
+      const layerConfig = categories.find((c) => c.id === layerId)
+      return layerConfig?.category === category
+    })
+  }
+
+  const clearCategorySelection = (category: LayerCategory) => {
     setActiveLayers((prev) =>
-      prev.includes(layer.id) ? prev.filter((l) => l !== layer.id) : [...prev, layer.id],
+      prev.filter((id) => {
+        const layerConfig = categories.find((c) => c.id === id)
+        return layerConfig?.category !== category
+      }),
     )
   }
 
@@ -194,6 +219,7 @@ const App = () => {
   }
 
   useEffect(() => {
+    // Register pmtiles protocol globally for all maplibre usage
     const protocol = new Protocol()
     maplibregl.addProtocol('pmtiles', protocol.tile)
     return () => {
@@ -256,38 +282,58 @@ const App = () => {
                 </ul>
               </section>
               <section>
-                <h2 className="mb-2 font-bold">Layers</h2>
-                <ul>
-                  {layers.map((layer) => (
-                    <li key={layer.id}>
-                      <div className="flex items-center justify-between">
+                <h2 className="mb-4 font-bold">Layers</h2>
+                {(Object.values(QA_CATEGORY) as LayerCategory[]).map((category) => (
+                  <div key={category}>
+                    <h3 className="mt-4 mb-2 font-semibold text-gray-700">{category}</h3>
+                    <ul className="space-y-2">
+                      <li>
                         <label className="flex w-full items-center gap-2">
                           <input
-                            type="checkbox"
-                            checked={activeLayers.includes(layer.id)}
-                            onChange={() => toggleLayer(layer)}
+                            type="radio"
+                            name={`layer-${category}`}
+                            checked={!getSelectedLayerForCategory(category)}
+                            onChange={() => clearCategorySelection(category)}
                           />
-                          {layer.id}
-
-                          {activeLayers.includes(layer.id) && (
-                            <a
-                              href={`${TILE_URLS[source as keyof typeof TILE_URLS]}/${layer.source}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-[0.5rem] whitespace-nowrap text-blue-500 hover:underline"
-                            >
-                              Tile JSON
-                            </a>
-                          )}
+                          <span className="text-gray-600">Keine</span>
                         </label>
-                      </div>
-                      {activeLayers.includes(layer.id) &&
-                        LAYER_LEGENDS[layer.id as keyof typeof LAYER_LEGENDS] && (
-                          <Legend legend={LAYER_LEGENDS[layer.id as keyof typeof LAYER_LEGENDS]} />
-                        )}
-                    </li>
-                  ))}
-                </ul>
+                      </li>
+                      {(layers as CategoryArray)
+                        .filter((layer) => layer.category === category)
+                        .map((layer: CategoryEntry) => (
+                          <li key={layer.id}>
+                            <div className="flex items-center justify-between">
+                              <label className="flex w-full items-center gap-2">
+                                <input
+                                  type="radio"
+                                  name={`layer-${category}`}
+                                  checked={getSelectedLayerForCategory(category) === layer.id}
+                                  onChange={() => toggleLayer(layer)}
+                                />
+                                {layer.title}
+                                {activeLayers.includes(layer.id) && (
+                                  <a
+                                    href={`${TILE_URLS[source as keyof typeof TILE_URLS]}/${layer.source}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-[0.5rem] whitespace-nowrap text-blue-500 hover:underline"
+                                  >
+                                    Tile JSON
+                                  </a>
+                                )}
+                              </label>
+                            </div>
+                            {activeLayers.includes(layer.id) &&
+                              LAYER_LEGENDS[layer.id as keyof typeof LAYER_LEGENDS] && (
+                                <Legend
+                                  legend={LAYER_LEGENDS[layer.id as keyof typeof LAYER_LEGENDS]}
+                                />
+                              )}
+                          </li>
+                        ))}
+                    </ul>
+                  </div>
+                ))}
                 <div className="mt-2">
                   <TildaUpdateInfo />
                 </div>

@@ -122,11 +122,23 @@ export const Inspector = ({ inspectorFeatures, activeLayerConfigs }: Props) => {
                                 <div>
                                   {typeof value === 'boolean' ? value.toString() : value}
 
-                                  {key.endsWith('_at') && typeof value === 'string' && (
-                                    <div className="text-xs text-gray-500">
-                                      {formatDistanceToNow(parseISO(value))} ago
-                                    </div>
-                                  )}
+                                  <div className="text-xs text-gray-500">
+                                    <>
+                                      {key.endsWith('_at') && typeof value === 'string' ? (
+                                        <>{formatDistanceToNow(parseISO(value))} ago </>
+                                      ) : null}
+                                      {key.includes('mapillary') && key != 'mapillary_coverage' ? (
+                                        <a
+                                          href={`https://www.mapillary.com/app/?z=17&pKey=${value}&focus=photo`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-xs text-blue-500 hover:underline"
+                                        >
+                                          Mapillary
+                                        </a>
+                                      ) : null}
+                                    </>
+                                  </div>
                                 </div>
                               </div>
                               <span

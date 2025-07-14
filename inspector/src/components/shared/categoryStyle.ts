@@ -11,8 +11,8 @@ export const getCategoryStyle: DataDrivenPropertyValueSpecification<string> = [
   'case',
   [
     'any',
-    ['has', '_advisoryOrExclusive', ['get', 'category']],
-    ['has', '_adjoiningOrIsolated', ['get', 'category']],
+    ['in', '_advisoryOrExclusive', ['get', 'category']],
+    ['in', '_adjoiningOrIsolated', ['get', 'category']],
   ],
   IMPRECISE_CATEGORY_COLOR,
   DEFAULT_COLOR,
