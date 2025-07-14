@@ -1,9 +1,9 @@
 export type CategoryId = (typeof categories)[number]['id']
 
 export const QA_CATEGORY = {
-  BIKELANES: 'QA Bikelanes',
-  ROADS: 'QA Roads',
-  PATHS: 'QA Paths',
+  BIKELANES: 'QA Radinfrastruktur',
+  ROADS: 'QA Straßen',
+  PATHS: 'QA Wege',
 } as const
 
 export type LayerCategory = (typeof QA_CATEGORY)[keyof typeof QA_CATEGORY]
@@ -13,7 +13,7 @@ export const categories = [
   {
     id: 'bikelanes',
     source: 'bikelanes',
-    title: 'Radwege',
+    title: 'Alle Radwege',
     category: QA_CATEGORY.BIKELANES,
   },
   {
@@ -108,7 +108,7 @@ export const categories = [
   {
     id: 'roads',
     source: 'roads',
-    title: 'Straßen',
+    title: 'Alle Straßen',
     category: QA_CATEGORY.ROADS,
   },
   {
@@ -153,7 +153,7 @@ export const categories = [
   {
     id: 'roadsPath',
     source: 'roadsPathClasses',
-    title: 'Wege',
+    title: 'Alle Wege',
     category: QA_CATEGORY.PATHS,
   },
   {

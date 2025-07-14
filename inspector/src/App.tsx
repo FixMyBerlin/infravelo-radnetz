@@ -110,8 +110,8 @@ const App = () => {
   const toggleLayer = (layer: CategoryEntry) => {
     setActiveLayers((prev) => {
       // Remove any other layers from the same category
-      const filtered = prev.filter(id => {
-        const layerConfig = categories.find(c => c.id === id)
+      const filtered = prev.filter((id) => {
+        const layerConfig = categories.find((c) => c.id === id)
         return layerConfig?.category !== layer.category
       })
       // Add the new layer
@@ -120,18 +120,18 @@ const App = () => {
   }
 
   const getSelectedLayerForCategory = (category: LayerCategory) => {
-    return activeLayers.find(layerId => {
-      const layerConfig = categories.find(c => c.id === layerId)
+    return activeLayers.find((layerId) => {
+      const layerConfig = categories.find((c) => c.id === layerId)
       return layerConfig?.category === category
     })
   }
 
   const clearCategorySelection = (category: LayerCategory) => {
     setActiveLayers((prev) =>
-      prev.filter(id => {
-        const layerConfig = categories.find(c => c.id === id)
+      prev.filter((id) => {
+        const layerConfig = categories.find((c) => c.id === id)
         return layerConfig?.category !== category
-      })
+      }),
     )
   }
 
