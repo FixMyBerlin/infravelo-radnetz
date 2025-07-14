@@ -4,6 +4,7 @@ from shapely.geometry import Point
 from sklearn.cluster import DBSCAN
 import numpy as np
 import os
+import logging
 
 # Load traffic signals from OSM and consolidate them within a radius.
 
@@ -61,8 +62,12 @@ if os.path.exists(buffer_path):
 
     print(f"{len(gdf_final)} Ampeln befinden sich im gepufferten Vorrangnetz.")
 
+    # Sicherstellen, dass der Ausgabeordner existiert
+    output_dir = os.path.join('output', 'traffic_signals')
+    os.makedirs(output_dir, exist_ok=True)
+
     # Ergebnis speichern
-    output_path = os.path.join('output', 'consolidated_osm_traffic_signals.gpkg')
+    output_path = os.path.join(output_dir, 'consolidated_osm_traffic_signals.gpkg')
     gdf_final.to_file(output_path, driver='GPKG')
     print(f"Ergebnis gespeichert in {output_path}")
 else:

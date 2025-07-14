@@ -115,14 +115,14 @@ if __name__ == '__main__':
     # Pfade zu den Eingabe- und Ausgabedateien
     nodes_input_path = 'data/Verbindungspunkte im RVN.gpkg'
     segments_input_path = 'data/Berlin Straßenabschnitte.gpkg'
-    nodes_with_vp_id_path = 'output/knotenpunkte_mit_id.gpkg'
+    nodes_with_vp_id_path = 'output/knotenpunkte/knotenpunkte_mit_id.gpkg'
 
     # Aufruf der Funktion zur Zuweisung der Knotenpunkt‐ID
     assign_node_ids(nodes_input_path, segments_input_path, nodes_with_vp_id_path)
 
     # Pfade für die Bezirkszuweisung
     districts_input_path = 'data/Berlin Bezirke.gpkg'
-    final_output_path = 'output/knotenpunkte_mit_id_und_bezirken.gpkg'
+    final_output_path = 'output/knotenpunkte/knotenpunkte_mit_id_und_bezirken.gpkg'
 
     # Aufruf der Funktion zur Zuweisung der Bezirks-ID
     assign_district_to_nodes(nodes_with_vp_id_path, districts_input_path, final_output_path)
