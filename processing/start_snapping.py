@@ -35,9 +35,9 @@ RVN_ATTRIBUT_VERKEHRSRICHTUNG  = "verkehrsrichtung"     # Werte: R / G / B (Rich
 
 # Prioritäten für OSM-Weg-Auswahl (höhere Zahl = höhere Priorität)
 TILDA_TRAFFIC_SIGN_PRIORITÄTEN = {
-    "DE:240": 3,  # Gemeinsamer Geh- und Radweg
-    "DE:237": 3,  # Radweg
-    "DE:241": 3,  # Getrennter Rad- und Gehweg
+    "240": 3,  # Gemeinsamer Geh- und Radweg
+    "237": 3,  # Radweg
+    "241": 3,  # Getrennter Rad- und Gehweg
 }
 
 # Kategorie-Prioritäten
@@ -127,6 +127,43 @@ def is_bikelane(category: str) -> bool:
     return str(category).strip() != "sharedMotorVehicleLane"
 
 
+def has_traffic_sign(traffic_sign_value: str, target_sign: str) -> bool:
+    """
+    Prüft, ob ein bestimmtes Verkehrszeichen in einem traffic_sign Wert vorhanden ist.
+    
+    Args:
+        traffic_sign_value: Der traffic_sign Wert aus OSM (z.B. "DE:240" oder "DE:1022,240")
+        target_sign: Das gesuchte Verkehrszeichen (z.B. "240")
+    
+    Returns:
+        True wenn das Verkehrszeichen mit DE: Präfix gefunden wird
+    """
+    if not traffic_sign_value or pd.isna(traffic_sign_value):
+        return False
+    
+    traffic_sign_str = str(traffic_sign_value).strip()
+    
+    # Prüfe auf "DE:XXX" Format (direkter Match)
+    if f"DE:{target_sign}" in traffic_sign_str:
+        return True
+    
+    # Prüfe auf "DE:XXX,YYY" Format - teile bei Komma und prüfe jeden Teil
+    parts = traffic_sign_str.split(",")
+    for part in parts:
+        part = part.strip()
+        # Wenn der Teil mit "DE:" beginnt, extrahiere die Nummer
+        if part.startswith("DE:"):
+            sign_number = part[3:]  # Entferne "DE:" Präfix
+            if sign_number == target_sign:
+                return True
+        # Wenn der Teil nur eine Nummer ist und wir bereits ein "DE:" am Anfang hatten
+        elif part.isdigit() and "DE:" in traffic_sign_str:
+            if part == target_sign:
+                return True
+    
+    return False
+
+
 def calculate_osm_priority(row) -> int:
     """
     Berechnet die Priorität eines OSM-Wegs basierend auf traffic_sign und category.
@@ -138,7 +175,7 @@ def calculate_osm_priority(row) -> int:
     traffic_sign = row.get("traffic_sign", "")
     if traffic_sign:
         for sign, prio in TILDA_TRAFFIC_SIGN_PRIORITÄTEN.items():
-            if sign in str(traffic_sign):
+            if has_traffic_sign(traffic_sign, sign):
                 priority = max(priority, prio)
     
     # Priorität basierend auf Kategorie
@@ -318,7 +355,7 @@ def create_segment_variants(seg_dict: dict, matched_osm_ways: list) -> list[dict
             
             # Pflicht-Attribut setzen
             traffic_sign = best_osm.get("traffic_sign", "")
-            variant["pflicht"] = any(sign in str(traffic_sign) for sign in TILDA_TRAFFIC_SIGN_PRIORITÄTEN.keys())
+            variant["pflicht"] = any(has_traffic_sign(traffic_sign, sign) for sign in TILDA_TRAFFIC_SIGN_PRIORITÄTEN.keys())
         else:
             # Keine OSM-Daten gefunden - Standardwerte setzen
             variant["verkehrsri"] = "Zweirichtungsverkehr"
