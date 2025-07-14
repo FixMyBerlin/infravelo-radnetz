@@ -107,9 +107,31 @@ const App = () => {
     fetchLayers()
   }, [source])
 
-  const toggleLayer = (layer: (typeof categories)[number]) => {
+  const toggleLayer = (layer: CategoryEntry) => {
+    setActiveLayers((prev) => {
+      // Remove any other layers from the same category
+      const filtered = prev.filter(id => {
+        const layerConfig = categories.find(c => c.id === id)
+        return layerConfig?.category !== layer.category
+      })
+      // Add the new layer
+      return [...filtered, layer.id]
+    })
+  }
+
+  const getSelectedLayerForCategory = (category: LayerCategory) => {
+    return activeLayers.find(layerId => {
+      const layerConfig = categories.find(c => c.id === layerId)
+      return layerConfig?.category === category
+    })
+  }
+
+  const clearCategorySelection = (category: LayerCategory) => {
     setActiveLayers((prev) =>
-      prev.includes(layer.id) ? prev.filter((l) => l !== layer.id) : [...prev, layer.id],
+      prev.filter(id => {
+        const layerConfig = categories.find(c => c.id === id)
+        return layerConfig?.category !== category
+      })
     )
   }
 
@@ -197,6 +219,7 @@ const App = () => {
   }
 
   useEffect(() => {
+    // Register pmtiles protocol globally for all maplibre usage
     const protocol = new Protocol()
     maplibregl.addProtocol('pmtiles', protocol.tile)
     return () => {
@@ -264,6 +287,17 @@ const App = () => {
                   <div key={category}>
                     <h3 className="mt-4 mb-2 font-semibold text-gray-700">{category}</h3>
                     <ul className="space-y-2">
+                      <li>
+                        <label className="flex w-full items-center gap-2">
+                          <input
+                            type="radio"
+                            name={`layer-${category}`}
+                            checked={!getSelectedLayerForCategory(category)}
+                            onChange={() => clearCategorySelection(category)}
+                          />
+                          <span className="text-gray-600">Keine</span>
+                        </label>
+                      </li>
                       {(layers as CategoryArray)
                         .filter((layer) => layer.category === category)
                         .map((layer: CategoryEntry) => (
@@ -271,8 +305,9 @@ const App = () => {
                             <div className="flex items-center justify-between">
                               <label className="flex w-full items-center gap-2">
                                 <input
-                                  type="checkbox"
-                                  checked={activeLayers.includes(layer.id)}
+                                  type="radio"
+                                  name={`layer-${category}`}
+                                  checked={getSelectedLayerForCategory(category) === layer.id}
                                   onChange={() => toggleLayer(layer)}
                                 />
                                 {layer.title}
