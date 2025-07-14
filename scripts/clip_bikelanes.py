@@ -16,6 +16,14 @@ Aufrufbeispiel:
         --input ./bikelanes.fgb \\
         --clip-features ./data/"Berlin Bezirke.gpkg" \\
         --output ./bikelanes_berlin.fgb
+
+
+Nutzen für TILDA roads Datensatz:
+    python ./scripts/clip_bikelanes.py   \
+        --input ./roads.fgb \
+        --clip-features ./data/"Berlin Bezirke.gpkg" \
+        --output ./roads_berlin.fgb
+
 """
 
 import argparse
