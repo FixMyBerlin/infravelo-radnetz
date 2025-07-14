@@ -30,7 +30,7 @@ export const StaticLayers = () => {
         filter={['==', '$type', 'Polygon']}
         paint={{
           'fill-color': '#27272a',
-          'fill-opacity': 0.5,
+          'fill-opacity': 0.7,
         }}
       />
 
