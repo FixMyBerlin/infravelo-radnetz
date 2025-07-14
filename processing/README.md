@@ -38,7 +38,9 @@ Die Module sind nach Funktionalität organisiert:
   - [ ] Assign OSM Way attributes to RVN edges
   - [ ] Calculate direction of the edges (oneway)
   - [ ] Solve direction based snapping of edges 
+- [ ] Aggregate edges
   - [ ] Find way to calculate the length of the edges
+  - [ ] Merge edges where length > 50 m, even when attributes changes
 - [ ] RVN edges on OSM Ways
 - [ ] Provide Extract for Neukölln (via script)
 - [x] Provide TXT file of all OSM  Ways, which are part of the RVN

@@ -53,23 +53,38 @@ def load_geodataframe(path, name, target_crs):
 def create_unified_buffer(vorrangnetz_gdf, buffer_meters, target_crs):
     """
     Erzeugt einen vereinheitlichten Buffer um das Vorrangnetz.
+    Verwendet Caching basierend auf der Buffer-Größe um mehrfache Berechnungen zu vermeiden.
     """
+    # Erstelle Cache-Pfad mit Buffer-Größe im Dateinamen
+    cache_file = f'./output/matching/vorrangnetz_buffered_{buffer_meters}m.fgb'
+    os.makedirs('./output/matching', exist_ok=True)
+    
+    # Prüfe, ob Buffer bereits existiert
+    if os.path.exists(cache_file):
+        print(f'Lade bereits berechneten {buffer_meters}m Buffer aus {cache_file}...')
+        buffered_gdf = gpd.read_file(cache_file)
+        unified_buffer = buffered_gdf.geometry.iloc[0]
+        print(f'Buffer von {buffer_meters}m erfolgreich geladen.')
+        return unified_buffer, buffered_gdf
+    
+    # Buffer muss neu berechnet werden
     print(f'Erzeuge Buffer von {buffer_meters}m um Vorrangnetz-Kanten...')
     vorrangnetz_buffer = vorrangnetz_gdf.buffer(buffer_meters)
     print('Vereine alle Buffer zu einer einzigen Geometrie...')
     unified_buffer = vorrangnetz_buffer.union_all()
-    unified_buffer_gdf = gpd.GeoDataFrame(geometry=[unified_buffer], crs=target_crs)
-    # Speichere das gebufferte Vorrangnetz zur Kontrolle
-    os.makedirs('./output/matching', exist_ok=True)
+    
+    # Speichere den berechneten Buffer für zukünftige Verwendung
     buffered_gdf = gpd.GeoDataFrame(geometry=[unified_buffer], crs=target_crs)
-    buffered_gdf.to_file('./output/matching/vorrangnetz_buffered.fgb', driver='FlatGeobuf')
-    print('Gebuffertes Vorrangnetz gespeichert als ./output/matching/vorrangnetz_buffered.fgb')
-    return unified_buffer, unified_buffer_gdf
+    buffered_gdf.to_file(cache_file, driver='FlatGeobuf')
+    print(f'Gebuffertes Vorrangnetz gespeichert als {cache_file}')
+    
+    return unified_buffer, buffered_gdf
 
 
 def find_osm_ways_in_buffer(osm_gdf, unified_buffer, cache_path, fraction_threshold=0.7):
     """
-    Findet alle OSM-Wege, die zu mindestens fraction_threshold im Buffer liegen. Nutzt Caching.
+    Findet alle OSM-Wege, die zu mindestens fraction_threshold im Buffer liegen. Nutzt File Caching.
+    Zeigt einen Fortschrittsbalken für den Geometrie-Check an.
     """
     if os.path.exists(cache_path):
         print(f'Lade zwischengespeichertes Ergebnis aus {cache_path}...')
@@ -81,7 +96,14 @@ def find_osm_ways_in_buffer(osm_gdf, unified_buffer, cache_path, fraction_thresh
                 return 0
             intersected = line.intersection(buffer_geom)
             return intersected.length / line.length if not intersected.is_empty else 0
-        mask = osm_gdf.geometry.apply(lambda geom: line_in_buffer_fraction(geom, unified_buffer) >= fraction_threshold)
+        total = len(osm_gdf)
+        mask = []
+        for idx, geom in enumerate(osm_gdf.geometry):
+            if line_in_buffer_fraction(geom, unified_buffer) >= fraction_threshold:
+                mask.append(True)
+            else:
+                mask.append(False)
+            print_progressbar(idx + 1, total, prefix="Buffer-Matching: ", length=40)
         matched_gdf = osm_gdf[mask].copy()
         matched_gdf = matched_gdf.loc[:, ~matched_gdf.columns.duplicated()]
         matched_gdf.to_file(cache_path, driver='FlatGeobuf')
