@@ -12,10 +12,31 @@ from helpers.progressbar import print_progressbar
 # Konfiguration
 BIKELANES_FGB = './data/bikelanes.fgb'  # Pfad zu OSM-Radwegen
 STREETS_FGB = './data/TILDA Straßen Berlin.fgb'  # Pfad zu OSM-Straßen
+PATHS_FGB = './data/TILDA Wege Berlin.fgb'  # Pfad zu OSM-Wegen
 VORRANGNETZ_FGB = './data/Berlin Radvorrangsnetz.fgb'  # Pfad zum Vorrangnetz
 BIKELANES_BUFFER_METERS = 30  # Buffer-Radius in Metern für Radwege
 STREETS_BUFFER_METERS = 15    # Buffer-Radius in Metern für Straßen
+PATHS_BUFFER_METERS = 15      # Buffer-Radius in Metern für Wege
 TARGET_CRS = 'EPSG:25833'
+
+# Datenquellen-Konfiguration
+DATA_SOURCES = {
+    'bikelanes': {
+        'file_path': BIKELANES_FGB,
+        'buffer_meters': BIKELANES_BUFFER_METERS,
+        'description': 'OSM-Radwege'
+    },
+    'streets': {
+        'file_path': STREETS_FGB,
+        'buffer_meters': STREETS_BUFFER_METERS,
+        'description': 'TILDA Straßen Berlin'
+    },
+    'paths': {
+        'file_path': PATHS_FGB,
+        'buffer_meters': PATHS_BUFFER_METERS,
+        'description': 'TILDA Wege Berlin'
+    }
+}
 
 def load_geodataframe(path, name, target_crs):
     """
@@ -74,7 +95,8 @@ def apply_orthogonal_filter_if_requested(args, vorrangnetz_gdf, osm_gdf, matched
     Wendet optional den Orthogonalitätsfilter an und gibt das finale GeoDataFrame zurück.
     """
     use_orthogonal_filter = (output_prefix == 'bikelanes' and not args.skip_orthogonalfilter_bikelanes) or \
-                            (output_prefix == 'streets' and not args.skip_orthogonalfilter_streets)
+                            (output_prefix == 'streets' and not args.skip_orthogonalfilter_streets) or \
+                            (output_prefix == 'paths' and not args.skip_orthogonalfilter_paths)
 
     if use_orthogonal_filter:
         print(f"Wende Orthogonalitäts-Filter für kurze Segmente für {output_prefix} an...")
@@ -189,10 +211,14 @@ def parse_arguments():
     # Orthogonal filter and manual interventions are now enabled by default, use --skip-* to disable
     parser.add_argument('--skip-orthogonalfilter-bikelanes', action='store_true', help='Skip orthogonality filtering for bikelanes')
     parser.add_argument('--skip-orthogonalfilter-streets', action='store_true', help='Skip orthogonality filtering for streets')
+    parser.add_argument('--skip-orthogonalfilter-paths', action='store_true', help='Skip orthogonality filtering for paths')
     parser.add_argument('--skip-manual-interventions', action='store_true', help='Skip manual interventions from data/exclude_ways.txt and data/include_ways.txt')
     parser.add_argument('--skip-bikelanes', action='store_true', help='Skip processing of bikelanes dataset')
     parser.add_argument('--skip-streets', action='store_true', help='Skip processing of streets dataset')
+    parser.add_argument('--skip-paths', action='store_true', help='Skip processing of paths dataset')
     parser.add_argument('--skip-difference-streets-bikelanes', action='store_true', help='Skip difference: only streets without bikelanes')
+    parser.add_argument('--skip-difference-paths-bikelanes', action='store_true', help='Skip difference: only paths without bikelanes')
+    parser.add_argument('--skip-difference-paths-streets-bikelanes', action='store_true', help='Skip difference: only paths without streets and bikelanes')
     return parser.parse_args()
 
 
@@ -209,7 +235,8 @@ def process_data_source(osm_fgb_path, output_prefix, vorrangnetz_gdf, unified_bu
     matched_gdf_step1 = find_osm_ways_in_buffer(osm_gdf, unified_buffer, cache_path)
     # Schritt 3: Optional Orthogonalfilter anwenden
     use_orthogonal_filter = (output_prefix == 'bikelanes' and not args.skip_orthogonalfilter_bikelanes) or \
-                            (output_prefix == 'streets' and not args.skip_orthogonalfilter_streets)
+                            (output_prefix == 'streets' and not args.skip_orthogonalfilter_streets) or \
+                            (output_prefix == 'paths' and not args.skip_orthogonalfilter_paths)
 
     if use_orthogonal_filter:
         matched_gdf, _ = apply_orthogonal_filter_if_requested(args, vorrangnetz_gdf, osm_gdf, matched_gdf_step1, output_prefix)
@@ -228,25 +255,21 @@ def process_data_source(osm_fgb_path, output_prefix, vorrangnetz_gdf, unified_bu
     return matched_gdf
 
 
-def combine_street_and_bikelane_data(streets_gdf, bikelanes_gdf, output_path):
+def combine_multiple_datasets(datasets, output_path):
     """
-    Kombiniert die Daten von Straßen und Fahrradwegen zu einem einzigen GeoDataFrame.
+    Kombiniert mehrere Datensätze (Straßen, Fahrradwege, Wege) zu einem einzigen GeoDataFrame.
     Behandelt doppelte Spaltennamen und stellt sicher, dass keine Daten verloren gehen.
     """
-    print("\n--- Kombiniere Straßen- und Fahrradwegdaten ---")
+    print("\n--- Kombiniere mehrere Datensätze ---")
     
     combined_gdfs = []
     
     # Füge Datenquellen-Attribut hinzu
-    if streets_gdf is not None:
-        streets_copy = streets_gdf.copy()
-        streets_copy['data_source'] = 'streets'
-        combined_gdfs.append(streets_copy)
-    
-    if bikelanes_gdf is not None:
-        bikelanes_copy = bikelanes_gdf.copy()
-        bikelanes_copy['data_source'] = 'bikelanes'
-        combined_gdfs.append(bikelanes_copy)
+    for source_name, gdf in datasets.items():
+        if gdf is not None:
+            gdf_copy = gdf.copy()
+            gdf_copy['data_source'] = source_name
+            combined_gdfs.append(gdf_copy)
     
     if not combined_gdfs:
         print("Keine Daten zum Kombinieren verfügbar.")
@@ -285,7 +308,7 @@ def combine_street_and_bikelane_data(streets_gdf, bikelanes_gdf, output_path):
         combined_gdf = combined_gdf.loc[:, ~combined_gdf.columns.duplicated()]
     
     # Prüfe auf doppelte Geometrien/IDs
-    id_col = 'osm_id' if 'osm_id' in combined_gdf.columns else 'id'
+    id_col = 'id' if 'id' in combined_gdf.columns else 'osm_id'
     if id_col in combined_gdf.columns:
         initial_count = len(combined_gdf)
         combined_gdf = combined_gdf.drop_duplicates(subset=[id_col])
@@ -298,14 +321,73 @@ def combine_street_and_bikelane_data(streets_gdf, bikelanes_gdf, output_path):
     
     print(f"Kombinierte Daten erfolgreich gespeichert:")
     print(f"  - Gesamtanzahl Features: {len(combined_gdf)}")
-    if streets_gdf is not None:
-        streets_count = len(combined_gdf[combined_gdf['data_source'] == 'streets'])
-        print(f"  - Straßen: {streets_count}")
-    if bikelanes_gdf is not None:
-        bikelanes_count = len(combined_gdf[combined_gdf['data_source'] == 'bikelanes'])
-        print(f"  - Fahrradwege: {bikelanes_count}")
+    for source_name in datasets.keys():
+        if datasets[source_name] is not None:
+            source_count = len(combined_gdf[combined_gdf['data_source'] == source_name])
+            print(f"  - {source_name.capitalize()}: {source_count}")
     
     return combined_gdf
+
+
+def calculate_difference_datasets(base_gdf, subtract_gdf, output_path, base_name, subtract_name):
+    """
+    Berechnet die Differenz zwischen zwei Datensätzen (base_gdf - subtract_gdf).
+    """
+    if base_gdf is not None and subtract_gdf is not None:
+        print(f"\n--- Berechne Differenz: {base_name} ohne {subtract_name} ---")
+        difference_gdf = get_or_create_difference_fgb(
+            base_gdf,
+            subtract_gdf,
+            output_path,
+            target_crs=TARGET_CRS
+        )
+        print(f"Differenz-Datei gespeichert: {output_path}")
+        return difference_gdf
+    else:
+        print(f"Warnung: Differenz {base_name}-{subtract_name} kann nicht berechnet werden, da eine der Eingabedateien fehlt.")
+        return None
+
+
+def calculate_multiple_difference_datasets(base_gdf, subtract_gdfs, output_path, base_name, subtract_names):
+    """
+    Berechnet die Differenz zwischen einem Datensatz und mehreren anderen Datensätzen.
+    base_gdf - (subtract_gdf1 + subtract_gdf2 + ...)
+    """
+    if base_gdf is None:
+        print(f"Warnung: Basis-Datensatz {base_name} ist nicht verfügbar.")
+        return None
+    
+    # Filtere nur verfügbare Datensätze zum Subtrahieren
+    available_subtract_gdfs = [gdf for gdf in subtract_gdfs if gdf is not None]
+    available_subtract_names = [name for gdf, name in zip(subtract_gdfs, subtract_names) if gdf is not None]
+    
+    if not available_subtract_gdfs:
+        print(f"Warnung: Keine Datensätze zum Subtrahieren von {base_name} verfügbar.")
+        return None
+    
+    print(f"\n--- Berechne Differenz: {base_name} ohne {' und '.join(available_subtract_names)} ---")
+    
+    # Kombiniere alle zu subtrahierenden Datensätze
+    print("Kombiniere Datensätze zum Subtrahieren...")
+    combined_subtract_gdf = pd.concat(available_subtract_gdfs, ignore_index=True)
+    
+    # Entferne Duplikate basierend auf der ID-Spalte
+    id_col = 'id' if 'id' in combined_subtract_gdf.columns else 'osm_id'
+    if id_col in combined_subtract_gdf.columns:
+        initial_count = len(combined_subtract_gdf)
+        combined_subtract_gdf = combined_subtract_gdf.drop_duplicates(subset=[id_col])
+        if len(combined_subtract_gdf) < initial_count:
+            print(f"Entfernte {initial_count - len(combined_subtract_gdf)} Duplikate aus kombinierten Subtraktions-Datensatz.")
+    
+    # Führe die Differenz-Berechnung durch
+    difference_gdf = get_or_create_difference_fgb(
+        base_gdf,
+        combined_subtract_gdf,
+        output_path,
+        target_crs=TARGET_CRS
+    )
+    print(f"Differenz-Datei gespeichert: {output_path}")
+    return difference_gdf
 
 
 def main():
@@ -313,46 +395,89 @@ def main():
     Orchestriert den gesamten Matching- und Filterprozess.
     """
     args = parse_arguments()
-    # Vorrangnetz und Buffer einmalig laden/erstellen
+    # Vorrangnetz einmalig laden
     vorrangnetz_gdf = load_geodataframe(VORRANGNETZ_FGB, "Vorrangnetz", TARGET_CRS)
 
-    # Verarbeitung für Fahrradwege
-    bikelanes_gdf = None
-    if not args.skip_bikelanes:
-        bikelanes_buffer, _ = create_unified_buffer(vorrangnetz_gdf, BIKELANES_BUFFER_METERS, TARGET_CRS)
-        bikelanes_gdf = process_data_source(BIKELANES_FGB, 'bikelanes', vorrangnetz_gdf, bikelanes_buffer, args)
-    else:
-        print("--- Überspringe Verarbeitung für bikelanes ---")
+    # Dictionary zum Sammeln aller verarbeiteten Datensätze
+    processed_datasets = {}
 
-    # Verarbeitung für Straßen
-    streets_gdf = None
-    if not args.skip_streets:
-        streets_buffer, _ = create_unified_buffer(vorrangnetz_gdf, STREETS_BUFFER_METERS, TARGET_CRS)
-        streets_gdf = process_data_source(STREETS_FGB, 'streets', vorrangnetz_gdf, streets_buffer, args)
-    else:
-        print("--- Überspringe Verarbeitung für streets ---")
+    # Verarbeitung für alle konfigurierten Datenquellen
+    for source_name, source_config in DATA_SOURCES.items():
+        # Prüfe, ob diese Datenquelle übersprungen werden soll
+        skip_arg = f"skip_{source_name}"
+        if hasattr(args, skip_arg) and getattr(args, skip_arg):
+            print(f"--- Überspringe Verarbeitung für {source_name} ---")
+            processed_datasets[source_name] = None
+            continue
 
-    # Differenz Straßen - Radwege berechnen
+        # Erstelle Buffer für diese Datenquelle
+        buffer_size = source_config['buffer_meters']
+        unified_buffer, _ = create_unified_buffer(vorrangnetz_gdf, buffer_size, TARGET_CRS)
+        
+        # Verarbeite die Datenquelle
+        processed_gdf = process_data_source(
+            source_config['file_path'], 
+            source_name, 
+            vorrangnetz_gdf, 
+            unified_buffer, 
+            args
+        )
+        processed_datasets[source_name] = processed_gdf
+
+    # Differenz-Berechnungen
+    # Straßen ohne Radwege
     if not args.skip_difference_streets_bikelanes:
         output_path = './output/matching/matched_osm_streets_without_bikelanes.fgb'
-        if streets_gdf is not None and bikelanes_gdf is not None:
-            _ = get_or_create_difference_fgb(
-                streets_gdf,
-                bikelanes_gdf,
-                output_path,
-                target_crs=TARGET_CRS
-            )
-        else:
-            print("Warnung: Differenz kann nicht berechnet werden, da eine der Eingabedateien fehlt.")
-    else:
-        print("--- Überspringe Differenz-Berechnung für Straßen ohne Radwege ---")
+        calculate_difference_datasets(
+            processed_datasets.get('streets'),
+            processed_datasets.get('bikelanes'),
+            output_path,
+            'streets',
+            'bikelanes'
+        )
 
-    # Kombiniere Straßen- und Fahrradwegdaten
-    if streets_gdf is not None or bikelanes_gdf is not None:
+    # Wege ohne Radwege (alte Logik, falls gewünscht)
+    if not args.skip_difference_paths_bikelanes:
+        output_path = './output/matching/matched_osm_paths_without_bikelanes.fgb'
+        calculate_difference_datasets(
+            processed_datasets.get('paths'),
+            processed_datasets.get('bikelanes'),
+            output_path,
+            'paths',
+            'bikelanes'
+        )
+
+    # Wege ohne Straßen UND Radwege (neue Hauptlogik)
+    paths_without_streets_and_bikelanes = None
+    if not args.skip_difference_paths_streets_bikelanes:
+        output_path = './output/matching/matched_osm_paths_without_streets_and_bikelanes.fgb'
+        paths_without_streets_and_bikelanes = calculate_multiple_difference_datasets(
+            processed_datasets.get('paths'),
+            [processed_datasets.get('streets'), processed_datasets.get('bikelanes')],
+            output_path,
+            'paths',
+            ['streets', 'bikelanes']
+        )
+
+    # Kombiniere alle verfügbaren Datensätze (verwende gefilterte Wege)
+    datasets_for_combination = {}
+    if processed_datasets.get('bikelanes') is not None:
+        datasets_for_combination['bikelanes'] = processed_datasets['bikelanes']
+    if processed_datasets.get('streets') is not None:
+        datasets_for_combination['streets'] = processed_datasets['streets']
+    # Verwende die gefilterten Wege (ohne Streets und Bikelanes) anstatt der ursprünglichen Wege
+    if paths_without_streets_and_bikelanes is not None:
+        datasets_for_combination['paths'] = paths_without_streets_and_bikelanes
+    elif processed_datasets.get('paths') is not None and args.skip_difference_paths_streets_bikelanes:
+        # Fallback: Verwende ungefilterte Wege, wenn Filterung übersprungen wurde
+        datasets_for_combination['paths'] = processed_datasets['paths']
+
+    if datasets_for_combination:
         combined_path = './output/matching/matched_osm_ways.fgb'
-        combined_gdf = combine_street_and_bikelane_data(streets_gdf, bikelanes_gdf, combined_path)
+        combined_gdf = combine_multiple_datasets(datasets_for_combination, combined_path)
         if combined_gdf is not None:
             print(f"Kombinierte Daten gespeichert: {combined_path}")
+            print(f"Hinweis: Wege wurden von Straßen und Radwegen subtrahiert, um Überschneidungen zu vermeiden.")
     else:
         print("Warnung: Keine Daten zum Kombinieren verfügbar.")
 
