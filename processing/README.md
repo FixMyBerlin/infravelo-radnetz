@@ -98,16 +98,13 @@ Empfohlener Start über das Wrapper-Skript:
 ```sh
 python ./processing/start_snapping.py \
   --net ./output/vorrangnetz_details_combined_rvn.fgb \
-  --osm ./output/matched_osm_ways.fgb \
+  --osm ./output/matching/matched_osm_ways.fgb \
   --out ./output/snapping_network_enriched.fgb \
   --buffer 20.0 \
   --max-angle 35.0
 ```
 
 Die Argumente entsprechen:
-- Pfad zum Netzwerk: `./output/vorrangnetz_details_combined_rvn.fgb`
-- Pfad zu OSM-Daten: `./output/matched_osm_ways.fgb`
-- Pfad für die Ausgabe: `./output/snapping_network_enriched.fgb`
 - Optional: `--buffer` für die Puffergröße in Metern (Standard: 20.0)
 - Optional: `--max-angle` für den maximalen Winkelunterschied in Grad (Standard: 35.0)
 

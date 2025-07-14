@@ -14,8 +14,9 @@ enrich_streetnet_with_osm.py
 """
 import argparse, sys
 from pathlib import Path
-
+import os, logging
 import numpy as np
+import pandas as pd
 import geopandas as gpd
 from shapely.geometry import LineString, MultiLineString, Point
 from helpers.progressbar import print_progressbar
@@ -23,7 +24,7 @@ from helpers.globals import DEFAULT_CRS
 
 
 # -------------------------------------------------------------- Konstanten --
-BUFFER_DEFAULT = 20.0     # Standard-Puffergröße in Metern für Matching
+BUFFER_DEFAULT = 30.0     # Standard-Puffergröße in Metern für Matching
 MAX_ANGLE_DIFFERENCE = 50.0 # Maximaler Winkelunterschied für Ausrichtung in Grad
 
 # Feldnamen für das Netz
@@ -31,6 +32,19 @@ FLD_EDGE = "element_nr"           # Kanten-ID
 FLD_FROM = "beginnt_bei_vp"       # Startknoten-ID
 FLD_TO   = "endet_bei_vp"         # Endknoten-ID
 FLD_DIR  = "verkehrsrichtung"     # Werte: R / G / B (Richtung)
+
+# Prioritäten für OSM-Weg-Auswahl (höhere Zahl = höhere Priorität)
+TRAFFIC_SIGN_PRIORITIES = {
+    "DE:240": 3,  # Gemeinsamer Geh- und Radweg
+    "DE:237": 3,  # Radweg
+    "DE:241": 3,  # Getrennter Rad- und Gehweg
+}
+
+# Kategorie-Prioritäten
+CATEGORY_PRIORITIES = {
+    "sharedBusLaneBusWithBike": 2,
+    "sharedMotorVehicleLane": 1,  # Niedrigste Priorität
+}
 
 
 # --------------------------------------------------------- Hilfsfunktionen --
@@ -103,6 +117,75 @@ def angle_difference(angle1: float, angle2: float) -> float:
     return min(diff, 360 - diff)
 
 
+def is_bikelane(category: str) -> bool:
+    """
+    Prüft, ob ein OSM-Weg eine Bikelane ist.
+    Eine Bikelane liegt vor, wenn category gesetzt ist und nicht 'sharedMotorVehicleLane'.
+    """
+    if not category or pd.isna(category):
+        return False
+    return str(category).strip() != "sharedMotorVehicleLane"
+
+
+def calculate_osm_priority(row) -> int:
+    """
+    Berechnet die Priorität eines OSM-Wegs basierend auf traffic_sign und category.
+    Höhere Zahl = höhere Priorität.
+    """
+    priority = 0
+    
+    # Priorität basierend auf Verkehrszeichen
+    traffic_sign = row.get("traffic_sign", "")
+    if traffic_sign:
+        for sign, prio in TRAFFIC_SIGN_PRIORITIES.items():
+            if sign in str(traffic_sign):
+                priority = max(priority, prio)
+    
+    # Priorität basierend auf Kategorie
+    category = row.get("category", "")
+    if category and str(category) in CATEGORY_PRIORITIES:
+        priority = max(priority, CATEGORY_PRIORITIES[str(category)])
+    
+    return priority
+
+
+def parse_width(width_value) -> float:
+    """
+    Wandelt OSM-Breitenangaben in standardisierte Meter-Werte um.
+    Rundet auf 0,10 m-Stellen und gibt das Ergebnis als Float zurück.
+    
+    Args:
+        width_value: OSM width-Wert (kann String oder Number sein)
+    
+    Returns:
+        Breite in Metern gerundet auf 0,10 m, oder None wenn nicht parsbar
+    """
+    if not width_value or pd.isna(width_value):
+        return None
+        
+    try:
+        # String zu Float konvertieren, falls nötig
+        if isinstance(width_value, str):
+            # Entferne Einheiten und andere Zeichen
+            width_str = str(width_value).strip().lower()
+            # Entferne "m", "meter", "metres" etc.
+            width_str = width_str.replace("m", "").replace("eter", "").replace("tres", "")
+            # Entferne Leerzeichen
+            width_str = width_str.strip()
+            # Falls mehrere Werte durch Semikolon getrennt sind, nehme den ersten
+            if ";" in width_str:
+                width_str = width_str.split(";")[0].strip()
+            width_float = float(width_str)
+        else:
+            width_float = float(width_value)
+        
+        # Auf 0,10 m runden (d.h. auf eine Dezimalstelle)
+        return round(width_float, 1)
+        
+    except (ValueError, TypeError):
+        return None
+
+
 def new_neg_id(counter):
     """Erzeugt eine neue negative ID für Zwischennoten (Splits)."""
     counter["val"] -= 1
@@ -155,6 +238,101 @@ def merge_segments(gdf, id_field, osm_fields):
     return gpd.GeoDataFrame(gruppen, geometry="geometry", crs=gdf.crs)
 
 
+def determine_direction_attributes(seg_verkehrsrichtung: str, osm_oneway: str, osm_oneway_bicycle: str, 
+                                 osm_category: str) -> str:
+    """
+    Bestimmt die Richtungsattribute basierend auf Segment-Richtung und OSM-Daten.
+    
+    Returns:
+        verkehrsri: "Einrichtungsverkehr" oder "Zweirichtungsverkehr"
+    """
+    # Standardwerte
+    verkehrsri = "Zweirichtungsverkehr"
+    
+    # Prüfung auf Einrichtungsverkehr
+    oneway_bicycle = str(osm_oneway_bicycle).lower() if osm_oneway_bicycle else ""
+    oneway = str(osm_oneway).lower() if osm_oneway else ""
+    
+    if oneway_bicycle == "yes" or oneway_bicycle == "implicit_yes":
+        verkehrsri = "Einrichtungsverkehr"
+    elif not is_bikelane(osm_category) and oneway == "yes":
+        verkehrsri = "Einrichtungsverkehr"
+    elif oneway == "no" and oneway_bicycle == "no":
+        verkehrsri = "Zweirichtungsverkehr"
+    
+    return verkehrsri
+
+
+def create_segment_variants(seg_dict: dict, matched_osm_ways: list) -> list[dict]:
+    """
+    Erstellt Varianten eines Straßensegments basierend auf OSM-Wegen.
+    Dupliziert das Segment für beide Richtungen und setzt entsprechende Attribute.
+    
+    Args:
+        seg_dict: Dictionary des ursprünglichen Straßensegments
+        matched_osm_ways: Liste der gematchten OSM-Wege mit Prioritäten
+    
+    Returns:
+        Liste von Segment-Dictionaries (ein oder zwei, je nach Richtung)
+    """
+    variants = []
+    verkehrsrichtung = seg_dict.get(FLD_DIR, "B")
+    
+    # Für jede Richtung prüfen, ob OSM-Daten vorhanden sind
+    directions = []
+    if verkehrsrichtung in ["R", "B"]:  # Richtung (gleiche Richtung wie Geometrie)
+        directions.append(("R", 0))
+    if verkehrsrichtung in ["G", "B"]:  # Gegenrichtung
+        directions.append(("G", 1))
+    
+    for direction, ri_value in directions:
+        # Besten OSM-Weg für diese Richtung finden
+        best_osm = None
+        if matched_osm_ways:
+            # Für jetzt nehmen wir den ersten/besten OSM-Weg
+            # TODO: Hier könnte weitere Richtungslogik implementiert werden
+            best_osm = matched_osm_ways[0]
+        
+        # Neue Segment-Variante erstellen
+        variant = seg_dict.copy()
+        variant["ri"] = ri_value
+        
+        if best_osm is not None:
+            # OSM-Attribute übertragen (ohne osm_ Präfix, da die Original-Feldnamen verwendet werden)
+            for attr in ["osm_id", "category", "road", "name", "surface", 
+                        "surface_color", "oneway", "traffic_sign", "width", "bikelane_self"]:
+                original_attr = attr if attr == "osm_id" else attr  # osm_id bleibt, rest ohne Präfix
+                variant[f"osm_{attr}"] = best_osm.get(original_attr, None)
+            
+            # Breite aus OSM-Width-Attribut parsen
+            variant["breite"] = parse_width(best_osm.get("width", None))
+            
+            # Verkehrsrichtung bestimmen
+            verkehrsri = determine_direction_attributes(
+                verkehrsrichtung,
+                best_osm.get("oneway", ""),
+                best_osm.get("oneway_bicycle", ""),  # Prüfe ob dieses Feld existiert
+                best_osm.get("category", "")
+            )
+            variant["verkehrsri"] = verkehrsri
+            
+            # Pflicht-Attribut setzen
+            traffic_sign = best_osm.get("traffic_sign", "")
+            variant["pflicht"] = any(sign in str(traffic_sign) for sign in TRAFFIC_SIGN_PRIORITIES.keys())
+        else:
+            # Keine OSM-Daten gefunden - Standardwerte setzen
+            variant["verkehrsri"] = "Zweirichtungsverkehr"
+            variant["pflicht"] = False
+            variant["breite"] = None
+            for attr in ["osm_id", "category", "road", "name", "surface", 
+                        "surface_color", "oneway", "traffic_sign", "width", "bikelane_self"]:
+                variant[f"osm_{attr}"] = None
+        
+        variants.append(variant)
+    
+    return variants
+
+
 # ------------------------------------------------------------- Hauptablauf --
 def process(net_path, osm_path, out_path, crs, buf):
     """
@@ -179,9 +357,12 @@ def process(net_path, osm_path, out_path, crs, buf):
             sys.exit(f"Pflichtfeld “{fld}” fehlt im Netz!")
 
     # ---------- Netz segmentieren und speichern -----------------------------
-    import os, logging
     logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+    
+    # Stelle sicher, dass das Ausgabeverzeichnis existiert
     seg_path = "./output/qa-snapping/rvn-segmented.fgb"
+    os.makedirs(os.path.dirname(seg_path), exist_ok=True)
+    
     if os.path.exists(seg_path):
         logging.info(f"Lade bereits segmentiertes Netz aus {seg_path} ...")
         net_segmented = gpd.read_file(seg_path)
@@ -193,81 +374,112 @@ def process(net_path, osm_path, out_path, crs, buf):
 
     # ---------- Snapping/Attributübernahme auf Segmente ---------------------
     seg_attr_path = "./output/qa-snapping/rvn-segmented-attributed-osm.fgb"
+    os.makedirs(os.path.dirname(seg_attr_path), exist_ok=True)
+    
     if os.path.exists(seg_attr_path):
         logging.info(f"Lade bereits attributierte Segmente aus {seg_attr_path} ...")
         net_segmented = gpd.read_file(seg_attr_path)
     else:
         logging.info("Führe Snapping und OSM-Attributübernahme auf 10% der Segmente durch ...")
-        # OSM-Spalten (außer Geometrie) umbenennen (Präfix 'osm_')
-        # Erstelle eine Liste aller Spaltennamen aus dem OSM-DataFrame, außer der Geometrie-Spalte
-        osm_attrs = [c for c in osm.columns if c != "geometry"]
-        # Benenne alle OSM-Spalten (außer Geometrie) um, indem ein 'osm_' Präfix hinzugefügt wird
-        osm = osm.rename(columns={c: f"osm_{c}" for c in osm_attrs})
         # Erzeuge einen räumlichen Index für die OSM-Ways, um schnelle räumliche Abfragen zu ermöglichen
         osm_sidx = osm.sindex  # Räumlicher Index für OSM-Ways
 
-        # Für Test: nur 10% der Segmente bearbeiten
+        # Für Test: nur wenige Segmente bearbeiten 
         total = len(net_segmented)
-        n_test = max(1, int(total * 0.05))
+        n_test = max(1, int(total * 0.10))
         snapped_records = []
+        # Starte die OSM-Attributübernahme für jedes Segment
+        # --------------------------------------------------
+        # Für jedes Segment:
+        # 1. Suche OSM-Kandidaten im räumlichen Puffer
+        # 2. Filtere nach Entfernung und Ausrichtung
+        # 3. Berechne Priorität und wähle den besten OSM-Weg
+        # 4. Übertrage relevante OSM-Attribute auf das Segment
+        # 5. Erzeuge ggf. Varianten für beide Richtungen
+        # 6. Fortschrittsanzeige für den Nutzer
         for idx, seg in enumerate(net_segmented.itertuples(), 1):
             if idx > n_test:
                 break
             g = seg.geometry
-            # Kandidaten im Buffer suchen
+            
+            # Kandidaten im Buffer suchen (räumliche Suche)
             cand_idx = list(osm_sidx.intersection(g.buffer(buf).bounds))
             if not cand_idx:
-                snapped_records.append(seg._asdict())
-                print_progressbar(idx, n_test, prefix="Snapping (Test 5%): ")
+                # Keine OSM-Kandidaten gefunden - Standardvarianten erzeugen
+                seg_dict = seg._asdict()
+                variants = create_segment_variants(seg_dict, [])
+                snapped_records.extend(variants)
+                logging.info(f"Keine OSM-Kandidaten im Puffer für Segment {seg} gefunden.")
+                print_progressbar(idx, n_test, prefix="Snapping (Test 10%): ")
                 continue
+                
             cand = osm.iloc[cand_idx].copy()
-            # Nur Kandidaten im Buffer behalten
+            # Filtere Kandidaten nach tatsächlicher Entfernung zum Segment
             cand["d"] = cand.geometry.distance(g)
             cand = cand[cand["d"] <= buf]
             if cand.empty:
-                snapped_records.append(seg._asdict())
-                print_progressbar(idx, n_test, prefix="Snapping (Test 5%): ")
+                # Keine OSM-Kandidaten im Buffer - Standardvarianten erzeugen
+                seg_dict = seg._asdict()
+                variants = create_segment_variants(seg_dict, [])
+                snapped_records.extend(variants)
+                logging.info(f"Keine OSM-Kandidaten im Puffer für Segment {seg} gefunden.")
+                print_progressbar(idx, n_test, prefix="Snapping (Test 10%): ")
                 continue
 
-            # Winkel des Netzsegments berechnen
+            # Berechne den Winkel des Netzsegments
             seg_angle = calculate_line_angle(g)
 
-            # Winkel und Winkeldifferenz für alle Kandidaten berechnen
+            # Berechne Winkel und Winkeldifferenz für alle OSM-Kandidaten
+            # Kopie erstellen um SettingWithCopyWarning zu vermeiden
+            cand = cand.copy()
             cand["angle"] = cand.geometry.apply(calculate_line_angle)
             cand["angle_diff"] = cand["angle"].apply(lambda a: angle_difference(a, seg_angle))
 
-            # Bevorzugte Kandidaten mit passender Ausrichtung auswählen
-            oriented_cand = cand[cand["angle_diff"] <= MAX_ANGLE_DIFFERENCE]
+            # Filtere Kandidaten mit passender Ausrichtung
+            oriented_cand = cand[cand["angle_diff"] <= MAX_ANGLE_DIFFERENCE].copy()
 
             # Wenn es ausgerichtete Kandidaten gibt, diese verwenden, sonst alle
-            target_cand = oriented_cand if not oriented_cand.empty else cand
+            target_cand = oriented_cand if not oriented_cand.empty else cand.copy()
 
-            # Nächstgelegene OSM-Geometrie aus der Zielgruppe bestimmen
+            # Berechne Priorität für alle Kandidaten
+            target_cand["priority"] = target_cand.apply(calculate_osm_priority, axis=1)
+            
+            # Sortiere nach Priorität und Entfernung (höchste Priorität, geringste Entfernung)
             mid = g.interpolate(0.5, normalized=True)
-            dist = target_cand.geometry.distance(mid)
-            nearest = target_cand.loc[dist.idxmin()]
+            target_cand["dist_to_mid"] = target_cand.geometry.distance(mid)
+            target_cand = target_cand.sort_values(["priority", "dist_to_mid"], ascending=[False, True])
 
-            # OSM-Attribute übernehmen
+            # Wähle den besten OSM-Weg (höchste Priorität, nächste Entfernung)
+            matched_osm_ways = []
+            if not target_cand.empty:
+                best_osm = target_cand.iloc[0].to_dict()
+                matched_osm_ways.append(best_osm)
+
+            # Erzeuge Segment-Varianten basierend auf OSM-Daten
             seg_dict = seg._asdict()
-            for c in ["osm_id", "osm_category", "osm_road", "osm_name", "osm_surface", "osm_surface_colour", "osm_oneway", "osm_traffic_sign", "osm_width", "osm_bikelane_self"]:
-                seg_dict[c] = nearest.get(c, None)
-            snapped_records.append(seg_dict)
-            print_progressbar(idx, n_test, prefix="Snapping (Test 5%): ")
+            variants = create_segment_variants(seg_dict, matched_osm_ways)
+            snapped_records.extend(variants)
+            print_progressbar(idx, n_test, prefix="Snapping (Test 10%): ")
+        # Erstelle GeoDataFrame aus allen bearbeiteten Segmenten
         net_segmented = gpd.GeoDataFrame(snapped_records, crs=crs)
         net_segmented.to_file(seg_attr_path, driver="FlatGeobuf")
         logging.info(f"✔  Attributierte Test-Segmente gespeichert als {seg_attr_path}")
 
     # ---------- Segmente verschmelzen ---------------------------------------
     print("Fasse Segmente mit gleicher okstra_id und OSM-Attributen zusammen ...")
-    # TODO: Funktioniert nur, wenn die OSM-Attribute nicht NULL sind
-    osm_felder = ["osm_road"] #, "osm_surface", "osm_surface:colour", "osm_oneway"]
+    # Erweiterte OSM-Felder inklusive der neuen Richtungsattribute
+    osm_felder = ["osm_road", "ri", "verkehrsri", "pflicht", "breite"] #, "osm_surface", "osm_surface_color", "osm_oneway"]
     out_gdf = merge_segments(net_segmented, "okstra_id", osm_felder)
 
     # ---------- Ergebnis speichern ------------------------------------------
     p, *layer = out_path.split(":")
     layer = layer[0] if layer else "edges_enriched"
+    
+    # Stelle sicher, dass das Ausgabeverzeichnis existiert
+    os.makedirs(os.path.dirname(p), exist_ok=True)
     Path(p).unlink(missing_ok=True)
-    out_gdf.to_file(p, layer=layer, driver="GPKG")
+    
+    out_gdf.to_file(p, layer=layer, driver="FlatGeoBuf")
     print(f"✔  {len(out_gdf)} Kanten → {p}:{layer}")
 
 
@@ -275,9 +487,12 @@ def process(net_path, osm_path, out_path, crs, buf):
 if __name__ == "__main__":
     # Kommandozeilenargumente parsen
     ap = argparse.ArgumentParser()
-    ap.add_argument("--net",  required=True, help="Netz-Layer  (Pfad[:Layer])")
-    ap.add_argument("--osm",  required=True, help="OSM-Ways   (Pfad[:Layer])")
-    ap.add_argument("--out",  required=True, help="Ausgabe    (Pfad[:Layer])")
+    ap.add_argument("--net", default="../output/vorrangnetz_details_combined_rvn.fgb", 
+                    help="Netz-Layer (Pfad[:Layer]) - Default: ../output/vorrangnetz_details_combined_rvn.fgb")
+    ap.add_argument("--osm", default="../output/matching/matched_osm_ways.fgb", 
+                    help="OSM-Ways (Pfad[:Layer]) - Default: ../output/matching/matched_osm_ways.fgb")
+    ap.add_argument("--out", default="../output/snapping_network_enriched.fgb", 
+                    help="Ausgabe (Pfad[:Layer]) - Default: ../output/snapping_network_enriched.fgb")
     ap.add_argument("--crs",  type=int,   default=DEFAULT_CRS,
                     help=f"Ziel-EPSG (default {DEFAULT_CRS})")
     ap.add_argument("--buffer", type=float, default=BUFFER_DEFAULT,
