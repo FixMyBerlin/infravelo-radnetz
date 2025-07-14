@@ -40,6 +40,8 @@ Die Module sind nach Funktionalität organisiert:
   - [ ] Solve direction based snapping of edges 
   - [ ] Find way to calculate the length of the edges
 - [ ] RVN edges on OSM Ways
+- [ ] Provide Extract for Neukölln (via script)
+- [ ] Provide CSV file of all OSM  Ways, which are part of the RVN
 
 ## Filters
 

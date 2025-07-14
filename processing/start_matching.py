@@ -1,5 +1,6 @@
 import geopandas as gpd
 import pandas as pd
+import logging
 import argparse
 import os
 from matching.orthogonal_filter import process_and_filter_short_segments
@@ -162,6 +163,23 @@ def write_outputs(matched_gdf, output_prefix):
     print(f'FlatGeobuf gespeichert in {fgb_file}')
 
 
+def export_matched_way_ids(matched_gdf, output_prefix):
+    """
+    Exportiert alle OSM way IDs, die im Matching enthalten sind, als Textdatei.
+    Jede Zeile enthält eine OSM way ID.
+    """
+    # Bestimme die ID-Spalte
+    id_col = 'osm_id' if 'osm_id' in matched_gdf.columns else 'id'
+    # Extrahiere eindeutige IDs als Liste
+    matched_ids = matched_gdf[id_col].drop_duplicates().astype(str).tolist()
+    # Schreibe die IDs in eine Textdatei
+    output_path = f'./output/matched_osm_{output_prefix}_way_ids.txt'
+    with open(output_path, 'w') as f:
+        for way_id in matched_ids:
+            f.write(f"{way_id}\n")
+    logging.info(f"Exportierte {len(matched_ids)} OSM way IDs nach {output_path}")
+
+
 def parse_arguments():
     """
     Parst die Kommandozeilenargumente.
@@ -203,6 +221,8 @@ def process_data_source(osm_fgb_path, output_prefix, vorrangnetz_gdf, unified_bu
     matched_gdf = apply_manual_interventions(args, matched_gdf, osm_gdf, output_prefix)
     # Schritt 5: Ergebnisse schreiben
     write_outputs(matched_gdf, output_prefix)
+    # Exportiere gematchte OSM way IDs als Textliste
+    export_matched_way_ids(matched_gdf, output_prefix)
     print(f"--- Verarbeitung für {output_prefix} abgeschlossen ---")
     return matched_gdf
 
