@@ -24,24 +24,24 @@ from helpers.globals import DEFAULT_CRS
 
 
 # -------------------------------------------------------------- Konstanten --
-BUFFER_DEFAULT = 30.0     # Standard-Puffergröße in Metern für Matching
-MAX_ANGLE_DIFFERENCE = 50.0 # Maximaler Winkelunterschied für Ausrichtung in Grad
+CONFIG_BUFFER_DEFAULT = 30.0     # Standard-Puffergröße in Metern für Matching
+CONFIG_MAX_ANGLE_DIFFERENCE = 50.0 # Maximaler Winkelunterschied für Ausrichtung in Grad
 
 # Feldnamen für das Netz
-FLD_EDGE = "element_nr"           # Kanten-ID
-FLD_FROM = "beginnt_bei_vp"       # Startknoten-ID
-FLD_TO   = "endet_bei_vp"         # Endknoten-ID
-FLD_DIR  = "verkehrsrichtung"     # Werte: R / G / B (Richtung)
+RVN_ATTRIBUT_ELEMENT_NR = "element_nr"           # Kanten-ID
+RVN_ATTRIBUT_BEGINN_VP = "beginnt_bei_vp"       # Startknoten-ID
+RVN_ATTRIBUT_ENDE_VP   = "endet_bei_vp"         # Endknoten-ID
+RVN_ATTRIBUT_VERKEHRSRICHTUNG  = "verkehrsrichtung"     # Werte: R / G / B (Richtung)
 
 # Prioritäten für OSM-Weg-Auswahl (höhere Zahl = höhere Priorität)
-TRAFFIC_SIGN_PRIORITIES = {
+TILDA_TRAFFIC_SIGN_PRIORITÄTEN = {
     "DE:240": 3,  # Gemeinsamer Geh- und Radweg
     "DE:237": 3,  # Radweg
     "DE:241": 3,  # Getrennter Rad- und Gehweg
 }
 
 # Kategorie-Prioritäten
-CATEGORY_PRIORITIES = {
+TILDA_CATEGORY_PRIORITIES = {
     "sharedBusLaneBusWithBike": 2,
     "sharedMotorVehicleLane": 1,  # Niedrigste Priorität
 }
@@ -137,14 +137,14 @@ def calculate_osm_priority(row) -> int:
     # Priorität basierend auf Verkehrszeichen
     traffic_sign = row.get("traffic_sign", "")
     if traffic_sign:
-        for sign, prio in TRAFFIC_SIGN_PRIORITIES.items():
+        for sign, prio in TILDA_TRAFFIC_SIGN_PRIORITÄTEN.items():
             if sign in str(traffic_sign):
                 priority = max(priority, prio)
     
     # Priorität basierend auf Kategorie
     category = row.get("category", "")
-    if category and str(category) in CATEGORY_PRIORITIES:
-        priority = max(priority, CATEGORY_PRIORITIES[str(category)])
+    if category and str(category) in TILDA_CATEGORY_PRIORITIES:
+        priority = max(priority, TILDA_CATEGORY_PRIORITIES[str(category)])
     
     return priority
 
@@ -276,7 +276,7 @@ def create_segment_variants(seg_dict: dict, matched_osm_ways: list) -> list[dict
         Liste von Segment-Dictionaries (ein oder zwei, je nach Richtung)
     """
     variants = []
-    verkehrsrichtung = seg_dict.get(FLD_DIR, "B")
+    verkehrsrichtung = seg_dict.get(RVN_ATTRIBUT_VERKEHRSRICHTUNG, "B")
     
     # Für jede Richtung prüfen, ob OSM-Daten vorhanden sind
     directions = []
@@ -318,7 +318,7 @@ def create_segment_variants(seg_dict: dict, matched_osm_ways: list) -> list[dict
             
             # Pflicht-Attribut setzen
             traffic_sign = best_osm.get("traffic_sign", "")
-            variant["pflicht"] = any(sign in str(traffic_sign) for sign in TRAFFIC_SIGN_PRIORITIES.keys())
+            variant["pflicht"] = any(sign in str(traffic_sign) for sign in TILDA_TRAFFIC_SIGN_PRIORITÄTEN.keys())
         else:
             # Keine OSM-Daten gefunden - Standardwerte setzen
             variant["verkehrsri"] = "Zweirichtungsverkehr"
@@ -352,7 +352,7 @@ def process(net_path, osm_path, out_path, crs, buf):
     osm = read(osm_path).to_crs(crs)
 
     # Prüfen, ob alle Pflichtfelder im Netz vorhanden sind
-    for fld in (FLD_EDGE, FLD_FROM, FLD_TO, FLD_DIR, "okstra_id"):
+    for fld in (RVN_ATTRIBUT_ELEMENT_NR, RVN_ATTRIBUT_BEGINN_VP, RVN_ATTRIBUT_ENDE_VP, RVN_ATTRIBUT_VERKEHRSRICHTUNG, "okstra_id"):
         if fld not in net.columns:
             sys.exit(f"Pflichtfeld “{fld}” fehlt im Netz!")
 
@@ -436,7 +436,7 @@ def process(net_path, osm_path, out_path, crs, buf):
             cand["angle_diff"] = cand["angle"].apply(lambda a: angle_difference(a, seg_angle))
 
             # Filtere Kandidaten mit passender Ausrichtung
-            oriented_cand = cand[cand["angle_diff"] <= MAX_ANGLE_DIFFERENCE].copy()
+            oriented_cand = cand[cand["angle_diff"] <= CONFIG_MAX_ANGLE_DIFFERENCE].copy()
 
             # Wenn es ausgerichtete Kandidaten gibt, diese verwenden, sonst alle
             target_cand = oriented_cand if not oriented_cand.empty else cand.copy()
@@ -495,8 +495,8 @@ if __name__ == "__main__":
                     help="Ausgabe (Pfad[:Layer]) - Default: ../output/snapping_network_enriched.fgb")
     ap.add_argument("--crs",  type=int,   default=DEFAULT_CRS,
                     help=f"Ziel-EPSG (default {DEFAULT_CRS})")
-    ap.add_argument("--buffer", type=float, default=BUFFER_DEFAULT,
-                    help=f"Matching-Puffer in m (default {BUFFER_DEFAULT})")
+    ap.add_argument("--buffer", type=float, default=CONFIG_BUFFER_DEFAULT,
+                    help=f"Matching-Puffer in m (default {CONFIG_BUFFER_DEFAULT})")
     args = ap.parse_args()
 
     # Hauptfunktion aufrufen

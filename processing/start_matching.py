@@ -10,31 +10,31 @@ from export_geojson import export_all_geojson
 from helpers.progressbar import print_progressbar
 
 # Konfiguration
-BIKELANES_FGB = './data/bikelanes.fgb'  # Pfad zu OSM-Radwegen
-STREETS_FGB = './data/TILDA Straßen Berlin.fgb'  # Pfad zu OSM-Straßen
-PATHS_FGB = './data/TILDA Wege Berlin.fgb'  # Pfad zu OSM-Wegen
-VORRANGNETZ_FGB = './data/Berlin Radvorrangsnetz.fgb'  # Pfad zum Vorrangnetz
-BIKELANES_BUFFER_METERS = 30  # Buffer-Radius in Metern für Radwege
-STREETS_BUFFER_METERS = 15    # Buffer-Radius in Metern für Straßen
-PATHS_BUFFER_METERS = 15      # Buffer-Radius in Metern für Wege
+INPUT_BIKELANES_FGB = './data/bikelanes.fgb'  # Pfad zu OSM-Radwegen
+INPUT_STREETS_FGB = './data/TILDA Straßen Berlin.fgb'  # Pfad zu OSM-Straßen
+INPUT_PATHS_FGB = './data/TILDA Wege Berlin.fgb'  # Pfad zu OSM-Wegen
+INPUT_VORRANGNETZ_FGB = './data/Berlin Radvorrangsnetz.fgb'  # Pfad zum Vorrangnetz
+BUFFER_BIKELANES_METERS = 30  # Buffer-Radius in Metern für Radwege
+BUFFER_STREETS_METERS = 15    # Buffer-Radius in Metern für Straßen
+BUFFER_PATHS_METERS = 15      # Buffer-Radius in Metern für Wege
 TARGET_CRS = 'EPSG:25833'
 
 # Datenquellen-Konfiguration
 DATA_SOURCES = {
     'bikelanes': {
-        'file_path': BIKELANES_FGB,
-        'buffer_meters': BIKELANES_BUFFER_METERS,
-        'description': 'OSM-Radwege'
+        'file_path': INPUT_BIKELANES_FGB,
+        'buffer_meters': BUFFER_BIKELANES_METERS,
+        'description': 'TILDA Radwege'
     },
     'streets': {
-        'file_path': STREETS_FGB,
-        'buffer_meters': STREETS_BUFFER_METERS,
-        'description': 'TILDA Straßen Berlin'
+        'file_path': INPUT_STREETS_FGB,
+        'buffer_meters': BUFFER_STREETS_METERS,
+        'description': 'TILDA Straßen'
     },
     'paths': {
-        'file_path': PATHS_FGB,
-        'buffer_meters': PATHS_BUFFER_METERS,
-        'description': 'TILDA Wege Berlin'
+        'file_path': INPUT_PATHS_FGB,
+        'buffer_meters': BUFFER_PATHS_METERS,
+        'description': 'TILDA Wege'
     }
 }
 
@@ -108,7 +108,7 @@ def find_osm_ways_in_buffer(osm_gdf, unified_buffer, cache_path, fraction_thresh
         matched_gdf = matched_gdf.loc[:, ~matched_gdf.columns.duplicated()]
         matched_gdf.to_file(cache_path, driver='FlatGeobuf')
         print(f'Zwischenergebnis gespeichert in {cache_path}')
-    print(f'Gefundene OSM-Way-IDs nach erstem Filter: {len(matched_gdf)}')
+    print(f'Gefundene TILDA Linien im Buffer: {len(matched_gdf)}')
     return matched_gdf
 
 
@@ -418,7 +418,7 @@ def main():
     """
     args = parse_arguments()
     # Vorrangnetz einmalig laden
-    vorrangnetz_gdf = load_geodataframe(VORRANGNETZ_FGB, "Vorrangnetz", TARGET_CRS)
+    vorrangnetz_gdf = load_geodataframe(INPUT_VORRANGNETZ_FGB, "Vorrangnetz", TARGET_CRS)
 
     # Dictionary zum Sammeln aller verarbeiteten Datensätze
     processed_datasets = {}

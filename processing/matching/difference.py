@@ -22,7 +22,7 @@ def difference_streets_without_bikelanes(streets_gdf, bikelanes_gdf, target_crs=
     print(f"Erzeuge {BUFFER_METERS}m Buffer um Radwege ...")
     bikelanes_buffer = bikelanes_gdf.buffer(BUFFER_METERS)
     bikelanes_union = bikelanes_buffer.unary_union
-    print("Berechne Differenz: entferne Straßen im Radwege-Buffer ...")
+    print("Berechne Differenz: Entferne Linien im Radwege/Straßen-Buffer ...")
     diff_geoms = streets_gdf.geometry.apply(lambda geom: geom.difference(bikelanes_union) if not geom.is_empty else geom)
     result_gdf = streets_gdf.copy()
     result_gdf["geometry"] = diff_geoms
