@@ -91,7 +91,7 @@ def main():
     data_dir = os.path.join(base_dir, "data")
 
     # Dateipfade für Eingabe- und Ausgabedateien definieren
-    buffered_network_path = os.path.join(output_dir, "vorrangnetz_buffered.fgb")
+    buffered_network_path = os.path.join(output_dir, "matching", "vorrangnetz_buffered.fgb")
     streets_detail_path = os.path.join(data_dir, "Berlin Straßenabschnitte Detailnetz.fgb")
     output_path = os.path.join(output_dir, "vorrangnetz_details.fgb")
     radvorrangsnetz_path = os.path.join(data_dir, "Berlin Radvorrangsnetz.fgb")

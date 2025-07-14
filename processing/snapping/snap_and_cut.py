@@ -7,7 +7,7 @@ from helpers.progressbar import print_progressbar
 from helpers.globals import DEFAULT_CRS
 
 # --- Konfiguration ---
-INPUT_OSM_WAYS = './output/matched_osm_ways.fgb'
+INPUT_OSM_WAYS = './output/matching/matched_osm_ways.fgb'
 INPUT_TARGET_NETWORK = './output/vorrangnetz_details_combined_rvn.fgb'
 OUTPUT_SNAPPED_WAYS = './output/qa-snapping/snapped_osm_ways.fgb'
 OUTPUT_UNSNAPPED_WAYS = './output/qa-snapping/unsnapped_osm_ways.fgb'
@@ -185,7 +185,7 @@ def main():
     # 10% Teilbereich für QA
     if not snapped_gdf.empty:
         snapped_10pct = calculate_snapping_percentage(snapped_gdf, 10)
-        output_10pct = './output/snapped_osm_ways_10pct.fgb'
+        output_10pct = './output/matching/snapped_osm_ways_10pct.fgb'
         snapped_10pct.to_file(output_10pct, driver='FlatGeobuf')
         print(f"10% Teilbereich gespeichert: {output_10pct}")
     

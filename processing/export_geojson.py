@@ -12,7 +12,13 @@ def export_all_geojson():
     with open(gitignore_path, 'w') as f:
         f.write('*.geojson\n')
 
+    # Export from main output directory
     fgb_files = glob.glob(os.path.join(OUTPUT_DIR, '*.fgb'))
+    
+    # Export from matching subdirectory
+    matching_dir = os.path.join(OUTPUT_DIR, 'matching')
+    if os.path.exists(matching_dir):
+        fgb_files.extend(glob.glob(os.path.join(matching_dir, '*.fgb')))
 
     for fgb_file in fgb_files:
         gdf = gpd.read_file(fgb_file)

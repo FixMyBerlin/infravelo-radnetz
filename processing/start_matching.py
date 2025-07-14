@@ -39,9 +39,10 @@ def create_unified_buffer(vorrangnetz_gdf, buffer_meters, target_crs):
     unified_buffer = vorrangnetz_buffer.union_all()
     unified_buffer_gdf = gpd.GeoDataFrame(geometry=[unified_buffer], crs=target_crs)
     # Speichere das gebufferte Vorrangnetz zur Kontrolle
+    os.makedirs('./output/matching', exist_ok=True)
     buffered_gdf = gpd.GeoDataFrame(geometry=[unified_buffer], crs=target_crs)
-    buffered_gdf.to_file('./output/vorrangnetz_buffered.fgb', driver='FlatGeobuf')
-    print('Gebuffertes Vorrangnetz gespeichert als ./output/vorrangnetz_buffered.fgb')
+    buffered_gdf.to_file('./output/matching/vorrangnetz_buffered.fgb', driver='FlatGeobuf')
+    print('Gebuffertes Vorrangnetz gespeichert als ./output/matching/vorrangnetz_buffered.fgb')
     return unified_buffer, unified_buffer_gdf
 
 
@@ -142,7 +143,7 @@ def apply_manual_interventions(args, matched_gdf, osm_gdf, output_prefix):
             manual_gdf.append(removed_gdf)
         manual_gdf = pd.concat(manual_gdf, ignore_index=True)
         manual_gdf = manual_gdf.loc[:,~manual_gdf.columns.duplicated()]
-        output_path = f'./output/osm_{output_prefix}_manual_interventions.fgb'
+        output_path = f'./output/matching/osm_{output_prefix}_manual_interventions.fgb'
         manual_gdf.to_file(output_path, driver='FlatGeobuf')
         print(f'Zwischen-Datei mit manuellen Eingriffen gespeichert als {output_path}')
 
@@ -158,7 +159,7 @@ def write_outputs(matched_gdf, output_prefix):
         matched_gdf = matched_gdf.drop(columns=['index_right'])
     matched_gdf = matched_gdf.loc[:,~matched_gdf.columns.duplicated()]
     # Schreibe FlatGeobuf
-    fgb_file = f'./output/matched_osm_{output_prefix}_ways.fgb'
+    fgb_file = f'./output/matching/matched_osm_{output_prefix}_ways.fgb'
     matched_gdf.to_file(fgb_file, driver='FlatGeobuf')
     print(f'FlatGeobuf gespeichert in {fgb_file}')
 
@@ -173,7 +174,7 @@ def export_matched_way_ids(matched_gdf, output_prefix):
     # Extrahiere eindeutige IDs als Liste
     matched_ids = matched_gdf[id_col].drop_duplicates().astype(str).tolist()
     # Schreibe die IDs in eine Textdatei
-    output_path = f'./output/matched_osm_{output_prefix}_way_ids.txt'
+    output_path = f'./output/matching/matched_osm_{output_prefix}_way_ids.txt'
     with open(output_path, 'w') as f:
         for way_id in matched_ids:
             f.write(f"{way_id}\n")
@@ -204,7 +205,7 @@ def process_data_source(osm_fgb_path, output_prefix, vorrangnetz_gdf, unified_bu
     # Schritt 1: OSM-Daten laden
     osm_gdf = load_geodataframe(osm_fgb_path, f"OSM {output_prefix}", TARGET_CRS)
     # Schritt 2: OSM-Wege im Buffer finden
-    cache_path = f'./output/osm_{output_prefix}_in_buffering.fgb'
+    cache_path = f'./output/matching/osm_{output_prefix}_in_buffering.fgb'
     matched_gdf_step1 = find_osm_ways_in_buffer(osm_gdf, unified_buffer, cache_path)
     # Schritt 3: Optional Orthogonalfilter anwenden
     use_orthogonal_filter = (output_prefix == 'bikelanes' and not args.skip_orthogonalfilter_bikelanes) or \
@@ -333,7 +334,7 @@ def main():
 
     # Differenz Straßen - Radwege berechnen
     if not args.skip_difference_streets_bikelanes:
-        output_path = './output/matched_osm_streets_without_bikelanes.fgb'
+        output_path = './output/matching/matched_osm_streets_without_bikelanes.fgb'
         if streets_gdf is not None and bikelanes_gdf is not None:
             _ = get_or_create_difference_fgb(
                 streets_gdf,
@@ -348,7 +349,7 @@ def main():
 
     # Kombiniere Straßen- und Fahrradwegdaten
     if streets_gdf is not None or bikelanes_gdf is not None:
-        combined_path = './output/matched_osm_ways.fgb'
+        combined_path = './output/matching/matched_osm_ways.fgb'
         combined_gdf = combine_street_and_bikelane_data(streets_gdf, bikelanes_gdf, combined_path)
         if combined_gdf is not None:
             print(f"Kombinierte Daten gespeichert: {combined_path}")

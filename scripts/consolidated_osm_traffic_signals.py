@@ -48,7 +48,7 @@ else:
 
 # 3. Die konsolidierten Punkte auf dem Radvorrangsnetz verorten
 print("Filtere Punkte, die sich auf dem Radvorrangsnetz befinden...")
-buffer_path = os.path.join('output', 'vorrangnetz_buffered.fgb')
+buffer_path = os.path.join('output', 'matching', 'vorrangnetz_buffered.fgb')
 if os.path.exists(buffer_path):
     gdf_buffer = gpd.read_file(buffer_path)
     gdf_buffer = gdf_buffer.to_crs("EPSG:25833")

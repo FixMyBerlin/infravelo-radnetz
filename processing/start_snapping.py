@@ -17,8 +17,7 @@ from pathlib import Path
 
 import numpy as np
 import geopandas as gpd
-from shapely.geometry import LineString, MultiLineString, Point, MultiPoint
-from shapely.ops import split as shp_split, linemerge
+from shapely.geometry import LineString, MultiLineString, Point
 from helpers.progressbar import print_progressbar
 from helpers.globals import DEFAULT_CRS
 

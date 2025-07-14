@@ -41,7 +41,7 @@ Die Module sind nach Funktionalität organisiert:
   - [ ] Find way to calculate the length of the edges
 - [ ] RVN edges on OSM Ways
 - [ ] Provide Extract for Neukölln (via script)
-- [ ] Provide CSV file of all OSM  Ways, which are part of the RVN
+- [x] Provide TXT file of all OSM  Ways, which are part of the RVN
 
 ## Filters
 
@@ -117,7 +117,7 @@ Im Folgenden sind alle Dateien aufgeführt, die von den Verarbeitungsskripten al
 
 ### OpenStreetMap / TILDA Daten
 
-- **`output/matched_osm_ways.fgb`**
+- **`output/matching/matched_osm_ways.fgb`**
   - Enthält OSM-Wege, die im Buffer des Radvorrangnetzes liegen.
   - Wird in `main.py` erstellt und in weiteren Schritten (z.B. `snap_and_cut.py`) wieder eingelesen.
 - **`output/qa-snapping/snapped_osm_ways.fgb`**
@@ -129,13 +129,13 @@ Im Folgenden sind alle Dateien aufgeführt, die von den Verarbeitungsskripten al
 - **`output/osm_short_ways.fgb`**
   - Kurze OSM-Wege, gefiltert durch den Orthogonalitätsfilter.
   - Erstellt und wieder eingelesen in `orthogonal_filter.py`.
-- **`output/matched_osm_bikelanes_ways.fgb`**
+- **`output/matching/matched_osm_bikelanes_ways.fgb`**
   - Gematchte OSM-Radwege.
   - Erstellt und wieder eingelesen in `main.py` und nachgelagerten Schritten.
-- **`output/matched_osm_streets_ways.fgb`**
+- **`output/matching/matched_osm_streets_ways.fgb`**
   - Gematchte OSM-Straßen.
   - Erstellt und wieder eingelesen in `main.py` und nachgelagerten Schritten.
-- **`output/matched_osm_streets_without_bikelanes.fgb`**
+- **`output/matching/matched_osm_streets_without_bikelanes.fgb`**
   - OSM-Straßen ohne Radwege (Differenz).
   - Erstellt und wieder eingelesen in `difference.py` und `main.py`.
 
