@@ -30,9 +30,8 @@ INPUT_NEUKOELLN_BOUNDARY_FILE = "Bezirk Neukölln Grenze.fgb"
 # Ausgabeverzeichnis
 OUTPUT_DIR = "./output/TILDA-translated"
 
-
 # Mappings für Oberflächenmaterial (OFM)
-OFM_SURFACE_MAPPING = {
+MAPPING_OFM_SURFACE = {
     "asphalt": "Asphalt",
     "concrete": "Beton (Platte etc.)",
     "concrete:plates": "Beton (Platte etc.)",
@@ -55,7 +54,7 @@ OFM_SURFACE_MAPPING = {
 }
 
 # Mappings für physische Protektion (PROTEK)
-PROTEK_SEPARATION_MAPPING = {
+MAPPING_PROTEK_SEPARATION = {
     "bollard": "Poller (auf Sperrfläche)",
     "bump": "Schwellen (auf Sperrfläche)",
     "vertical_panel": "Leitboys (flexibel, auf Breitstrich, ohne Sperrfläche)",
@@ -65,15 +64,15 @@ PROTEK_SEPARATION_MAPPING = {
 }
 
 # Traffic Signs für Benutzungspflicht
-PFLICHT_TRAFFIC_SIGNS = ["237", "240", "241"]
+TRAFFIC_SIGNS_PFLICHT = ["237", "240", "241"]
 
 # Traffic Signs für Nutzungsbeschränkungen
-NUTZ_BESCHR_TRAFFIC_SIGNS = ["Gehwegschäden", "Radwegschäden", "Geh- und Radwegschäden"]
+TRAFFIC_SIGNS_NUTZ_BESCHR = ["Gehwegschäden", "Radwegschäden", "Geh- und Radwegschäden"]
 
 # Liste der zu entfernenden Attribute (ohne tilda-Prefix)
 CONFIG_REMOVE_TILDA_ATTRIBUTES = [
-    "mapillary_coverage", "mapillary", "tunnel", "mapillary_traffic_sign", "mapillary_backward", "mapillary_forward", "todos",
-    "updated_age", "updated_at", "width_source", "surface_confidence", "smoothness_confidence", "smoothness_source" "length", "_parent_highway"
+    "mapillary_coverage", "mapillary", "bridge", "tunnel", "mapillary_traffic_sign", "mapillary_backward", "mapillary_forward", "todos",
+    "updated_age", "updated_at", "width_source", "surface_confidence", "smoothness_confidence", "smoothness_source", "length", "offset", "_parent_highway"
 ]
 
 
@@ -158,15 +157,15 @@ def determine_fuehrung(row, data_type: str) -> str:
           has_traffic_sign(traffic_sign, "1022-10")):
         return "Gehweg mit Zusatzzeichen \"Radverkehr frei\" (Z239 mit Z1022-10)"
     elif (category == "pedestrianAreaBicycleYes" and 
-          has_traffic_sign(traffic_sign, "242") and 
+          (has_traffic_sign(traffic_sign, "242") or has_traffic_sign(traffic_sign, "242.1")) and
           has_traffic_sign(traffic_sign, "1022-10")):
         return "Fußgängerzone \"Radverkehr frei\" (Z242 mit Z1022-10)"
     elif category == "crossing":
         return "[TODO] Kreuzungs-Querung"
     elif category == "needsClarification":
-        return "[TODO]Klärung notwendig"
+        return "[TODO] Klärung notwendig"
     
-    logging.warning(f"Keine Führung gefunden für category={category}, traffic_sign={traffic_sign}")
+    logging.warning(f"Keine Führung gefunden für category={category}, traffic_sign={traffic_sign}, osm_id={row.get('osm_id', 'unbekannt')}")
     return "NICHT-GEFUNDEN"
 
 
@@ -187,7 +186,7 @@ def determine_pflicht(row, data_type: str) -> bool:
     traffic_sign = str(row.get("traffic_sign", ""))
     
     # Prüfe auf Benutzungspflicht-Zeichen (Z237, Z240, Z241)
-    for sign in PFLICHT_TRAFFIC_SIGNS:
+    for sign in TRAFFIC_SIGNS_PFLICHT:
         if has_traffic_sign(traffic_sign, sign):
             return True
     
@@ -210,8 +209,8 @@ def determine_ofm(row) -> str:
         return "NICHT-GEFUNDEN"
     
     # Prüfe Mappings
-    if surface in OFM_SURFACE_MAPPING:
-        return OFM_SURFACE_MAPPING[surface]
+    if surface in MAPPING_OFM_SURFACE:
+        return MAPPING_OFM_SURFACE[surface]
     elif surface=="none":
         return "[TODO] Oberfläche Fehlt"
     
@@ -250,14 +249,13 @@ def determine_protek(row) -> str:
     
     # Nur für geschützte Radfahrstreifen relevant
     if category != "cyclewayOnHighwayProtected":
-        return "entfällt"
+        return "Ohne"
     
     # Prüfe verschiedene Separation-Attribute (left/right)
     for side in ["left", "right"]:
-        separation = row.get(f"separation:{side}", "") or row.get("separation", "")
-        traffic_mode = row.get(f"traffic_mode:{side}", "")
-        markings = row.get(f"markings:{side}", "") or row.get("markings", "")
-        buffer_val = row.get(f"buffer:{side}", "")
+        separation = row.get(f"separation_{side}", "") or row.get("separation", "")
+        traffic_mode = row.get(f"traffic_mode_{side}", "")
+        markings = row.get(f"marking_{side}", "") or row.get("marking", "")
         
         separation_str = str(separation).strip().lower()
         
@@ -266,8 +264,8 @@ def determine_protek(row) -> str:
             return "Ruhender Verkehr (mit Sperrfläche)"
         
         # Prüfe Separation-Mappings
-        if separation_str in PROTEK_SEPARATION_MAPPING:
-            return PROTEK_SEPARATION_MAPPING[separation_str]
+        if separation_str in MAPPING_PROTEK_SEPARATION:
+            return MAPPING_PROTEK_SEPARATION[separation_str]
         
         # Nur Sperrfläche
         if "barred_area" in str(markings).lower() and separation_str == "no":
@@ -275,40 +273,58 @@ def determine_protek(row) -> str:
     
     # TODO: Weitere komplexe Logik für Poller mit/ohne Sperrfläche
     logging.warning(f"Keine Protektion gefunden für Feature {row.get('osm_id', 'unbekannt')}")
-    return "NICHT-GEFUNDEN"
+    return "[TODO] Protektionstyp fehlt"
 
 
 def determine_trennstreifen(row) -> str:
     """
-    Bestimmt das Vorhandensein eines Sicherheitstrennstreifens.
-    
+    Bestimmt das Vorhandensein eines Sicherheitstrennstreifens (nur rechte Seite relevant).
+
     Args:
         row: Datenzeile mit OSM-Attributen
-    
+
     Returns:
         "ja", "nein" oder "entfällt"
     """
-    # Prüfe für beide Seiten (left/right)
-    for side in ["left", "right"]:
-        traffic_mode = str(row.get(f"traffic_mode:{side}", "")).strip().lower()
-        markings = str(row.get(f"markings:{side}", "")).strip().lower()
-        buffer_val = row.get(f"buffer:{side}", "")
-        cycleway_markings = str(row.get(f"cycleway:{side}:markings:{side}", "")).strip().lower()
-        parking = str(row.get(f"parking:{side}", "")).strip().lower()
-        
-        # Kein rechtsseitig ruhender Verkehr
-        if "no" in parking and side == "right":
+    category = str(row.get("category", "")).strip().lower()
+
+    # Für Fahrradstraßen beide Seiten prüfen
+    # TODO Überlegen - was ist mit dem Fall nur auf einer Seite parkende Autos?
+    if category.startswith("bicycleroad"):
+        for side in ["left", "right"]:
+            traffic_mode = str(row.get(f"traffic_mode_{side}", "")).strip().lower()
+            markings = str(row.get(f"marking_{side}", "")).strip().lower()
+            is_parking = traffic_mode == "parking"
+            if ("dashed_line" in markings or "solid_line" in markings) and is_parking:
+                return "ja"
+        # Falls kein Sicherheitstrennstreifen auf beiden Seiten
+        if not (str(row.get("traffic_mode_left", "")).strip().lower() == "parking" or
+                str(row.get("traffic_mode_right", "")).strip().lower() == "parking"):
             return "entfällt"
-        
-        # Bei cycleway:SIDE=lane: cycleway:SIDE:markings:right=dashed_line AND parking:right~=no
-        if "dashed_line" in cycleway_markings and "no" not in parking:
-            return "ja"
-        
-        # Bei bicycle_street=yes: markings:SIDE=dashed_line AND parking:SIDE~=no
-        bicycle_street = str(row.get("bicycle_street", "")).strip().lower()
-        if bicycle_street == "yes" and "dashed_line" in markings and "no" not in parking:
-            return "ja"
-    
+        return "nein"
+
+    # TODO Dies sollte für Radfahrstreifen und Schutzstreifen gelten ???
+    # Nur rechte Seite prüfen
+    traffic_mode_right = str(row.get("traffic_mode_right", "")).strip().lower()
+    markings_right = str(row.get("marking_right", "")).strip().lower()
+    is_parking_right = traffic_mode_right == "parking"
+    buffer_right = row.get("buffer_right", None)
+
+    # Kein rechtsseitig ruhender Verkehr
+    if not is_parking_right:
+        return "entfällt"
+
+    # Überprüfe, ob buffer_right vorhanden und mindestens 0.6 ist
+    try:
+        buffer_right_val = float(buffer_right) if buffer_right is not None and buffer_right != "" else None
+    except (ValueError, TypeError):
+        buffer_right_val = None
+
+    # Bei markings_right=dashed_line oder solid_line UND parking vorhanden UND buffer_right >= 0.6
+    # TODO Markings should also be checked for "dashed_line" or "solid_line"
+    if is_parking_right and buffer_right_val is not None and buffer_right_val >= 0.6:
+        return "ja"
+
     return "nein"
 
 
@@ -325,7 +341,7 @@ def determine_nutz_beschr(row) -> str:
     traffic_sign = str(row.get("traffic_sign", ""))
     
     # Prüfe auf Schadensschilder
-    for sign in NUTZ_BESCHR_TRAFFIC_SIGNS:
+    for sign in TRAFFIC_SIGNS_NUTZ_BESCHR:
         if sign in traffic_sign:
             return "Schadensschild/StVO Zusatzeichen (Straßenschäden, Gehwegschäden, Radwegschäden)"
     
@@ -349,7 +365,7 @@ def assign_prefix_and_remove_unnecessary_attrs(gdf: gpd.GeoDataFrame) -> gpd.Geo
     
     # Liste der neuen RVN-Attribute, die nicht umbenannt werden sollen
     rvn_attributes = ["pflicht", "breite", "ofm", "farbe", "protek", "trennstreifen", "nutz_beschr", 
-                     "fuehr", "bemerkung"]
+                     "fuehr"]
     
     # Erstelle Mapping für Umbenennung
     rename_mapping = {}
@@ -422,12 +438,6 @@ def translate_tilda_attributes(gdf: gpd.GeoDataFrame, data_type: str) -> gpd.Geo
         # Nutzungsbeschränkung
         nutz_beschr = determine_nutz_beschr(row)
         result_gdf.loc[result_gdf.index[idx-1], "nutz_beschr"] = nutz_beschr
-        
-        # Bemerkung für temporäre Wege
-        bemerkung = ""
-        if str(row.get("temporary", "")).lower() == "yes":
-            bemerkung = "Weg als temporärer Weg eingetragen; vermutlich Baustellen-Weg"
-        result_gdf.loc[result_gdf.index[idx-1], "bemerkung"] = bemerkung
         
         # Fortschrittsanzeige
         print_progressbar(idx, total, prefix=f"Übersetze {data_type}: ")

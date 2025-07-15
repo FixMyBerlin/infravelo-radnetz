@@ -38,9 +38,8 @@ def has_traffic_sign(traffic_sign_value: str, target_sign: str) -> bool:
             sign_number = part[3:]  # Entferne "DE:" Präfix
             if sign_number == target_sign:
                 return True
-        # Wenn der Teil nur eine Nummer ist und wir bereits ein "DE:" am Anfang hatten
-        elif part.isdigit() and "DE:" in traffic_sign_str:
-            if part == target_sign:
-                return True
+        # Wenn der Teil eine Verkehrsschildnummer ist (auch mit Bindestrich) und wir bereits ein "DE:" am Anfang hatten
+        elif "DE:" in traffic_sign_str and part == target_sign:
+            return True
     
     return False

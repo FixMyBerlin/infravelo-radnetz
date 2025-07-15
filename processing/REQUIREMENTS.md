@@ -140,7 +140,9 @@ Ist nur bei `Geschützter Radfahrstreifen` (`category=protectedCyclewayOnHighway
 
 ### `trennstreifen` (Sicherheitstrennstreifen bei rechtsseitig ruhendem Verkehr)
 
->Das Vorhandensein eines Sicherheitstrennstreifens zum in Fahrtrichtung rechtsseitigen ruhenden Verkehr ist zu erfassen. Vergleiche hierzu die Regelpläne 311 und 312.  
+>Das Vorhandensein eines Sicherheitstrennstreifens zum in Fahrtrichtung rechtsseitigen ruhenden Verkehr ist zu erfassen. Vergleiche hierzu die Regelpläne 311 und 312.
+
+   > **❗ Achtung:** Hier muss noch die Betrachtung von Fahrradstraßen rein, da diese beidseitig einen Trennstreifen benötigen.
 
 - "Ja"
   - Wenn `traffic_mode:right=parking + marking:right=dashed_line|solid_line + (cycleway:right:)buffer:right=0.6`
