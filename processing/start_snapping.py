@@ -10,7 +10,31 @@ enrich_streetnet_with_osm.py
       beginnt_bei_vp     = From-Node
       endet_bei_vp       = To-Node
       verkehrsrichtung   = R / G / B
---------------------------------------------------------------------
+----------------------------    # ---------- Daten laden -------------------------------------------------
+    # Logging konfigurieren mit detaillierteren Informationen
+    logging.basicConfig(
+        level=logging.INFO, 
+        format='%(asctime)s - %(levelname)s: %(message)s',
+        datefmt='%H:%M:%S'
+    )
+    
+    def read(path):
+        f, *layer = path.split(":")
+        return gpd.read_file(f, layer=layer[0] if layer else None)
+
+    logging.info("Lade Netzwerk- und OSM-Daten ...")
+    net = read(net_path).to_crs(crs)
+    osm = read(osm_path).to_crs(crs)
+    
+    logging.info(f"Netzwerk: {len(net)} Features geladen")
+    logging.info(f"OSM-Ways: {len(osm)} Features geladen")
+
+    # Prüfen, ob alle Pflichtfelder im Netz vorhanden sind
+    for fld in (RVN_ATTRIBUT_ELEMENT_NR, RVN_ATTRIBUT_BEGINN_VP, RVN_ATTRIBUT_ENDE_VP, RVN_ATTRIBUT_VERKEHRSRICHTUNG, "okstra_id"):
+        if fld not in net.columns:
+            sys.exit(f"Pflichtfeld "{fld}" fehlt im Netz!")
+
+    # ---------- Netz segmentieren und speichern ------------------------------------------------------
 """
 import argparse, sys
 from pathlib import Path
@@ -255,34 +279,94 @@ def split_network_into_segments(net_gdf, crs, segment_length=1.0):
     return gpd.GeoDataFrame(segmente, crs=crs)
 
 
+def normalize_merge_attribute(value):
+    """
+    Normalisiert Attributwerte für das Merging.
+    Behandelt None/NaN-Werte und Floating-Point-Präzision.
+    """
+    if pd.isna(value) or value is None:
+        return "NULL"  # Einheitlicher Wert für fehlende Daten
+    if isinstance(value, float):
+        # Runde Float-Werte auf eine Dezimalstelle für konsistentes Grouping
+        return round(value, 1)
+    if isinstance(value, bool):
+        return str(value)  # Boolean zu String für konsistentes Grouping
+    return str(value).strip()  # String normalisieren
+
+
 def merge_segments(gdf, id_field, osm_fields):
     """
     Verschmilzt benachbarte Segmente mit gleicher okstra_id und identischen OSM-Attributen.
+    Behandelt None/NaN-Werte und Floating-Point-Präzision korrekt.
     Zeigt einen Fortschrittsbalken an.
     """
     from shapely.ops import linemerge
+    import logging
+    
+    # Erstelle eine Kopie für die Bearbeitung
+    gdf_work = gdf.copy()
+    
+    # Normalisiere die Merge-Attribute für konsistentes Grouping
+    for field in osm_fields:
+        if field in gdf_work.columns:
+            gdf_work[f"{field}_normalized"] = gdf_work[field].apply(normalize_merge_attribute)
+        else:
+            logging.warning(f"Merge-Attribut '{field}' nicht in den Daten gefunden!")
+            gdf_work[f"{field}_normalized"] = "NULL"
+    
+    # Verwende die normalisierten Felder für das Grouping
+    normalized_fields = [f"{field}_normalized" for field in osm_fields]
+    groupby_fields = [id_field] + normalized_fields
+    
+    # Debug-Output: Zeige die Anzahl einzigartiger Kombinationen
+    unique_combinations = gdf_work[groupby_fields].drop_duplicates()
+    logging.info(f"Anzahl einzigartiger Attributkombinationen: {len(unique_combinations)}")
+    
     gruppen = []
-    # Gruppiere die Segmente nach okstra_id und den übergebenen OSM-Attributen
-    grouped = list(gdf.groupby([id_field] + osm_fields))
+    # Gruppiere die Segmente nach okstra_id und den normalisierten OSM-Attributen
+    grouped = list(gdf_work.groupby(groupby_fields))
     total = len(grouped)
-    for idx, (_, gruppe) in enumerate(grouped, 1):
+    
+    logging.info(f"Anzahl Gruppen zum Verschmelzen: {total}")
+    
+    for idx, (group_key, gruppe) in enumerate(grouped, 1):
         # Extrahiere die Geometrien der aktuellen Gruppe
         geoms = list(gruppe.geometry)
         if not geoms:
             continue
+        
+        # Debug: Zeige Gruppengröße
+        if len(geoms) > 1:
+            logging.debug(f"Verschmelze {len(geoms)} Segmente in Gruppe {group_key}")
+        
         # Verschmelze die Geometrien zu einer Linie (MultiLineStrings werden zusammengeführt)
         merged = linemerge(geoms)
+        
         # Übernehme die Attribute der ersten Zeile der Gruppe für das verschmolzene Segment
+        # Aber verwende die Original-Werte, nicht die normalisierten
         merged_row = gruppe.iloc[0].copy()
         merged_row["geometry"] = merged
+        
+        # Entferne die temporären normalisierten Felder
+        for field in normalized_fields:
+            if field in merged_row.index:
+                merged_row = merged_row.drop(field)
+        
         gruppen.append(merged_row)
+        
         # Zeige Fortschritt für den Nutzer
         print_progressbar(idx, total, prefix="Verschmelze: ")
+    
     if not gruppen:
         # Fehlerfall: Es wurden keine Gruppen gefunden
         raise ValueError("No segments to merge. Check input data and grouping fields.")
+    
     # Erzeuge ein neues GeoDataFrame aus den verschmolzenen Segmenten
-    return gpd.GeoDataFrame(gruppen, geometry="geometry", crs=gdf.crs)
+    result_gdf = gpd.GeoDataFrame(gruppen, geometry="geometry", crs=gdf.crs)
+    
+    logging.info(f"Verschmelzung abgeschlossen: {len(gdf)} → {len(result_gdf)} Segmente")
+    
+    return result_gdf
 
 
 def determine_direction_attributes(seg_verkehrsrichtung: str, osm_oneway: str, osm_oneway_bicycle: str, 
@@ -302,7 +386,7 @@ def determine_direction_attributes(seg_verkehrsrichtung: str, osm_oneway: str, o
     
     if oneway_bicycle == "yes" or oneway_bicycle == "implicit_yes":
         verkehrsri = "Einrichtungsverkehr"
-    elif not is_bikelane(osm_category) and oneway == "yes":
+    elif not is_bikelane(osm_category) and (oneway == "yes" or oneway == "yes_dual_carriageway"):
         verkehrsri = "Einrichtungsverkehr"
     elif oneway == "no" and oneway_bicycle == "no":
         verkehrsri = "Zweirichtungsverkehr"
@@ -378,6 +462,54 @@ def create_segment_variants(seg_dict: dict, matched_osm_ways: list) -> list[dict
         variants.append(variant)
     
     return variants
+
+
+def debug_merge_attributes(gdf, id_field, osm_fields, sample_okstra_id=None):
+    """
+    Debug-Funktion: Analysiert die Attributwerte für das Merging.
+    Zeigt potenzielle Probleme bei der Gruppierung auf.
+    """
+    import logging
+    
+    # Wähle eine okstra_id zum Debuggen (falls nicht angegeben, nimm die erste)
+    if sample_okstra_id is None:
+        sample_okstra_id = gdf[id_field].iloc[0]
+    
+    # Filtere Segmente mit der gewählten okstra_id
+    sample_segments = gdf[gdf[id_field] == sample_okstra_id].copy()
+    
+    logging.info(f"\n=== DEBUG: Attributanalyse für okstra_id = {sample_okstra_id} ===")
+    logging.info(f"Anzahl Segmente mit dieser okstra_id: {len(sample_segments)}")
+    
+    if len(sample_segments) <= 1:
+        logging.info("Nur ein Segment - kein Merging möglich.")
+        return
+    
+    # Analysiere jeden Merge-Attribut
+    for field in osm_fields:
+        if field not in sample_segments.columns:
+            logging.warning(f"Feld '{field}' nicht in den Daten!")
+            continue
+            
+        unique_values = sample_segments[field].value_counts(dropna=False)
+        logging.info(f"\nAttribut '{field}':")
+        logging.info(f"  Einzigartige Werte: {len(unique_values)}")
+        
+        for value, count in unique_values.items():
+            logging.info(f"    {repr(value)}: {count} Segmente")
+        
+        # Zeige erste paar Werte im Detail
+        first_few = sample_segments[field].head(5)
+        logging.info(f"  Erste 5 Werte: {list(first_few)}")
+        logging.info(f"  Datentypen: {[type(x) for x in first_few]}")
+    
+    # Zeige die Kombinationen der Merge-Attribute
+    if len(osm_fields) > 1:
+        combinations = sample_segments[osm_fields].drop_duplicates()
+        logging.info(f"\nEinzigartige Attributkombinationen: {len(combinations)}")
+        for idx, row in combinations.iterrows():
+            logging.info(f"  Kombination {idx}: {dict(row)}")
+
 
 
 # ------------------------------------------------------------- Hauptablauf --
@@ -514,6 +646,11 @@ def process(net_path, osm_path, out_path, crs, buf):
 
     # ---------- Segmente verschmelzen ---------------------------------------
     logging.info("Fasse Segmente mit gleicher okstra_id und OSM-Attributen zusammen ...")
+    
+    # Debug: Analysiere Merge-Attribute vor dem Verschmelzen
+    logging.info(f"Zu verwendende Merge-Attribute: {FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES}")
+    debug_merge_attributes(net_segmented, "okstra_id", FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES)
+    
     out_gdf = merge_segments(net_segmented, "okstra_id", FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES)
 
     # ---------- Ergebnis speichern ------------------------------------------
@@ -546,3 +683,4 @@ if __name__ == "__main__":
 
     # Hauptfunktion aufrufen
     process(args.net, args.osm, args.out, args.crs, args.buffer)
+

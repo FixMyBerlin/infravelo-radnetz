@@ -20,14 +20,14 @@ Siehe https://docs.google.com/spreadsheets/d/1GjvJZkBGIGyeYdw9z1yKYb7YLZZsugQgkQ
 - `Zweirichtungsverkehr`
 
 **Definition**
-- `bikelanes`:
+- Datensatz: `bikelanes`:
   - `oneway=yes` => Einrichtungsverkehr
   - `oneway=no` => Zweirichtungsverkehr
   - `oneway=car_not_bike` => Zweirichtungsverkehr
   - `oneway=assumed_no` => (QA)
   - `oneway=implicit_yes` => (QA)
 
-- `roads`:
+- Datensatz: `roads`:
   - `oneway=nil` => Zweirichtungsverkehr
   - `oneway=yes` => Einrichtungsverkehr
   - `oneway=yes_dual_carriageway` => Einrichtungsverkehr
@@ -50,7 +50,7 @@ Siehe https://docs.google.com/spreadsheets/d/1GjvJZkBGIGyeYdw9z1yKYb7YLZZsugQgkQ
 - `Fahrradstraße /-zone (Z 244)`
   - => bikelanes: `category=bicycleRoad,  bicycleRoad_vehicleDestination"` (OR)
 - `Radweg`
-  - => bikelanes: `category=footAndCyclewayShared_*,  footAndCyclewaySegregated_*,  cyclewaySeparated_*` (OR LIKE)
+  - => bikelanes: `category=footAndCyclewayShared_*,  footAndCyclewaySegregated_*,  cycleway_adjoining, cyclewaySeparated_*` (OR LIKE)
 - `Gemeinsamer Geh- und Radweg mit Z240`
   - => bikelanes: `category="footAndCyclewayShared_* + traffic_sign INCLUDES 240` (AND)
 - `Bussonderfahrstreifen mit Radverkehr frei (Z245 mit Z1022-10)`
@@ -64,6 +64,9 @@ Siehe https://docs.google.com/spreadsheets/d/1GjvJZkBGIGyeYdw9z1yKYb7YLZZsugQgkQ
   - => roads
 - `Sonstige Wege (Gehwege, Wege durch Grünflächen, Plätze)`
   - => roadsPathClasses
+
+- `[TODO]Klärung notwendig`
+  - => bikelanes: `category=needsClarification`
 
 ### `pflicht` (Benutzungspflicht der RVA)
 
