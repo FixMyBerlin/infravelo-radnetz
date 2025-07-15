@@ -24,9 +24,12 @@ INPUT_FILES = {
     "streets": "TILDA Straßen Berlin.fgb", 
     "paths": "TILDA Wege Berlin.fgb"
 }
+# Neukölln Grenzendatei
+INPUT_NEUKOELLN_BOUNDARY_FILE = "Bezirk Neukölln Grenze.fgb"
 
 # Ausgabeverzeichnis
 OUTPUT_DIR = "./output/TILDA-translated"
+
 
 # Mappings für Oberflächenmaterial (OFM)
 OFM_SURFACE_MAPPING = {
@@ -66,6 +69,12 @@ PFLICHT_TRAFFIC_SIGNS = ["237", "240", "241"]
 
 # Traffic Signs für Nutzungsbeschränkungen
 NUTZ_BESCHR_TRAFFIC_SIGNS = ["Gehwegschäden", "Radwegschäden", "Geh- und Radwegschäden"]
+
+# Liste der zu entfernenden Attribute (ohne tilda-Prefix)
+CONFIG_REMOVE_TILDA_ATTRIBUTES = [
+    "mapillary_coverage", "mapillary", "tunnel", "mapillary_traffic_sign", "mapillary_backward", "mapillary_forward", "todos",
+    "updated_age", "updated_at", "width_source", "surface_confidence", "smoothness_confidence", "smoothness_source" "length", "_parent_highway"
+]
 
 
 # --------------------------------------------------------- Hilfsfunktionen --
@@ -325,9 +334,9 @@ def determine_nutz_beschr(row) -> str:
     return "keine"
 
 
-def add_tilda_prefix(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+def assign_prefix_and_remove_unnecessary_attrs(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     """
-    Fügt den Prefix 'tilda_' zu allen ursprünglichen Attributen hinzu.
+    Fügt den Prefix 'tilda_' zu allen ursprünglichen Attributen hinzu und entfernt bestimmte unerwünschte Attribute.
     
     Args:
         gdf: GeoDataFrame mit TILDA-Attributen
@@ -335,6 +344,9 @@ def add_tilda_prefix(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     Returns:
         GeoDataFrame mit umbenannten Spalten
     """
+    # Entferne diese Spalten, falls vorhanden
+    gdf = gdf.drop(columns=[col for col in CONFIG_REMOVE_TILDA_ATTRIBUTES if col in gdf.columns], errors='ignore')
+    
     # Liste der neuen RVN-Attribute, die nicht umbenannt werden sollen
     rvn_attributes = ["pflicht", "breite", "ofm", "farbe", "protek", "trennstreifen", "nutz_beschr", 
                      "fuehr", "bemerkung"]
@@ -427,14 +439,14 @@ def translate_tilda_attributes(gdf: gpd.GeoDataFrame, data_type: str) -> gpd.Geo
             logging.warning(f"{count} von {total} Features ({percentage:.1f}%) haben keine Zuordnung für '{attr}'")
     
     # Füge tilda_ Prefix zu ursprünglichen Attributen hinzu
-    result_gdf = add_tilda_prefix(result_gdf)
+    result_gdf = assign_prefix_and_remove_unnecessary_attrs(result_gdf)
     
     logging.info(f"✔ Übersetzung für {data_type} abgeschlossen")
     
     return result_gdf
 
 
-def process_file(input_file: str, data_type: str, output_dir: str, crs: str) -> None:
+def process_file(input_file: str, data_type: str, output_dir: str, crs: str, clip_neukoelln: bool = False, data_dir: str = "./data") -> None:
     """
     Verarbeitet eine einzelne TILDA-Datei.
     
@@ -443,6 +455,8 @@ def process_file(input_file: str, data_type: str, output_dir: str, crs: str) -> 
         data_type: Art der Daten ("bikelanes", "streets", "paths")
         output_dir: Ausgabeverzeichnis
         crs: Ziel-Koordinatensystem
+        clip_neukoelln: Ob auf Neukölln zugeschnitten werden soll
+        data_dir: Verzeichnis mit den Eingabedateien
     """
     logging.info(f"Verarbeite {input_file} als {data_type}")
     
@@ -450,15 +464,76 @@ def process_file(input_file: str, data_type: str, output_dir: str, crs: str) -> 
     gdf = gpd.read_file(input_file).to_crs(crs)
     logging.info(f"Geladen: {len(gdf)} Features")
     
+    # Optional: Auf Neukölln zuschneiden
+    if clip_neukoelln:
+        gdf = clip_to_neukoelln(gdf, data_dir, crs)
+    
     # Übersetze Attribute
     translated_gdf = translate_tilda_attributes(gdf, data_type)
-    
+
+    # Sortiere die Spalten alphabetisch, geometry ans Ende
+    cols = [col for col in translated_gdf.columns if col != "geometry"]
+    sorted_cols = sorted(cols) + ["geometry"]
+    translated_gdf = translated_gdf[sorted_cols]
+
     # Speichere Ergebnis
-    output_file = os.path.join(output_dir, f"TILDA {data_type.title()} Berlin.fgb")
+    filename_suffix = " Neukoelln" if clip_neukoelln else ""
+    output_file = os.path.join(output_dir, f"TILDA {data_type.title()}{filename_suffix} Translated.fgb")
     os.makedirs(output_dir, exist_ok=True)
     translated_gdf.to_file(output_file, driver="FlatGeobuf")
     
     logging.info(f"✔ Gespeichert: {output_file} ({len(translated_gdf)} Features)")
+
+
+def clip_to_neukoelln(gdf: gpd.GeoDataFrame, data_dir: str, crs: str) -> gpd.GeoDataFrame:
+    """
+    Schneidet die Geodaten auf die Grenzen von Neukölln zu.
+    Basierend auf clip_bikelanes.py.
+    
+    Args:
+        gdf: GeoDataFrame mit den zu zuschneidenden Daten
+        data_dir: Verzeichnis mit den Eingabedateien
+        crs: Ziel-Koordinatensystem
+    
+    Returns:
+        Zugeschnittenes GeoDataFrame
+    """
+    
+    # Pfad zur Neukölln-Grenzendatei
+    boundary_path = os.path.join(data_dir, INPUT_NEUKOELLN_BOUNDARY_FILE)
+    
+    if not os.path.exists(boundary_path):
+        logging.warning(f"Neukölln-Grenzendatei nicht gefunden: {boundary_path}")
+        logging.warning("Überspringe Clipping - verwende vollständige Daten")
+        return gdf
+    
+    try:
+        logging.info(f"Lade Neukölln-Grenzen: {boundary_path}")
+        clip_polygons = gpd.read_file(boundary_path)
+        
+        # Koordinatensystem vereinheitlichen
+        if gdf.crs != clip_polygons.crs:
+            logging.info("Transformiere Koordinatensystem für Clipping")
+            gdf = gdf.to_crs(clip_polygons.crs)
+        
+        # Fasse alle Polygone zu einer einzigen Geometrie zusammen
+        logging.info("Schneide Daten auf Neukölln zu")
+        clip_boundary = clip_polygons.unary_union
+        
+        # Führe den Zuschnitt durch
+        clipped_gdf = gdf.clip(clip_boundary)
+        
+        # Zurück zum gewünschten CRS
+        if clipped_gdf.crs != crs:
+            clipped_gdf = clipped_gdf.to_crs(crs)
+        
+        logging.info(f"Clipping abgeschlossen: {len(gdf)} → {len(clipped_gdf)} Features")
+        return clipped_gdf
+        
+    except Exception as e:
+        logging.error(f"Fehler beim Clipping: {e}")
+        logging.warning("Überspringe Clipping - verwende vollständige Daten")
+        return gdf
 
 
 def main():
@@ -473,15 +548,19 @@ def main():
     # Kommandozeilenargumente parsen
     parser = argparse.ArgumentParser(description="Übersetzt TILDA-Attribute in RVN-Attribute")
     parser.add_argument("--data-dir", default="./data", 
-                       help="Pfad zum Datenverzeichnis (default: ../data)")
+                       help="Pfad zum Datenverzeichnis (default: ./data)")
     parser.add_argument("--output-dir", default=OUTPUT_DIR,
                        help=f"Ausgabeverzeichnis (default: {OUTPUT_DIR})")
     parser.add_argument("--crs", type=int, default=DEFAULT_CRS,
                        help=f"Ziel-EPSG (default: {DEFAULT_CRS})")
+    parser.add_argument("--clip-neukoelln", action="store_true",
+                       help="Schneide Daten auf Neukölln zu (optional)")
     
     args = parser.parse_args()
     
     logging.info("Starte TILDA-zu-RVN Attributübersetzung")
+    if args.clip_neukoelln:
+        logging.info("Clipping auf Neukölln aktiviert")
     
     # Verarbeite alle Eingabedateien
     for data_type, filename in INPUT_FILES.items():
@@ -492,7 +571,7 @@ def main():
             continue
         
         try:
-            process_file(input_path, data_type, args.output_dir, args.crs)
+            process_file(input_path, data_type, args.output_dir, args.crs, args.clip_neukoelln, args.data_dir)
         except Exception as e:
             logging.error(f"Fehler beim Verarbeiten von {input_path}: {e}")
             continue
