@@ -124,7 +124,7 @@ def determine_fuehrung(row, data_type: str) -> str:
         data_type: Art der Daten ("bikelanes", "streets", "paths")
     
     Returns:
-        Radverkehrsführungstyp oder "NICHT-GEFUNDEN"
+        Radverkehrsführungstyp oder "[TODO] Führung fehlt"
     """
     if data_type == "streets":
         return "Mischverkehr mit motorisiertem Verkehr"
@@ -150,12 +150,15 @@ def determine_fuehrung(row, data_type: str) -> str:
         if category.startswith("footAndCyclewayShared") and has_traffic_sign(traffic_sign, "240"):
             return "Gemeinsamer Geh- und Radweg mit Z240"
         return "Radweg"
-    elif category == "sharedBusLaneBusWithBike":
-        return "Bussonderfahrstreifen mit Radverkehr frei (Z245 mit Z1022-10)"
-    elif (category.startswith("footwayBicycleYes") and 
-          has_traffic_sign(traffic_sign, "239") and 
-          has_traffic_sign(traffic_sign, "1022-10")):
-        return "Gehweg mit Zusatzzeichen \"Radverkehr frei\" (Z239 mit Z1022-10)"
+    elif category.startswith("footwayBicycleYes"):
+        # Prüfe auf Zusatzzeichen "Radverkehr frei" (Z239 mit Z1022-10)
+        if has_traffic_sign(traffic_sign, "239") and has_traffic_sign(traffic_sign, "1022-10"):
+            return "Gehweg mit Zusatzzeichen \"Radverkehr frei\" (Z239 mit Z1022-10)"
+        # Falls kein traffic_sign vorhanden, als Sonstige Wege klassifizieren
+        elif traffic_sign.strip() in ["none", "nan"]:
+            return "Sonstige Wege (Gehwege, Wege durch Grünflächen, Plätze)"
+        else:
+            return "[TODO] Gehweg ohne Verkehrszeichen"
     elif (category == "pedestrianAreaBicycleYes" and 
           (has_traffic_sign(traffic_sign, "242") or has_traffic_sign(traffic_sign, "242.1")) and
           has_traffic_sign(traffic_sign, "1022-10")):
@@ -166,7 +169,7 @@ def determine_fuehrung(row, data_type: str) -> str:
         return "[TODO] Klärung notwendig"
     
     logging.warning(f"Keine Führung gefunden für category={category}, traffic_sign={traffic_sign}, osm_id={row.get('osm_id', 'unbekannt')}")
-    return "NICHT-GEFUNDEN"
+    return "[TODO] Führung fehlt"
 
 
 def determine_pflicht(row, data_type: str) -> bool:
