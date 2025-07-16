@@ -78,6 +78,61 @@ CONFIG_REMOVE_TILDA_ATTRIBUTES = [
 
 
 # --------------------------------------------------------- Hilfsfunktionen --
+def determine_verkehrsri(row, data_type: str) -> str:
+    """
+    Bestimmt die Verkehrsrichtung (Radverkehr) basierend auf oneway-Attributen.
+    
+    Args:
+        row: Datenzeile mit OSM-Attributen
+        data_type: Art der Daten ("bikelanes", "streets", "paths")
+    
+    Returns:
+        Verkehrsrichtung oder TODO-Hinweis
+    """
+    oneway = str(row.get("oneway", "")).strip()
+    oneway_bicycle = str(row.get("oneway_bicycle", "")).strip()
+    
+    if data_type == "bikelanes":
+        # Spezifische Regeln für bikelanes
+        if oneway == "yes":
+            return "Einrichtungsverkehr"
+        elif oneway == "no":
+            return "Zweirichtungsverkehr"
+        elif oneway == "car_not_bike":
+            return "Zweirichtungsverkehr"
+        elif oneway == "assumed_no":
+            return "[TODO] Vermutlich nein"
+        elif oneway == "implicit_yes":
+            return "[TODO] Vermutlich ja"
+        elif not oneway or oneway in ["None", "none"]:
+            # Fehlende Werte
+            return "[TODO] Fehlender Wert"
+        else:
+            logging.warning(f"Unbekannter oneway-Wert für bikelanes: {oneway}, osm_id={row.get('osm_id', 'unbekannt')}")
+            return "[TODO] Fehlerhafter Wert"
+    
+    elif data_type in ["streets", "paths"]:
+        # Spezifische Regeln für streets und paths
+        if not oneway or oneway in ["None", "none", "nil"]:
+            # oneway=nil oder leere Werte
+            return "Zweirichtungsverkehr"
+        elif oneway == "yes":
+            return "Einrichtungsverkehr"
+        elif oneway == "yes_dual_carriageway":
+            return "Einrichtungsverkehr"
+        elif oneway == "no":
+            return "Zweirichtungsverkehr"
+        elif oneway_bicycle == "no":
+            return "Zweirichtungsverkehr"
+        else:
+            logging.warning(f"Unbekannter oneway-Wert für {data_type}: {oneway}, osm_id={row.get('osm_id', 'unbekannt')}")
+            return "[TODO] Fehlerhafter Wert"
+    
+    # Fallback
+    logging.warning(f"Unbekannter data_type für verkehrsri: {data_type}")
+    return "[TODO] Fehlerhafter Wert"
+
+
 def determine_fuehrung(row, data_type: str) -> str:
     """
     Bestimmt die Art der Radverkehrsführung basierend auf category und traffic_sign.
@@ -331,7 +386,7 @@ def assign_prefix_and_remove_unnecessary_attrs(gdf: gpd.GeoDataFrame) -> gpd.Geo
     
     # Liste der neuen RVN-Attribute, die nicht umbenannt werden sollen
     rvn_attributes = ["pflicht", "breite", "ofm", "farbe", "protek", "trennstreifen", "nutz_beschr", 
-                     "fuehr"]
+                     "fuehr", "verkehrsri"]
     
     # Erstelle Mapping für Umbenennung
     rename_mapping = {}
@@ -367,6 +422,10 @@ def translate_tilda_attributes(gdf: gpd.GeoDataFrame, data_type: str) -> gpd.Geo
     total = len(result_gdf)
     
     for idx, (_, row) in enumerate(result_gdf.iterrows(), 1):
+        # Verkehrsrichtung (Radverkehr)
+        verkehrsri = determine_verkehrsri(row, data_type)
+        result_gdf.loc[result_gdf.index[idx-1], "verkehrsri"] = verkehrsri
+        
         # Art der Radverkehrsführung
         fuehr = determine_fuehrung(row, data_type)
         if fuehr == "NICHT-GEFUNDEN":

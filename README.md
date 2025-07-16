@@ -31,9 +31,10 @@ source .venv/bin/activate
 # Install packages in venv environment
 pip install -r processing/requirements.txt
 
-# Add desired flags for extra processing steps.
-# For overview of the flags, see ./processing/README.md
-./.venv/bin/python processing/main.py
+# The process needs to be executed in this order
+./.venv/bin/python processing/translate_attributes_tilda_to_rvn.py
+./.venv/bin/python processing/start_matching.py
+./.venv/bin/python processing/start_snapping.py
 
 # Snapping algo is separately and not in main.py (yet)
 ```

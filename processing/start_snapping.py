@@ -349,7 +349,7 @@ def is_bikelane(category: str) -> bool:
 
 def create_segment_variants(seg_dict: dict, matched_osm_ways: list) -> list[dict]:
     """
-    Erstellt Varianten eines Straßensegments basierend auf OSM-Wegen.
+    Erstellt Varianten (Doppelung) eines Straßensegments basierend auf OSM-Wegen.
     Dupliziert das Segment für beide Richtungen und setzt entsprechende Attribute.
     
     Args:

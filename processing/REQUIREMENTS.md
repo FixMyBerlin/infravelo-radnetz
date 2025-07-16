@@ -27,12 +27,13 @@ Siehe https://docs.google.com/spreadsheets/d/1GjvJZkBGIGyeYdw9z1yKYb7YLZZsugQgkQ
   - `oneway=assumed_no` => (QA)
   - `oneway=implicit_yes` => (QA)
 
-- Datensatz: `roads`:
+- Datensatz: `roads` und Datensatz: `paths`:
   - `oneway=nil` => Zweirichtungsverkehr
   - `oneway=yes` => Einrichtungsverkehr
   - `oneway=yes_dual_carriageway` => Einrichtungsverkehr
   - `oneway=no` => Zweirichtungsverkehr
   - `oneway_bicycle=no` => Zweirichtungsverkehr
+
 
 ### `fuehr` (Art der Radverkehrsführung)
 
