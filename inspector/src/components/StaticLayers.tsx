@@ -30,7 +30,7 @@ export const StaticLayers = () => {
         filter={['==', '$type', 'Polygon']}
         paint={{
           'fill-color': '#27272a',
-          'fill-opacity': 0.7,
+          'fill-opacity': ['interpolate', ['linear'], ['zoom'], 0, 0.99, 13.5, 0.95, 14, 0.7],
         }}
       />
 
@@ -46,8 +46,9 @@ export const StaticLayers = () => {
         source-layer="default"
         filter={['==', '$type', 'Polygon']}
         paint={{
-          'line-width': 1,
-          'line-color': 'black',
+          'line-width': 2,
+          'line-color': 'white',
+          'line-dasharray': [1, 5],
           'line-opacity': 1,
           'line-offset': 0,
         }}

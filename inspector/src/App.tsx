@@ -335,7 +335,7 @@ const App = () => {
                   </div>
                 ))}
                 <div className="mt-2">
-                  <TildaUpdateInfo />
+                  <TildaUpdateInfo source={source} />
                 </div>
               </section>
             </nav>
@@ -511,9 +511,9 @@ const App = () => {
                           )
                       }
                     })}
+                  <StaticLayers />
                 </Fragment>
               )}
-              <StaticLayers />
             </Map>
           </div>
 

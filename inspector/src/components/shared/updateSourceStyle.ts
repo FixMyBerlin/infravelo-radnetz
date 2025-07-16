@@ -1,5 +1,5 @@
 import type { DataDrivenPropertyValueSpecification } from 'maplibre-gl'
-import { DAYS_SINCE_CUTOFF } from './ageBasedStyle'
+import { CUTOFF_TIMESTAMP } from './ageBasedStyle'
 import type { LayerLegend } from './types'
 
 // Color constants
@@ -15,8 +15,8 @@ export const getUpdateSourceStyle: DataDrivenPropertyValueSpecification<string> 
   // First check if updated by FMC account
   ['in', 'fmc_', ['get', 'updated_by']],
   FMC_UPDATED,
-  // Then check if recently updated by another account (using updated_age in days)
-  ['<=', ['get', 'updated_age'], DAYS_SINCE_CUTOFF],
+  // Then check if recently updated by another account (using updated_at as epoch timestamp)
+  ['>=', ['get', 'updated_at'], CUTOFF_TIMESTAMP],
   OTHER_RECENT_UPDATE,
   // Otherwise it's an old update by another account
   OTHER_OLD_UPDATE,

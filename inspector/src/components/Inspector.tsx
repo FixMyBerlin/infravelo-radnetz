@@ -93,6 +93,26 @@ export const Inspector = ({ inspectorFeatures, activeLayerConfigs }: Props) => {
                           TILDA
                         </a>
                       )}
+                      {feature.properties.changeset_id && (
+                        <>
+                          <a
+                            href={`https://www.openstreetmap.org/changeset/${feature.properties.changeset_id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs whitespace-nowrap text-blue-500 hover:underline"
+                          >
+                            Changeset
+                          </a>
+                          <a
+                            href={`https://osmcha.org/changesets/${feature.properties.changeset_id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs whitespace-nowrap text-blue-500 hover:underline"
+                          >
+                            OSMCha
+                          </a>
+                        </>
+                      )}
                     </div>
                   </div>
                   <ul className="space-y-0.5">
@@ -126,6 +146,15 @@ export const Inspector = ({ inspectorFeatures, activeLayerConfigs }: Props) => {
                                     <>
                                       {key.endsWith('_at') && typeof value === 'string' ? (
                                         <>{formatDistanceToNow(parseISO(value))} ago </>
+                                      ) : null}
+                                      {key === 'updated_at' && typeof value === 'number' ? (
+                                        <>
+                                          {new Date(value * 1000).toLocaleString()} <br />
+                                          {Math.floor(
+                                            (Date.now() - value * 1000) / (1000 * 60 * 60 * 24),
+                                          )}{' '}
+                                          days ago
+                                        </>
                                       ) : null}
                                       {key.includes('mapillary') && key != 'mapillary_coverage' ? (
                                         <a

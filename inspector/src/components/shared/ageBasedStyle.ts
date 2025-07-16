@@ -4,19 +4,16 @@ import type { LayerLegend } from './types'
 // Project cutoff date
 export const CUTOFF_DATE = '2025-07-01'
 
-// Calculate days between cutoff date and today
+// Calculate cutoff timestamp in seconds since epoch
 const cutoffDate = new Date(CUTOFF_DATE)
-const today = new Date()
-export const DAYS_SINCE_CUTOFF = Math.floor(
-  (today.getTime() - cutoffDate.getTime()) / (1000 * 60 * 60 * 24),
-)
+export const CUTOFF_TIMESTAMP = Math.floor(cutoffDate.getTime() / 1000)
 
 const FRESH_COLOR = '#32CD32' // green
 const OLD_COLOR = '#8B4513' // rust-brown
 
 export const getAgeColor: DataDrivenPropertyValueSpecification<string> = [
   'case',
-  ['<=', ['get', 'updated_age'], DAYS_SINCE_CUTOFF],
+  ['>=', ['get', 'updated_at'], CUTOFF_TIMESTAMP],
   FRESH_COLOR,
   OLD_COLOR,
 ]
