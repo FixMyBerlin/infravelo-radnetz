@@ -2,7 +2,7 @@
 
 The checkedin datasets are used to 
 
-The `bikelanes.fgb` is the export of the TILDA Region, based on OpenStreetMap.
+The `TILDA Radwege Berlin.fgb` is the export of the TILDA Region, based on OpenStreetMap.
 `TILDA Straßen Berlin.fgb` is the export of the street network of TILDA Region, based on OpenStreetMap.
 `Berlin Radvorrangsnetz.fgb` is a filtered geodata file of the cycle network of Berlin, which only contains "Radvorrangsnetz" edges.
 

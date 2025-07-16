@@ -15,7 +15,7 @@ Aufrufbeispiel:
     python ./scripts/clip_bikelanes.py \\
         --input ./bikelanes.fgb \\
         --clip-features ./data/"Berlin Bezirke.gpkg" \\
-        --output ./bikelanes_berlin.fgb
+        --output ./TILDA Radwege Berlin.fgb
 
 
 Nutzen für TILDA roads Datensatz:
@@ -45,7 +45,7 @@ def clip_geodata(input_path: str, clip_features_path: str, output_path: str):
     :param input_path: Pfad zur Eingabedatei (z.B. bikelanes.fgb).
     :param clip_features_path: Pfad zur Datei mit den Polygonen für den Zuschnitt
                                (z.B. Berlin Bezirke.gpkg).
-    :param output_path: Pfad zur Ausgabedatei (z.B. bikelanes_berlin.fgb).
+    :param output_path: Pfad zur Ausgabedatei (z.B. TILDA Radwege Berlin.fgb).
     """
     try:
         # Lade die Eingabedatei mit den Linien
@@ -104,7 +104,7 @@ def main():
                         default="data/Berlin Bezirke.gpkg",
                         help="Pfad zur Datei mit den Polygonen für den Zuschnitt.")
     parser.add_argument("--output",
-                        default="bikelanes_berlin.fgb",
+                        default="TILDA Radwege Berlin.fgb",
                         help="Pfad zur Ausgabedatei.")
     args = parser.parse_args()
 

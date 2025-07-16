@@ -57,8 +57,9 @@ RVN_ATTRIBUT_BEGINN_VP = "beginnt_bei_vp"       # Startknoten-ID
 RVN_ATTRIBUT_ENDE_VP   = "endet_bei_vp"         # Endknoten-ID
 RVN_ATTRIBUT_VERKEHRSRICHTUNG  = "verkehrsrichtung"     # Werte: R / G / B (Richtung)
 
-FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES = ["osm_road", "ri", "verkehrsri", "pflicht", "breite"]
-#FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES = ["osm_road"]
+# Attribute an denen die Kanten getrennt werden bzw. verschmolzen werden
+# Diese Attribute müssen in den übersetzten TILDA Daten vorhanden sein
+FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES = ["fuehr", "ofm", "protek", "pflicht", "breite", "farbe", "ri", "verkehrsri"]
 
 # Prioritäten für OSM-Weg-Auswahl (höhere Zahl = höhere Priorität)
 TILDA_TRAFFIC_SIGN_PRIORITÄTEN = {
@@ -211,43 +212,6 @@ def calculate_osm_priority(row) -> int:
         priority = max(priority, TILDA_CATEGORY_PRIORITIES[str(category)])
     
     return priority
-
-
-def parse_width(width_value) -> float:
-    """
-    Wandelt OSM-Breitenangaben in standardisierte Meter-Werte um.
-    Rundet auf 0,10 m-Stellen und gibt das Ergebnis als Float zurück.
-    
-    Args:
-        width_value: OSM width-Wert (kann String oder Number sein)
-    
-    Returns:
-        Breite in Metern gerundet auf 0,10 m, oder None wenn nicht parsbar
-    """
-    if not width_value or pd.isna(width_value):
-        return None
-        
-    try:
-        # String zu Float konvertieren, falls nötig
-        if isinstance(width_value, str):
-            # Entferne Einheiten und andere Zeichen
-            width_str = str(width_value).strip().lower()
-            # Entferne "m", "meter", "metres" etc.
-            width_str = width_str.replace("m", "").replace("eter", "").replace("tres", "")
-            # Entferne Leerzeichen
-            width_str = width_str.strip()
-            # Falls mehrere Werte durch Semikolon getrennt sind, nehme den ersten
-            if ";" in width_str:
-                width_str = width_str.split(";")[0].strip()
-            width_float = float(width_str)
-        else:
-            width_float = float(width_value)
-        
-        # Auf 0,10 m runden (d.h. auf eine Dezimalstelle)
-        return round(width_float, 1)
-        
-    except (ValueError, TypeError):
-        return None
 
 
 def new_neg_id(counter):
@@ -430,13 +394,9 @@ def create_segment_variants(seg_dict: dict, matched_osm_ways: list) -> list[dict
         
         if best_osm is not None:
             # OSM-Attribute übertragen (ohne osm_ Präfix, da die Original-Feldnamen verwendet werden)
-            for attr in ["osm_id", "category", "road", "name", "surface", 
-                        "surface_color", "oneway", "traffic_sign", "width", "bikelane_self"]:
+            for attr in ["tilda_id", "oneway", "category", "traffic_sign"]:
                 original_attr = attr if attr == "osm_id" else attr  # osm_id bleibt, rest ohne Präfix
                 variant[f"osm_{attr}"] = best_osm.get(original_attr, None)
-            
-            # Breite aus OSM-Width-Attribut parsen
-            variant["breite"] = parse_width(best_osm.get("width", None))
             
             # Verkehrsrichtung bestimmen
             verkehrsri = determine_direction_attributes(
@@ -446,18 +406,6 @@ def create_segment_variants(seg_dict: dict, matched_osm_ways: list) -> list[dict
                 best_osm.get("category", "")
             )
             variant["verkehrsri"] = verkehrsri
-            
-            # Pflicht-Attribut setzen
-            traffic_sign = best_osm.get("traffic_sign", "")
-            variant["pflicht"] = any(has_traffic_sign(traffic_sign, sign) for sign in TILDA_TRAFFIC_SIGN_PRIORITÄTEN.keys())
-        else:
-            # Keine OSM-Daten gefunden - Standardwerte setzen
-            variant["verkehrsri"] = "Zweirichtungsverkehr"
-            variant["pflicht"] = False
-            variant["breite"] = None
-            for attr in ["osm_id", "category", "road", "name", "surface", 
-                        "surface_color", "oneway", "traffic_sign", "width", "bikelane_self"]:
-                variant[f"osm_{attr}"] = None
         
         variants.append(variant)
     
@@ -538,7 +486,7 @@ def process(net_path, osm_path, out_path, crs, buf):
     # ---------- Netz segmentieren und speichern -----------------------------
     logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
     
-    # Stelle sicher, dass das Ausgabeverzeichnis existiert
+    # Stelle sicher, dass das segmentierte Detailnetz und das Ausgabeverzeichnis existiert
     seg_path = "./output/qa-snapping/rvn-segmented.fgb"
     os.makedirs(os.path.dirname(seg_path), exist_ok=True)
     

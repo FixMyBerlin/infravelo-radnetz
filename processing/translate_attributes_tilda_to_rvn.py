@@ -4,23 +4,23 @@
 translate_attributes_tilda_to_rvn.py
 -----------------------------------
 Übersetzt TILDA-Attribute in RVN-Attribute basierend auf den Mapping-Regeln.
-Verarbeitet bikelanes.fgb, TILDA Straßen Berlin.fgb und TILDA Wege Berlin.fgb.
+Verarbeitet TILDA Radwege Berlin.fgb, TILDA Straßen Berlin.fgb und TILDA Wege Berlin.fgb.
 """
 
 import argparse
 import logging
 import os
-import pandas as pd
 import geopandas as gpd
 from helpers.globals import DEFAULT_CRS
 from helpers.progressbar import print_progressbar
 from helpers.traffic_signs import has_traffic_sign
+from helpers.width_parser import parse_width
 
 
 # --------------------------------------------------------- Konstanten --
 # Eingabedateien im data/ Ordner
 INPUT_FILES = {
-    "bikelanes": "bikelanes.fgb",
+    "bikelanes": "TILDA Radwege Berlin.fgb",
     "streets": "TILDA Straßen Berlin.fgb", 
     "paths": "TILDA Wege Berlin.fgb"
 }
@@ -77,44 +77,6 @@ CONFIG_REMOVE_TILDA_ATTRIBUTES = [
 
 
 # --------------------------------------------------------- Hilfsfunktionen --
-def parse_width(width_value) -> float:
-    """
-    Wandelt OSM-Breitenangaben in standardisierte Meter-Werte um.
-    Rundet auf 0,10 m-Stellen und gibt das Ergebnis als Float zurück.
-    Übernommen aus start_snapping.py
-    
-    Args:
-        width_value: OSM width-Wert (kann String oder Number sein)
-    
-    Returns:
-        Breite in Metern gerundet auf 0,10 m, oder None wenn nicht parsbar
-    """
-    if not width_value or pd.isna(width_value):
-        return None
-        
-    try:
-        # String zu Float konvertieren, falls nötig
-        if isinstance(width_value, str):
-            # Entferne Einheiten und andere Zeichen
-            width_str = str(width_value).strip().lower()
-            # Entferne "m", "meter", "metres" etc.
-            width_str = width_str.replace("m", "").replace("eter", "").replace("tres", "")
-            # Entferne Leerzeichen
-            width_str = width_str.strip()
-            # Falls mehrere Werte durch Semikolon getrennt sind, nehme den ersten
-            if ";" in width_str:
-                width_str = width_str.split(";")[0].strip()
-            width_float = float(width_str)
-        else:
-            width_float = float(width_value)
-        
-        # Auf 0,10 m runden (d.h. auf eine Dezimalstelle)
-        return round(width_float, 1)
-        
-    except (ValueError, TypeError):
-        return None
-
-
 def determine_fuehrung(row, data_type: str) -> str:
     """
     Bestimmt die Art der Radverkehrsführung basierend auf category und traffic_sign.

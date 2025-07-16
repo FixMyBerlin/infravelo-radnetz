@@ -10,7 +10,7 @@ from export_geojson import export_all_geojson
 from helpers.progressbar import print_progressbar
 
 # Konfiguration
-INPUT_BIKELANES_FGB = './data/bikelanes.fgb'  # Pfad zu OSM-Radwegen
+INPUT_BIKELANES_FGB = './data/TILDA Radwege Berlin.fgb'  # Pfad zu OSM-Radwegen
 INPUT_STREETS_FGB = './data/TILDA Straßen Berlin.fgb'  # Pfad zu OSM-Straßen
 INPUT_PATHS_FGB = './data/TILDA Wege Berlin.fgb'  # Pfad zu OSM-Wegen
 INPUT_VORRANGNETZ_FGB = './data/Berlin Radvorrangsnetz.fgb'  # Pfad zum Vorrangnetz
