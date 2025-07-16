@@ -93,6 +93,26 @@ export const Inspector = ({ inspectorFeatures, activeLayerConfigs }: Props) => {
                           TILDA
                         </a>
                       )}
+                      {feature.properties.changeset_id && (
+                        <>
+                          <a
+                            href={`https://www.openstreetmap.org/changeset/${feature.properties.changeset_id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs whitespace-nowrap text-blue-500 hover:underline"
+                          >
+                            Changeset
+                          </a>
+                          <a
+                            href={`https://osmcha.org/changesets/${feature.properties.changeset_id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs whitespace-nowrap text-blue-500 hover:underline"
+                          >
+                            OSMCha
+                          </a>
+                        </>
+                      )}
                     </div>
                   </div>
                   <ul className="space-y-0.5">
