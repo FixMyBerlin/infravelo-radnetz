@@ -511,9 +511,9 @@ const App = () => {
                           )
                       }
                     })}
+                  <StaticLayers />
                 </Fragment>
               )}
-              <StaticLayers />
             </Map>
           </div>
 
