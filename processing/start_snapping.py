@@ -11,6 +11,14 @@ start_snapping.py
       endet_bei_vp       = To-Node
       verkehrsrichtung   = R / G / B
 – Verwendet übersetzte TILDA-Attribute: fuehr, ofm, protek, pflicht, breite, farbe
+
+INPUT:
+- output/vorrangnetz_details_combined_rvn.fgb (Straßennetz)
+- output/matched/matched_tilda_ways.fgb (TILDA-übersetzte Daten)
+
+OUTPUT:
+- output/snapping_network_enriched.fgb (angereicherte Netzwerkdaten)
+(Bei Neukölln-Clipping: snapping_network_enriched_neukoelln.fgb)
 """
 import argparse, sys
 from pathlib import Path

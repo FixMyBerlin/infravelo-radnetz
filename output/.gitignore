@@ -1,4 +1,4 @@
 *.fgb
 *.geojson
 *.gpq
-*gpkg
+*.gpkg

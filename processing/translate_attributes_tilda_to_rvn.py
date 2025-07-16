@@ -4,7 +4,17 @@
 translate_attributes_tilda_to_rvn.py
 -----------------------------------
 Übersetzt TILDA-Attribute in RVN-Attribute basierend auf den Mapping-Regeln.
-Verarbeitet TILDA Radwege Berlin.fgb, TILDA Straßen Berlin.fgb und TILDA Wege Berlin.fgb.
+
+INPUT: 
+- data/TILDA Radwege Berlin.fgb
+- data/TILDA Straßen Berlin.fgb
+- data/TILDA Wege Berlin.fgb
+
+OUTPUT:
+- output/TILDA-translated/TILDA Bikelanes Translated.fgb
+- output/TILDA-translated/TILDA Streets Translated.fgb
+- output/TILDA-translated/TILDA Paths Translated.fgb
+(Bei Neukölln-Clipping: Dateien mit " Neukoelln" Suffix)
 """
 
 import argparse

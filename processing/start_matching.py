@@ -1,3 +1,30 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+start_matching.py
+--------------------------------------------------------------------
+Ordnet TILDA-übersetzte Attribute dem Berliner Radvorrangsnetz zu.
+Führt räumliches Matching durch und erstellt bereinigte Datensätze.
+
+INPUT:
+- output/TILDA-translated/TILDA Bikelanes Neukoelln Translated.fgb
+- output/TILDA-translated/TILDA Streets Neukoelln Translated.fgb
+- output/TILDA-translated/TILDA Paths Neukoelln Translated.fgb
+- data/Berlin Radvorrangsnetz.fgb
+- data/include_ways.txt (manuelle Eingriffe)
+- data/exclude_ways.txt (manuelle Eingriffe)
+
+OUTPUT TMP FILES:
+- output/matched/matched_tilda_bikelanes_ways.fgb
+- output/matched/matched_tilda_streets_ways.fgb
+- output/matched/matched_tilda_paths_ways.fgb
+- output/matched/matched_tilda_streets_without_bikelanes.fgb
+- output/matched/matched_tilda_paths_without_streets_and_bikelanes.fgb
+
+OUTPUT:
+- output/matched/matched_tilda_ways.fgb (kombinierte Datei)
+"""
+
 import geopandas as gpd
 import pandas as pd
 import logging
