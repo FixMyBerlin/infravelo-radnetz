@@ -21,11 +21,16 @@ import geopandas as gpd
 from shapely.geometry import LineString, MultiLineString, Point
 from helpers.progressbar import print_progressbar
 from helpers.globals import DEFAULT_CRS
+from helpers.traffic_signs import has_traffic_sign
+from helpers.clipping import clip_to_neukoelln
 
 
 # -------------------------------------------------------------- Konstanten --
 CONFIG_BUFFER_DEFAULT = 30.0     # Standard-Puffergröße in Metern für Matching
 CONFIG_MAX_ANGLE_DIFFERENCE = 50.0 # Maximaler Winkelunterschied für Ausrichtung in Grad
+
+# Neukölln Grenzendatei
+INPUT_NEUKOELLN_BOUNDARY_FILE = "Bezirk Neukölln Grenze.fgb"
 
 # Feldnamen für das Netz
 RVN_ATTRIBUT_ELEMENT_NR = "element_nr"           # Kanten-ID
@@ -75,6 +80,7 @@ def reverse_geom(g):
     raise TypeError
 
 
+# TODO Why is this not used anymore?
 def iter_coords(g):
     """Iteriert über alle Stützpunkte einer Geometrie, egal ob LineString oder MultiLineString."""
     if isinstance(g, LineString):
@@ -86,6 +92,7 @@ def iter_coords(g):
         raise TypeError
 
 
+# TODO Why is this not used anymore?
 def is_left(line: LineString, p: Point) -> bool:
     """Prüft, ob ein Punkt links der Linie liegt (für Richtungsprüfung)."""
     a_x, a_y = line.coords[0]
@@ -129,43 +136,6 @@ def is_bikelane(category: str) -> bool:
     if not category or pd.isna(category):
         return False
     return str(category).strip() != "sharedMotorVehicleLane"
-
-
-def has_traffic_sign(traffic_sign_value: str, target_sign: str) -> bool:
-    """
-    Prüft, ob ein bestimmtes Verkehrszeichen in einem traffic_sign Wert vorhanden ist.
-    
-    Args:
-        traffic_sign_value: Der traffic_sign Wert aus OSM (z.B. "DE:240" oder "DE:1022,240")
-        target_sign: Das gesuchte Verkehrszeichen (z.B. "240")
-    
-    Returns:
-        True wenn das Verkehrszeichen mit DE: Präfix gefunden wird
-    """
-    if not traffic_sign_value or pd.isna(traffic_sign_value):
-        return False
-    
-    traffic_sign_str = str(traffic_sign_value).strip()
-    
-    # Prüfe auf "DE:XXX" Format (direkter Match)
-    if f"DE:{target_sign}" in traffic_sign_str:
-        return True
-    
-    # Prüfe auf "DE:XXX,YYY" Format - teile bei Komma und prüfe jeden Teil
-    parts = traffic_sign_str.split(",")
-    for part in parts:
-        part = part.strip()
-        # Wenn der Teil mit "DE:" beginnt, extrahiere die Nummer
-        if part.startswith("DE:"):
-            sign_number = part[3:]  # Entferne "DE:" Präfix
-            if sign_number == target_sign:
-                return True
-        # Wenn der Teil nur eine Nummer ist und wir bereits ein "DE:" am Anfang hatten
-        elif part.isdigit() and "DE:" in traffic_sign_str:
-            if part == target_sign:
-                return True
-    
-    return False
 
 
 def calculate_osm_priority(row) -> int:
@@ -309,6 +279,7 @@ def merge_segments(gdf, id_field, osm_fields):
     return result_gdf
 
 
+# TODO Entfernen oder korrigieren, da bereits in translate_attributes_tilda_to_rvn.py umgesetzt
 def determine_direction_attributes(seg_verkehrsrichtung: str, osm_oneway: str, osm_oneway_bicycle: str, 
                                  osm_category: str) -> str:
     """
@@ -335,16 +306,6 @@ def determine_direction_attributes(seg_verkehrsrichtung: str, osm_oneway: str, o
         verkehrsri = "Zweirichtungsverkehr"
     
     return verkehrsri
-
-
-def is_bikelane(category: str) -> bool:
-    """
-    Prüft, ob ein OSM-Weg eine Bikelane ist.
-    Eine Bikelane liegt vor, wenn category gesetzt ist und nicht 'sharedMotorVehicleLane'.
-    """
-    if not category or pd.isna(category):
-        return False
-    return str(category).strip() != "sharedMotorVehicleLane"
 
 
 def create_segment_variants(seg_dict: dict, matched_osm_ways: list) -> list[dict]:
@@ -456,9 +417,8 @@ def debug_merge_attributes(gdf, id_field, osm_fields, sample_okstra_id=None):
             logging.info(f"  Kombination {idx}: {dict(row)}")
 
 
-
 # ------------------------------------------------------------- Hauptablauf --
-def process(net_path, osm_path, out_path, crs, buf):
+def process(net_path, osm_path, out_path, crs, buf, clip_neukoelln=False, data_dir="./data"):
     """
     Hauptfunktion: Segmentiert das Netz, führt das Snapping durch und verschmilzt die Segmente wieder.
     net_path: Pfad zum Netz (mit Layer)
@@ -466,6 +426,8 @@ def process(net_path, osm_path, out_path, crs, buf):
     out_path: Ausgabepfad (mit Layer)
     crs: Ziel-Koordinatensystem (EPSG)
     buf: Puffergröße für Matching
+    clip_neukoelln: Ob auf Neukölln zugeschnitten werden soll
+    data_dir: Verzeichnis mit den Eingabedateien
     """
     # ---------- Daten laden -------------------------------------------------
     # Logging konfigurieren mit detaillierteren Informationen
@@ -485,6 +447,13 @@ def process(net_path, osm_path, out_path, crs, buf):
     
     logging.info(f"Netzwerk: {len(net)} Features geladen")
     logging.info(f"TILDA-übersetzte Daten: {len(osm)} Features geladen")
+    
+    # Optional: Auf Neukölln zuschneiden
+    if clip_neukoelln:
+        logging.info("Schneide Netzwerk auf Neukölln zu")
+        net = clip_to_neukoelln(net, data_dir, crs)
+        logging.info("Schneide TILDA-übersetzte Daten auf Neukölln zu")
+        osm = clip_to_neukoelln(osm, data_dir, crs)
 
     # Prüfen, ob alle Pflichtfelder im Netz vorhanden sind
     for fld in (RVN_ATTRIBUT_ELEMENT_NR, RVN_ATTRIBUT_BEGINN_VP, RVN_ATTRIBUT_ENDE_VP, RVN_ATTRIBUT_VERKEHRSRICHTUNG, "okstra_id"):
@@ -495,7 +464,8 @@ def process(net_path, osm_path, out_path, crs, buf):
     logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
     
     # Stelle sicher, dass das segmentierte Detailnetz und das Ausgabeverzeichnis existiert
-    seg_path = "./output/qa-snapping/rvn-segmented.fgb"
+    filename_suffix = "_neukoelln" if clip_neukoelln else ""
+    seg_path = f"./output/qa-snapping/rvn-segmented{filename_suffix}.fgb"
     os.makedirs(os.path.dirname(seg_path), exist_ok=True)
     
     if os.path.exists(seg_path):
@@ -508,20 +478,19 @@ def process(net_path, osm_path, out_path, crs, buf):
         logging.info(f"✔  Segmentiertes Netz gespeichert als {seg_path}")
 
     # ---------- Snapping/Attributübernahme auf Segmente ---------------------
-    seg_attr_path = "./output/qa-snapping/rvn-segmented-attributed-osm.fgb"
+    seg_attr_path = f"./output/qa-snapping/rvn-segmented-attributed-osm{filename_suffix}.fgb"
     os.makedirs(os.path.dirname(seg_attr_path), exist_ok=True)
     
     if os.path.exists(seg_attr_path):
         logging.info(f"Lade bereits attributierte Segmente aus {seg_attr_path} ...")
         net_segmented = gpd.read_file(seg_attr_path)
     else:
-        logging.info("Führe Snapping und TILDA-Attributübernahme auf 10% der Segmente durch ...")
+        logging.info("Führe Snapping und TILDA-Attributübernahme durch ...")
         # Erzeuge einen räumlichen Index für die TILDA-Daten, um schnelle räumliche Abfragen zu ermöglichen
         osm_sidx = osm.sindex  # Räumlicher Index für TILDA-Daten
 
-        # Für Test: nur wenige Segmente bearbeiten 
+        # Verarbeite alle Segmente (nicht nur 10% für Tests)
         total = len(net_segmented)
-        n_test = max(1, int(total * 0.1))
         snapped_records = []
         # Starte die TILDA-Attributübernahme für jedes Segment
         # --------------------------------------------------
@@ -533,8 +502,6 @@ def process(net_path, osm_path, out_path, crs, buf):
         # 5. Erzeuge ggf. Varianten für beide Richtungen
         # 6. Fortschrittsanzeige für den Nutzer
         for idx, seg in enumerate(net_segmented.itertuples(), 1):
-            if idx > n_test:
-                break
             g = seg.geometry
             
             # Kandidaten im Buffer suchen (räumliche Suche)
@@ -544,8 +511,8 @@ def process(net_path, osm_path, out_path, crs, buf):
                 seg_dict = seg._asdict()
                 variants = create_segment_variants(seg_dict, [])
                 snapped_records.extend(variants)
-                logging.info(f"Keine TILDA-Kandidaten im Puffer für Segment {seg} gefunden.")
-                print_progressbar(idx, n_test, prefix="Snapping (Test 10%): ")
+                logging.debug(f"Keine TILDA-Kandidaten im Puffer für Segment {idx} gefunden.")
+                print_progressbar(idx, total, prefix="Snapping: ")
                 continue
                 
             cand = osm.iloc[cand_idx].copy()
@@ -557,8 +524,8 @@ def process(net_path, osm_path, out_path, crs, buf):
                 seg_dict = seg._asdict()
                 variants = create_segment_variants(seg_dict, [])
                 snapped_records.extend(variants)
-                logging.info(f"Keine TILDA-Kandidaten im Puffer für Segment {seg} gefunden.")
-                print_progressbar(idx, n_test, prefix="Snapping (Test 10%): ")
+                logging.debug(f"Keine TILDA-Kandidaten im Puffer für Segment {idx} gefunden.")
+                print_progressbar(idx, total, prefix="Snapping: ")
                 continue
 
             # Berechne den Winkel des Netzsegments
@@ -594,11 +561,11 @@ def process(net_path, osm_path, out_path, crs, buf):
             seg_dict = seg._asdict()
             variants = create_segment_variants(seg_dict, matched_osm_ways)
             snapped_records.extend(variants)
-            print_progressbar(idx, n_test, prefix="Snapping (Test 10%): ")
+            print_progressbar(idx, total, prefix="Snapping: ")
         # Erstelle GeoDataFrame aus allen bearbeiteten Segmenten
         net_segmented = gpd.GeoDataFrame(snapped_records, crs=crs)
         net_segmented.to_file(seg_attr_path, driver="FlatGeobuf")
-        logging.info(f"✔  Attributierte Test-Segmente gespeichert als {seg_attr_path}")
+        logging.info(f"✔  Attributierte Segmente gespeichert als {seg_attr_path}")
 
     # ---------- Segmente verschmelzen ---------------------------------------
     logging.info("Fasse Segmente mit gleicher okstra_id und TILDA-Attributen zusammen ...")
@@ -617,6 +584,17 @@ def process(net_path, osm_path, out_path, crs, buf):
     os.makedirs(os.path.dirname(p), exist_ok=True)
     Path(p).unlink(missing_ok=True)
     
+    # Füge Suffix für Neukölln-Dateien hinzu
+    if clip_neukoelln:
+        # Extrahiere Dateiname und Erweiterung
+        p_parts = p.split('.')
+        if len(p_parts) > 1:
+            p_base = '.'.join(p_parts[:-1])
+            p_ext = p_parts[-1]
+            p = f"{p_base}_neukoelln.{p_ext}"
+        else:
+            p = f"{p}_neukoelln"
+    
     out_gdf.to_file(p, layer=layer, driver="FlatGeoBuf")
     print(f"✔  {len(out_gdf)} Kanten → {p}:{layer}")
 
@@ -625,18 +603,22 @@ def process(net_path, osm_path, out_path, crs, buf):
 if __name__ == "__main__":
     # Kommandozeilenargumente parsen
     ap = argparse.ArgumentParser(description="Snapping von TILDA-übersetzten Attributen auf Straßennetz")
-    ap.add_argument("--net", default="../output/vorrangnetz_details_combined_rvn.fgb", 
-                    help="Netz-Layer (Pfad[:Layer]) - Default: ../output/vorrangnetz_details_combined_rvn.fgb")
-    ap.add_argument("--osm", default="../output/matched/matched_tilda_ways.fgb", 
+    ap.add_argument("--net", default="./output/vorrangnetz_details_combined_rvn.fgb", 
+                    help="Netz-Layer (Pfad[:Layer]) - Default: ./output/vorrangnetz_details_combined_rvn.fgb")
+    ap.add_argument("--osm", default="./output/matched/matched_tilda_ways.fgb", 
                     help="TILDA-übersetzte Daten (Pfad[:Layer]) - Default: ../output/matching/matched_tilda_ways.fgb")
-    ap.add_argument("--out", default="../output/snapping_network_enriched.fgb", 
-                    help="Ausgabe (Pfad[:Layer]) - Default: ../output/snapping_network_enriched.fgb")
+    ap.add_argument("--out", default="./output/snapping_network_enriched.fgb", 
+                    help="Ausgabe (Pfad[:Layer]) - Default: ./output/snapping_network_enriched.fgb")
     ap.add_argument("--crs",  type=int,   default=DEFAULT_CRS,
                     help=f"Ziel-EPSG (default {DEFAULT_CRS})")
     ap.add_argument("--buffer", type=float, default=CONFIG_BUFFER_DEFAULT,
                     help=f"Matching-Puffer in m (default {CONFIG_BUFFER_DEFAULT})")
+    ap.add_argument("--clip-neukoelln", action="store_true",
+                    help="Schneide Daten auf Neukölln zu (optional)")
+    ap.add_argument("--data-dir", default="./data", 
+                    help="Pfad zum Datenverzeichnis (default: ./data)")
     args = ap.parse_args()
 
     # Hauptfunktion aufrufen
-    process(args.net, args.osm, args.out, args.crs, args.buffer)
+    process(args.net, args.osm, args.out, args.crs, args.buffer, args.clip_neukoelln, args.data_dir)
 

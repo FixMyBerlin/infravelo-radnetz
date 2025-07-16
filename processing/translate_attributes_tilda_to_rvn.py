@@ -50,6 +50,7 @@ MAPPING_OFM_SURFACE = {
     "sand": "Ungebunden",
     "compacted": "Ungebunden",
     "fine_gravel": "Ungebunden",
+    "pebblestone": "Ungebunden",
     "gravel": "Ungebunden"
 }
 
@@ -72,8 +73,8 @@ TRAFFIC_SIGNS_NUTZ_BESCHR = ["Gehwegschäden", "Radwegschäden", "Geh- und Radwe
 # Liste der zu entfernenden Attribute (ohne tilda-Prefix)
 # Enthält sowohl Attribute von Bikelanes, Roads und Paths
 CONFIG_REMOVE_TILDA_ATTRIBUTES = [
-    "lit", "description", "maxspeed_name_ref", "maxspeed_confidence", "maxspeed_source", "mapillary_coverage", "mapillary", "bridge", "tunnel", "mapillary_traffic_sign", "mapillary_backward", "mapillary_forward", "todos",
-    "updated_age", "updated_at", "width_source", "surface_confidence", "smoothness_confidence", "smoothness_source", "length", "offset", "_parent_highway"
+    "lit", "description", "maxspeed_name_ref", "maxspeed_confidence", "maxspeed_conditional", "maxspeed_source", "mapillary_coverage", "mapillary", "bridge", "tunnel", "mapillary_traffic_sign", "mapillary_backward", "mapillary_forward", "todos",
+    "updated_age", "updated_at", "width_source", "surface_confidence", "surface_source", "smoothness_confidence", "smoothness_source", "length", "offset", "_parent_highway"
 ]
 
 
@@ -116,13 +117,14 @@ def determine_verkehrsri(row, data_type: str) -> str:
         if not oneway or oneway in ["None", "none", "nil"]:
             # oneway=nil oder leere Werte
             return "Zweirichtungsverkehr"
+        # Muss als zweites stehen
+        elif oneway_bicycle == "no":
+            return "Zweirichtungsverkehr"
         elif oneway == "yes":
             return "Einrichtungsverkehr"
         elif oneway == "yes_dual_carriageway":
             return "Einrichtungsverkehr"
         elif oneway == "no":
-            return "Zweirichtungsverkehr"
-        elif oneway_bicycle == "no":
             return "Zweirichtungsverkehr"
         else:
             logging.warning(f"Unbekannter oneway-Wert für {data_type}: {oneway}, osm_id={row.get('osm_id', 'unbekannt')}")
@@ -232,6 +234,8 @@ def determine_ofm(row) -> str:
     # Prüfe Mappings
     if surface in MAPPING_OFM_SURFACE:
         return MAPPING_OFM_SURFACE[surface]
+    elif surface=="grass_paver" or surface=="wood" or surface=="metal" or surface=="paved":
+        return "[TODO] Nicht zuordenbar"
     elif surface=="none":
         return "[TODO] Oberfläche Fehlt"
     

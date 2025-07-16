@@ -449,7 +449,7 @@ def main():
     # Straßen ohne Radwege
     streets_without_bikelanes = None
     if not args.skip_difference_streets_bikelanes:
-        output_path = './output/matched_tilda_streets_without_bikelanes.fgb'
+        output_path = './output/matched/matched_tilda_streets_without_bikelanes.fgb'
         streets_without_bikelanes = calculate_difference_datasets(
             processed_datasets.get('streets'),
             processed_datasets.get('bikelanes'),
