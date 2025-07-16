@@ -193,7 +193,7 @@ def filter_orthogonal_short_ways(short_ways_gdf, segments_gdf, angle_diff_thresh
                 angle_diff = 180 - angle_diff
             # Schritt 6: Wenn der Winkelunterschied größer als der Schwellwert ist, markiere den Weg als querend
             if angle_diff > angle_diff_threshold:
-                way_id = row.get('osm_id') or row.get('id')
+                way_id = row.get('tilda_osm_id') or row.get('tilda_id')
                 if way_id is not None:
                     final_short_ids.add(way_id)
     print(f"{len(final_short_ids)} kurze Wege als querend identifiziert und zum Entfernen markiert.")
@@ -235,7 +235,7 @@ def export_filtered_ways(osm_gdf, filtered_ids, output_path):
     """
     Exportiert alle OSM-Wege mit IDs in filtered_ids als FlatGeobuf.
     """
-    id_col = 'osm_id' if 'osm_id' in osm_gdf.columns else 'id'
+    id_col = 'tilda_osm_id' if 'tilda_osm_id' in osm_gdf.columns else 'tilda_id'
     filtered_gdf = osm_gdf[osm_gdf[id_col].isin(filtered_ids)].copy()
     filtered_gdf = filtered_gdf.loc[:, ~filtered_gdf.columns.duplicated()]
     filtered_gdf.to_file(output_path, driver="FlatGeobuf")

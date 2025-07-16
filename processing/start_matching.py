@@ -10,9 +10,9 @@ from export_geojson import export_all_geojson
 from helpers.progressbar import print_progressbar
 
 # Konfiguration
-INPUT_BIKELANES_FGB = './data/TILDA Radwege Berlin.fgb'  # Pfad zu OSM-Radwegen
-INPUT_STREETS_FGB = './data/TILDA Straßen Berlin.fgb'  # Pfad zu OSM-Straßen
-INPUT_PATHS_FGB = './data/TILDA Wege Berlin.fgb'  # Pfad zu OSM-Wegen
+INPUT_BIKELANES_FGB = './output/TILDA-translated/TILDA Bikelanes Neukoelln Translated.fgb'  # Pfad zu TILDA-Radwegen
+INPUT_STREETS_FGB = './output/TILDA-translated/TILDA Streets Neukoelln Translated.fgb'  # Pfad zu TILDA-Straßen
+INPUT_PATHS_FGB = './output/TILDA-translated/TILDA Paths Neukoelln Translated.fgb'  # Pfad zu TILDA-Wegen
 INPUT_VORRANGNETZ_FGB = './data/Berlin Radvorrangsnetz.fgb'  # Pfad zum Vorrangnetz
 BUFFER_BIKELANES_METERS = 25  # Buffer-Radius in Metern für Radwege
 BUFFER_STREETS_METERS = 15    # Buffer-Radius in Metern für Straßen
@@ -122,7 +122,7 @@ def apply_orthogonal_filter_if_requested(args, vorrangnetz_gdf, osm_gdf, matched
 
     if use_orthogonal_filter:
         print(f"Wende Orthogonalitäts-Filter für kurze Segmente für {output_prefix} an...")
-        id_col_step1 = 'osm_id' if 'osm_id' in matched_gdf_step1.columns else 'id'
+        id_col_step1 = 'tilda_osm_id' if 'tilda_osm_id' in matched_gdf_step1.columns else 'tilda_id'
         step1_ids = set(matched_gdf_step1[id_col_step1])
         # Zusätzliche kurze Wege durch Orthogonalitäts-Check finden
         short_way_ids = process_and_filter_short_segments(
@@ -132,13 +132,13 @@ def apply_orthogonal_filter_if_requested(args, vorrangnetz_gdf, osm_gdf, matched
         )
         # Entferne die IDs der kurzen, orthogonalen Wege aus den bisher gematchten Wegen
         final_way_ids = step1_ids.difference(short_way_ids)
-        id_col_osm = 'osm_id' if 'osm_id' in osm_gdf.columns else 'id'
+        id_col_osm = 'tilda_osm_id' if 'tilda_osm_id' in osm_gdf.columns else 'tilda_id'
         matched_gdf = osm_gdf[osm_gdf[id_col_osm].isin(final_way_ids)].copy()
         id_col = id_col_osm
         print(f"Gesamtzahl der gematchten Wege nach Herausfiltern: {len(matched_gdf)}")
     else:
         print(f"Orthogonalitäts-Filter für {output_prefix} übersprungen.")
-        id_col = 'osm_id' if 'osm_id' in matched_gdf_step1.columns else 'id'
+        id_col = 'tilda_osm_id' if 'tilda_osm_id' in matched_gdf_step1.columns else 'tilda_id'
         matched_gdf = matched_gdf_step1
     return matched_gdf, id_col
 
@@ -152,7 +152,7 @@ def apply_manual_interventions(args, matched_gdf, osm_gdf, output_prefix):
         return matched_gdf
 
     print("Wende manuelle Eingriffe an...")
-    id_col = 'osm_id' if 'osm_id' in osm_gdf.columns else 'id'
+    id_col = 'tilda_osm_id' if 'tilda_osm_id' in osm_gdf.columns else 'tilda_id'
 
     # Manuelle Ausschlüsse
     excluded_ids = get_excluded_ways()
@@ -203,7 +203,7 @@ def write_outputs(matched_gdf, output_prefix):
         matched_gdf = matched_gdf.drop(columns=['index_right'])
     matched_gdf = matched_gdf.loc[:,~matched_gdf.columns.duplicated()]
     # Schreibe FlatGeobuf
-    fgb_file = f'./output/matching/matched_osm_{output_prefix}_ways.fgb'
+    fgb_file = f'./output/matched/matched_tilda_{output_prefix}_ways.fgb'
     matched_gdf.to_file(fgb_file, driver='FlatGeobuf')
     print(f'FlatGeobuf gespeichert in {fgb_file}')
 
@@ -214,11 +214,11 @@ def export_matched_way_ids(matched_gdf, output_prefix):
     Jede Zeile enthält eine OSM way ID.
     """
     # Bestimme die ID-Spalte
-    id_col = 'osm_id' if 'osm_id' in matched_gdf.columns else 'id'
+    id_col = 'tilda_osm_id' if 'tilda_osm_id' in matched_gdf.columns else 'tilda_id'
     # Extrahiere eindeutige IDs als Liste
     matched_ids = matched_gdf[id_col].drop_duplicates().astype(str).tolist()
     # Schreibe die IDs in eine Textdatei
-    output_path = f'./output/matching/matched_osm_{output_prefix}_way_ids.txt'
+    output_path = f'./output/matched/matched_tilda_{output_prefix}_way_ids.txt'
     with open(output_path, 'w') as f:
         for way_id in matched_ids:
             f.write(f"{way_id}\n")
@@ -263,7 +263,7 @@ def process_data_source(osm_fgb_path, output_prefix, vorrangnetz_gdf, unified_bu
         matched_gdf, _ = apply_orthogonal_filter_if_requested(args, vorrangnetz_gdf, osm_gdf, matched_gdf_step1, output_prefix)
     else:
         print(f"Orthogonalitäts-Filter für {output_prefix} übersprungen.")
-        id_col = 'osm_id' if 'osm_id' in matched_gdf_step1.columns else 'id'
+        id_col = 'tilda_osm_id' if 'tilda_osm_id' in matched_gdf_step1.columns else 'tilda_id'
         matched_gdf = matched_gdf_step1
 
     # Schritt 4: Manuelle Eingriffe anwenden
@@ -329,7 +329,7 @@ def combine_multiple_datasets(datasets, output_path):
         combined_gdf = combined_gdf.loc[:, ~combined_gdf.columns.duplicated()]
     
     # Prüfe auf doppelte Geometrien/IDs
-    id_col = 'id' if 'id' in combined_gdf.columns else 'osm_id'
+    id_col = 'tilda_id' if 'tilda_id' in combined_gdf.columns else 'tilda_osm_id'
     if id_col in combined_gdf.columns:
         initial_count = len(combined_gdf)
         combined_gdf = combined_gdf.drop_duplicates(subset=[id_col])
@@ -393,7 +393,7 @@ def calculate_multiple_difference_datasets(base_gdf, subtract_gdfs, output_path,
     combined_subtract_gdf = pd.concat(available_subtract_gdfs, ignore_index=True)
     
     # Entferne Duplikate basierend auf der ID-Spalte
-    id_col = 'id' if 'id' in combined_subtract_gdf.columns else 'osm_id'
+    id_col = 'tilda_id' if 'tilda_id' in combined_subtract_gdf.columns else 'tilda_osm_id'
     if id_col in combined_subtract_gdf.columns:
         initial_count = len(combined_subtract_gdf)
         combined_subtract_gdf = combined_subtract_gdf.drop_duplicates(subset=[id_col])
@@ -449,7 +449,7 @@ def main():
     # Straßen ohne Radwege
     streets_without_bikelanes = None
     if not args.skip_difference_streets_bikelanes:
-        output_path = './output/matching/matched_osm_streets_without_bikelanes.fgb'
+        output_path = './output/matched_tilda_streets_without_bikelanes.fgb'
         streets_without_bikelanes = calculate_difference_datasets(
             processed_datasets.get('streets'),
             processed_datasets.get('bikelanes'),
@@ -461,7 +461,7 @@ def main():
     # Wege ohne Straßen UND Radwege
     paths_without_streets_and_bikelanes = None
     if not args.skip_difference_paths_streets_bikelanes:
-        output_path = './output/matching/matched_osm_paths_without_streets_and_bikelanes.fgb'
+        output_path = './output/matched/matched_tilda_paths_without_streets_and_bikelanes.fgb'
         paths_without_streets_and_bikelanes = calculate_multiple_difference_datasets(
             processed_datasets.get('paths'),
             [processed_datasets.get('streets'), processed_datasets.get('bikelanes')],
@@ -483,7 +483,7 @@ def main():
         datasets_for_combination['paths'] = paths_without_streets_and_bikelanes
 
     if datasets_for_combination:
-        combined_path = './output/matching/matched_osm_ways.fgb'
+        combined_path = './output/matched/matched_tilda_ways.fgb'
         combined_gdf = combine_multiple_datasets(datasets_for_combination, combined_path)
         if combined_gdf is not None:
             print(f"Kombinierte Daten gespeichert: {combined_path}")
@@ -491,9 +491,10 @@ def main():
     else:
         print("Warnung: Keine Daten zum Kombinieren verfügbar.")
 
+    # TODO Disabled export geojson for now
     # PMTiles-Export am Ende
-    print('Exportiere alle .fgb als .geojson ...')
-    export_all_geojson()
+    # print('Exportiere alle .fgb als .geojson ...')
+    # export_all_geojson()
 
 if __name__ == '__main__':
     main()

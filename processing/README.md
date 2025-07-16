@@ -100,7 +100,7 @@ Empfohlener Start über das Wrapper-Skript:
 ```sh
 python ./processing/start_snapping.py \
   --net ./output/vorrangnetz_details_combined_rvn.fgb \
-  --osm ./output/matching/matched_osm_ways.fgb \
+  --osm ./output/matched/matched_tilda_ways.fgb \
   --out ./output/snapping_network_enriched.fgb \
   --buffer 20.0 \
   --max-angle 35.0

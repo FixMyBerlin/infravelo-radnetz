@@ -1,40 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-enrich_streetnet_with_osm.py
+start_snapping.py
 --------------------------------------------------------------------
-Überträgt OSM-Attribute auf ein topologisches Richtungs-Straßennetz
+Überträgt TILDA-übersetzte Attribute auf ein topologisches Richtungs-Straßennetz
 – MultiLineStrings werden korrekt behandelt
 – feste Feldnamen:
       element_nr         = Edge-ID
       beginnt_bei_vp     = From-Node
       endet_bei_vp       = To-Node
       verkehrsrichtung   = R / G / B
-----------------------------    # ---------- Daten laden -------------------------------------------------
-    # Logging konfigurieren mit detaillierteren Informationen
-    logging.basicConfig(
-        level=logging.INFO, 
-        format='%(asctime)s - %(levelname)s: %(message)s',
-        datefmt='%H:%M:%S'
-    )
-    
-    def read(path):
-        f, *layer = path.split(":")
-        return gpd.read_file(f, layer=layer[0] if layer else None)
-
-    logging.info("Lade Netzwerk- und OSM-Daten ...")
-    net = read(net_path).to_crs(crs)
-    osm = read(osm_path).to_crs(crs)
-    
-    logging.info(f"Netzwerk: {len(net)} Features geladen")
-    logging.info(f"OSM-Ways: {len(osm)} Features geladen")
-
-    # Prüfen, ob alle Pflichtfelder im Netz vorhanden sind
-    for fld in (RVN_ATTRIBUT_ELEMENT_NR, RVN_ATTRIBUT_BEGINN_VP, RVN_ATTRIBUT_ENDE_VP, RVN_ATTRIBUT_VERKEHRSRICHTUNG, "okstra_id"):
-        if fld not in net.columns:
-            sys.exit(f"Pflichtfeld "{fld}" fehlt im Netz!")
-
-    # ---------- Netz segmentieren und speichern ------------------------------------------------------
+– Verwendet übersetzte TILDA-Attribute: fuehr, ofm, protek, pflicht, breite, farbe
 """
 import argparse, sys
 from pathlib import Path
@@ -199,15 +175,15 @@ def calculate_osm_priority(row) -> int:
     """
     priority = 0
     
-    # Priorität basierend auf Verkehrszeichen
-    traffic_sign = row.get("traffic_sign", "")
+    # Priorität basierend auf Verkehrszeichen (mit tilda_ Präfix)
+    traffic_sign = row.get("tilda_traffic_sign", "")
     if traffic_sign:
         for sign, prio in TILDA_TRAFFIC_SIGN_PRIORITÄTEN.items():
             if has_traffic_sign(traffic_sign, sign):
                 priority = max(priority, prio)
     
-    # Priorität basierend auf Kategorie
-    category = row.get("category", "")
+    # Priorität basierend auf Kategorie (mit tilda_ Präfix)
+    category = row.get("tilda_category", "")
     if category and str(category) in TILDA_CATEGORY_PRIORITIES:
         priority = max(priority, TILDA_CATEGORY_PRIORITIES[str(category)])
     
@@ -341,6 +317,9 @@ def determine_direction_attributes(seg_verkehrsrichtung: str, osm_oneway: str, o
     Returns:
         verkehrsri: "Einrichtungsverkehr" oder "Zweirichtungsverkehr"
     """
+
+    # TODO Sollte ausgelagert werden in TILDA Übersetzung und ist Fehlerhaft
+
     # Standardwerte
     verkehrsri = "Zweirichtungsverkehr"
     
@@ -352,10 +331,20 @@ def determine_direction_attributes(seg_verkehrsrichtung: str, osm_oneway: str, o
         verkehrsri = "Einrichtungsverkehr"
     elif not is_bikelane(osm_category) and (oneway == "yes" or oneway == "yes_dual_carriageway"):
         verkehrsri = "Einrichtungsverkehr"
-    elif oneway == "no" and oneway_bicycle == "no":
+    elif (oneway == "no" or oneway == "assumed_no") and oneway_bicycle == "no":
         verkehrsri = "Zweirichtungsverkehr"
     
     return verkehrsri
+
+
+def is_bikelane(category: str) -> bool:
+    """
+    Prüft, ob ein OSM-Weg eine Bikelane ist.
+    Eine Bikelane liegt vor, wenn category gesetzt ist und nicht 'sharedMotorVehicleLane'.
+    """
+    if not category or pd.isna(category):
+        return False
+    return str(category).strip() != "sharedMotorVehicleLane"
 
 
 def create_segment_variants(seg_dict: dict, matched_osm_ways: list) -> list[dict]:
@@ -393,19 +382,27 @@ def create_segment_variants(seg_dict: dict, matched_osm_ways: list) -> list[dict
         variant["ri"] = ri_value
         
         if best_osm is not None:
-            # OSM-Attribute übertragen (ohne osm_ Präfix, da die Original-Feldnamen verwendet werden)
-            for attr in ["tilda_id", "oneway", "category", "traffic_sign"]:
-                original_attr = attr if attr == "osm_id" else attr  # osm_id bleibt, rest ohne Präfix
-                variant[f"osm_{attr}"] = best_osm.get(original_attr, None)
+            # TILDA-übersetzte Attribute übertragen
+            for attr in FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES:
+                variant[attr] = best_osm.get(attr, None)
+            
+            # Zusätzliche OSM-Attribute für Debugging/Referenz
+            for attr in ["tilda_id", "tilda_oneway", "tilda_category", "tilda_traffic_sign"]:
+                variant[f"osm_{attr}"] = best_osm.get(attr, None)
             
             # Verkehrsrichtung bestimmen
             verkehrsri = determine_direction_attributes(
                 verkehrsrichtung,
-                best_osm.get("oneway", ""),
-                best_osm.get("oneway_bicycle", ""),  # Prüfe ob dieses Feld existiert
-                best_osm.get("category", "")
+                best_osm.get("tilda_oneway", ""),
+                best_osm.get("tilda_oneway_bicycle", ""),
+                best_osm.get("tilda_category", "")
             )
             variant["verkehrsri"] = verkehrsri
+        else:
+            # Keine OSM-Daten gefunden - Standardwerte setzen
+            for attr in FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES:
+                variant[attr] = None
+            variant["verkehrsri"] = "Zweirichtungsverkehr"
         
         variants.append(variant)
     
@@ -465,18 +462,29 @@ def process(net_path, osm_path, out_path, crs, buf):
     """
     Hauptfunktion: Segmentiert das Netz, führt das Snapping durch und verschmilzt die Segmente wieder.
     net_path: Pfad zum Netz (mit Layer)
-    osm_path: Pfad zu OSM-Ways (mit Layer)
+    osm_path: Pfad zu TILDA-übersetzten Daten (mit Layer)
     out_path: Ausgabepfad (mit Layer)
     crs: Ziel-Koordinatensystem (EPSG)
     buf: Puffergröße für Matching
     """
     # ---------- Daten laden -------------------------------------------------
+    # Logging konfigurieren mit detaillierteren Informationen
+    logging.basicConfig(
+        level=logging.INFO, 
+        format='%(asctime)s - %(levelname)s: %(message)s',
+        datefmt='%H:%M:%S'
+    )
+    
     def read(path):
         f, *layer = path.split(":")
         return gpd.read_file(f, layer=layer[0] if layer else None)
 
+    logging.info("Lade Netzwerk- und TILDA-übersetzte Daten ...")
     net = read(net_path).to_crs(crs)
     osm = read(osm_path).to_crs(crs)
+    
+    logging.info(f"Netzwerk: {len(net)} Features geladen")
+    logging.info(f"TILDA-übersetzte Daten: {len(osm)} Features geladen")
 
     # Prüfen, ob alle Pflichtfelder im Netz vorhanden sind
     for fld in (RVN_ATTRIBUT_ELEMENT_NR, RVN_ATTRIBUT_BEGINN_VP, RVN_ATTRIBUT_ENDE_VP, RVN_ATTRIBUT_VERKEHRSRICHTUNG, "okstra_id"):
@@ -507,21 +515,21 @@ def process(net_path, osm_path, out_path, crs, buf):
         logging.info(f"Lade bereits attributierte Segmente aus {seg_attr_path} ...")
         net_segmented = gpd.read_file(seg_attr_path)
     else:
-        logging.info("Führe Snapping und OSM-Attributübernahme auf 10% der Segmente durch ...")
-        # Erzeuge einen räumlichen Index für die OSM-Ways, um schnelle räumliche Abfragen zu ermöglichen
-        osm_sidx = osm.sindex  # Räumlicher Index für OSM-Ways
+        logging.info("Führe Snapping und TILDA-Attributübernahme auf 10% der Segmente durch ...")
+        # Erzeuge einen räumlichen Index für die TILDA-Daten, um schnelle räumliche Abfragen zu ermöglichen
+        osm_sidx = osm.sindex  # Räumlicher Index für TILDA-Daten
 
         # Für Test: nur wenige Segmente bearbeiten 
         total = len(net_segmented)
-        n_test = max(1, int(total * 0.10))
+        n_test = max(1, int(total * 0.1))
         snapped_records = []
-        # Starte die OSM-Attributübernahme für jedes Segment
+        # Starte die TILDA-Attributübernahme für jedes Segment
         # --------------------------------------------------
         # Für jedes Segment:
-        # 1. Suche OSM-Kandidaten im räumlichen Puffer
+        # 1. Suche TILDA-Kandidaten im räumlichen Puffer
         # 2. Filtere nach Entfernung und Ausrichtung
-        # 3. Berechne Priorität und wähle den besten OSM-Weg
-        # 4. Übertrage relevante OSM-Attribute auf das Segment
+        # 3. Berechne Priorität und wähle den besten TILDA-Weg
+        # 4. Übertrage relevante TILDA-Attribute auf das Segment
         # 5. Erzeuge ggf. Varianten für beide Richtungen
         # 6. Fortschrittsanzeige für den Nutzer
         for idx, seg in enumerate(net_segmented.itertuples(), 1):
@@ -532,11 +540,11 @@ def process(net_path, osm_path, out_path, crs, buf):
             # Kandidaten im Buffer suchen (räumliche Suche)
             cand_idx = list(osm_sidx.intersection(g.buffer(buf).bounds))
             if not cand_idx:
-                # Keine OSM-Kandidaten gefunden - Standardvarianten erzeugen
+                # Keine TILDA-Kandidaten gefunden - Standardvarianten erzeugen
                 seg_dict = seg._asdict()
                 variants = create_segment_variants(seg_dict, [])
                 snapped_records.extend(variants)
-                logging.info(f"Keine OSM-Kandidaten im Puffer für Segment {seg} gefunden.")
+                logging.info(f"Keine TILDA-Kandidaten im Puffer für Segment {seg} gefunden.")
                 print_progressbar(idx, n_test, prefix="Snapping (Test 10%): ")
                 continue
                 
@@ -545,18 +553,18 @@ def process(net_path, osm_path, out_path, crs, buf):
             cand["d"] = cand.geometry.distance(g)
             cand = cand[cand["d"] <= buf]
             if cand.empty:
-                # Keine OSM-Kandidaten im Buffer - Standardvarianten erzeugen
+                # Keine TILDA-Kandidaten im Buffer - Standardvarianten erzeugen
                 seg_dict = seg._asdict()
                 variants = create_segment_variants(seg_dict, [])
                 snapped_records.extend(variants)
-                logging.info(f"Keine OSM-Kandidaten im Puffer für Segment {seg} gefunden.")
+                logging.info(f"Keine TILDA-Kandidaten im Puffer für Segment {seg} gefunden.")
                 print_progressbar(idx, n_test, prefix="Snapping (Test 10%): ")
                 continue
 
             # Berechne den Winkel des Netzsegments
             seg_angle = calculate_line_angle(g)
 
-            # Berechne Winkel und Winkeldifferenz für alle OSM-Kandidaten
+            # Berechne Winkel und Winkeldifferenz für alle TILDA-Kandidaten
             # Kopie erstellen um SettingWithCopyWarning zu vermeiden
             cand = cand.copy()
             cand["angle"] = cand.geometry.apply(calculate_line_angle)
@@ -576,13 +584,13 @@ def process(net_path, osm_path, out_path, crs, buf):
             target_cand["dist_to_mid"] = target_cand.geometry.distance(mid)
             target_cand = target_cand.sort_values(["priority", "dist_to_mid"], ascending=[False, True])
 
-            # Wähle den besten OSM-Weg (höchste Priorität, nächste Entfernung)
+            # Wähle den besten TILDA-Weg (höchste Priorität, nächste Entfernung)
             matched_osm_ways = []
             if not target_cand.empty:
                 best_osm = target_cand.iloc[0].to_dict()
                 matched_osm_ways.append(best_osm)
 
-            # Erzeuge Segment-Varianten basierend auf OSM-Daten
+            # Erzeuge Segment-Varianten basierend auf TILDA-Daten
             seg_dict = seg._asdict()
             variants = create_segment_variants(seg_dict, matched_osm_ways)
             snapped_records.extend(variants)
@@ -593,7 +601,7 @@ def process(net_path, osm_path, out_path, crs, buf):
         logging.info(f"✔  Attributierte Test-Segmente gespeichert als {seg_attr_path}")
 
     # ---------- Segmente verschmelzen ---------------------------------------
-    logging.info("Fasse Segmente mit gleicher okstra_id und OSM-Attributen zusammen ...")
+    logging.info("Fasse Segmente mit gleicher okstra_id und TILDA-Attributen zusammen ...")
     
     # Debug: Analysiere Merge-Attribute vor dem Verschmelzen
     logging.info(f"Zu verwendende Merge-Attribute: {FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES}")
@@ -616,11 +624,11 @@ def process(net_path, osm_path, out_path, crs, buf):
 # ------------------------------------------------------------- CLI Wrapper --
 if __name__ == "__main__":
     # Kommandozeilenargumente parsen
-    ap = argparse.ArgumentParser()
+    ap = argparse.ArgumentParser(description="Snapping von TILDA-übersetzten Attributen auf Straßennetz")
     ap.add_argument("--net", default="../output/vorrangnetz_details_combined_rvn.fgb", 
                     help="Netz-Layer (Pfad[:Layer]) - Default: ../output/vorrangnetz_details_combined_rvn.fgb")
-    ap.add_argument("--osm", default="../output/matching/matched_osm_ways.fgb", 
-                    help="OSM-Ways (Pfad[:Layer]) - Default: ../output/matching/matched_osm_ways.fgb")
+    ap.add_argument("--osm", default="../output/matched/matched_tilda_ways.fgb", 
+                    help="TILDA-übersetzte Daten (Pfad[:Layer]) - Default: ../output/matching/matched_tilda_ways.fgb")
     ap.add_argument("--out", default="../output/snapping_network_enriched.fgb", 
                     help="Ausgabe (Pfad[:Layer]) - Default: ../output/snapping_network_enriched.fgb")
     ap.add_argument("--crs",  type=int,   default=DEFAULT_CRS,
