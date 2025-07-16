@@ -79,13 +79,13 @@ CONFIG_REMOVE_TILDA_ATTRIBUTES = [
 
 
 # --------------------------------------------------------- Hilfsfunktionen --
-def determine_verkehrsri(row, data_type: str) -> str:
+def determine_verkehrsri(row, data_source: str) -> str:
     """
     Bestimmt die Verkehrsrichtung (Radverkehr) basierend auf oneway-Attributen.
     
     Args:
         row: Datenzeile mit OSM-Attributen
-        data_type: Art der Daten ("bikelanes", "streets", "paths")
+        data_source: Art der Daten ("bikelanes", "streets", "paths")
     
     Returns:
         Verkehrsrichtung oder TODO-Hinweis
@@ -93,7 +93,7 @@ def determine_verkehrsri(row, data_type: str) -> str:
     oneway = str(row.get("oneway", "")).strip()
     oneway_bicycle = str(row.get("oneway_bicycle", "")).strip()
     
-    if data_type == "bikelanes":
+    if data_source == "bikelanes":
         # Spezifische Regeln für bikelanes
         if oneway == "yes":
             return "Einrichtungsverkehr"
@@ -104,7 +104,7 @@ def determine_verkehrsri(row, data_type: str) -> str:
         elif oneway == "assumed_no":
             return "[TODO] Vermutlich nein"
         elif oneway == "implicit_yes":
-            return "[TODO] Vermutlich ja"
+            return "[TODO] Vermutlich Einrichtungsverkehr"
         elif not oneway or oneway in ["None", "none"]:
             # Fehlende Werte
             return "[TODO] Fehlender Wert"
@@ -112,7 +112,7 @@ def determine_verkehrsri(row, data_type: str) -> str:
             logging.warning(f"Unbekannter oneway-Wert für bikelanes: {oneway}, osm_id={row.get('osm_id', 'unbekannt')}")
             return "[TODO] Fehlerhafter Wert"
     
-    elif data_type in ["streets", "paths"]:
+    elif data_source in ["streets", "paths"]:
         # Spezifische Regeln für streets und paths
         if not oneway or oneway in ["None", "none", "nil"]:
             # oneway=nil oder leere Werte
@@ -127,28 +127,28 @@ def determine_verkehrsri(row, data_type: str) -> str:
         elif oneway == "no":
             return "Zweirichtungsverkehr"
         else:
-            logging.warning(f"Unbekannter oneway-Wert für {data_type}: {oneway}, osm_id={row.get('osm_id', 'unbekannt')}")
+            logging.warning(f"Unbekannter oneway-Wert für {data_source}: {oneway}, osm_id={row.get('osm_id', 'unbekannt')}")
             return "[TODO] Fehlerhafter Wert"
     
     # Fallback
-    logging.warning(f"Unbekannter data_type für verkehrsri: {data_type}")
+    logging.warning(f"Unbekannter data_source für verkehrsri: {data_source}")
     return "[TODO] Fehlerhafter Wert"
 
 
-def determine_fuehrung(row, data_type: str) -> str:
+def determine_fuehrung(row, data_source: str) -> str:
     """
     Bestimmt die Art der Radverkehrsführung basierend auf category und traffic_sign.
     
     Args:
         row: Datenzeile mit OSM-Attributen
-        data_type: Art der Daten ("bikelanes", "streets", "paths")
+        data_source: Art der Daten ("bikelanes", "streets", "paths")
     
     Returns:
         Radverkehrsführungstyp oder "[TODO] Führung fehlt"
     """
-    if data_type == "streets":
+    if data_source == "streets":
         return "Mischverkehr mit motorisiertem Verkehr"
-    elif data_type == "paths":
+    elif data_source == "paths":
         return "Sonstige Wege (Gehwege, Wege durch Grünflächen, Plätze)"
     
     # Für bikelanes: basierend auf category
@@ -192,18 +192,18 @@ def determine_fuehrung(row, data_type: str) -> str:
     return "[TODO] Führung fehlt"
 
 
-def determine_pflicht(row, data_type: str) -> bool:
+def determine_pflicht(row, data_source: str) -> bool:
     """
     Bestimmt die Benutzungspflicht basierend auf Verkehrszeichen.
     
     Args:
         row: Datenzeile mit OSM-Attributen
-        data_type: Art der Daten ("bikelanes", "streets", "paths")
+        data_source: Art der Daten ("bikelanes", "streets", "paths")
     
     Returns:
         True wenn Benutzungspflicht vorliegt
     """
-    if data_type in ["streets", "paths"]:
+    if data_source in ["streets", "paths"]:
         return False  # Immer "Nein" für streets und paths
     
     traffic_sign = str(row.get("traffic_sign", ""))
@@ -401,18 +401,18 @@ def assign_prefix_and_remove_unnecessary_attrs(gdf: gpd.GeoDataFrame) -> gpd.Geo
     return gdf.rename(columns=rename_mapping)
 
 
-def translate_tilda_attributes(gdf: gpd.GeoDataFrame, data_type: str) -> gpd.GeoDataFrame:
+def translate_tilda_attributes(gdf: gpd.GeoDataFrame, data_source: str) -> gpd.GeoDataFrame:
     """
     Übersetzt TILDA-Attribute in RVN-Attribute basierend auf den Mapping-Regeln.
     
     Args:
         gdf: GeoDataFrame mit TILDA-Daten
-        data_type: Art der Daten ("bikelanes", "streets", "paths")
+        data_source: Art der Daten ("bikelanes", "streets", "paths")
     
     Returns:
         GeoDataFrame mit RVN-Attributen
     """
-    logging.info(f"Übersetze {len(gdf)} Features vom Typ '{data_type}'")
+    logging.info(f"Übersetze {len(gdf)} Features vom Typ '{data_source}'")
     
     result_gdf = gdf.copy()
     
@@ -427,17 +427,17 @@ def translate_tilda_attributes(gdf: gpd.GeoDataFrame, data_type: str) -> gpd.Geo
     
     for idx, (_, row) in enumerate(result_gdf.iterrows(), 1):
         # Verkehrsrichtung (Radverkehr)
-        verkehrsri = determine_verkehrsri(row, data_type)
+        verkehrsri = determine_verkehrsri(row, data_source)
         result_gdf.loc[result_gdf.index[idx-1], "verkehrsri"] = verkehrsri
         
         # Art der Radverkehrsführung
-        fuehr = determine_fuehrung(row, data_type)
+        fuehr = determine_fuehrung(row, data_source)
         if fuehr == "NICHT-GEFUNDEN":
             not_found_counts["fuehr"] += 1
         result_gdf.loc[result_gdf.index[idx-1], "fuehr"] = fuehr
         
         # Benutzungspflicht
-        pflicht = determine_pflicht(row, data_type)
+        pflicht = determine_pflicht(row, data_source)
         result_gdf.loc[result_gdf.index[idx-1], "pflicht"] = pflicht
         
         # Breite (direkt aus width übernommen)
@@ -469,7 +469,7 @@ def translate_tilda_attributes(gdf: gpd.GeoDataFrame, data_type: str) -> gpd.Geo
         result_gdf.loc[result_gdf.index[idx-1], "nutz_beschr"] = nutz_beschr
         
         # Fortschrittsanzeige
-        print_progressbar(idx, total, prefix=f"Übersetze {data_type}: ")
+        print_progressbar(idx, total, prefix=f"Übersetze {data_source}: ")
     
     # Logge Statistiken über nicht-gefundene Zuordnungen
     for attr, count in not_found_counts.items():
@@ -480,24 +480,24 @@ def translate_tilda_attributes(gdf: gpd.GeoDataFrame, data_type: str) -> gpd.Geo
     # Füge tilda_ Prefix zu ursprünglichen Attributen hinzu
     result_gdf = assign_prefix_and_remove_unnecessary_attrs(result_gdf)
     
-    logging.info(f"✔ Übersetzung für {data_type} abgeschlossen")
+    logging.info(f"✔ Übersetzung für {data_source} abgeschlossen")
     
     return result_gdf
 
 
-def process_file(input_file: str, data_type: str, output_dir: str, crs: str, clip_neukoelln: bool = False, data_dir: str = "./data") -> None:
+def process_file(input_file: str, data_source: str, output_dir: str, crs: str, clip_neukoelln: bool = False, data_dir: str = "./data") -> None:
     """
     Verarbeitet eine einzelne TILDA-Datei.
     
     Args:
         input_file: Pfad zur Eingabedatei
-        data_type: Art der Daten ("bikelanes", "streets", "paths")
+        data_source: Art der Daten ("bikelanes", "streets", "paths")
         output_dir: Ausgabeverzeichnis
         crs: Ziel-Koordinatensystem
         clip_neukoelln: Ob auf Neukölln zugeschnitten werden soll
         data_dir: Verzeichnis mit den Eingabedateien
     """
-    logging.info(f"Verarbeite {input_file} als {data_type}")
+    logging.info(f"Verarbeite {input_file} als {data_source}")
     
     # Lade Daten
     gdf = gpd.read_file(input_file).to_crs(crs)
@@ -508,7 +508,7 @@ def process_file(input_file: str, data_type: str, output_dir: str, crs: str, cli
         gdf = clip_to_neukoelln(gdf, data_dir, crs)
     
     # Übersetze Attribute
-    translated_gdf = translate_tilda_attributes(gdf, data_type)
+    translated_gdf = translate_tilda_attributes(gdf, data_source)
 
     # Sortiere die Spalten alphabetisch, geometry ans Ende
     cols = [col for col in translated_gdf.columns if col != "geometry"]
@@ -517,7 +517,7 @@ def process_file(input_file: str, data_type: str, output_dir: str, crs: str, cli
 
     # Speichere Ergebnis
     filename_suffix = " Neukoelln" if clip_neukoelln else ""
-    output_file = os.path.join(output_dir, f"TILDA {data_type.title()}{filename_suffix} Translated.fgb")
+    output_file = os.path.join(output_dir, f"TILDA {data_source.title()}{filename_suffix} Translated.fgb")
     os.makedirs(output_dir, exist_ok=True)
     translated_gdf.to_file(output_file, driver="FlatGeobuf")
     
@@ -602,7 +602,7 @@ def main():
         logging.info("Clipping auf Neukölln aktiviert")
     
     # Verarbeite alle Eingabedateien
-    for data_type, filename in INPUT_FILES.items():
+    for data_source, filename in INPUT_FILES.items():
         input_path = os.path.join(args.data_dir, filename)
         
         if not os.path.exists(input_path):
@@ -610,7 +610,7 @@ def main():
             continue
         
         try:
-            process_file(input_path, data_type, args.output_dir, args.crs, args.clip_neukoelln, args.data_dir)
+            process_file(input_path, data_source, args.output_dir, args.crs, args.clip_neukoelln, args.data_dir)
         except Exception as e:
             logging.error(f"Fehler beim Verarbeiten von {input_path}: {e}")
             continue

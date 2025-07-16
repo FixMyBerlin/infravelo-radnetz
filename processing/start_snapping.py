@@ -41,6 +41,7 @@ RVN_ATTRIBUT_VERKEHRSRICHTUNG  = "verkehrsrichtung"     # Werte: R / G / B (Rich
 # Attribute an denen die Kanten getrennt werden bzw. verschmolzen werden
 # Diese Attribute müssen in den übersetzten TILDA Daten vorhanden sein
 FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES = ["fuehr", "ofm", "protek", "pflicht", "breite", "farbe", "ri", "verkehrsri"]
+FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES=["data_source", "tilda_id", "tilda_oneway", "tilda_category", "tilda_traffic_sign"]
 
 # Prioritäten für OSM-Weg-Auswahl (höhere Zahl = höhere Priorität)
 TILDA_TRAFFIC_SIGN_PRIORITÄTEN = {
@@ -154,7 +155,7 @@ def calculate_osm_priority(row) -> int:
     
     # Priorität basierend auf Kategorie (mit tilda_ Präfix)
     category = row.get("tilda_category", "")
-    if category and str(category) in TILDA_CATEGORY_PRIORITIES:
+    if category and str(category) in TILDA_CATEGORY_PRIORITäten:
         priority = max(priority, TILDA_CATEGORY_PRIORITIES[str(category)])
     
     return priority
@@ -279,94 +280,53 @@ def merge_segments(gdf, id_field, osm_fields):
     return result_gdf
 
 
-# TODO Entfernen oder korrigieren, da bereits in translate_attributes_tilda_to_rvn.py umgesetzt
-def determine_direction_attributes(seg_verkehrsrichtung: str, osm_oneway: str, osm_oneway_bicycle: str, 
-                                 osm_category: str) -> str:
-    """
-    Bestimmt die Richtungsattribute basierend auf Segment-Richtung und OSM-Daten.
-    
-    Returns:
-        verkehrsri: "Einrichtungsverkehr" oder "Zweirichtungsverkehr"
-    """
-
-    # TODO Sollte ausgelagert werden in TILDA Übersetzung und ist Fehlerhaft
-
-    # Standardwerte
-    verkehrsri = "Zweirichtungsverkehr"
-    
-    # Prüfung auf Einrichtungsverkehr
-    oneway_bicycle = str(osm_oneway_bicycle).lower() if osm_oneway_bicycle else ""
-    oneway = str(osm_oneway).lower() if osm_oneway else ""
-    
-    if oneway_bicycle == "yes" or oneway_bicycle == "implicit_yes":
-        verkehrsri = "Einrichtungsverkehr"
-    elif not is_bikelane(osm_category) and (oneway == "yes" or oneway == "yes_dual_carriageway"):
-        verkehrsri = "Einrichtungsverkehr"
-    elif (oneway == "no" or oneway == "assumed_no") and oneway_bicycle == "no":
-        verkehrsri = "Zweirichtungsverkehr"
-    
-    return verkehrsri
-
-
 def create_segment_variants(seg_dict: dict, matched_osm_ways: list) -> list[dict]:
     """
-    Erstellt Varianten (Doppelung) eines Straßensegments basierend auf OSM-Wegen.
-    Dupliziert das Segment für beide Richtungen und setzt entsprechende Attribute.
-    
+    Erstellt für jedes Segment zwei gerichtete Varianten (eine für jede Richtung).
+    Die Attribute werden basierend auf dem besten gematchten OSM-Weg gesetzt.
+    Es werden immer zwei Kanten erzeugt, eine für die Hin- (ri=1) und eine für die
+    Rückrichtung (ri=0). Die Attribute des besten OSM-Matches werden auf beide
+    Varianten angewendet.
+
     Args:
-        seg_dict: Dictionary des ursprünglichen Straßensegments
-        matched_osm_ways: Liste der gematchten OSM-Wege mit Prioritäten
-    
+        seg_dict (dict): Dictionary des ursprünglichen Straßensegments.
+        matched_osm_ways (list): Liste der gematchten OSM-Wege.
+
     Returns:
-        Liste von Segment-Dictionaries (ein oder zwei, je nach Richtung)
+        list[dict]: Eine Liste mit zwei Dictionaries, die die beiden gerichteten
+                    Segment-Varianten repräsentieren.
     """
     variants = []
-    verkehrsrichtung = seg_dict.get(RVN_ATTRIBUT_VERKEHRSRICHTUNG, "B")
-    
-    # Für jede Richtung prüfen, ob OSM-Daten vorhanden sind
-    directions = []
-    if verkehrsrichtung in ["R", "B"]:  # Richtung (gleiche Richtung wie Geometrie)
-        directions.append(("R", 0))
-    if verkehrsrichtung in ["G", "B"]:  # Gegenrichtung
-        directions.append(("G", 1))
-    
-    for direction, ri_value in directions:
-        # Besten OSM-Weg für diese Richtung finden
-        best_osm = None
-        if matched_osm_ways:
-            # Für jetzt nehmen wir den ersten/besten OSM-Weg
-            # TODO: Hier könnte weitere Richtungslogik implementiert werden
-            best_osm = matched_osm_ways[0]
-        
-        # Neue Segment-Variante erstellen
+    best_osm = matched_osm_ways[0] if matched_osm_ways else None
+
+    # Erstelle zwei Varianten, eine für jede Richtung
+    for ri_value in [1, 0]:  # 1 = Hinrichtung, 0 = Rückrichtung
         variant = seg_dict.copy()
         variant["ri"] = ri_value
-        
-        if best_osm is not None:
-            # TILDA-übersetzte Attribute übertragen
+
+        if best_osm:
+            # Übertrage alle relevanten Attribute vom besten OSM-Match
             for attr in FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES:
-                variant[attr] = best_osm.get(attr, None)
-            
+                # Das Attribut `ri` wird explizit durch die Schleife gesetzt
+                if attr == 'ri':
+                    continue
+                if attr in best_osm:
+                    variant[attr] = best_osm.get(attr)
+
             # Zusätzliche OSM-Attribute für Debugging/Referenz
-            for attr in ["tilda_id", "tilda_oneway", "tilda_category", "tilda_traffic_sign"]:
-                variant[f"osm_{attr}"] = best_osm.get(attr, None)
-            
-            # Verkehrsrichtung bestimmen
-            verkehrsri = determine_direction_attributes(
-                verkehrsrichtung,
-                best_osm.get("tilda_oneway", ""),
-                best_osm.get("tilda_oneway_bicycle", ""),
-                best_osm.get("tilda_category", "")
-            )
-            variant["verkehrsri"] = verkehrsri
+            for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
+                variant[attr] = best_osm.get(attr)
         else:
-            # Keine OSM-Daten gefunden - Standardwerte setzen
+            # Keine OSM-Daten: Standardwerte setzen
             for attr in FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES:
-                variant[attr] = None
-            variant["verkehrsri"] = "Zweirichtungsverkehr"
+                # Das Attribut `ri` wird explizit durch die Schleife gesetzt
+                if attr == 'ri':
+                    continue
+                if attr not in variant: # Behalte existierende Spalten wie 'geometry' etc.
+                    variant[attr] = None
         
         variants.append(variant)
-    
+
     return variants
 
 
