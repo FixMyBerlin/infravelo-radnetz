@@ -26,8 +26,10 @@ from helpers.progressbar import print_progressbar
 from helpers.traffic_signs import has_traffic_sign
 from helpers.width_parser import parse_width
 
-
 # --------------------------------------------------------- Konstanten --
+# Liste der neuen RVN-Attribute, die nicht umbenannt werden sollen
+CONFIG_ATTRIBUTES_NOT_RENAMING = ["pflicht", "breite", "ofm", "farbe", "protek", "trennstreifen", "nutz_beschr", "fuehr", "verkehrsri"]
+
 # Eingabedateien im data/ Ordner
 INPUT_FILES = {
     "bikelanes": "TILDA Radwege Berlin.fgb",
@@ -193,6 +195,8 @@ def determine_fuehrung(row, data_source: str) -> str:
           (has_traffic_sign(traffic_sign, "242") or has_traffic_sign(traffic_sign, "242.1")) and
           has_traffic_sign(traffic_sign, "1022-10")):
         return "Fußgängerzone \"Radverkehr frei\" (Z242 mit Z1022-10)"
+    elif category == "sharedMotorVehicleLane":
+        return "Mischverkehr mit motorisiertem Verkehr"
     elif category == "crossing":
         return "[TODO] Kreuzungs-Querung"
     elif category == "needsClarification":
@@ -398,14 +402,10 @@ def assign_prefix_and_remove_unnecessary_attrs(gdf: gpd.GeoDataFrame) -> gpd.Geo
     # Entferne diese Spalten, falls vorhanden
     gdf = gdf.drop(columns=[col for col in CONFIG_REMOVE_TILDA_ATTRIBUTES if col in gdf.columns], errors='ignore')
     
-    # Liste der neuen RVN-Attribute, die nicht umbenannt werden sollen
-    rvn_attributes = ["pflicht", "breite", "ofm", "farbe", "protek", "trennstreifen", "nutz_beschr", 
-                     "fuehr", "verkehrsri"]
-    
     # Erstelle Mapping für Umbenennung
     rename_mapping = {}
     for col in gdf.columns:
-        if col not in rvn_attributes and col != "geometry":
+        if col not in CONFIG_ATTRIBUTES_NOT_RENAMING and col != "geometry":
             rename_mapping[col] = f"tilda_{col}"
     
     return gdf.rename(columns=rename_mapping)

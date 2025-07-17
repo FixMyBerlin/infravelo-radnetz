@@ -7,9 +7,9 @@ Ordnet TILDA-übersetzte Attribute dem Berliner Radvorrangsnetz zu.
 Führt räumliches Matching durch und erstellt bereinigte Datensätze.
 
 INPUT:
-- output/TILDA-translated/TILDA Bikelanes Neukoelln Translated.fgb
-- output/TILDA-translated/TILDA Streets Neukoelln Translated.fgb
-- output/TILDA-translated/TILDA Paths Neukoelln Translated.fgb
+- output/TILDA-translated/TILDA Bikelanes [Neukoelln] Translated.fgb
+- output/TILDA-translated/TILDA Streets [Neukoelln] Translated.fgb
+- output/TILDA-translated/TILDA Paths [Neukoelln] Translated.fgb
 - data/Berlin Radvorrangsnetz.fgb
 - data/include_ways.txt (manuelle Eingriffe)
 - data/exclude_ways.txt (manuelle Eingriffe)
@@ -23,6 +23,10 @@ OUTPUT TMP FILES:
 
 OUTPUT:
 - output/matched/matched_tilda_ways.fgb (kombinierte Datei)
+
+VERWENDUNG:
+- Standardmodus: python start_matching.py (verwendet ganz Berlin)
+- Neukölln-Modus: python start_matching.py --clip-neukoelln (verwendet Neukölln-Dateien)
 """
 
 import geopandas as gpd
@@ -37,33 +41,43 @@ from helpers.progressbar import print_progressbar
 #from export_geojson import export_all_geojson
 
 # Konfiguration
-INPUT_BIKELANES_FGB = './output/TILDA-translated/TILDA Bikelanes Neukoelln Translated.fgb'  # Pfad zu TILDA-Radwegen
-INPUT_STREETS_FGB = './output/TILDA-translated/TILDA Streets Neukoelln Translated.fgb'  # Pfad zu TILDA-Straßen
-INPUT_PATHS_FGB = './output/TILDA-translated/TILDA Paths Neukoelln Translated.fgb'  # Pfad zu TILDA-Wegen
+# Standard-Dateipfade (ohne Neukölln-Suffix)
 INPUT_VORRANGNETZ_FGB = './data/Berlin Radvorrangsnetz.fgb'  # Pfad zum Vorrangnetz
 BUFFER_BIKELANES_METERS = 25  # Buffer-Radius in Metern für Radwege
 BUFFER_STREETS_METERS = 15    # Buffer-Radius in Metern für Straßen
 BUFFER_PATHS_METERS = 15      # Buffer-Radius in Metern für Wege
 TARGET_CRS = 'EPSG:25833'
 
-# Datenquellen-Konfiguration
-DATA_SOURCES = {
-    'bikelanes': {
-        'file_path': INPUT_BIKELANES_FGB,
-        'buffer_meters': BUFFER_BIKELANES_METERS,
-        'description': 'TILDA Radwege'
-    },
-    'streets': {
-        'file_path': INPUT_STREETS_FGB,
-        'buffer_meters': BUFFER_STREETS_METERS,
-        'description': 'TILDA Straßen'
-    },
-    'paths': {
-        'file_path': INPUT_PATHS_FGB,
-        'buffer_meters': BUFFER_PATHS_METERS,
-        'description': 'TILDA Wege'
+
+def get_data_sources_config(use_neukoelln=False):
+    """
+    Erstellt die Datenquellen-Konfiguration basierend auf dem Neukölln-Parameter.
+    
+    Args:
+        use_neukoelln: Ob die Neukölln-spezifischen Dateien verwendet werden sollen
+        
+    Returns:
+        Dictionary mit Datenquellen-Konfiguration
+    """
+    suffix = " Neukoelln" if use_neukoelln else ""
+    
+    return {
+        'bikelanes': {
+            'file_path': f'./output/TILDA-translated/TILDA Bikelanes{suffix} Translated.fgb',
+            'buffer_meters': BUFFER_BIKELANES_METERS,
+            'description': 'TILDA Radwege'
+        },
+        'streets': {
+            'file_path': f'./output/TILDA-translated/TILDA Streets{suffix} Translated.fgb',
+            'buffer_meters': BUFFER_STREETS_METERS,
+            'description': 'TILDA Straßen'
+        },
+        'paths': {
+            'file_path': f'./output/TILDA-translated/TILDA Paths{suffix} Translated.fgb',
+            'buffer_meters': BUFFER_PATHS_METERS,
+            'description': 'TILDA Wege'
+        }
     }
-}
 
 def load_geodataframe(path, name, target_crs):
     """
@@ -267,6 +281,7 @@ def parse_arguments():
     parser.add_argument('--skip-paths', action='store_true', help='Skip processing of paths dataset')
     parser.add_argument('--skip-difference-streets-bikelanes', action='store_true', help='Skip difference: only streets without bikelanes')
     parser.add_argument('--skip-difference-paths-streets-bikelanes', action='store_true', help='Skip difference: only paths without streets and bikelanes')
+    parser.add_argument('--clip-neukoelln', action='store_true', help='Verwende Neukölln-spezifische Eingabedateien')
     return parser.parse_args()
 
 
@@ -443,6 +458,15 @@ def main():
     Orchestriert den gesamten Matching- und Filterprozess.
     """
     args = parse_arguments()
+    
+    # Konfiguriere Datenquellen basierend auf Neukölln-Parameter
+    DATA_SOURCES = get_data_sources_config(use_neukoelln=args.clip_neukoelln)
+    
+    if args.clip_neukoelln:
+        print("--- Verwende Neukölln-spezifische Eingabedateien ---")
+    else:
+        print("--- Verwende Standard-Eingabedateien (ganz Berlin) ---")
+    
     # Vorrangnetz einmalig laden
     vorrangnetz_gdf = load_geodataframe(INPUT_VORRANGNETZ_FGB, "Vorrangnetz", TARGET_CRS)
 

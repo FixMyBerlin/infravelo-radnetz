@@ -32,11 +32,12 @@ source .venv/bin/activate
 pip install -r processing/requirements.txt
 
 # The process needs to be executed in this order
-./.venv/bin/python processing/translate_attributes_tilda_to_rvn.py
-./.venv/bin/python processing/start_matching.py
-./.venv/bin/python processing/start_snapping.py
+./.venv/bin/python processing/translate_attributes_tilda_to_rvn.py --clip-neukoelln
+./.venv/bin/python processing/start_matching.py --clip-neukoelln
+./.venv/bin/python processing/start_snapping.py --clip-neukoelln
 
-# Snapping algo is separately and not in main.py (yet)
+# To clip new TILDA bikelanes data, execute, then move to data folder
+./.venv/bin/python ./scripts/clip_bikelanes.py --input ./bikelanes.fgb --clip-features ./data/"Berlin Bezirke.gpkg" --output "./TILDA Radwege Berlin.fgb"
 ```
 
 The output is saved in `output/`.
