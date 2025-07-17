@@ -115,28 +115,6 @@ def angle_difference(angle1: float, angle2: float) -> float:
     return min(diff, 360 - diff)
 
 
-def calculate_osm_priority(row) -> int:
-    """
-    Berechnet die Priorität eines OSM-Wegs basierend auf traffic_sign und category.
-    Höhere Zahl = höhere Priorität.
-    """
-    priority = 0
-    
-    # Priorität basierend auf Verkehrszeichen (mit tilda_ Präfix)
-    traffic_sign = row.get("tilda_traffic_sign", "")
-    if traffic_sign:
-        for sign, prio in TILDA_TRAFFIC_SIGN_PRIORITIES.items():
-            if has_traffic_sign(traffic_sign, sign):
-                priority = max(priority, prio)
-    
-    # Priorität basierend auf Kategorie (mit tilda_ Präfix)
-    category = row.get("tilda_category", "")
-    if category and str(category) in TILDA_CATEGORY_PRIORITIES:
-        priority = max(priority, TILDA_CATEGORY_PRIORITIES[str(category)])
-    
-    return priority
-
-
 def split_network_into_segments(net_gdf, crs, segment_length=1.0):
     """
     Teilt alle Linien im Netz in ca. 1-Meter-Abschnitte auf.
@@ -297,26 +275,81 @@ def debug_merge_attributes(gdf, id_field, osm_fields, sample_okstra_id=None):
             logging.info(f"  Kombination {idx}: {dict(row)}")
 
 
-def create_directional_segment_variants_from_matched_tilda_ways(seg_dict: dict, matched_osm_ways: list) -> list[dict]:
+def calculate_osm_priority(row) -> int:
+    """
+    Berechnet die Priorität eines OSM-Wegs basierend auf traffic_sign und category.
+    Höhere Zahl = höhere Priorität.
+    """
+    priority = 0
+    
+    # Priorität basierend auf Verkehrszeichen (mit tilda_ Präfix)
+    traffic_sign = row.get("tilda_traffic_sign", "")
+    if traffic_sign:
+        for sign, prio in TILDA_TRAFFIC_SIGN_PRIORITIES.items():
+            if has_traffic_sign(traffic_sign, sign):
+                priority = max(priority, prio)
+    
+    # Priorität basierend auf Kategorie (mit tilda_ Präfix)
+    category = row.get("tilda_category", "")
+    if category and str(category) in TILDA_CATEGORY_PRIORITIES:
+        priority = max(priority, TILDA_CATEGORY_PRIORITIES[str(category)])
+    
+    return priority
+
+
+def create_directional_segment_variants_from_matched_tilda_ways(seg_dict: dict, target_candidates, original_candidates=None) -> list[dict]:
     """
     Erstellt für jedes Segment zwei gerichtete Varianten (eine für jede Richtung).
-    Die Attribute werden basierend auf dem besten gematchten OSM-Weg gesetzt.
+    Die Attribute werden basierend auf dem besten gematchten TILDA-Weg gesetzt.
+    Führt die Bewertung und Priorisierung der Kandidaten durch.
     Es werden immer zwei Kanten erzeugt, eine für die Hin- (ri=1) und eine für die
-    Rückrichtung (ri=0). Die Attribute des besten OSM-Matches werden auf beide
+    Rückrichtung (ri=0). Die Attribute des besten TILDA-Matches werden auf beide
     Varianten angewendet.
 
     Args:
         seg_dict (dict): Dictionary des ursprünglichen Straßensegments.
-        matched_osm_ways (list): Liste der gematchten OSM-Wege.
+        target_candidates: GeoDataFrame mit TILDA-Kandidaten oder None/leere Liste.
+        original_candidates: GeoDataFrame mit ursprünglichen TILDA-Kandidaten für DEBUG-Ausgabe.
 
     Returns:
         list[dict]: Eine Liste mit zwei Dictionaries, die die beiden gerichteten
                     Segment-Varianten repräsentieren.
     """
     variants = []
-    best_osm = matched_osm_ways if matched_osm_ways else None
-
-    # Erstelle zwei Varianten, eine für jede Richtung
+    best_osm = None
+    
+    # Aussehen target_cand an dieser Stelle für zwei Kandidaten::
+    # breite data_source  farbe               fuehr nutz_beschr             ofm pflicht  ...                   verkehrsri                 geometry                                       d        angle     angle_diff   priority dist_to_mid
+    # 1    6.0     streets  False  Mischverkehr mit motorisiertem Verkehr       keine  Asphalt   False  ...  Zweirichtungsverkehr  LINESTRING (806124.414 5815161.861, 806129.323...  0.449660  277.330268   0.251108        0    0.453697
+    # 2    6.0     streets  False  Mischverkehr mit motorisiertem Verkehr       keine  Asphalt   False  ...  Zweirichtungsverkehr  LINESTRING (806084.079 5815472.905, 806085.054...  3.922344  277.388707   0.192669        0    4.417926
+    # [2 rows x 50 columns]
+    
+    # Bewertung und Auswahl des besten Kandidaten
+    if target_candidates is not None and len(target_candidates) > 0:
+        # Berechne Priorität für alle Kandidaten
+        target_candidates = target_candidates.copy()
+        target_candidates["priority"] = target_candidates.apply(calculate_osm_priority, axis=1)
+        
+        # Sortiere nach Priorität und Entfernung (höchste Priorität, geringste Entfernung)
+        from shapely.geometry import Point
+        g = seg_dict["geometry"]
+        mid = g.interpolate(0.5, normalized=True)
+        target_candidates["dist_to_mid"] = target_candidates.geometry.distance(mid)
+        
+        # Sortiere nach Priorität (absteigend) und dann nach Entfernung (aufsteigend)
+        target_candidates = target_candidates.sort_values(["priority", "dist_to_mid"], ascending=[False, True])
+        
+        # Wähle den besten Kandidaten
+        best_osm = target_candidates.iloc[0].to_dict()
+        
+        # DEBUG: Wenn es mehr als einen ursprünglichen Kandidaten gibt, logge das Objekt
+        if original_candidates is not None and len(original_candidates) > 1:
+            candidate_ids = original_candidates["tilda_id"].tolist() if "tilda_id" in original_candidates.columns else original_candidates.index.tolist()
+            # Prüfe, ob mindestens eine tilda_id "cycleway" enthält
+            if any("cycleway" in str(tid) for tid in candidate_ids):
+                candidate_links = [f"https://osm.org/{tid}" for tid in candidate_ids]
+                import logging
+                logging.info(f"Seg:{seg_dict.get('element_nr', 'unknown')}: {len(original_candidates)} Kandidaten, tilda_id: {candidate_ids}/Links: {candidate_links}")    # Erstelle zwei Varianten, eine für jede Richtung
     for ri_value in [1, 0]:  # 1 = Hinrichtung, 0 = Rückrichtung
         # Erstelle eine Kopie des ursprünglichen Segments für die Gegenrichtung
         # TODO das muss am Ende passieren, abhängig davon, ob es eine Einbahnstraße ohne Radverkehrs frei oder nicht
@@ -446,7 +479,7 @@ def process(net_path, osm_path, out_path, crs, buf, clip_neukoelln=False, data_d
             if not cand_idx:
                 # Keine TILDA-Kandidaten gefunden - Standardvarianten erzeugen
                 seg_dict = seg._asdict()
-                variants = create_directional_segment_variants_from_matched_tilda_ways(seg_dict, [])
+                variants = create_directional_segment_variants_from_matched_tilda_ways(seg_dict, None)
                 snapped_records.extend(variants)
                 # TODO logging.info(f"Keine TILDA-Kandidaten im Puffer für Segment {seg.element_nr} gefunden.")
 
@@ -470,7 +503,7 @@ def process(net_path, osm_path, out_path, crs, buf, clip_neukoelln=False, data_d
                 seg_dict = seg._asdict()
 
                 # TODO Erstmal keine Kante erzeugen, damit Lücke sichtbar?
-                variants = create_directional_segment_variants_from_matched_tilda_ways(seg_dict, [])
+                variants = create_directional_segment_variants_from_matched_tilda_ways(seg_dict, None)
                 snapped_records.extend(variants)
                 # DEBUG Loggen: logging.info(f"Keine TILDA-Kandidaten im Puffer für Segment {seg.element_nr} gefunden.")
 
@@ -490,42 +523,13 @@ def process(net_path, osm_path, out_path, crs, buf, clip_neukoelln=False, data_d
             # Filtere Kandidaten mit passender Ausrichtung
             oriented_cand = cand[cand["angle_diff"] <= CONFIG_MAX_ANGLE_DIFFERENCE].copy()
 
-            ### Wähle EINEN Kandidaten aus
-            ### TODO Wie ist das richtige zusammenspiel zwischen dem Kopieren und der Auswahl der besten Kandidaten?
+            ### Wähle die besten Kandidaten für die Bewertung aus
             # Wenn es ausgerichtete Kandidaten gibt, diese verwenden, sonst alle
             target_cand = oriented_cand if not oriented_cand.empty else cand.copy()
 
-            # Berechne Priorität für alle Kandidaten
-            target_cand["priority"] = target_cand.apply(calculate_osm_priority, axis=1)
-            
-            # Sortiere nach Priorität und Entfernung (höchste Priorität, geringste Entfernung)
-            mid = g.interpolate(0.5, normalized=True)
-            target_cand["dist_to_mid"] = target_cand.geometry.distance(mid)
-
-            ### Wähle den besten TILDA-Weg (höchste Priorität, nächste Entfernung)
-            best_matching_tilda_candidates_with_calcs = []
-            if not target_cand.empty:
-                best_matching_tilda_candidates_with_calcs = target_cand.iloc[0].to_dict()
-                # Aussehen target_cand an dieser Stelle für zwei Kandidaten::
-                # breite data_source  farbe               fuehr nutz_beschr             ofm pflicht  ...                   verkehrsri                 geometry                                       d        angle     angle_diff   priority dist_to_mid
-                # 1    6.0     streets  False  Mischverkehr mit motorisiertem Verkehr       keine  Asphalt   False  ...  Zweirichtungsverkehr  LINESTRING (806124.414 5815161.861, 806129.323...  0.449660  277.330268   0.251108        0    0.453697
-                # 2    6.0     streets  False  Mischverkehr mit motorisiertem Verkehr       keine  Asphalt   False  ...  Zweirichtungsverkehr  LINESTRING (806084.079 5815472.905, 806085.054...  3.922344  277.388707   0.192669        0    4.417926
-                # [2 rows x 50 columns]
-                
-
-                # DEBUG: Wenn es mehr als einen Kandidaten gibt, aber nur ein matched_osm_way, logge das Objekt
-                if len(cand) > 1 and len(best_matching_tilda_candidates_with_calcs) == 1:
-                    candidate_ids = cand["tilda_id"].tolist() if "tilda_id" in cand.columns else cand.index.tolist()
-                    # Prüfe, ob mindestens eine tilda_id "cycleway" enthält
-                    if any("cycleway" in str(tid) for tid in candidate_ids):
-                        candidate_links = [f"https://osm.org/{tid}" for tid in candidate_ids]
-                        logging.info(f"Seg:{seg.element_nr}: Nur 1 Matched. {len(cand)} Kandidaten, tilda_id: {candidate_ids}/Links: {candidate_links}")
-            else:
-                logging.info(f"Segment {seg.element_nr}: keine passenden OSM-Ways gefunden")
-
-            ### Erzeuge Segment-Varianten basierend auf TILDA-Daten
+            ### Erzeuge Segment-Varianten basierend auf TILDA-Daten (mit integrierter Bewertung)
             seg_dict = seg._asdict()
-            variants = create_directional_segment_variants_from_matched_tilda_ways(seg_dict, best_matching_tilda_candidates_with_calcs)
+            variants = create_directional_segment_variants_from_matched_tilda_ways(seg_dict, target_cand, cand)
             snapped_records.extend(variants)
             
             # Aktualisiere den Fortschrittsbalken
