@@ -12,10 +12,10 @@ schneiden, werden geteilt.
 Nutze den GeoPackage Export von TILDA als Input.
 
 Aufrufbeispiel:
-    python ./scripts/clip_bikelanes.py \\
-        --input ./bikelanes.fgb \\
-        --clip-features ./data/"Berlin Bezirke.gpkg" \\
-        --output ./TILDA Radwege Berlin.fgb
+    python ./scripts/clip_bikelanes.py \
+        --input ./bikelanes.fgb \
+        --clip-features ./data/"Berlin Bezirke.gpkg" \
+        --output "./TILDA Radwege Berlin.fgb"
 
 
 Nutzen für TILDA roads Datensatz:

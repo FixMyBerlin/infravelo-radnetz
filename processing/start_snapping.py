@@ -48,11 +48,11 @@ RVN_ATTRIBUT_VERKEHRSRICHTUNG  = "verkehrsrichtung"     # Werte: R / G / B (Rich
 
 # Attribute an denen die Kanten getrennt werden bzw. verschmolzen werden
 # Diese Attribute müssen in den übersetzten TILDA Daten vorhanden sein
-FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES = ["fuehr", "ofm", "protek", "pflicht", "breite", "farbe", "ri", "verkehrsri"]
-FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES=["data_source", "tilda_id", "tilda_oneway", "tilda_category", "tilda_traffic_sign"]
+FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES = ["fuehr", "ofm", "protek", "pflicht", "breite", "farbe", "ri", "verkehrsri", "trennstreifen", "nutz_beschr"]
+FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES=["data_source", "tilda_id", "tilda_name","tilda_oneway", "tilda_category", "tilda_traffic_sign"]
 
 # Prioritäten für OSM-Weg-Auswahl (höhere Zahl = höhere Priorität)
-TILDA_TRAFFIC_SIGN_PRIORITÄTEN = {
+TILDA_TRAFFIC_SIGN_PRIORITIES = {
     "237": 3,  # Radweg
     "240": 3,  # Gemeinsamer Geh- und Radweg
     "241": 3,  # Getrennter Rad- und Gehweg
@@ -157,13 +157,13 @@ def calculate_osm_priority(row) -> int:
     # Priorität basierend auf Verkehrszeichen (mit tilda_ Präfix)
     traffic_sign = row.get("tilda_traffic_sign", "")
     if traffic_sign:
-        for sign, prio in TILDA_TRAFFIC_SIGN_PRIORITÄTEN.items():
+        for sign, prio in TILDA_TRAFFIC_SIGN_PRIORITIES.items():
             if has_traffic_sign(traffic_sign, sign):
                 priority = max(priority, prio)
     
     # Priorität basierend auf Kategorie (mit tilda_ Präfix)
     category = row.get("tilda_category", "")
-    if category and str(category) in TILDA_CATEGORY_PRIORITäten:
+    if category and str(category) in TILDA_CATEGORY_PRIORITIES:
         priority = max(priority, TILDA_CATEGORY_PRIORITIES[str(category)])
     
     return priority
@@ -473,7 +473,7 @@ def process(net_path, osm_path, out_path, crs, buf, clip_neukoelln=False, data_d
             g = seg.geometry
             
             # Kandidaten im Buffer suchen (räumliche Suche)
-            cand_idx = list(osm_sidx.intersection(g.buffer(buf).bounds))
+            cand_idx = list(osm_sidx.intersection(g.buffer(buf, cap_style='flat').bounds))
             if not cand_idx:
                 # Keine TILDA-Kandidaten gefunden - Standardvarianten erzeugen
                 seg_dict = seg._asdict()

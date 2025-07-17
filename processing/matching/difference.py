@@ -2,7 +2,7 @@ from helpers.globals import DEFAULT_CRS
 import geopandas as gpd
 import os
 
-BUFFER_METERS = 35  # Buffer-Radius in Metern für die Differenzbildung
+BUFFER_METERS = 10  # Buffer-Radius in Metern für die Differenzbildung
 
 
 def difference_streets_without_bikelanes(streets_gdf, bikelanes_gdf, target_crs=None):
@@ -20,7 +20,7 @@ def difference_streets_without_bikelanes(streets_gdf, bikelanes_gdf, target_crs=
     else:
         target_crs = f"EPSG:{DEFAULT_CRS}"
     print(f"Erzeuge {BUFFER_METERS}m Buffer um Radwege ...")
-    bikelanes_buffer = bikelanes_gdf.buffer(BUFFER_METERS)
+    bikelanes_buffer = bikelanes_gdf.buffer(BUFFER_METERS, cap_style='flat')
     bikelanes_union = bikelanes_buffer.unary_union
     print("Berechne Differenz: Entferne Linien im Radwege/Straßen-Buffer ...")
     diff_geoms = streets_gdf.geometry.apply(lambda geom: geom.difference(bikelanes_union) if not geom.is_empty else geom)

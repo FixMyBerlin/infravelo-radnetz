@@ -33,8 +33,8 @@ import os
 from matching.orthogonal_filter import process_and_filter_short_segments
 from matching.manual_interventions import get_excluded_ways, get_included_ways
 from matching.difference import get_or_create_difference_fgb
-from export_geojson import export_all_geojson
 from helpers.progressbar import print_progressbar
+#from export_geojson import export_all_geojson
 
 # Konfiguration
 INPUT_BIKELANES_FGB = './output/TILDA-translated/TILDA Bikelanes Neukoelln Translated.fgb'  # Pfad zu TILDA-Radwegen
@@ -96,7 +96,7 @@ def create_unified_buffer(vorrangnetz_gdf, buffer_meters, target_crs):
     
     # Buffer muss neu berechnet werden
     print(f'Erzeuge Buffer von {buffer_meters}m um Vorrangnetz-Kanten...')
-    vorrangnetz_buffer = vorrangnetz_gdf.buffer(buffer_meters)
+    vorrangnetz_buffer = vorrangnetz_gdf.buffer(buffer_meters, cap_style='flat')
     print('Vereine alle Buffer zu einer einzigen Geometrie...')
     unified_buffer = vorrangnetz_buffer.union_all()
     
