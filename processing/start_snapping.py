@@ -250,7 +250,7 @@ def merge_segments(gdf, id_field, osm_fields):
     return result_gdf
 
 
-def create_segment_variants(seg_dict: dict, matched_osm_ways: list) -> list[dict]:
+def create_directional_segment_variants_from_matched_tilda_ways(seg_dict: dict, matched_osm_ways: list) -> list[dict]:
     """
     Erstellt für jedes Segment zwei gerichtete Varianten (eine für jede Richtung).
     Die Attribute werden basierend auf dem besten gematchten OSM-Weg gesetzt.
@@ -431,6 +431,11 @@ def process(net_path, osm_path, out_path, crs, buf, clip_neukoelln=False, data_d
         # 4. Übertrage relevante TILDA-Attribute auf das Segment
         # 5. Erzeuge ggf. Varianten für beide Richtungen
         # 6. Fortschrittsanzeige für den Nutzer
+
+        # Iteriere über alle Segmente des Netzwerks und führe das Snapping sowie die Attributübernahme durch
+        # cand => Mögliche TILDA-Kandidaten
+        # seg => Detailnetz Kantensegment
+        # idx => Segment-Index für Fortschrittsanzeige
         for idx, seg in enumerate(net_segmented.itertuples(), 1):
             g = seg.geometry
             
@@ -439,22 +444,35 @@ def process(net_path, osm_path, out_path, crs, buf, clip_neukoelln=False, data_d
             if not cand_idx:
                 # Keine TILDA-Kandidaten gefunden - Standardvarianten erzeugen
                 seg_dict = seg._asdict()
-                variants = create_segment_variants(seg_dict, [])
+                variants = create_directional_segment_variants_from_matched_tilda_ways(seg_dict, [])
                 snapped_records.extend(variants)
-                logging.debug(f"Keine TILDA-Kandidaten im Puffer für Segment {idx} gefunden.")
+                # TODO logging.info(f"Keine TILDA-Kandidaten im Puffer für Segment {seg.element_nr} gefunden.")
+
+                # Fortschrittsanzeige aktualisieren
                 print_progressbar(idx, total, prefix="Snapping: ")
                 continue
                 
+            # Kopiere die TILDA-Kandidaten, die im räumlichen Buffer gefunden wurden, für weitere Verarbeitung
+            # TODO Sollte die hier erstellt werden, oder erst später?
             cand = osm.iloc[cand_idx].copy()
+
+            # DEBUG: Logge die Kandidaten, wenn es mehr als einen gibt
+            # if len(cand) > 1:
+            #     logging.info(f"{len(cand)} TILDA-Kandidaten im Buffer für Segment {seg.element_nr}: IDs {[c for c in cand['tilda_id'] if 'tilda_id' in cand.columns] if 'tilda_id' in cand.columns else cand.index.tolist()}")
+            
             # Filtere Kandidaten nach tatsächlicher Entfernung zum Segment
             cand["d"] = cand.geometry.distance(g)
             cand = cand[cand["d"] <= buf]
             if cand.empty:
                 # Keine TILDA-Kandidaten im Buffer - Standardvarianten erzeugen
                 seg_dict = seg._asdict()
-                variants = create_segment_variants(seg_dict, [])
+
+                # TODO Erstmal keine Kante erzeugen, damit Lücke sichtbar?
+                variants = create_directional_segment_variants_from_matched_tilda_ways(seg_dict, [])
                 snapped_records.extend(variants)
-                logging.debug(f"Keine TILDA-Kandidaten im Puffer für Segment {idx} gefunden.")
+                # DEBUG Loggen: logging.info(f"Keine TILDA-Kandidaten im Puffer für Segment {seg.element_nr} gefunden.")
+
+                # Fortschrittsanzeige aktualisieren
                 print_progressbar(idx, total, prefix="Snapping: ")
                 continue
 
@@ -470,6 +488,8 @@ def process(net_path, osm_path, out_path, crs, buf, clip_neukoelln=False, data_d
             # Filtere Kandidaten mit passender Ausrichtung
             oriented_cand = cand[cand["angle_diff"] <= CONFIG_MAX_ANGLE_DIFFERENCE].copy()
 
+            ### Wähle EINEN Kandidaten aus
+            ### TODO Wie ist das richtige zusammenspiel zwischen dem Kopieren und der Auswahl der besten Kandidaten?
             # Wenn es ausgerichtete Kandidaten gibt, diese verwenden, sonst alle
             target_cand = oriented_cand if not oriented_cand.empty else cand.copy()
 
@@ -479,19 +499,32 @@ def process(net_path, osm_path, out_path, crs, buf, clip_neukoelln=False, data_d
             # Sortiere nach Priorität und Entfernung (höchste Priorität, geringste Entfernung)
             mid = g.interpolate(0.5, normalized=True)
             target_cand["dist_to_mid"] = target_cand.geometry.distance(mid)
-            target_cand = target_cand.sort_values(["priority", "dist_to_mid"], ascending=[False, True])
 
-            # Wähle den besten TILDA-Weg (höchste Priorität, nächste Entfernung)
+            ### Wähle den besten TILDA-Weg (höchste Priorität, nächste Entfernung)
             matched_osm_ways = []
             if not target_cand.empty:
                 best_osm = target_cand.iloc[0].to_dict()
                 matched_osm_ways.append(best_osm)
+                
 
-            # Erzeuge Segment-Varianten basierend auf TILDA-Daten
+                # DEBUG: Wenn es mehr als einen Kandidaten gibt, aber nur ein matched_osm_way, logge das Objekt
+                if len(cand) > 1 and len(matched_osm_ways) == 1:
+                    candidate_ids = cand["tilda_id"].tolist() if "tilda_id" in cand.columns else cand.index.tolist()
+                    # Prüfe, ob mindestens eine tilda_id "cycleway" enthält
+                    if any("cycleway" in str(tid) for tid in candidate_ids):
+                        candidate_links = [f"https://osm.org/{tid}" for tid in candidate_ids]
+                        logging.info(f"Seg:{seg.element_nr}: Nur 1 Matched. {len(cand)} Kandidaten, tilda_id: {candidate_ids}/Links: {candidate_links}")
+            else:
+                logging.info(f"Segment {seg.element_nr}: keine passenden OSM-Ways gefunden")
+
+            ### Erzeuge Segment-Varianten basierend auf TILDA-Daten
             seg_dict = seg._asdict()
-            variants = create_segment_variants(seg_dict, matched_osm_ways)
+            variants = create_directional_segment_variants_from_matched_tilda_ways(seg_dict, matched_osm_ways)
             snapped_records.extend(variants)
+            
+            # Aktualisiere den Fortschrittsbalken
             print_progressbar(idx, total, prefix="Snapping: ")
+
         # Erstelle GeoDataFrame aus allen bearbeiteten Segmenten
         net_segmented = gpd.GeoDataFrame(snapped_records, crs=crs)
         net_segmented.to_file(seg_attr_path, driver="FlatGeobuf")
