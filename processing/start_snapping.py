@@ -250,56 +250,6 @@ def merge_segments(gdf, id_field, osm_fields):
     return result_gdf
 
 
-def create_directional_segment_variants_from_matched_tilda_ways(seg_dict: dict, matched_osm_ways: list) -> list[dict]:
-    """
-    Erstellt für jedes Segment zwei gerichtete Varianten (eine für jede Richtung).
-    Die Attribute werden basierend auf dem besten gematchten OSM-Weg gesetzt.
-    Es werden immer zwei Kanten erzeugt, eine für die Hin- (ri=1) und eine für die
-    Rückrichtung (ri=0). Die Attribute des besten OSM-Matches werden auf beide
-    Varianten angewendet.
-
-    Args:
-        seg_dict (dict): Dictionary des ursprünglichen Straßensegments.
-        matched_osm_ways (list): Liste der gematchten OSM-Wege.
-
-    Returns:
-        list[dict]: Eine Liste mit zwei Dictionaries, die die beiden gerichteten
-                    Segment-Varianten repräsentieren.
-    """
-    variants = []
-    best_osm = matched_osm_ways[0] if matched_osm_ways else None
-
-    # Erstelle zwei Varianten, eine für jede Richtung
-    for ri_value in [1, 0]:  # 1 = Hinrichtung, 0 = Rückrichtung
-        variant = seg_dict.copy()
-        variant["ri"] = ri_value
-
-        if best_osm:
-            # Übertrage alle relevanten Attribute vom besten OSM-Match
-            for attr in FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES:
-                # Das Attribut `ri` wird explizit durch die Schleife gesetzt
-                if attr == 'ri':
-                    continue
-                if attr in best_osm:
-                    variant[attr] = best_osm.get(attr)
-
-            # Zusätzliche OSM-Attribute für Debugging/Referenz
-            for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
-                variant[attr] = best_osm.get(attr)
-        else:
-            # Keine OSM-Daten: Standardwerte setzen
-            for attr in FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES:
-                # Das Attribut `ri` wird explizit durch die Schleife gesetzt
-                if attr == 'ri':
-                    continue
-                if attr not in variant: # Behalte existierende Spalten wie 'geometry' etc.
-                    variant[attr] = None
-        
-        variants.append(variant)
-
-    return variants
-
-
 def debug_merge_attributes(gdf, id_field, osm_fields, sample_okstra_id=None):
     """
     Debug-Funktion: Analysiert die Attributwerte für das Merging.
@@ -345,6 +295,58 @@ def debug_merge_attributes(gdf, id_field, osm_fields, sample_okstra_id=None):
         logging.info(f"\nEinzigartige Attributkombinationen: {len(combinations)}")
         for idx, row in combinations.iterrows():
             logging.info(f"  Kombination {idx}: {dict(row)}")
+
+
+def create_directional_segment_variants_from_matched_tilda_ways(seg_dict: dict, matched_osm_ways: list) -> list[dict]:
+    """
+    Erstellt für jedes Segment zwei gerichtete Varianten (eine für jede Richtung).
+    Die Attribute werden basierend auf dem besten gematchten OSM-Weg gesetzt.
+    Es werden immer zwei Kanten erzeugt, eine für die Hin- (ri=1) und eine für die
+    Rückrichtung (ri=0). Die Attribute des besten OSM-Matches werden auf beide
+    Varianten angewendet.
+
+    Args:
+        seg_dict (dict): Dictionary des ursprünglichen Straßensegments.
+        matched_osm_ways (list): Liste der gematchten OSM-Wege.
+
+    Returns:
+        list[dict]: Eine Liste mit zwei Dictionaries, die die beiden gerichteten
+                    Segment-Varianten repräsentieren.
+    """
+    variants = []
+    best_osm = matched_osm_ways if matched_osm_ways else None
+
+    # Erstelle zwei Varianten, eine für jede Richtung
+    for ri_value in [1, 0]:  # 1 = Hinrichtung, 0 = Rückrichtung
+        # Erstelle eine Kopie des ursprünglichen Segments für die Gegenrichtung
+        # TODO das muss am Ende passieren, abhängig davon, ob es eine Einbahnstraße ohne Radverkehrs frei oder nicht
+        variant = seg_dict.copy()
+        variant["ri"] = ri_value
+
+        if best_osm:
+            # Übertrage alle relevanten Attribute vom besten OSM-Match
+            for attr in FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES:
+                # Das Attribut `ri` wird explizit durch die Schleife gesetzt
+                if attr == 'ri':
+                    continue
+                if attr in best_osm:
+                    variant[attr] = best_osm.get(attr)
+
+            # Zusätzliche OSM-Attribute für Debugging/Referenz
+            for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
+                variant[attr] = best_osm.get(attr)
+        else:
+            # Keine OSM-Daten: Standardwerte setzen
+            for attr in FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES:
+                # Das Attribut `ri` wird explizit durch die Schleife gesetzt
+                if attr == 'ri':
+                    continue
+                if attr not in variant: # Behalte existierende Spalten wie 'geometry' etc.
+                    variant[attr] = None
+        
+        variants.append(variant)
+
+    return variants
 
 
 # ------------------------------------------------------------- Hauptablauf --
@@ -432,7 +434,7 @@ def process(net_path, osm_path, out_path, crs, buf, clip_neukoelln=False, data_d
         # 5. Erzeuge ggf. Varianten für beide Richtungen
         # 6. Fortschrittsanzeige für den Nutzer
 
-        # Iteriere über alle Segmente des Netzwerks und führe das Snapping sowie die Attributübernahme durch
+        # Iteriere über alle Detailnetz Segmente des Netzwerks und führe das Snapping sowie die Attributübernahme durch
         # cand => Mögliche TILDA-Kandidaten
         # seg => Detailnetz Kantensegment
         # idx => Segment-Index für Fortschrittsanzeige
@@ -501,14 +503,18 @@ def process(net_path, osm_path, out_path, crs, buf, clip_neukoelln=False, data_d
             target_cand["dist_to_mid"] = target_cand.geometry.distance(mid)
 
             ### Wähle den besten TILDA-Weg (höchste Priorität, nächste Entfernung)
-            matched_osm_ways = []
+            best_matching_tilda_candidates_with_calcs = []
             if not target_cand.empty:
-                best_osm = target_cand.iloc[0].to_dict()
-                matched_osm_ways.append(best_osm)
+                best_matching_tilda_candidates_with_calcs = target_cand.iloc[0].to_dict()
+                # Aussehen target_cand an dieser Stelle für zwei Kandidaten::
+                # breite data_source  farbe               fuehr nutz_beschr             ofm pflicht  ...                   verkehrsri                 geometry                                       d        angle     angle_diff   priority dist_to_mid
+                # 1    6.0     streets  False  Mischverkehr mit motorisiertem Verkehr       keine  Asphalt   False  ...  Zweirichtungsverkehr  LINESTRING (806124.414 5815161.861, 806129.323...  0.449660  277.330268   0.251108        0    0.453697
+                # 2    6.0     streets  False  Mischverkehr mit motorisiertem Verkehr       keine  Asphalt   False  ...  Zweirichtungsverkehr  LINESTRING (806084.079 5815472.905, 806085.054...  3.922344  277.388707   0.192669        0    4.417926
+                # [2 rows x 50 columns]
                 
 
                 # DEBUG: Wenn es mehr als einen Kandidaten gibt, aber nur ein matched_osm_way, logge das Objekt
-                if len(cand) > 1 and len(matched_osm_ways) == 1:
+                if len(cand) > 1 and len(best_matching_tilda_candidates_with_calcs) == 1:
                     candidate_ids = cand["tilda_id"].tolist() if "tilda_id" in cand.columns else cand.index.tolist()
                     # Prüfe, ob mindestens eine tilda_id "cycleway" enthält
                     if any("cycleway" in str(tid) for tid in candidate_ids):
@@ -519,7 +525,7 @@ def process(net_path, osm_path, out_path, crs, buf, clip_neukoelln=False, data_d
 
             ### Erzeuge Segment-Varianten basierend auf TILDA-Daten
             seg_dict = seg._asdict()
-            variants = create_directional_segment_variants_from_matched_tilda_ways(seg_dict, matched_osm_ways)
+            variants = create_directional_segment_variants_from_matched_tilda_ways(seg_dict, best_matching_tilda_candidates_with_calcs)
             snapped_records.extend(variants)
             
             # Aktualisiere den Fortschrittsbalken
