@@ -79,28 +79,6 @@ def lines_from_geom(g):
     raise TypeError(f"Geometry {g.geom_type} nicht unterstützt")
 
 
-def reverse_geom(g):
-    """Dreht die Richtung einer Linie oder Multi-Linie um."""
-    if isinstance(g, LineString):
-        return LineString(list(g.coords)[::-1])
-    if isinstance(g, MultiLineString):
-        parts = [LineString(list(ls.coords)[::-1]) for ls in g.geoms]
-        return MultiLineString(parts[::-1])
-    raise TypeError
-
-
-# TODO Why is this not used anymore?
-def iter_coords(g):
-    """Iteriert über alle Stützpunkte einer Geometrie, egal ob LineString oder MultiLineString."""
-    if isinstance(g, LineString):
-        yield from g.coords
-    elif isinstance(g, MultiLineString):
-        for ls in g.geoms:
-            yield from ls.coords
-    else:
-        raise TypeError
-
-
 # TODO Why is this not used anymore?
 def is_left(line: LineString, p: Point) -> bool:
     """Prüft, ob ein Punkt links der Linie liegt (für Richtungsprüfung)."""
@@ -137,16 +115,6 @@ def angle_difference(angle1: float, angle2: float) -> float:
     return min(diff, 360 - diff)
 
 
-def is_bikelane(category: str) -> bool:
-    """
-    Prüft, ob ein OSM-Weg eine Bikelane ist.
-    Eine Bikelane liegt vor, wenn category gesetzt ist und nicht 'sharedMotorVehicleLane'.
-    """
-    if not category or pd.isna(category):
-        return False
-    return str(category).strip() != "sharedMotorVehicleLane"
-
-
 def calculate_osm_priority(row) -> int:
     """
     Berechnet die Priorität eines OSM-Wegs basierend auf traffic_sign und category.
@@ -167,12 +135,6 @@ def calculate_osm_priority(row) -> int:
         priority = max(priority, TILDA_CATEGORY_PRIORITIES[str(category)])
     
     return priority
-
-
-def new_neg_id(counter):
-    """Erzeugt eine neue negative ID für Zwischennoten (Splits)."""
-    counter["val"] -= 1
-    return counter["val"]
 
 
 def split_network_into_segments(net_gdf, crs, segment_length=1.0):
