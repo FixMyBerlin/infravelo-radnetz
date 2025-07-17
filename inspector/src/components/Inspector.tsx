@@ -1,6 +1,6 @@
 import { TableCellsIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import { clsx } from 'clsx'
-import { formatDistanceToNow, parseISO } from 'date-fns'
+import { formatDistanceToNow, fromUnixTime } from 'date-fns'
 import { useState } from 'react'
 import type { MapGeoJSONFeature } from 'react-map-gl/maplibre'
 
@@ -144,17 +144,8 @@ export const Inspector = ({ inspectorFeatures, activeLayerConfigs }: Props) => {
 
                                   <div className="text-xs text-gray-500">
                                     <>
-                                      {key.endsWith('_at') && typeof value === 'string' ? (
-                                        <>{formatDistanceToNow(parseISO(value))} ago </>
-                                      ) : null}
-                                      {key === 'updated_at' && typeof value === 'number' ? (
-                                        <>
-                                          {new Date(value * 1000).toLocaleString()} <br />
-                                          {Math.floor(
-                                            (Date.now() - value * 1000) / (1000 * 60 * 60 * 24),
-                                          )}{' '}
-                                          days ago
-                                        </>
+                                      {key == 'updated_at' ? (
+                                        <>{formatDistanceToNow(fromUnixTime(Number(value)))} ago </>
                                       ) : null}
                                       {key.includes('mapillary') && key != 'mapillary_coverage' ? (
                                         <a
