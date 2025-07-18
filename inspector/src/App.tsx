@@ -53,7 +53,9 @@ import { useMapParam } from './components/useMapParam/useMapParam'
 
 const TILE_URLS = {
   Production: 'https://tiles.tilda-geo.de',
+  ProdNoCache: 'https://cacheless.tilda-geo.de',
   Staging: 'https://staging-tiles.tilda-geo.de',
+  StgNoCache: 'https://staging-cacheless.tilda-geo.de',
   Development: 'http://localhost:3000',
 } as const
 
