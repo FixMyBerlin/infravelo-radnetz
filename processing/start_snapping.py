@@ -60,7 +60,13 @@ TILDA_TRAFFIC_SIGN_PRIORITIES = {
 
 # Kategorie-Prioritäten
 TILDA_CATEGORY_PRIORITIES = {
+    "bicycleRoad*": 6,  # Fahrradstraße
+    "cycleway*": 6,  # Radweg
+    "footAndCycleway*": 5,  # Fußweg mit Radverkehr
+    "footwayBicycle*": 4,  # Fußweg mit Radverkehr
+    "sharedBusLaneBikeWithBus": 3,  # Gemeinsame Busspur mit Radverkehr
     "sharedBusLaneBusWithBike": 2,
+    "pedestrianAreaBicycleYes": 2,  # Fußgängerzone mit Radverkehr
     "sharedMotorVehicleLane": 1,  # Niedrigste Priorität
 }
 
@@ -86,22 +92,35 @@ def is_left(line: LineString, p: Point) -> bool:
     b_x, b_y = line.coords[-1]
     return ((b_x - a_x) * (p.y - a_y) - (b_y - a_y) * (p.x - a_x)) > 0
 
-# TODO MultiLineString-Handling behandelt nur den ersten LineString
 def calculate_line_angle(line: LineString | MultiLineString) -> float:
     """
     Berechnet den Winkel einer Linie (Anfangs- zu Endpunkt) in Grad.
     Der Winkel wird im Bereich [0, 360) zurückgegeben.
-    Bei MultiLineStrings wird nur der erste LineString zur Berechnung verwendet.
+    Bei MultiLineStrings wird der Winkel vom ersten Punkt des ersten LineStrings 
+    zum letzten Punkt des letzten LineStrings berechnet.
     """
     if isinstance(line, MultiLineString):
-        # Bei MultiLineString nur den ersten Teil für die Winkelberechnung verwenden
-        line = line.geoms[0]
-
-    coords = list(line.coords)
-    if len(coords) < 2:
-        return 0.0
-    p1 = coords[0]
-    p2 = coords[-1]
+        # Bei MultiLineString den ersten Punkt der ersten Linie und 
+        # den letzten Punkt der letzten Linie verwenden
+        first_line = line.geoms[0]
+        last_line = line.geoms[-1]
+        
+        first_coords = list(first_line.coords)
+        last_coords = list(last_line.coords)
+        
+        if len(first_coords) < 1 or len(last_coords) < 1:
+            return 0.0
+            
+        p1 = first_coords[0]  # Erster Punkt der ersten Linie
+        p2 = last_coords[-1]  # Letzter Punkt der letzten Linie
+    else:
+        # Normaler LineString
+        coords = list(line.coords)
+        if len(coords) < 2:
+            return 0.0
+        p1 = coords[0]
+        p2 = coords[-1]
+    
     angle = np.degrees(np.arctan2(p2[1] - p1[1], p2[0] - p1[0]))
     return angle if angle >= 0 else angle + 360
 
@@ -113,6 +132,28 @@ def angle_difference(angle1: float, angle2: float) -> float:
     """
     diff = abs(angle1 - angle2)
     return min(diff, 360 - diff)
+
+
+def determine_segment_direction(segment_geom, osm_geom) -> int:
+    """
+    Bestimmt die Richtung (ri) eines Segments basierend auf der Ausrichtung
+    zwischen dem Segment und dem passenden OSM-Weg.
+    
+    Args:
+        segment_geom: Geometrie des Netzwerksegments
+        osm_geom: Geometrie des OSM-Wegs
+        
+    Returns:
+        int: 1 für Hinrichtung (gleiche Richtung), 0 für Rückrichtung (entgegengesetzte Richtung)
+    """
+    segment_angle = calculate_line_angle(segment_geom)
+    osm_angle = calculate_line_angle(osm_geom)
+    
+    angle_diff = angle_difference(segment_angle, osm_angle)
+    
+    # Wenn der Winkelunterschied kleiner als 90° ist, haben beide die gleiche Richtung (ri=1)
+    # Wenn größer als 90°, haben sie entgegengesetzte Richtungen (ri=0)
+    return 1 if angle_diff < 90 else 0
 
 
 def split_network_into_segments(net_gdf, crs, segment_length=1.0):
@@ -279,6 +320,7 @@ def calculate_osm_priority(row) -> int:
     """
     Berechnet die Priorität eines OSM-Wegs basierend auf traffic_sign und category.
     Höhere Zahl = höhere Priorität.
+    Unterstützt Wildcard-Matching: Kategorien mit '*' am Ende verwenden Präfix-Match.
     """
     priority = 0
     
@@ -291,18 +333,34 @@ def calculate_osm_priority(row) -> int:
     
     # Priorität basierend auf Kategorie (mit tilda_ Präfix)
     category = row.get("tilda_category", "")
-    if category and str(category) in TILDA_CATEGORY_PRIORITIES:
-        priority = max(priority, TILDA_CATEGORY_PRIORITIES[str(category)])
+    if category:
+        category_str = str(category)
+        for pattern, prio in TILDA_CATEGORY_PRIORITIES.items():
+            # Prüfe ob Pattern mit * endet (Wildcard-Match)
+            if pattern.endswith("*"):
+                # Entferne das * und prüfe ob Kategorie mit dem Präfix beginnt
+                prefix = pattern[:-1]
+                if category_str.startswith(prefix):
+                    priority = max(priority, prio)
+            else:
+                # Exakter Match
+                if category_str == pattern:
+                    priority = max(priority, prio)
     
     return priority
 
 
 def create_directional_segment_variants_from_matched_tilda_ways(seg_dict: dict, target_candidates, original_candidates=None) -> list[dict]:
     """
-    Erstellt für jedes Segment zwei gerichtete Varianten (eine für jede Richtung).
+    Erstellt für jedes Segment gerichtete Varianten basierend auf den TILDA-Attributen.
     Die Attribute werden basierend auf dem besten gematchten TILDA-Weg gesetzt.
     Führt die Bewertung und Priorisierung der Kandidaten durch.
-    Es werden immer zwei Kanten erzeugt, eine für die Hin- (ri=1) und eine für die
+    
+    Sonderfall: Bei verkehrsri=Einrichtungsverkehr und fuehr=Mischverkehr mit motorisiertem Verkehr
+    wird nur eine Kante erzeugt, wobei das ri basierend auf der Richtungsausrichtung zwischen
+    Segment und OSM-Weg bestimmt wird.
+    
+    Standardfall: Es werden zwei Kanten erzeugt, eine für die Hin- (ri=1) und eine für die
     Rückrichtung (ri=0). Die Attribute des besten TILDA-Matches werden auf beide
     Varianten angewendet.
 
@@ -312,7 +370,7 @@ def create_directional_segment_variants_from_matched_tilda_ways(seg_dict: dict, 
         original_candidates: GeoDataFrame mit ursprünglichen TILDA-Kandidaten für DEBUG-Ausgabe.
 
     Returns:
-        list[dict]: Eine Liste mit zwei Dictionaries, die die beiden gerichteten
+        list[dict]: Eine Liste mit ein oder zwei Dictionaries, die die gerichteten
                     Segment-Varianten repräsentieren.
     """
     variants = []
@@ -349,35 +407,58 @@ def create_directional_segment_variants_from_matched_tilda_ways(seg_dict: dict, 
             if any("cycleway" in str(tid) for tid in candidate_ids):
                 candidate_links = [f"https://osm.org/{tid}" for tid in candidate_ids]
                 import logging
-                logging.info(f"Seg:{seg_dict.get('element_nr', 'unknown')}: {len(original_candidates)} Kandidaten, tilda_id: {candidate_ids}/Links: {candidate_links}")    # Erstelle zwei Varianten, eine für jede Richtung
-    for ri_value in [1, 0]:  # 1 = Hinrichtung, 0 = Rückrichtung
-        # Erstelle eine Kopie des ursprünglichen Segments für die Gegenrichtung
-        # TODO das muss am Ende passieren, abhängig davon, ob es eine Einbahnstraße ohne Radverkehrs frei oder nicht
+                logging.info(f"Seg:{seg_dict.get('element_nr', 'unknown')}: {len(original_candidates)} Kandidaten, tilda_id: {candidate_ids}/Links: {candidate_links}")
+    
+    # Erstelle Varianten basierend auf verkehrsri und fuehr
+    if best_osm and best_osm.get('verkehrsri') == 'Einrichtungsverkehr' and best_osm.get('fuehr') == 'Mischverkehr mit motorisiertem Verkehr':
+        # Sonderfall: Einrichtungsverkehr mit Mischverkehr - nur eine Kante erzeugen
+        # ri wird basierend auf der Richtungsausrichtung zwischen Segment und OSM-Weg bestimmt
         variant = seg_dict.copy()
-        variant["ri"] = ri_value
-
-        if best_osm:
-            # Übertrage alle relevanten Attribute vom besten OSM-Match
-            for attr in FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES:
-                # Das Attribut `ri` wird explizit durch die Schleife gesetzt
-                if attr == 'ri':
-                    continue
-                if attr in best_osm:
-                    variant[attr] = best_osm.get(attr)
-
-            # Zusätzliche OSM-Attribute für Debugging/Referenz
-            for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
-                variant[attr] = best_osm.get(attr)
-        else:
-            # Keine OSM-Daten: Standardwerte setzen
-            for attr in FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES:
-                # Das Attribut `ri` wird explizit durch die Schleife gesetzt
-                if attr == 'ri':
-                    continue
-                if attr not in variant: # Behalte existierende Spalten wie 'geometry' etc.
-                    variant[attr] = None
+        variant["ri"] = determine_segment_direction(seg_dict["geometry"], best_osm["geometry"])
         
+        # Übertrage alle relevanten Attribute vom besten OSM-Match
+        for attr in FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES:
+            # Das Attribut `ri` wurde bereits explizit gesetzt
+            if attr == 'ri':
+                continue
+            if attr in best_osm:
+                variant[attr] = best_osm.get(attr)
+
+        # Zusätzliche OSM-Attribute für Debugging/Referenz
+        for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
+            variant[attr] = best_osm.get(attr)
+            
         variants.append(variant)
+    else:
+        # Standardfall: Erstelle zwei Varianten, eine für jede Richtung
+        for ri_value in [1, 0]:  # 1 = Hinrichtung, 0 = Rückrichtung
+            # Erstelle eine Kopie des ursprünglichen Segments für die Gegenrichtung
+            # TODO das muss am Ende passieren, abhängig davon, ob es eine Einbahnstraße ohne Radverkehrs frei oder nicht
+            variant = seg_dict.copy()
+            variant["ri"] = ri_value
+
+            if best_osm:
+                # Übertrage alle relevanten Attribute vom besten OSM-Match
+                for attr in FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES:
+                    # Das Attribut `ri` wird explizit durch die Schleife gesetzt
+                    if attr == 'ri':
+                        continue
+                    if attr in best_osm:
+                        variant[attr] = best_osm.get(attr)
+
+                # Zusätzliche OSM-Attribute für Debugging/Referenz
+                for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
+                    variant[attr] = best_osm.get(attr)
+            else:
+                # Keine OSM-Daten: Standardwerte setzen
+                for attr in FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES:
+                    # Das Attribut `ri` wird explizit durch die Schleife gesetzt
+                    if attr == 'ri':
+                        continue
+                    if attr not in variant: # Behalte existierende Spalten wie 'geometry' etc.
+                        variant[attr] = None
+            
+            variants.append(variant)
 
     return variants
 
