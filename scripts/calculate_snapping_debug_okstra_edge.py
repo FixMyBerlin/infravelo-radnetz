@@ -201,8 +201,6 @@ def debug_okstra_edge(okstra_id: str, net_path: str, osm_path: str,
         print(f"\n   🎯 ALLE KANDIDATEN WERDEN FÜR RICHTUNGSANALYSE VERWENDET:")
         print(f"      ✅ {len(cand)} Kandidaten verfügbar für intelligente Bewertung")
         
-        target_cand = cand
-
         # Analysiere für beide Richtungen
         print(f"\n   🔄 RICHTUNGS-ANALYSE:")
         
@@ -214,8 +212,8 @@ def debug_okstra_edge(okstra_id: str, net_path: str, osm_path: str,
             ri_name = "Hinrichtung" if ri_value == 0 else "Rückrichtung"
             print(f"\n      📌 ri={ri_value} ({ri_name}):")
             
-            # Finde besten Kandidaten für diese Richtung
-            best_candidate = find_best_candidate_for_direction(target_cand, seg_dict, ri_value)
+            # Finde besten Kandidaten für diese Richtung (mit seg_angle Parameter)
+            best_candidate = find_best_candidate_for_direction(cand, seg_dict, ri_value, seg_angle)
             
             if best_candidate:
                 tilda_id = best_candidate.get('tilda_id', 'unknown')
@@ -240,7 +238,7 @@ def debug_okstra_edge(okstra_id: str, net_path: str, osm_path: str,
         # Erstelle finale Segment-Varianten
         print(f"\n   🏗️  SEGMENT-VARIANTEN:")
         variants = create_directional_segment_variants_from_matched_tilda_ways(
-            seg_dict, target_cand, cand
+            seg_dict, cand, cand
         )
         
         for variant in variants:
