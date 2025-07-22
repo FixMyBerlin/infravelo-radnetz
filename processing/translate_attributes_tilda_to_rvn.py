@@ -20,6 +20,7 @@ OUTPUT:
 import argparse
 import logging
 import os
+from pathlib import Path
 import geopandas as gpd
 from helpers.globals import DEFAULT_CRS
 from helpers.progressbar import print_progressbar
@@ -348,8 +349,8 @@ def determine_trennstreifen(row) -> str:
         # Falls kein Sicherheitstrennstreifen auf beiden Seiten
         if not (str(row.get("traffic_mode_left", "")).strip().lower() == "parking" or
                 str(row.get("traffic_mode_right", "")).strip().lower() == "parking"):
-            return "entfällt"
-        return "nein"
+            return "nein"
+        return "entfällt"
 
     # TODO Dies sollte für Radfahrstreifen und Schutzstreifen gelten ???
     # Nur rechte Seite prüfen
@@ -538,6 +539,10 @@ def process_file(input_file: str, data_source: str, output_dir: str, crs: str, c
     filename_suffix = " Neukoelln" if clip_neukoelln else ""
     output_file = os.path.join(output_dir, f"TILDA {data_source.title()}{filename_suffix} Translated.fgb")
     os.makedirs(output_dir, exist_ok=True)
+    
+    # Lösche existierende Ausgabedatei, um Write-Access-Fehler zu vermeiden
+    Path(output_file).unlink(missing_ok=True)
+    
     translated_gdf.to_file(output_file, driver="FlatGeobuf")
     
     logging.info(f"✔ Gespeichert: {output_file} ({len(translated_gdf)} Features)")

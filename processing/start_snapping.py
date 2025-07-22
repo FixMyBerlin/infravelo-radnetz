@@ -636,7 +636,6 @@ def process(net_path, osm_path, out_path, crs, buf, clip_neukoelln=False, data_d
     
     # Stelle sicher, dass das Ausgabeverzeichnis existiert
     os.makedirs(os.path.dirname(p), exist_ok=True)
-    Path(p).unlink(missing_ok=True)
     
     # Füge Suffix für Neukölln-Dateien hinzu
     if clip_neukoelln:
@@ -648,6 +647,9 @@ def process(net_path, osm_path, out_path, crs, buf, clip_neukoelln=False, data_d
             p = f"{p_base}_neukoelln.{p_ext}"
         else:
             p = f"{p}_neukoelln"
+    
+    # Lösche existierende Ausgabedatei NACH dem Suffix-Handling, um Write-Access-Fehler zu vermeiden
+    Path(p).unlink(missing_ok=True)
     
     out_gdf.to_file(p, layer=layer, driver="FlatGeoBuf")
     print(f"✔  {len(out_gdf)} Kanten → {p}:{layer}")
