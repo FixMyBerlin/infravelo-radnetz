@@ -115,9 +115,11 @@ def determine_verkehrsri(row, data_source: str) -> str:
         elif oneway == "car_not_bike":
             return "Zweirichtungsverkehr"
         elif oneway == "assumed_no":
-            return "[TODO] Vermutlich nein"
+            # TODO Prüfen ob die Daten präzisiert werden müssen
+            return "Zweirichtungsverkehr"
         elif oneway == "implicit_yes":
-            return "[TODO] Vermutlich Einrichtungsverkehr"
+            # TODO Prüfen ob die Daten präzisiert werden müssen
+            return "Einrichtungsverkehr"
         elif not oneway or oneway in ["None", "none"]:
             # Fehlende Werte
             return "[TODO] Fehlender Wert"

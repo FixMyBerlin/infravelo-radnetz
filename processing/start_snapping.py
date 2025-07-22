@@ -350,19 +350,73 @@ def calculate_osm_priority(row) -> int:
     return priority
 
 
+def find_best_candidate_for_direction(candidates, seg_dict, ri_value):
+    """
+    Findet den besten TILDA-Kandidaten für eine spezifische Richtung.
+    Berücksichtigt verkehrsri und Richtungsausrichtung.
+    
+    Args:
+        candidates: GeoDataFrame mit TILDA-Kandidaten
+        seg_dict: Dictionary des Segments
+        ri_value: Richtung (1=Hinrichtung, 0=Rückrichtung)
+        
+    Returns:
+        dict oder None: Bester Kandidat für die gegebene Richtung
+    """
+    if candidates is None or len(candidates) == 0:
+        return None
+    
+    candidates = candidates.copy()
+    segment_geom = seg_dict["geometry"]
+    
+    # Berechne Priorität für alle Kandidaten
+    candidates["priority"] = candidates.apply(calculate_osm_priority, axis=1)
+    
+    # Berechne Entfernung zum Segmentmittelpunkt
+    from shapely.geometry import Point
+    mid = segment_geom.interpolate(0.5, normalized=True)
+    candidates["dist_to_mid"] = candidates.geometry.distance(mid)
+    
+    # Berechne Richtungskompatibilität für jeden Kandidaten
+    candidates["direction_compatibility"] = 0
+    
+    for idx, candidate in candidates.iterrows():
+        candidate_verkehrsri = candidate.get('verkehrsri', '')
+        
+        if candidate_verkehrsri == 'Einrichtungsverkehr':
+            # Bei Einrichtungsverkehr: Prüfe Richtungsausrichtung
+            segment_direction = determine_segment_direction(segment_geom, candidate.geometry)
+            if segment_direction == ri_value:
+                # Richtung passt perfekt
+                candidates.at[idx, "direction_compatibility"] = 2
+            else:
+                # Richtung passt nicht - niedrigere Priorität
+                candidates.at[idx, "direction_compatibility"] = 0
+        else:
+            # Bei Zweirichtungsverkehr: Kann für beide Richtungen verwendet werden
+            candidates.at[idx, "direction_compatibility"] = 1
+    
+    # Sortiere nach Richtungskompatibilität, Priorität und Entfernung
+    candidates = candidates.sort_values(
+        ["direction_compatibility", "priority", "dist_to_mid"], 
+        ascending=[False, False, True]
+    )
+    
+    # Wähle den besten Kandidaten
+    return candidates.iloc[0].to_dict() if len(candidates) > 0 else None
+
+
 def create_directional_segment_variants_from_matched_tilda_ways(seg_dict: dict, target_candidates, original_candidates=None) -> list[dict]:
     """
     Erstellt für jedes Segment gerichtete Varianten basierend auf den TILDA-Attributen.
-    Die Attribute werden basierend auf dem besten gematchten TILDA-Weg gesetzt.
-    Führt die Bewertung und Priorisierung der Kandidaten durch.
+    Die Attribute werden richtungsabhängig basierend auf den besten gematchten TILDA-Wegen gesetzt.
+    Führt die Bewertung und Priorisierung der Kandidaten für jede Richtung durch.
     
-    Sonderfall: Bei verkehrsri=Einrichtungsverkehr und fuehr=Mischverkehr mit motorisiertem Verkehr
-    wird nur eine Kante erzeugt, wobei das ri basierend auf der Richtungsausrichtung zwischen
-    Segment und OSM-Weg bestimmt wird.
+    Sonderfall: Bei verkehrsri=Einrichtungsverkehr wird nur eine Kante erzeugt,
+    wobei das ri basierend auf der Richtungsausrichtung zwischen Segment und OSM-Weg bestimmt wird.
     
     Standardfall: Es werden zwei Kanten erzeugt, eine für die Hin- (ri=1) und eine für die
-    Rückrichtung (ri=0). Die Attribute des besten TILDA-Matches werden auf beide
-    Varianten angewendet.
+    Rückrichtung (ri=0). Für jede Richtung wird der passendste TILDA-Weg gewählt.
 
     Args:
         seg_dict (dict): Dictionary des ursprünglichen Straßensegments.
@@ -374,74 +428,60 @@ def create_directional_segment_variants_from_matched_tilda_ways(seg_dict: dict, 
                     Segment-Varianten repräsentieren.
     """
     variants = []
-    best_osm = None
     
-    # Aussehen target_cand an dieser Stelle für zwei Kandidaten::
-    # breite data_source  farbe               fuehr nutz_beschr             ofm pflicht  ...                   verkehrsri                 geometry                                       d        angle     angle_diff   priority dist_to_mid
-    # 1    6.0     streets  False  Mischverkehr mit motorisiertem Verkehr       keine  Asphalt   False  ...  Zweirichtungsverkehr  LINESTRING (806124.414 5815161.861, 806129.323...  0.449660  277.330268   0.251108        0    0.453697
-    # 2    6.0     streets  False  Mischverkehr mit motorisiertem Verkehr       keine  Asphalt   False  ...  Zweirichtungsverkehr  LINESTRING (806084.079 5815472.905, 806085.054...  3.922344  277.388707   0.192669        0    4.417926
-    # [2 rows x 50 columns]
+    # DEBUG: Wenn es mehr als einen ursprünglichen Kandidaten gibt, logge das Objekt
+    if original_candidates is not None and len(original_candidates) > 1:
+        candidate_ids = original_candidates["tilda_id"].tolist() if "tilda_id" in original_candidates.columns else original_candidates.index.tolist()
+        # Prüfe, ob mindestens eine tilda_id "cycleway" enthält
+        if any("cycleway" in str(tid) for tid in candidate_ids):
+            candidate_links = [f"https://osm.org/{tid}" for tid in candidate_ids]
+            import logging
+            logging.info(f"Seg:{seg_dict.get('element_nr', 'unknown')}: {len(original_candidates)} Kandidaten, tilda_id: {candidate_ids}/Links: {candidate_links}")
     
-    # Bewertung und Auswahl des besten Kandidaten
+    # Prüfe, ob wir einen eindeutigen Einrichtungsverkehr-Kandidaten haben
+    einrichtung_candidates = []
     if target_candidates is not None and len(target_candidates) > 0:
-        # Berechne Priorität für alle Kandidaten
-        target_candidates = target_candidates.copy()
-        target_candidates["priority"] = target_candidates.apply(calculate_osm_priority, axis=1)
-        
-        # Sortiere nach Priorität und Entfernung (höchste Priorität, geringste Entfernung)
-        from shapely.geometry import Point
-        g = seg_dict["geometry"]
-        mid = g.interpolate(0.5, normalized=True)
-        target_candidates["dist_to_mid"] = target_candidates.geometry.distance(mid)
-        
-        # Sortiere nach Priorität (absteigend) und dann nach Entfernung (aufsteigend)
-        target_candidates = target_candidates.sort_values(["priority", "dist_to_mid"], ascending=[False, True])
-        
-        # Wähle den besten Kandidaten
-        best_osm = target_candidates.iloc[0].to_dict()
-        
-        # DEBUG: Wenn es mehr als einen ursprünglichen Kandidaten gibt, logge das Objekt
-        if original_candidates is not None and len(original_candidates) > 1:
-            candidate_ids = original_candidates["tilda_id"].tolist() if "tilda_id" in original_candidates.columns else original_candidates.index.tolist()
-            # Prüfe, ob mindestens eine tilda_id "cycleway" enthält
-            if any("cycleway" in str(tid) for tid in candidate_ids):
-                candidate_links = [f"https://osm.org/{tid}" for tid in candidate_ids]
-                import logging
-                logging.info(f"Seg:{seg_dict.get('element_nr', 'unknown')}: {len(original_candidates)} Kandidaten, tilda_id: {candidate_ids}/Links: {candidate_links}")
+        einrichtung_candidates = target_candidates[
+            target_candidates.get('verkehrsri', '') == 'Einrichtungsverkehr'
+        ]
     
-    # Erstelle Varianten basierend auf verkehrsri und fuehr
-    if best_osm and best_osm.get('verkehrsri') == 'Einrichtungsverkehr' and best_osm.get('fuehr') == 'Mischverkehr mit motorisiertem Verkehr':
-        # Sonderfall: Einrichtungsverkehr mit Mischverkehr - nur eine Kante erzeugen
-        # ri wird basierend auf der Richtungsausrichtung zwischen Segment und OSM-Weg bestimmt
-        variant = seg_dict.copy()
-        variant["ri"] = determine_segment_direction(seg_dict["geometry"], best_osm["geometry"])
+    # Sonderfall: Nur Einrichtungsverkehr-Kandidaten mit Mischverkehr
+    if (len(einrichtung_candidates) > 0 and 
+        len(einrichtung_candidates) == len(target_candidates) and
+        all(cand.get('fuehr') == 'Mischverkehr mit motorisiertem Verkehr' 
+            for _, cand in einrichtung_candidates.iterrows())):
         
-        # Übertrage alle relevanten Attribute vom besten OSM-Match
-        for attr in FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES:
-            # Das Attribut `ri` wurde bereits explizit gesetzt
-            if attr == 'ri':
-                continue
-            if attr in best_osm:
-                variant[attr] = best_osm.get(attr)
-
-        # Zusätzliche OSM-Attribute für Debugging/Referenz
-        for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
-            variant[attr] = best_osm.get(attr)
+        # Nur eine Kante erzeugen basierend auf dem besten Einrichtungsverkehr-Kandidaten
+        best_osm = find_best_candidate_for_direction(einrichtung_candidates, seg_dict, None)
+        if best_osm:
+            variant = seg_dict.copy()
+            variant["ri"] = determine_segment_direction(seg_dict["geometry"], best_osm["geometry"])
             
-        variants.append(variant)
+            # Übertrage alle relevanten Attribute vom besten OSM-Match
+            for attr in FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES:
+                if attr == 'ri':  # ri wurde bereits explizit gesetzt
+                    continue
+                if attr in best_osm:
+                    variant[attr] = best_osm.get(attr)
+
+            # Zusätzliche OSM-Attribute für Debugging/Referenz
+            for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
+                variant[attr] = best_osm.get(attr)
+                
+            variants.append(variant)
     else:
         # Standardfall: Erstelle zwei Varianten, eine für jede Richtung
         for ri_value in [1, 0]:  # 1 = Hinrichtung, 0 = Rückrichtung
-            # Erstelle eine Kopie des ursprünglichen Segments für die Gegenrichtung
-            # TODO das muss am Ende passieren, abhängig davon, ob es eine Einbahnstraße ohne Radverkehrs frei oder nicht
             variant = seg_dict.copy()
             variant["ri"] = ri_value
+
+            # Finde den besten Kandidaten für diese spezifische Richtung
+            best_osm = find_best_candidate_for_direction(target_candidates, seg_dict, ri_value)
 
             if best_osm:
                 # Übertrage alle relevanten Attribute vom besten OSM-Match
                 for attr in FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES:
-                    # Das Attribut `ri` wird explizit durch die Schleife gesetzt
-                    if attr == 'ri':
+                    if attr == 'ri':  # ri wird explizit durch die Schleife gesetzt
                         continue
                     if attr in best_osm:
                         variant[attr] = best_osm.get(attr)
@@ -452,10 +492,9 @@ def create_directional_segment_variants_from_matched_tilda_ways(seg_dict: dict, 
             else:
                 # Keine OSM-Daten: Standardwerte setzen
                 for attr in FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES:
-                    # Das Attribut `ri` wird explizit durch die Schleife gesetzt
-                    if attr == 'ri':
+                    if attr == 'ri':  # ri wird explizit durch die Schleife gesetzt
                         continue
-                    if attr not in variant: # Behalte existierende Spalten wie 'geometry' etc.
+                    if attr not in variant:  # Behalte existierende Spalten wie 'geometry' etc.
                         variant[attr] = None
             
             variants.append(variant)
