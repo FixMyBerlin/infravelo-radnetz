@@ -179,9 +179,50 @@ def split_network_into_segments(net_gdf, crs, segment_length=1.0):
     return gpd.GeoDataFrame(segmente, crs=crs)
 
 
+def normalize_merge_attributes_batch(df, fields):
+    """
+    Normalisiert alle Merge-Attribute in einem Durchgang (vektorisiert).
+    Behandelt None/NaN-Werte und Floating-Point-Präzision korrekt.
+    Deutlich schneller als einzelne apply()-Operationen.
+    """
+    normalized = {}
+    
+    for field in fields:
+        if field in df.columns:
+            series = df[field].copy()
+            result = pd.Series(index=series.index, dtype=object)
+            
+            # None/NaN behandeln
+            null_mask = series.isna() | series.isnull()
+            result = result.where(~null_mask, "NULL")
+            
+            # Float-Werte runden (vektorisiert)
+            float_mask = pd.api.types.is_float_dtype(series) | series.apply(lambda x: isinstance(x, float) if not pd.isna(x) else False)
+            float_values = series[float_mask & ~null_mask].round(1).astype(str)
+            result.loc[float_mask & ~null_mask] = float_values
+            
+            # Boolean zu String (vektorisiert)
+            bool_mask = pd.api.types.is_bool_dtype(series) | series.apply(lambda x: isinstance(x, bool) if not pd.isna(x) else False)
+            bool_values = series[bool_mask & ~null_mask].astype(str)
+            result.loc[bool_mask & ~null_mask] = bool_values
+            
+            # String normalisieren (vektorisiert)
+            string_mask = ~null_mask & ~float_mask & ~bool_mask
+            if string_mask.any():
+                string_values = series[string_mask].astype(str).str.strip()
+                result.loc[string_mask] = string_values
+            
+            normalized[f"{field}_normalized"] = result
+        else:
+            logging.warning(f"Merge-Attribut '{field}' nicht in den Daten gefunden!")
+            normalized[f"{field}_normalized"] = pd.Series(["NULL"] * len(df), index=df.index)
+    
+    return pd.DataFrame(normalized, index=df.index)
+
+
 def normalize_merge_attribute(value):
     """
-    Normalisiert Attributwerte für das Merging.
+    Normalisiert einzelne Attributwerte für das Merging.
     Behandelt None/NaN-Werte und Floating-Point-Präzision.
     """
     if pd.isna(value) or value is None:
@@ -206,13 +247,9 @@ def merge_segments(gdf, id_field, osm_fields):
     # Erstelle eine Kopie für die Bearbeitung
     gdf_work = gdf.copy()
     
-    # Normalisiere die Merge-Attribute für konsistentes Grouping
-    for field in osm_fields:
-        if field in gdf_work.columns:
-            gdf_work[f"{field}_normalized"] = gdf_work[field].apply(normalize_merge_attribute)
-        else:
-            logging.warning(f"Merge-Attribut '{field}' nicht in den Daten gefunden!")
-            gdf_work[f"{field}_normalized"] = "NULL"
+    # Normalisiere alle Merge-Attribute in einem Durchgang (vektorisiert - deutlich schneller)
+    normalized_df = normalize_merge_attributes_batch(gdf_work, osm_fields)
+    gdf_work = pd.concat([gdf_work, normalized_df], axis=1)
     
     # Verwende die normalisierten Felder für das Grouping
     normalized_fields = [f"{field}_normalized" for field in osm_fields]
@@ -223,8 +260,8 @@ def merge_segments(gdf, id_field, osm_fields):
     logging.info(f"Anzahl einzigartiger Attributkombinationen: {len(unique_combinations)}")
     
     gruppen = []
-    # Gruppiere die Segmente nach okstra_id und den normalisierten OSM-Attributen
-    grouped = list(gdf_work.groupby(groupby_fields))
+    # Gruppiere die Segmente nach okstra_id und den normalisierten OSM-Attributen (ohne Sortierung für bessere Performance)
+    grouped = list(gdf_work.groupby(groupby_fields, sort=False))
     total = len(grouped)
     
     logging.info(f"Anzahl Gruppen zum Verschmelzen: {total}")
