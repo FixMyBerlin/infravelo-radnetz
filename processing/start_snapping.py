@@ -703,15 +703,8 @@ def process(net_path, osm_path, out_path, crs, buf, clip_neukoelln=False, data_d
             cand["angle"] = cand.geometry.apply(calculate_line_angle)
             cand["angle_diff"] = cand["angle"].apply(lambda a: angle_difference(a, seg_angle))
 
-            # Filtere Kandidaten mit passender Ausrichtung
-            oriented_cand = cand[cand["angle_diff"] <= CONFIG_MAX_ANGLE_DIFFERENCE].copy()
-
-            ### Wähle die besten Kandidaten für die Bewertung aus
-            # Wenn es ausgerichtete Kandidaten gibt, diese verwenden, sonst alle
-            target_cand = oriented_cand if not oriented_cand.empty else cand.copy()
-            
             # Sammle alle verfügbaren Kandidaten für das Log
-            all_tilda_ids = [c.get('tilda_id', 'unknown') for _, c in target_cand.iterrows()]
+            all_tilda_ids = [c.get('tilda_id', 'unknown') for _, c in cand.iterrows()]
             
             # Logge Kandidaten für beide Richtungen
             candidates_log.write(f"  Segment #{idx}:\n")
@@ -719,7 +712,7 @@ def process(net_path, osm_path, out_path, crs, buf, clip_neukoelln=False, data_d
             # Prüfe für ri=0 (Hinrichtung) und ri=1 (Rückrichtung)
             for ri_value in [0, 1]:
                 ri_name = "Hinrichtung" if ri_value == 0 else "Rückrichtung"
-                best_candidate = find_best_candidate_for_direction(target_cand, seg._asdict(), ri_value)
+                best_candidate = find_best_candidate_for_direction(cand, seg._asdict(), ri_value)
                 
                 if best_candidate:
                     best_tilda_id = best_candidate.get('tilda_id', 'unknown')
@@ -742,7 +735,7 @@ def process(net_path, osm_path, out_path, crs, buf, clip_neukoelln=False, data_d
 
             ### Erzeuge Segment-Varianten basierend auf TILDA-Daten (mit integrierter Bewertung)
             seg_dict = seg._asdict()
-            variants = create_directional_segment_variants_from_matched_tilda_ways(seg_dict, target_cand, cand)
+            variants = create_directional_segment_variants_from_matched_tilda_ways(seg_dict, cand, cand)
             snapped_records.extend(variants)
             
             # Logge die tatsächlich ausgewählten Kandidaten
