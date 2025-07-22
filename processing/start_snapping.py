@@ -144,16 +144,16 @@ def determine_segment_direction(segment_geom, osm_geom) -> int:
         osm_geom: Geometrie des OSM-Wegs
         
     Returns:
-        int: 1 für Hinrichtung (gleiche Richtung), 0 für Rückrichtung (entgegengesetzte Richtung)
+        int: 0 für Hinrichtung (gleiche Richtung), 1 für Rückrichtung (entgegengesetzte Richtung)
     """
     segment_angle = calculate_line_angle(segment_geom)
     osm_angle = calculate_line_angle(osm_geom)
     
     angle_diff = angle_difference(segment_angle, osm_angle)
     
-    # Wenn der Winkelunterschied kleiner als 90° ist, haben beide die gleiche Richtung (ri=1)
-    # Wenn größer als 90°, haben sie entgegengesetzte Richtungen (ri=0)
-    return 1 if angle_diff < 90 else 0
+    # Wenn der Winkelunterschied kleiner als 90° ist, haben beide die gleiche Richtung (ri=0)
+    # Wenn größer als 90°, haben sie entgegengesetzte Richtungen (ri=1)
+    return 0 if angle_diff < 90 else 1
 
 
 def split_network_into_segments(net_gdf, crs, segment_length=1.0):
@@ -358,7 +358,7 @@ def find_best_candidate_for_direction(candidates, seg_dict, ri_value):
     Args:
         candidates: GeoDataFrame mit TILDA-Kandidaten
         seg_dict: Dictionary des Segments
-        ri_value: Richtung (1=Hinrichtung, 0=Rückrichtung)
+        ri_value: Richtung (0=Hinrichtung, 1=Rückrichtung)
         
     Returns:
         dict oder None: Bester Kandidat für die gegebene Richtung
@@ -451,8 +451,8 @@ def create_directional_segment_variants_from_matched_tilda_ways(seg_dict: dict, 
     Sonderfall: Bei verkehrsri=Einrichtungsverkehr wird nur eine Kante erzeugt,
     wobei das ri basierend auf der Richtungsausrichtung zwischen Segment und OSM-Weg bestimmt wird.
     
-    Standardfall: Es werden zwei Kanten erzeugt, eine für die Hin- (ri=1) und eine für die
-    Rückrichtung (ri=0). Für jede Richtung wird der passendste TILDA-Weg gewählt.
+    Standardfall: Es werden zwei Kanten erzeugt, eine für die Hin- (ri=0) und eine für die
+    Rückrichtung (ri=1). Für jede Richtung wird der passendste TILDA-Weg gewählt.
 
     Args:
         seg_dict (dict): Dictionary des ursprünglichen Straßensegments.
@@ -507,7 +507,7 @@ def create_directional_segment_variants_from_matched_tilda_ways(seg_dict: dict, 
             variants.append(variant)
     else:
         # Standardfall: Erstelle zwei Varianten, eine für jede Richtung
-        for ri_value in [1, 0]:  # 1 = Hinrichtung, 0 = Rückrichtung
+        for ri_value in [0, 1]:  # 0 = Hinrichtung, 1 = Rückrichtung
             variant = seg_dict.copy()
             variant["ri"] = ri_value
 
@@ -630,7 +630,7 @@ def process(net_path, osm_path, out_path, crs, buf, clip_neukoelln=False, data_d
         candidates_log.write(f"# Puffergröße: {buf}m\n")
         candidates_log.write(f"# Max. Winkelunterschied: {CONFIG_MAX_ANGLE_DIFFERENCE}°\n")
         candidates_log.write("#\n")
-        candidates_log.write("# Format: okstra_id -> Segment #X -> ri=1/0: bester_kandidat [Details] verfügbare: [alle_kandidaten]\n")
+        candidates_log.write("# Format: okstra_id -> Segment #X -> ri=0/1: bester_kandidat [Details] verfügbare: [alle_kandidaten]\n")
         candidates_log.write("#\n\n")
 
         # Verarbeite alle Segmente
@@ -716,9 +716,9 @@ def process(net_path, osm_path, out_path, crs, buf, clip_neukoelln=False, data_d
             # Logge Kandidaten für beide Richtungen
             candidates_log.write(f"  Segment #{idx}:\n")
             
-            # Prüfe für ri=1 (Hinrichtung) und ri=0 (Rückrichtung)
-            for ri_value in [1, 0]:
-                ri_name = "Hinrichtung" if ri_value == 1 else "Rückrichtung"
+            # Prüfe für ri=0 (Hinrichtung) und ri=1 (Rückrichtung)
+            for ri_value in [0, 1]:
+                ri_name = "Hinrichtung" if ri_value == 0 else "Rückrichtung"
                 best_candidate = find_best_candidate_for_direction(target_cand, seg._asdict(), ri_value)
                 
                 if best_candidate:
@@ -750,7 +750,7 @@ def process(net_path, osm_path, out_path, crs, buf, clip_neukoelln=False, data_d
             for variant in variants:
                 ri = variant.get('ri', 'unknown')
                 tilda_id = variant.get('tilda_id', 'None')
-                ri_name = "Hinrichtung" if ri == 1 else "Rückrichtung" if ri == 0 else f"ri={ri}"
+                ri_name = "Hinrichtung" if ri == 0 else "Rückrichtung" if ri == 1 else f"ri={ri}"
                 candidates_log.write(f"      ri={ri} ({ri_name}): {tilda_id}\n")
             
             # Aktualisiere den Fortschrittsbalken
