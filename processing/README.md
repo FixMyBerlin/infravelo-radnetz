@@ -47,6 +47,13 @@ Die Module sind nach Funktionalität organisiert:
 - [x] Provide Extract for Neukölln (via script)
 - [x] Provide TXT file of all OSM  Ways, which are part of the RVN
 
+### Next ToDos
+
+- [ ] Direction `ri` based spatial search and choice of RVN edges
+- [ ] Improve difference calculations between streets and bikelanes
+- [ ] Merging all three datasets into one file with three layers
+- [ ] Add missing segments in RVN from CC dataset
+
 ## Filters
 
 Every filter has its own Python module. **All filters and processing steps are enabled by default.**
