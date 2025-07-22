@@ -26,3 +26,4 @@ The result is an enriched street network where each segment carries the relevant
 - Remove unused imports.
 - When there are many different possibilites in the method or implementation, first ask the user for their preferences.
 - Update the requirements.txt file with the new packages used in the code.
+- Every Python module should include all relevant input and output files in the docstring at the top of the file.
