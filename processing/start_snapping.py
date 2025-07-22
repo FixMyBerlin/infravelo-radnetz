@@ -194,23 +194,33 @@ def normalize_merge_attributes_batch(df, fields):
             
             # None/NaN behandeln
             null_mask = series.isna() | series.isnull()
-            result = result.where(~null_mask, "NULL")
+            result.loc[null_mask] = "NULL"
             
-            # Float-Werte runden (vektorisiert)
-            float_mask = pd.api.types.is_float_dtype(series) | series.apply(lambda x: isinstance(x, float) if not pd.isna(x) else False)
-            float_values = series[float_mask & ~null_mask].round(1).astype(str)
-            result.loc[float_mask & ~null_mask] = float_values
+            # Bearbeite nur nicht-null Werte
+            non_null_series = series[~null_mask]
             
-            # Boolean zu String (vektorisiert)
-            bool_mask = pd.api.types.is_bool_dtype(series) | series.apply(lambda x: isinstance(x, bool) if not pd.isna(x) else False)
-            bool_values = series[bool_mask & ~null_mask].astype(str)
-            result.loc[bool_mask & ~null_mask] = bool_values
-            
-            # String normalisieren (vektorisiert)
-            string_mask = ~null_mask & ~float_mask & ~bool_mask
-            if string_mask.any():
-                string_values = series[string_mask].astype(str).str.strip()
-                result.loc[string_mask] = string_values
+            if len(non_null_series) > 0:
+                # Float-Werte identifizieren und behandeln
+                float_mask = non_null_series.apply(lambda x: isinstance(x, (int, float)) and not isinstance(x, bool))
+                
+                if float_mask.any():
+                    float_indices = non_null_series[float_mask].index
+                    float_values = non_null_series[float_mask].apply(lambda x: str(round(float(x), 1)))
+                    result.loc[float_indices] = float_values
+                
+                # Boolean zu String
+                bool_mask = non_null_series.apply(lambda x: isinstance(x, bool))
+                if bool_mask.any():
+                    bool_indices = non_null_series[bool_mask].index
+                    bool_values = non_null_series[bool_mask].astype(str)
+                    result.loc[bool_indices] = bool_values
+                
+                # String normalisieren (alles was weder float noch bool ist)
+                string_mask = ~float_mask & ~bool_mask
+                if string_mask.any():
+                    string_indices = non_null_series[string_mask].index
+                    string_values = non_null_series[string_mask].astype(str).str.strip()
+                    result.loc[string_indices] = string_values
             
             normalized[f"{field}_normalized"] = result
         else:
