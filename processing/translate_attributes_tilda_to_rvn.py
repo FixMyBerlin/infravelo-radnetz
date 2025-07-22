@@ -209,6 +209,7 @@ def determine_fuehrung(row, data_source: str) -> str:
 def determine_pflicht(row, data_source: str) -> bool:
     """
     Bestimmt die Benutzungspflicht basierend auf Verkehrszeichen.
+    Prüft traffic_sign, traffic_sign_forward und traffic_sign_backward.
     
     Args:
         row: Datenzeile mit OSM-Attributen
@@ -217,15 +218,23 @@ def determine_pflicht(row, data_source: str) -> bool:
     Returns:
         True wenn Benutzungspflicht vorliegt
     """
-    if data_source in ["streets", "paths"]:
+    # TODO Evntuell anpassen path, wenn fahrradwege rausfallen
+    if data_source in ["streets"]:
         return False  # Immer "Nein" für streets und paths
     
-    traffic_sign = str(row.get("traffic_sign", ""))
+    # Sammle alle relevanten Verkehrszeichen-Attribute
+    traffic_sign_fields = [
+        str(row.get("traffic_sign", "")),
+        str(row.get("traffic_sign_forward", "")),
+        str(row.get("traffic_sign_backward", ""))
+    ]
     
-    # Prüfe auf Benutzungspflicht-Zeichen (Z237, Z240, Z241)
-    for sign in TRAFFIC_SIGNS_PFLICHT:
-        if has_traffic_sign(traffic_sign, sign):
-            return True
+    # Prüfe auf Benutzungspflicht-Zeichen (Z237, Z240, Z241) in allen Feldern
+    for traffic_sign in traffic_sign_fields:
+        if traffic_sign and traffic_sign.strip():  # Nur nicht-leere Felder prüfen
+            for sign in TRAFFIC_SIGNS_PFLICHT:
+                if has_traffic_sign(traffic_sign, sign):
+                    return True
     
     return False
 
