@@ -2,3 +2,4 @@
 *.geojson
 *.gpq
 *.gpkg
+osm_candidates_per_edge*

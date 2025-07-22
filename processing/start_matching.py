@@ -27,6 +27,7 @@ OUTPUT:
 VERWENDUNG:
 - Standardmodus: python start_matching.py (verwendet ganz Berlin)
 - Neukölln-Modus: python start_matching.py --clip-neukoelln (verwendet Neukölln-Dateien)
+- Alle Straßen verwenden: python start_matching.py --use-all-streets-in-buffer (verwendet alle Straßen im Buffer anstatt nur die ohne Radwege)
 """
 
 import geopandas as gpd
@@ -281,6 +282,7 @@ def parse_arguments():
     parser.add_argument('--skip-paths', action='store_true', help='Skip processing of paths dataset')
     parser.add_argument('--skip-difference-streets-bikelanes', action='store_true', help='Skip difference: only streets without bikelanes')
     parser.add_argument('--skip-difference-paths-streets-bikelanes', action='store_true', help='Skip difference: only paths without streets and bikelanes')
+    parser.add_argument('--use-all-streets-in-buffer', action='store_true', help='Verwende alle Straßen im Buffer anstatt nur Straßen ohne Radwege für das finale Dataset')
     parser.add_argument('--clip-neukoelln', action='store_true', help='Verwende Neukölln-spezifische Eingabedateien')
     return parser.parse_args()
 
@@ -526,9 +528,18 @@ def main():
     # Verwende alle Radwege
     if processed_datasets.get('bikelanes') is not None:
         datasets_for_combination['bikelanes'] = processed_datasets['bikelanes']
-    # Verwende nur Straßen ohne Radwege (um Überschneidungen zu vermeiden)
-    if streets_without_bikelanes is not None:
-        datasets_for_combination['streets'] = streets_without_bikelanes
+    
+    # Entscheide, ob alle Straßen oder nur Straßen ohne Radwege verwendet werden sollen
+    if args.use_all_streets_in_buffer:
+        # Verwende alle Straßen im Buffer
+        if processed_datasets.get('streets') is not None:
+            datasets_for_combination['streets'] = processed_datasets['streets']
+            print("Hinweis: Verwende alle Straßen im Buffer für das finale Dataset.")
+    else:
+        # Verwende nur Straßen ohne Radwege (um Überschneidungen zu vermeiden)
+        if streets_without_bikelanes is not None:
+            datasets_for_combination['streets'] = streets_without_bikelanes
+    
     # Verwende die gefilterten Wege (ohne Streets und Bikelanes) anstatt der ursprünglichen Wege
     if paths_without_streets_and_bikelanes is not None:
         datasets_for_combination['paths'] = paths_without_streets_and_bikelanes
@@ -538,7 +549,10 @@ def main():
         combined_gdf = combine_multiple_datasets(datasets_for_combination, combined_path)
         if combined_gdf is not None:
             print(f"Kombinierte Daten gespeichert: {combined_path}")
-            print(f"Hinweis: Wege wurden von Straßen und Radwegen subtrahiert, um Überschneidungen zu vermeiden.")
+            if args.use_all_streets_in_buffer:
+                print(f"Hinweis: Alle Straßen im Buffer wurden verwendet. Wege wurden von Straßen und Radwegen subtrahiert.")
+            else:
+                print(f"Hinweis: Wege wurden von Straßen und Radwegen subtrahiert, um Überschneidungen zu vermeiden.")
     else:
         print("Warnung: Keine Daten zum Kombinieren verfügbar.")
 

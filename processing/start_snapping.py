@@ -363,44 +363,80 @@ def find_best_candidate_for_direction(candidates, seg_dict, ri_value):
     Returns:
         dict oder None: Bester Kandidat für die gegebene Richtung
     """
+    
     if candidates is None or len(candidates) == 0:
+        logging.debug(f"Keine Kandidaten für ri={ri_value}")
         return None
     
     candidates = candidates.copy()
     segment_geom = seg_dict["geometry"]
+    element_nr = seg_dict.get("element_nr", "unknown")
+    
+    logging.debug(f"Bewerte {len(candidates)} Kandidaten für ri={ri_value}, element_nr={element_nr}")
     
     # Berechne Priorität für alle Kandidaten
     candidates["priority"] = candidates.apply(calculate_osm_priority, axis=1)
     
     # Berechne Entfernung zum Segmentmittelpunkt
-    from shapely.geometry import Point
     mid = segment_geom.interpolate(0.5, normalized=True)
     candidates["dist_to_mid"] = candidates.geometry.distance(mid)
     
     # Berechne Richtungskompatibilität für jeden Kandidaten
     candidates["direction_compatibility"] = 0
     
+    # Logge Segmentwinkel für Debugging
+    segment_angle = calculate_line_angle(segment_geom)
+    logging.debug(f"Segment element_nr={element_nr}: Winkel={segment_angle:.1f}°")
+    
     for idx, candidate in candidates.iterrows():
         candidate_verkehrsri = candidate.get('verkehrsri', '')
+        candidate_tilda_id = candidate.get('tilda_id', f'idx_{idx}')
+        candidate_angle = calculate_line_angle(candidate.geometry)
         
         if candidate_verkehrsri == 'Einrichtungsverkehr':
             # Bei Einrichtungsverkehr: Prüfe Richtungsausrichtung
             segment_direction = determine_segment_direction(segment_geom, candidate.geometry)
+            
+            logging.debug(f"  Kandidat {candidate_tilda_id}: Einrichtungsverkehr, "
+                         f"Winkel={candidate_angle:.1f}°, segment_direction={segment_direction}, "
+                         f"ri_value={ri_value}")
+            
             if segment_direction == ri_value:
                 # Richtung passt perfekt
-                candidates.at[idx, "direction_compatibility"] = 2
+                candidates.at[idx, "direction_compatibility"] = 10
+                logging.debug(f"    → Richtung passt perfekt! direction_compatibility=10")
             else:
                 # Richtung passt nicht - niedrigere Priorität
                 candidates.at[idx, "direction_compatibility"] = 0
+                logging.debug(f"    → Richtung passt NICHT! direction_compatibility=0")
         else:
             # Bei Zweirichtungsverkehr: Kann für beide Richtungen verwendet werden
             candidates.at[idx, "direction_compatibility"] = 1
+            logging.debug(f"  Kandidat {candidate_tilda_id}: Zweirichtungsverkehr, "
+                         f"Winkel={candidate_angle:.1f}°, direction_compatibility=1")
     
     # Sortiere nach Richtungskompatibilität, Priorität und Entfernung
     candidates = candidates.sort_values(
         ["direction_compatibility", "priority", "dist_to_mid"], 
         ascending=[False, False, True]
     )
+    
+    # Logge die Sortierreihenfolge
+    if len(candidates) > 0:
+        best_candidate = candidates.iloc[0]
+        logging.debug(f"Bester Kandidat für ri={ri_value}: {best_candidate.get('tilda_id', 'unknown')} "
+                     f"(dir_compat={best_candidate.get('direction_compatibility', -1)}, "
+                     f"priority={best_candidate.get('priority', -1)}, "
+                     f"dist={best_candidate.get('dist_to_mid', -1):.1f}m)")
+        
+        # Logge auch die anderen Kandidaten zur Nachvollziehbarkeit
+        if len(candidates) > 1:
+            logging.debug("Andere Kandidaten (in Sortierreihenfolge):")
+            for i, (_, cand) in enumerate(candidates.iloc[1:].iterrows(), 1):
+                logging.debug(f"  {i+1}. {cand.get('tilda_id', 'unknown')} "
+                             f"(dir_compat={cand.get('direction_compatibility', -1)}, "
+                             f"priority={cand.get('priority', -1)}, "
+                             f"dist={cand.get('dist_to_mid', -1):.1f}m)")
     
     # Wähle den besten Kandidaten
     return candidates.iloc[0].to_dict() if len(candidates) > 0 else None
@@ -436,7 +472,7 @@ def create_directional_segment_variants_from_matched_tilda_ways(seg_dict: dict, 
         if any("cycleway" in str(tid) for tid in candidate_ids):
             candidate_links = [f"https://osm.org/{tid}" for tid in candidate_ids]
             import logging
-            logging.info(f"Seg:{seg_dict.get('element_nr', 'unknown')}: {len(original_candidates)} Kandidaten, tilda_id: {candidate_ids}/Links: {candidate_links}")
+            logging.debug(f"Seg:{seg_dict.get('element_nr', 'unknown')}: {len(original_candidates)} Kandidaten, tilda_id: {candidate_ids}/Links: {candidate_links}")
     
     # Prüfe, ob wir einen eindeutigen Einrichtungsverkehr-Kandidaten haben
     einrichtung_candidates = []
@@ -574,9 +610,33 @@ def process(net_path, osm_path, out_path, crs, buf, clip_neukoelln=False, data_d
         # Erzeuge einen räumlichen Index für die TILDA-Daten, um schnelle räumliche Abfragen zu ermöglichen
         osm_sidx = osm.sindex  # Räumlicher Index für TILDA-Daten
 
-        # Verarbeite alle Segmente (nicht nur 10% für Tests)
+        # Öffne Kandidaten-Log-Datei für QA-Zwecke
+        qa_dir = "./output/qa-snapping"
+        os.makedirs(qa_dir, exist_ok=True)
+        candidates_log_file = os.path.join(qa_dir, f"osm_candidates_per_edge{filename_suffix}.txt")
+        
+        # Benenne alte Datei um falls sie existiert
+        if os.path.exists(candidates_log_file):
+            old_file = candidates_log_file.replace('.txt', '_OLD.txt')
+            # Entferne eventuell vorhandene alte _OLD Datei
+            if os.path.exists(old_file):
+                os.remove(old_file)
+            os.rename(candidates_log_file, old_file)
+            logging.info(f"Alte Kandidaten-Log-Datei umbenannt: {old_file}")
+        
+        candidates_log = open(candidates_log_file, 'w', encoding='utf-8')
+        candidates_log.write("# TILDA-Kandidaten pro okstra_id und Richtung\n")
+        candidates_log.write("# Generiert von start_snapping.py\n")
+        candidates_log.write(f"# Puffergröße: {buf}m\n")
+        candidates_log.write(f"# Max. Winkelunterschied: {CONFIG_MAX_ANGLE_DIFFERENCE}°\n")
+        candidates_log.write("#\n")
+        candidates_log.write("# Format: okstra_id -> Segment #X -> ri=1/0: bester_kandidat [Details] verfügbare: [alle_kandidaten]\n")
+        candidates_log.write("#\n\n")
+
+        # Verarbeite alle Segmente
         total = len(net_segmented)
         snapped_records = []
+        current_okstra_id = None
         # Starte die TILDA-Attributübernahme für jedes Segment
         # --------------------------------------------------
         # Für jedes Segment:
@@ -593,6 +653,12 @@ def process(net_path, osm_path, out_path, crs, buf, clip_neukoelln=False, data_d
         # idx => Segment-Index für Fortschrittsanzeige
         for idx, seg in enumerate(net_segmented.itertuples(), 1):
             g = seg.geometry
+            okstra_id = getattr(seg, 'okstra_id', 'unknown')
+            
+            # Schreibe neue okstra_id Header falls geändert
+            if current_okstra_id != okstra_id:
+                current_okstra_id = okstra_id
+                candidates_log.write(f"okstra_id: {okstra_id}\n")
             
             # Kandidaten im Buffer suchen (räumliche Suche)
             cand_idx = list(osm_sidx.intersection(g.buffer(buf, cap_style='flat').bounds))
@@ -601,31 +667,28 @@ def process(net_path, osm_path, out_path, crs, buf, clip_neukoelln=False, data_d
                 seg_dict = seg._asdict()
                 variants = create_directional_segment_variants_from_matched_tilda_ways(seg_dict, None)
                 snapped_records.extend(variants)
-                # TODO logging.info(f"Keine TILDA-Kandidaten im Puffer für Segment {seg.element_nr} gefunden.")
+                
+                # Logge in Kandidaten-Datei
+                candidates_log.write(f"  Segment #{idx}: KEINE KANDIDATEN GEFUNDEN\n")
 
                 # Fortschrittsanzeige aktualisieren
                 print_progressbar(idx, total, prefix="Snapping: ")
                 continue
                 
             # Kopiere die TILDA-Kandidaten, die im räumlichen Buffer gefunden wurden, für weitere Verarbeitung
-            # TODO Sollte die hier erstellt werden, oder erst später?
             cand = osm.iloc[cand_idx].copy()
 
-            # DEBUG: Logge die Kandidaten, wenn es mehr als einen gibt
-            # if len(cand) > 1:
-            #     logging.info(f"{len(cand)} TILDA-Kandidaten im Buffer für Segment {seg.element_nr}: IDs {[c for c in cand['tilda_id'] if 'tilda_id' in cand.columns] if 'tilda_id' in cand.columns else cand.index.tolist()}")
-            
             # Filtere Kandidaten nach tatsächlicher Entfernung zum Segment
             cand["d"] = cand.geometry.distance(g)
             cand = cand[cand["d"] <= buf]
             if cand.empty:
                 # Keine TILDA-Kandidaten im Buffer - Standardvarianten erzeugen
                 seg_dict = seg._asdict()
-
-                # TODO Erstmal keine Kante erzeugen, damit Lücke sichtbar?
                 variants = create_directional_segment_variants_from_matched_tilda_ways(seg_dict, None)
                 snapped_records.extend(variants)
-                # DEBUG Loggen: logging.info(f"Keine TILDA-Kandidaten im Puffer für Segment {seg.element_nr} gefunden.")
+                
+                # Logge in Kandidaten-Datei
+                candidates_log.write(f"  Segment #{idx}: KEINE KANDIDATEN IM PUFFER\n")
 
                 # Fortschrittsanzeige aktualisieren
                 print_progressbar(idx, total, prefix="Snapping: ")
@@ -646,14 +709,55 @@ def process(net_path, osm_path, out_path, crs, buf, clip_neukoelln=False, data_d
             ### Wähle die besten Kandidaten für die Bewertung aus
             # Wenn es ausgerichtete Kandidaten gibt, diese verwenden, sonst alle
             target_cand = oriented_cand if not oriented_cand.empty else cand.copy()
+            
+            # Sammle alle verfügbaren Kandidaten für das Log
+            all_tilda_ids = [c.get('tilda_id', 'unknown') for _, c in target_cand.iterrows()]
+            
+            # Logge Kandidaten für beide Richtungen
+            candidates_log.write(f"  Segment #{idx}:\n")
+            
+            # Prüfe für ri=1 (Hinrichtung) und ri=0 (Rückrichtung)
+            for ri_value in [1, 0]:
+                ri_name = "Hinrichtung" if ri_value == 1 else "Rückrichtung"
+                best_candidate = find_best_candidate_for_direction(target_cand, seg._asdict(), ri_value)
+                
+                if best_candidate:
+                    best_tilda_id = best_candidate.get('tilda_id', 'unknown')
+                    distance = best_candidate.get('d', -1)
+                    angle_diff = best_candidate.get('angle_diff', -1)
+                    dir_compat = best_candidate.get('direction_compatibility', -1)
+                    verkehrsri = best_candidate.get('verkehrsri', 'unknown')
+                    
+                    candidates_log.write(f"    ri={ri_value} ({ri_name}): {best_tilda_id}")
+                    candidates_log.write(f" [dist={distance:.1f}m, angle_diff={angle_diff:.1f}°, dir_compat={dir_compat}, verkehrsri={verkehrsri}]")
+                    
+                    if len(all_tilda_ids) > 1:
+                        candidates_log.write(f" verfügbare: {all_tilda_ids}")
+                    candidates_log.write("\n")
+                else:
+                    candidates_log.write(f"    ri={ri_value} ({ri_name}): KEIN BESTER KANDIDAT")
+                    if all_tilda_ids:
+                        candidates_log.write(f" verfügbare: {all_tilda_ids}")
+                    candidates_log.write("\n")
 
             ### Erzeuge Segment-Varianten basierend auf TILDA-Daten (mit integrierter Bewertung)
             seg_dict = seg._asdict()
             variants = create_directional_segment_variants_from_matched_tilda_ways(seg_dict, target_cand, cand)
             snapped_records.extend(variants)
             
+            # Logge die tatsächlich ausgewählten Kandidaten
+            candidates_log.write(f"    AUSGEWÄHLT für Segment #{idx}:\n")
+            for variant in variants:
+                ri = variant.get('ri', 'unknown')
+                tilda_id = variant.get('tilda_id', 'None')
+                ri_name = "Hinrichtung" if ri == 1 else "Rückrichtung" if ri == 0 else f"ri={ri}"
+                candidates_log.write(f"      ri={ri} ({ri_name}): {tilda_id}\n")
+            
             # Aktualisiere den Fortschrittsbalken
             print_progressbar(idx, total, prefix="Snapping: ")
+        # Schließe die Kandidaten-Log-Datei
+        candidates_log.close()
+        logging.info(f"✔  Kandidaten-Log erstellt: {candidates_log_file}")
 
         # Erstelle GeoDataFrame aus allen bearbeiteten Segmenten
         net_segmented = gpd.GeoDataFrame(snapped_records, crs=crs)
