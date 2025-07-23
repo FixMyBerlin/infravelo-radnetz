@@ -86,7 +86,7 @@ echo ""
 
 # Schritt 4: Finale Aggregation
 echo "🎯 Schritt 4/4: Finale Aggregation..."
-./.venv/bin/python processing/aggregate_final_model.py
+./.venv/bin/python processing/aggregate_final_model.py --input ./output/snapping_network_enriched_neukoelln.fgb
 if [ $? -ne 0 ]; then
     echo "❌ Fehler in Schritt 4: aggregate_final_model.py"
     exit 1
