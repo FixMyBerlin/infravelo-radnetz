@@ -200,6 +200,8 @@ def determine_fuehrung(row, data_source: str) -> str:
         return "Fußgängerzone \"Radverkehr frei\" (Z242 mit Z1022-10)"
     elif category == "sharedMotorVehicleLane":
         return "Mischverkehr mit motorisiertem Verkehr"
+    elif category == "pedestrianAreaBicycleYes":
+        return "Sonstige Wege (Gehwege, Wege durch Grünflächen, Plätze)"
     elif category == "crossing":
         return "[TODO] Kreuzungs-Querung"
     elif category == "needsClarification":

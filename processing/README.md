@@ -49,10 +49,11 @@ Die Module sind nach Funktionalität organisiert:
 
 ### Next ToDos
 
-- [ ] Direction `ri` based spatial search and choice of RVN edges
-- [ ] Improve difference calculations between streets and bikelanes
+- [x] Direction `ri` based spatial search and choice of RVN edges
+- [ ] Dual carriageway oneway problems solve in snapping
+- [ ] Improve difference calculations between streets and bikelanes -> search for one Einrichtungsverkehr way, if so, add Mischverkehr
 - [ ] Merging all three datasets into one file with three layers
-- [ ] Add missing segments in RVN from CC dataset
+- [ ] Add missing segments in RVN from CC dataset **or** calczulate element_nr
 
 ## Filters
 
@@ -118,58 +119,3 @@ python ./processing/start_snapping.py \
 Die Argumente entsprechen:
 - Optional: `--buffer` für die Puffergröße in Metern (Standard: 20.0)
 - Optional: `--max-angle` für den maximalen Winkelunterschied in Grad (Standard: 35.0)
-
-## Generated Intermediat Geodata
-
-Im Folgenden sind alle Dateien aufgeführt, die von den Verarbeitungsskripten als Zwischenergebnisse gespeichert und später wieder eingelesen werden. Diese Dateien dienen der Beschleunigung des Workflows und können bei Problemen gelöscht werden.
-
-### OpenStreetMap / TILDA Daten
-
-- **`output/matching/matched_osm_ways.fgb`**
-  - Enthält OSM-Wege, die im Buffer des Radvorrangnetzes liegen.
-  - Wird in `main.py` erstellt und in weiteren Schritten (z.B. `snap_and_cut.py`) wieder eingelesen.
-- **`output/qa-snapping/snapped_osm_ways.fgb`**
-  - Gesnappte OSM-Wege auf das Zielnetzwerk.
-  - Erstellt und wieder eingelesen in `snap_and_cut.py`.
-- **`output/qa-snapping/unsnapped_osm_ways.fgb`**
-  - OSM-Wege, die nicht gesnapped werden konnten.
-  - Erstellt und wieder eingelesen in `snap_and_cut.py`.
-- **`output/osm_short_ways.fgb`**
-  - Kurze OSM-Wege, gefiltert durch den Orthogonalitätsfilter.
-  - Erstellt und wieder eingelesen in `orthogonal_filter.py`.
-- **`output/matching/matched_osm_bikelanes_ways.fgb`**
-  - Gematchte OSM-Radwege.
-  - Erstellt und wieder eingelesen in `main.py` und nachgelagerten Schritten.
-- **`output/matching/matched_osm_streets_ways.fgb`**
-  - Gematchte OSM-Straßen.
-  - Erstellt und wieder eingelesen in `main.py` und nachgelagerten Schritten.
-- **`output/matching/matched_osm_streets_without_bikelanes.fgb`**
-  - OSM-Straßen ohne Radwege (Differenz).
-  - Erstellt und wieder eingelesen in `difference.py` und `main.py`.
-
-### Radvorrangnetz
-
-- **`output/vorrangnetz_buffered.fgb`**
-  - Gebuffertes Vorrangnetz.
-  - Erstellt in `main.py`, wird für weitere Filter und Matching-Schritte verwendet.
-- **`output/vorrangnetz_connected.fgb`**
-  - Verbundenes Vorrangnetz.
-  - Erstellt und wieder eingelesen in `orthogonal_filter.py`.
-- **`output/vorrangnetz_segments.fgb`**
-  - Segmentiertes Vorrangnetz.
-  - Erstellt und wieder eingelesen in `orthogonal_filter.py`.
-- **`output/vorrangnetz_details_combined_rvn.fgb`**
-  - Kombiniertes Vorrangnetz für das Snapping.
-  - Erstellt und wieder eingelesen in `snap_and_cut.py` und `enrich_streetnet_with_osm.py`.
-- **`output/qa-snapping/rvn-segmented.fgb`**
-  - Segmentiertes RVN für Attributierung.
-  - Erstellt und wieder eingelesen in `enrich_streetnet_with_osm.py`.
-- **`output/qa-snapping/rvn-segmented-attributed-osm.fgb`**
-  - Segmentiertes und mit OSM-Attributen angereichertes RVN.
-  - Erstellt und wieder eingelesen in `enrich_streetnet_with_osm.py`.
-
-### Exportierte GeoJSONs
-
-- **`output-static-data-transfer/*.geojson`**
-  - Exportierte GeoJSON-Dateien aus den temporären FlatGeobuf-Dateien.
-  - Erstellt und wieder eingelesen in `export_geojson.py`.

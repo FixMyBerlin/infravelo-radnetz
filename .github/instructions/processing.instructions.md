@@ -14,6 +14,7 @@ The result is an enriched street network where each segment carries the relevant
 
 ## Chat
 
+- When executing code in the console, don't forget to configure/activate the virtual environment first
 - When there is a follow up request in chat, first check if the user applied changes to the code manually; do not overwrite those changes but incorporate them.
 - Add useful and structured comments to the code in german.
 - Structure the code in useful functions with sensible function size.
