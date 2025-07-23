@@ -554,6 +554,10 @@ def create_directional_segment_variants_from_matched_tilda_ways(seg_dict: dict, 
                     continue
                 if attr in best_osm:
                     variant[attr] = best_osm.get(attr)
+            
+            # Entferne Breite-Attribut bei Mischverkehr mit motorisiertem Verkehr
+            if variant.get('fuehr') == 'Mischverkehr mit motorisiertem Verkehr':
+                variant['breite'] = None
 
             # Zusätzliche OSM-Attribute für Debugging/Referenz
             for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
@@ -576,6 +580,10 @@ def create_directional_segment_variants_from_matched_tilda_ways(seg_dict: dict, 
                         continue
                     if attr in best_osm:
                         variant[attr] = best_osm.get(attr)
+                
+                # Entferne Breite-Attribut bei Mischverkehr mit motorisiertem Verkehr
+                if variant.get('fuehr') == 'Mischverkehr mit motorisiertem Verkehr':
+                    variant['breite'] = None
 
                 # Zusätzliche OSM-Attribute für Debugging/Referenz
                 for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
