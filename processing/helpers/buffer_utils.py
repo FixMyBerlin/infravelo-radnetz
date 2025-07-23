@@ -15,7 +15,7 @@ import os
 import logging
 
 
-def create_unified_buffer(vorrangnetz_gdf, buffer_meters, target_crs, cache_dir="./output/matching"):
+def create_unified_buffer(vorrangnetz_gdf, buffer_meters, target_crs, cache_dir="./output/matching", cap_style='flat'):
     """
     Erzeugt einen vereinheitlichten Buffer um das Vorrangnetz.
     Verwendet Caching basierend auf der Buffer-Größe um mehrfache Berechnungen zu vermeiden.
@@ -25,12 +25,13 @@ def create_unified_buffer(vorrangnetz_gdf, buffer_meters, target_crs, cache_dir=
         buffer_meters (int): Buffer-Radius in Metern
         target_crs (str): Ziel-Koordinatensystem (z.B. 'EPSG:25833')
         cache_dir (str): Verzeichnis für Cache-Dateien
+        cap_style (str): Cap-Style für Buffer ('flat' oder 'round')
         
     Returns:
         tuple: (unified_buffer, buffered_gdf) - Die vereinte Buffer-Geometrie und das GeoDataFrame
     """
-    # Erstelle Cache-Pfad mit Buffer-Größe im Dateinamen
-    cache_file = os.path.join(cache_dir, f'vorrangnetz_buffered_{buffer_meters}m.fgb')
+    # Erstelle Cache-Pfad mit Buffer-Größe und Cap-Style im Dateinamen
+    cache_file = os.path.join(cache_dir, f'vorrangnetz_buffered_{buffer_meters}m_{cap_style}.fgb')
     os.makedirs(cache_dir, exist_ok=True)
     
     # Prüfe, ob Buffer bereits existiert
@@ -48,8 +49,8 @@ def create_unified_buffer(vorrangnetz_gdf, buffer_meters, target_crs, cache_dir=
         return unified_buffer, buffered_gdf
     
     # Buffer muss neu berechnet werden
-    logging.info(f'Erzeuge Buffer von {buffer_meters}m um Vorrangnetz-Kanten...')
-    vorrangnetz_buffer = vorrangnetz_gdf.buffer(buffer_meters, cap_style='flat')
+    logging.info(f'Erzeuge Buffer von {buffer_meters}m um Vorrangnetz-Kanten (cap_style: {cap_style})...')
+    vorrangnetz_buffer = vorrangnetz_gdf.buffer(buffer_meters, cap_style=cap_style)
     logging.info('Vereine alle Buffer zu einer einzigen Geometrie...')
     unified_buffer = vorrangnetz_buffer.union_all()
     
