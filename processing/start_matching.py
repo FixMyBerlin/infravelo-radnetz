@@ -44,10 +44,14 @@ from helpers.buffer_utils import create_unified_buffer
 
 # Konfiguration
 # Standard-Dateipfade (ohne Neukölln-Suffix)
-INPUT_VORRANGNETZ_FGB = './data/Berlin Radvorrangsnetz.fgb'  # Pfad zum Vorrangnetz
+INPUT_VORRANGNETZ_FGB = './output/rvn/Berlin Vorrangnetz_with_element_nr.fgb'  # Pfad zum Vorrangnetz mit Element-Nummern
+
+# Buffer-Radius in dem nach TILDA ways gesucht wird, ausgehend vom RVN
 BUFFER_BIKELANES_METERS = 25  # Buffer-Radius in Metern für Radwege
 BUFFER_STREETS_METERS = 15    # Buffer-Radius in Metern für Straßen
 BUFFER_PATHS_METERS = 15      # Buffer-Radius in Metern für Wege
+
+# TODO Use globals.py
 TARGET_CRS = 'EPSG:25833'
 
 

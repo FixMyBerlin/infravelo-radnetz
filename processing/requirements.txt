@@ -3,6 +3,7 @@ shapely
 pyogrio
 numpy
 scipy
+networkx
 
 # OSM traffic signal
 osmnx

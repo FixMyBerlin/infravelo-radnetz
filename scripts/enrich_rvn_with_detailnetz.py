@@ -9,7 +9,7 @@ Straßenabschnitte innerhalb dieses Buffers. Kombiniert diese mit
 fehlenden Segmenten aus dem originalen Radvorrangsnetz.
 
 INPUT:
-- data/Berlin Radvorrangsnetz.fgb
+- output/rvn/Berlin Vorrangnetz_with_element_nr.fgb
 - data/Berlin Straßenabschnitte Detailnetz.fgb
 
 OUTPUT:
@@ -158,7 +158,7 @@ def main():
     logging.info(f"Ausgabeverzeichnis erstellt/überprüft: {output_dir}")
 
     # Dateipfade für Eingabe- und Ausgabedateien definieren
-    radvorrangsnetz_path = os.path.join(data_dir, "Berlin Radvorrangsnetz.fgb")
+    radvorrangsnetz_path = os.path.join("output", "rvn", "Berlin Vorrangnetz_with_element_nr.fgb")
     streets_detail_path = os.path.join(data_dir, "Berlin Straßenabschnitte Detailnetz.fgb")
     output_path = os.path.join(output_dir, "vorrangnetz_details.fgb")
     output_path_combined = os.path.join(output_dir, "vorrangnetz_details_combined_rvn.fgb")
