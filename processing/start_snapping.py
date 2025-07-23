@@ -9,11 +9,10 @@ start_snapping.py
       element_nr         = Edge-ID
       beginnt_bei_vp     = From-Node
       endet_bei_vp       = To-Node
-      verkehrsrichtung   = R / G / B
 – Verwendet übersetzte TILDA-Attribute: fuehr, ofm, protek, pflicht, breite, farbe
 
 INPUT:
-- output/vorrangnetz_details_combined_rvn.fgb (Straßennetz)
+- output/rvn/vorrangnetz_details_combined_rvn.fgb (Straßennetz)
 - output/matched/matched_tilda_ways.fgb (TILDA-übersetzte Daten)
 
 OUTPUT:
@@ -44,7 +43,6 @@ INPUT_NEUKOELLN_BOUNDARY_FILE = "Bezirk Neukölln Grenze.fgb"
 RVN_ATTRIBUT_ELEMENT_NR = "element_nr"           # Kanten-ID
 RVN_ATTRIBUT_BEGINN_VP = "beginnt_bei_vp"       # Startknoten-ID
 RVN_ATTRIBUT_ENDE_VP   = "endet_bei_vp"         # Endknoten-ID
-RVN_ATTRIBUT_VERKEHRSRICHTUNG  = "verkehrsrichtung"     # Werte: R / G / B (Richtung)
 
 # Attribute an denen die Kanten getrennt werden bzw. verschmolzen werden
 # Diese Attribute müssen in den übersetzten TILDA Daten vorhanden sein
@@ -640,7 +638,7 @@ def process(net_path, osm_path, out_path, crs, buf, clip_neukoelln=False, data_d
         osm = clip_to_neukoelln(osm, data_dir, crs)
 
     # Prüfen, ob alle Pflichtfelder im Netz vorhanden sind
-    for fld in (RVN_ATTRIBUT_ELEMENT_NR, RVN_ATTRIBUT_BEGINN_VP, RVN_ATTRIBUT_ENDE_VP, RVN_ATTRIBUT_VERKEHRSRICHTUNG, "okstra_id"):
+    for fld in (RVN_ATTRIBUT_ELEMENT_NR, RVN_ATTRIBUT_BEGINN_VP, RVN_ATTRIBUT_ENDE_VP):
         if fld not in net.columns:
             sys.exit(f"Pflichtfeld “{fld}” fehlt im Netz!")
 
@@ -655,6 +653,10 @@ def process(net_path, osm_path, out_path, crs, buf, clip_neukoelln=False, data_d
     if os.path.exists(seg_path):
         logging.info(f"Lade bereits segmentiertes Netz aus {seg_path} ...")
         net_segmented = gpd.read_file(seg_path)
+        # Stelle sicher, dass das CRS korrekt ist
+        if net_segmented.crs != crs:
+            logging.info(f"Transformiere CRS von {net_segmented.crs} zu {crs}")
+            net_segmented = net_segmented.to_crs(crs)
     else:
         logging.info("Segmentiere Netz in 1-Meter-Abschnitte ...")
         net_segmented = split_network_into_segments(net, crs, segment_length=1.0)
@@ -668,6 +670,10 @@ def process(net_path, osm_path, out_path, crs, buf, clip_neukoelln=False, data_d
     if os.path.exists(seg_attr_path):
         logging.info(f"Lade bereits attributierte Segmente aus {seg_attr_path} ...")
         net_segmented = gpd.read_file(seg_attr_path)
+        # Stelle sicher, dass das CRS korrekt ist
+        if net_segmented.crs != crs:
+            logging.info(f"Transformiere CRS von {net_segmented.crs} zu {crs}")
+            net_segmented = net_segmented.to_crs(crs)
     else:
         logging.info("Führe Snapping und TILDA-Attributübernahme durch ...")
         # Erzeuge einen räumlichen Index für die TILDA-Daten, um schnelle räumliche Abfragen zu ermöglichen
@@ -829,13 +835,13 @@ def process(net_path, osm_path, out_path, crs, buf, clip_neukoelln=False, data_d
         logging.info(f"✔  Attributierte Segmente gespeichert als {seg_attr_path}")
 
     # ---------- Segmente verschmelzen ---------------------------------------
-    logging.info("Fasse Segmente mit gleicher okstra_id und TILDA-Attributen zusammen ...")
+    logging.info("Fasse Segmente mit gleicher element_nr und TILDA-Attributen zusammen ...")
     
     # Debug: Analysiere Merge-Attribute vor dem Verschmelzen
     logging.info(f"Zu verwendende Merge-Attribute: {FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES}")
-    debug_merge_attributes(net_segmented, "okstra_id", FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES)
+    debug_merge_attributes(net_segmented, "element_nr", FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES)
     
-    out_gdf = merge_segments(net_segmented, "okstra_id", FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES)
+    out_gdf = merge_segments(net_segmented, "element_nr", FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES)
 
     # ---------- Ergebnis speichern ------------------------------------------
     p, *layer = out_path.split(":")
@@ -866,7 +872,7 @@ def process(net_path, osm_path, out_path, crs, buf, clip_neukoelln=False, data_d
 if __name__ == "__main__":
     # Kommandozeilenargumente parsen
     ap = argparse.ArgumentParser(description="Snapping von TILDA-übersetzten Attributen auf Straßennetz")
-    ap.add_argument("--net", default="./output/vorrangnetz_details_combined_rvn.fgb", 
+    ap.add_argument("--net", default="./output/rvn/vorrangnetz_details_combined_rvn.fgb", 
                     help="Netz-Layer (Pfad[:Layer]) - Default: ./output/vorrangnetz_details_combined_rvn.fgb")
     ap.add_argument("--osm", default="./output/matched/matched_tilda_ways.fgb", 
                     help="TILDA-übersetzte Daten (Pfad[:Layer]) - Default: ../output/matching/matched_tilda_ways.fgb")
