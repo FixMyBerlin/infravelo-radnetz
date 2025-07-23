@@ -86,8 +86,7 @@ TRAFFIC_SIGNS_NUTZ_BESCHR = ["Gehwegschäden", "Radwegschäden", "Geh- und Radwe
 # Liste der zu entfernenden Attribute (ohne tilda-Prefix)
 # Enthält sowohl Attribute von Bikelanes, Roads und Paths
 CONFIG_REMOVE_TILDA_ATTRIBUTES = [
-    "lit", "description", "maxspeed_name_ref", "maxspeed_confidence", "maxspeed_conditional", "maxspeed_source", "mapillary_coverage", "mapillary", "bridge", "tunnel", "mapillary_traffic_sign", "mapillary_backward", "mapillary_forward", "todos",
-    "updated_age", "updated_at", "width_source", "surface_confidence", "surface_source", "smoothness_confidence", "smoothness_source", "length", "offset", "_parent_highway"
+    "lit", "description", "maxspeed_name_ref", "maxspeed_confidence", "maxspeed_conditional", "maxspeed_source", "mapillary_coverage",  "bridge", "tunnel", "todos", "updated_age", "updated_at", "width_source", "surface_confidence", "surface_source", "smoothness_confidence", "smoothness_source", "length", "offset", "_parent_highway"
 ]
 
 
