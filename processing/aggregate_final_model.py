@@ -7,7 +7,7 @@ Aggregiert mehrere Attributausprägungen innerhalb einer Kante auf eine finale K
 Erkennt signifikante Änderungen und führt regelbasierte Aggregation durch.
 
 WICHTIG: Berücksichtigt die Linienrichtung (Attribut 'ri'). Kanten werden nur aggregiert,
-wenn sie dieselbe okstra_id UND dieselbe Richtung haben. Pro Straße entstehen normalerweise
+wenn sie dieselbe element_nr UND dieselbe Richtung haben. Pro Straße entstehen normalerweise
 zwei aggregierte Kanten (eine pro Fahrtrichtung), außer bei Einbahnstraßen.
 
 Signifikante Änderungen:
@@ -22,7 +22,7 @@ Aggregationsregeln:
   Nutzungsbeschränkung (physische Sperre > Schadensschild > keine)
 
 INPUT:
-- output/snapping_network_enriched.fgb (angereicherte Netzwerkdaten mit okstra_id und ri)
+- output/snapping_network_enriched.fgb (angereicherte Netzwerkdaten mit element_nr und ri)
 
 OUTPUT:
 - output/aggregated_rvn_final.gpkg (finale aggregierte Netzwerkdaten als GeoPackage)
@@ -75,8 +75,8 @@ TRENNSTREIFEN_HIERARCHY = [
 
 # Spalten, die nach der Aggregation gelöscht werden sollen
 COLUMNS_TO_DROP = [
-    "existenz", "ist_radvorrangnetz", "elem_nr", "gisid", "gueltig_von", 
-    "dnez__sdatenid", "str_bez", "Index"
+    "okstra_id", "existenz", "ist_radvorrangnetz", "elem_nr", "gisid", "gueltig_von", 
+    "dnez__sdatenid", "str_bez", "Index", "laenge"
 ]
 
 
@@ -245,7 +245,7 @@ def aggregate_by_worst_case(segments_group, attribute, aggregation_type):
 
 def aggregate_edge_group(edge_group):
     """
-    Aggregiert alle Segmente einer Kante (gleiche okstra_id und ri) zu einer finalen Kante.
+    Aggregiert alle Segmente einer Kante (gleiche element_nr und ri) zu einer finalen Kante.
     Wendet die definierten Aggregationsregeln an.
     """
     if len(edge_group) == 1:
@@ -268,9 +268,9 @@ def aggregate_edge_group(edge_group):
     # Signifikante Änderungen erkennen
     changes = detect_significant_changes(edge_group)
     if changes:
-        okstra_id = aggregated.get('okstra_id', 'unknown')
+        element_nr = aggregated.get('element_nr', 'unknown')
         ri = aggregated.get('ri', 'unknown')
-        logging.info(f"Signifikante Änderungen in Kante {okstra_id} (Richtung: {ri}): {'; '.join(changes)}")
+        logging.info(f"Signifikante Änderungen in Kante {element_nr} (Richtung: {ri}): {'; '.join(changes)}")
     
     # Attribute nach "längster Abschnitt" aggregieren
     for attr in LONGEST_SECTION_ATTRIBUTES:
@@ -292,8 +292,8 @@ def aggregate_edge_group(edge_group):
 
 def aggregate_network(gdf):
     """
-    Aggregiert das gesamte Netzwerk nach okstra_id und Richtung (ri).
-    Jede Kombination aus okstra_id und ri wird zu einer finalen Kante zusammengeführt.
+    Aggregiert das gesamte Netzwerk nach element_nr und Richtung (ri).
+    Jede Kombination aus element_nr und ri wird zu einer finalen Kante zusammengeführt.
     Berücksichtigt die Linienrichtung, sodass pro Straße zwei aggregierte Kanten entstehen
     (eine pro Fahrtrichtung), außer bei Einbahnstraßen.
     """
@@ -301,12 +301,12 @@ def aggregate_network(gdf):
     
     # Prüfen, ob Richtungsattribut vorhanden ist
     if 'ri' not in gdf.columns:
-        logging.warning("Attribut 'ri' (Richtung) fehlt! Aggregiere nur nach okstra_id.")
-        # Fallback: Gruppiere nur nach okstra_id
-        grouped = list(gdf.groupby('okstra_id'))
+        logging.warning("Attribut 'ri' (Richtung) fehlt! Aggregiere nur nach element_nr.")
+        # Fallback: Gruppiere nur nach element_nr
+        grouped = list(gdf.groupby('element_nr'))
     else:
-        # Gruppiere nach okstra_id UND Richtung (ri)
-        grouped = list(gdf.groupby(['okstra_id', 'ri']))
+        # Gruppiere nach element_nr UND Richtung (ri)
+        grouped = list(gdf.groupby(['element_nr', 'ri']))
     
     total_groups = len(grouped)
     
@@ -319,8 +319,8 @@ def aggregate_network(gdf):
         
         # Erweiterte Logging-Info bei Richtungsgruppierung
         if 'ri' in gdf.columns:
-            okstra_id, ri = group_key
-            logging.debug(f"Aggregiere okstra_id={okstra_id}, ri={ri}: {len(edge_group)} Segmente")
+            element_nr, ri = group_key
+            logging.debug(f"Aggregiere element_nr={element_nr}, ri={ri}: {len(edge_group)} Segmente")
         
         # Fortschrittsanzeige
         print_progressbar(idx, total_groups, prefix="Aggregiere: ")
@@ -380,11 +380,11 @@ def process(input_path, output_path, crs, clip_neukoelln=False, data_dir="./data
         logging.info(f"Nach Neukölln-Clipping: {len(gdf)} Segmente")
 
     # Prüfen, ob Pflichtfelder vorhanden sind
-    if 'okstra_id' not in gdf.columns:
-        sys.exit("Pflichtfeld 'okstra_id' fehlt in den Eingangsdaten!")
+    if 'element_nr' not in gdf.columns:
+        sys.exit("Pflichtfeld 'element_nr' fehlt in den Eingangsdaten!")
     
     if 'ri' not in gdf.columns:
-        logging.warning("Attribut 'ri' (Richtung) fehlt in den Eingangsdaten! Aggregation erfolgt nur nach okstra_id.")
+        logging.warning("Attribut 'ri' (Richtung) fehlt in den Eingangsdaten! Aggregation erfolgt nur nach element_nr.")
     else:
         logging.info(f"Richtungsattribut 'ri' gefunden. Verfügbare Richtungen: {sorted(gdf['ri'].dropna().unique())}")
 

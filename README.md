@@ -35,7 +35,7 @@ pip install -r processing/requirements.txt
 ./.venv/bin/python processing/translate_attributes_tilda_to_rvn.py --clip-neukoelln
 ./.venv/bin/python processing/start_matching.py --clip-neukoelln
 ./.venv/bin/python processing/start_snapping.py --clip-neukoelln
-./.venv/bin/python processing/aggregate_final_model.py
+./.venv/bin/python processing/aggregate_final_model.py --input ./output/snapping_network_enriched_neukoelln.fgb
 
 # To clip new TILDA bikelanes data, execute, then move to data folder
 ./.venv/bin/python ./scripts/clip_bikelanes.py --input ./bikelanes.fgb --clip-features ./data/"Berlin Bezirke.gpkg" --output "./TILDA Radwege Berlin.fgb"

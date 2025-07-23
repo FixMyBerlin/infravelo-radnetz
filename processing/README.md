@@ -50,10 +50,12 @@ Die Module sind nach Funktionalität organisiert:
 ### Next ToDos
 
 - [x] Direction `ri` based spatial search and choice of RVN edges
+- [ ] Calculate beginnt_bei_vp and endet_bei_vp, then element_nr
+  - [x] Aggregating by element_nr 
 - [ ] Dual carriageway oneway problems solve in snapping
 - [ ] Improve difference calculations between streets and bikelanes -> search for one Einrichtungsverkehr way, if so, add Mischverkehr
-- [ ] Merging all three datasets into one file with three layers
-- [ ] Add missing segments in RVN from CC dataset **or** calczulate element_nr
+- [ ] ~~Merging all three datasets into one file with three layers~~
+
 
 ## Filters
 
