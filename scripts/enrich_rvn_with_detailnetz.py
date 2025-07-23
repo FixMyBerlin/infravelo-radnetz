@@ -41,6 +41,8 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 def extract_streets_in_buffer(radvorrangsnetz_path, streets_detail_path, output_path):
     """
+    TL;DR Hole alle Kanten im RVN aus dem Detailnetz und deren Attribute.
+
     Diese Funktion führt einen räumlichen Join zwischen einem gepufferten Vorrangnetz
     und detaillierten Straßenabschnitten durch. Es werden alle Straßenabschnitte
     identifiziert, die innerhalb des gepufferten Netzwerks liegen.
@@ -65,7 +67,8 @@ def extract_streets_in_buffer(radvorrangsnetz_path, streets_detail_path, output_
         radvorrangsnetz, 
         CONFIG_VORRANGNETZ_BUFFER, 
         TARGET_CRS,
-        cache_dir=os.path.join(os.path.dirname(output_path), "cache")
+        cache_dir=os.path.join(os.path.dirname(output_path), "cache"),
+        cap_style='round'  # Verwende 'round' für einen runden Buffer
     )
 
     # Eingabe: Detailnetz der Straßenabschnitte laden
@@ -100,6 +103,7 @@ def extract_streets_in_buffer(radvorrangsnetz_path, streets_detail_path, output_
 
 def add_missing_radvorrangsnetz_segments(vorrangnetz_details_path, radvorrangsnetz_path, output_path_combined):
     """
+    TL;DR Identifiziert fehlende Segmente im Detailnetz und kombiniert sie mit denen aus dem RVN.
     Identifiziert fehlende Segmente im Radvorrangsnetz, die in den Detail-Straßenabschnitten
     nicht enthalten sind, und kombiniert sie.
 
@@ -158,7 +162,8 @@ def main():
     logging.info(f"Ausgabeverzeichnis erstellt/überprüft: {output_dir}")
 
     # Dateipfade für Eingabe- und Ausgabedateien definieren
-    radvorrangsnetz_path = os.path.join("output", "rvn", "Berlin Vorrangnetz_with_element_nr.fgb")
+    # radvorrangsnetz_path = os.path.join("output", "rvn", "Berlin Vorrangnetz_with_element_nr.fgb")
+    radvorrangsnetz_path = os.path.join(data_dir, "Berlin Radvorrangsnetz.fgb")
     streets_detail_path = os.path.join(data_dir, "Berlin Straßenabschnitte Detailnetz.fgb")
     output_path = os.path.join(output_dir, "vorrangnetz_details.fgb")
     output_path_combined = os.path.join(output_dir, "vorrangnetz_details_combined_rvn.fgb")
