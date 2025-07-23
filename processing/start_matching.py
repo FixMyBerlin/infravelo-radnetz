@@ -39,6 +39,7 @@ from matching.orthogonal_filter import process_and_filter_short_segments
 from matching.manual_interventions import get_excluded_ways, get_included_ways
 from matching.difference import get_or_create_difference_fgb
 from helpers.progressbar import print_progressbar
+from helpers.buffer_utils import create_unified_buffer
 #from export_geojson import export_all_geojson
 
 # Konfiguration
@@ -90,37 +91,6 @@ def load_geodataframe(path, name, target_crs):
     if gdf.crs != target_crs:
         gdf = gdf.to_crs(target_crs)
     return gdf
-
-
-def create_unified_buffer(vorrangnetz_gdf, buffer_meters, target_crs):
-    """
-    Erzeugt einen vereinheitlichten Buffer um das Vorrangnetz.
-    Verwendet Caching basierend auf der Buffer-Größe um mehrfache Berechnungen zu vermeiden.
-    """
-    # Erstelle Cache-Pfad mit Buffer-Größe im Dateinamen
-    cache_file = f'./output/matching/vorrangnetz_buffered_{buffer_meters}m.fgb'
-    os.makedirs('./output/matching', exist_ok=True)
-    
-    # Prüfe, ob Buffer bereits existiert
-    if os.path.exists(cache_file):
-        print(f'Lade bereits berechneten {buffer_meters}m Buffer aus {cache_file}...')
-        buffered_gdf = gpd.read_file(cache_file)
-        unified_buffer = buffered_gdf.geometry.iloc[0]
-        print(f'Buffer von {buffer_meters}m erfolgreich geladen.')
-        return unified_buffer, buffered_gdf
-    
-    # Buffer muss neu berechnet werden
-    print(f'Erzeuge Buffer von {buffer_meters}m um Vorrangnetz-Kanten...')
-    vorrangnetz_buffer = vorrangnetz_gdf.buffer(buffer_meters, cap_style='flat')
-    print('Vereine alle Buffer zu einer einzigen Geometrie...')
-    unified_buffer = vorrangnetz_buffer.union_all()
-    
-    # Speichere den berechneten Buffer für zukünftige Verwendung
-    buffered_gdf = gpd.GeoDataFrame(geometry=[unified_buffer], crs=target_crs)
-    buffered_gdf.to_file(cache_file, driver='FlatGeobuf')
-    print(f'Gebuffertes Vorrangnetz gespeichert als {cache_file}')
-    
-    return unified_buffer, buffered_gdf
 
 
 def find_osm_ways_in_buffer(osm_gdf, unified_buffer, cache_path, fraction_threshold=0.7):
