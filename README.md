@@ -41,6 +41,13 @@ pip install -r processing/requirements.txt
 ./.venv/bin/python ./scripts/clip_bikelanes.py --input ./bikelanes.fgb --clip-features ./data/"Berlin Bezirke.gpkg" --output "./TILDA Radwege Berlin.fgb"
 ```
 
+```sh
+# Short way to execute processing:
+./processing/execute_processing.sh
+
+# Don't forget to make it executable before.
+```
+
 The output is saved in `output/`.
 
 The processing uses two data sources as inputs: [Radvorrangsnetz](https://tilda-geo.de/regionen/berlin?map=9.9/52.518/13.372&config=1swjsz2.5ount0.4qfsxw.2t61&data=radverkehrsnetz--v&v=2), TILDA data and Detailnetz  is working in two steps:
