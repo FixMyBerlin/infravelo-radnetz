@@ -184,6 +184,8 @@ def determine_fuehrung(row, data_source: str) -> str:
         if category.startswith("footAndCyclewayShared") and has_traffic_sign(traffic_sign, "240"):
             return "Gemeinsamer Geh- und Radweg mit Z240"
         return "Radweg"
+    elif category == "cycleway_isolated":
+        return "Radweg"
     elif category.startswith("footwayBicycleYes"):
         # Prüfe auf Zusatzzeichen "Radverkehr frei" (Z239 mit Z1022-10)
         if has_traffic_sign(traffic_sign, "239") and has_traffic_sign(traffic_sign, "1022-10"):
