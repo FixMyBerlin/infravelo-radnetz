@@ -17,8 +17,8 @@ VERWENDUNG:
     
     # Mit benutzerdefinierten Pfaden:
     python scripts/convert_aggregated_to_geojson.py \
-        --input output/aggregated_rvn_final.gpkg \
-        --output output/aggregated_rvn_final.geojson
+        --input ./output/aggregated_rvn_final.gpkg \
+        --output ./output/aggregated_rvn_final.geojson
 
 INPUT:
 - output/aggregated_rvn_final.gpkg (GeoPackage mit zwei Layern)
@@ -36,17 +36,6 @@ import os
 
 import geopandas as gpd
 import pandas as pd
-
-# Füge den processing Pfad zum sys.path hinzu, um Helpers zu importieren
-sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'processing'))
-
-try:
-    from helpers.globals import DEFAULT_CRS, DEFAULT_OUTPUT_DIR
-except ImportError:
-    # Fallback-Werte falls Import fehlschlägt
-    DEFAULT_CRS = 25833
-    DEFAULT_OUTPUT_DIR = "output/"
-
 
 def convert_geopackage_to_geojson(input_path: str, output_path: str):
     """
@@ -106,6 +95,14 @@ def convert_geopackage_to_geojson(input_path: str, output_path: str):
         # Erstelle das Ausgabeverzeichnis falls es nicht existiert
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         
+        # Konvertiere zu WGS84 (EPSG:4326) für GeoJSON-Spezifikation
+        current_crs = combined_gdf.crs
+        if current_crs != 'EPSG:4326':
+            logging.info(f"Konvertiere CRS von {current_crs} zu WGS84 (EPSG:4326) für GeoJSON")
+            combined_gdf = combined_gdf.to_crs('EPSG:4326')
+        else:
+            logging.info("CRS ist bereits WGS84 (EPSG:4326)")
+        
         # Exportiere als GeoJSON
         logging.info(f"Exportiere {len(combined_gdf)} Features nach {output_path}")
         combined_gdf.to_file(output_path, driver="GeoJSON")
@@ -146,12 +143,12 @@ def main():
     )
     parser.add_argument(
         "--input",
-        default=f"{DEFAULT_OUTPUT_DIR}/aggregated_rvn_final.gpkg",
+        default=f"../output/aggregated_rvn_final.gpkg",
         help="Pfad zum GeoPackage mit den beiden Layern (default: output/aggregated_rvn_final.gpkg)"
     )
     parser.add_argument(
         "--output", 
-        default=f"{DEFAULT_OUTPUT_DIR}/aggregated_rvn_final.geojson",
+        default=f"../output/aggregated_rvn_final.geojson",
         help="Pfad für die Ausgabe-GeoJSON-Datei (default: output/aggregated_rvn_final.geojson)"
     )
     
