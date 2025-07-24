@@ -192,7 +192,7 @@ def determine_fuehrung(row, data_source: str) -> str:
         elif traffic_sign.strip() in ["none", "nan"]:
             return "Sonstige Wege (Gehwege, Wege durch Grünflächen, Plätze)"
         else:
-            return "[TODO] Gehweg ohne Verkehrszeichen"
+            return "Sonstige Wege (Gehwege, Wege durch Grünflächen, Plätze)"
     elif (category == "pedestrianAreaBicycleYes" and 
           (has_traffic_sign(traffic_sign, "242") or has_traffic_sign(traffic_sign, "242.1")) and
           has_traffic_sign(traffic_sign, "1022-10")):
