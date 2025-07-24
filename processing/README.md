@@ -54,6 +54,7 @@ Die Module sind nach Funktionalität organisiert:
   - [x] Aggregating by element_nr 
 - [ ] Dual carriageway oneway problems solve in snapping
 - [ ] Improve difference calculations between streets and bikelanes -> search for one Einrichtungsverkehr way, if so, add Mischverkehr
+- [ ] Add script for converting aggregated geopackage to one merged GeoJSON
 - [ ] ~~Merging all three datasets into one file with three layers~~
 
 

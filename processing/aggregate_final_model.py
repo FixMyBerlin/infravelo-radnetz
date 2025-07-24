@@ -283,9 +283,10 @@ def aggregate_edge_group(edge_group):
             aggregated[attr] = aggregate_by_worst_case(edge_group, attr, agg_type)
     
     # Zusätzliche Metadaten
-    aggregated['segments_count'] = len(edge_group)
-    aggregated['total_length'] = sum(calculate_segment_length(geom) for geom in edge_group.geometry)
-    aggregated['has_significant_changes'] = len(changes) > 0
+    # DEBUG 
+    # aggregated['segments_count'] = len(edge_group)
+    # aggregated['total_length'] = sum(calculate_segment_length(geom) for geom in edge_group.geometry)
+    # aggregated['has_significant_changes'] = len(changes) > 0
     
     return aggregated
 

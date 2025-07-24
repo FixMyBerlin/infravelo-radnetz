@@ -47,7 +47,7 @@ RVN_ATTRIBUT_ENDE_VP   = "endet_bei_vp"         # Endknoten-ID
 # Attribute an denen die Kanten getrennt werden bzw. verschmolzen werden
 # Diese Attribute müssen in den übersetzten TILDA Daten vorhanden sein
 FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES = ["fuehr", "ofm", "protek", "pflicht", "breite", "farbe", "ri", "verkehrsri", "trennstreifen", "nutz_beschr"]
-FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES=["data_source", "tilda_id", "tilda_name","tilda_oneway", "tilda_category", "tilda_traffic_sign", "tilda_mapillary", "mapillary_traffic_sign", "mapillary_backward", "mapillary_forward"]
+FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES=["data_source", "tilda_id", "tilda_name","tilda_oneway", "tilda_category", "tilda_traffic_sign", "tilda_mapillary", "tilda_mapillary_traffic_sign", "tilda_mapillary_backward", "tilda_mapillary_forward"]
 
 # Prioritäten für OSM-Weg-Auswahl (höhere Zahl = höhere Priorität)
 TILDA_TRAFFIC_SIGN_PRIORITIES = {
@@ -552,10 +552,6 @@ def create_directional_segment_variants_from_matched_tilda_ways(seg_dict: dict, 
                     continue
                 if attr in best_osm:
                     variant[attr] = best_osm.get(attr)
-            
-            # Entferne Breite-Attribut bei Mischverkehr mit motorisiertem Verkehr
-            if variant.get('fuehr') == 'Mischverkehr mit motorisiertem Verkehr':
-                variant['breite'] = None
 
             # Zusätzliche OSM-Attribute für Debugging/Referenz
             for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
@@ -578,10 +574,6 @@ def create_directional_segment_variants_from_matched_tilda_ways(seg_dict: dict, 
                         continue
                     if attr in best_osm:
                         variant[attr] = best_osm.get(attr)
-                
-                # Entferne Breite-Attribut bei Mischverkehr mit motorisiertem Verkehr
-                if variant.get('fuehr') == 'Mischverkehr mit motorisiertem Verkehr':
-                    variant['breite'] = None
 
                 # Zusätzliche OSM-Attribute für Debugging/Referenz
                 for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
@@ -842,6 +834,14 @@ def process(net_path, osm_path, out_path, crs, buf, clip_neukoelln=False, data_d
     debug_merge_attributes(net_segmented, "element_nr", FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES)
     
     out_gdf = merge_segments(net_segmented, "element_nr", FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES)
+
+    # ---------- Finale Datenbereinigung ------------------------------------
+    # Entferne Breite-Attribut bei allen Kanten mit Mischverkehr mit motorisiertem Verkehr
+    mischverkehr_mask = out_gdf['fuehr'] == 'Mischverkehr mit motorisiertem Verkehr'
+    mischverkehr_count = mischverkehr_mask.sum()
+    if mischverkehr_count > 0:
+        logging.info(f"Entferne Breite-Attribut bei {mischverkehr_count} Kanten mit Mischverkehr")
+        out_gdf.loc[mischverkehr_mask, 'breite'] = None
 
     # ---------- Ergebnis speichern ------------------------------------------
     p, *layer = out_path.split(":")
