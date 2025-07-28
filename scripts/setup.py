@@ -10,8 +10,8 @@ import os
 
 # Zu erstellende Ordner
 folders = [
-    os.path.join("..", "output", "qa-snapping"),
-    os.path.join("..", "output", "qa-matching"),
+    os.path.join("..", "output", "snapping"),
+    os.path.join("..", "output", "matching"),
 ]
 
 def main():

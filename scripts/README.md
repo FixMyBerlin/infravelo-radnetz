@@ -20,4 +20,4 @@ Um die benötigten QA-Ordner für Ausgaben zu erstellen, führe einmalig das Set
 python scripts/setup.py
 ```
 
-Dadurch werden die Ordner `output/qa-snapping` und `output/qa-matching` angelegt (falls noch nicht vorhanden).
+Dadurch werden die Ordner `output/snapping` und `output/qa-matching` angelegt (falls noch nicht vorhanden).

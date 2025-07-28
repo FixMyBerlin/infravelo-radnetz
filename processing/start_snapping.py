@@ -639,7 +639,7 @@ def process(net_path, osm_path, out_path, crs, buf, clip_neukoelln=False, data_d
     
     # Stelle sicher, dass das segmentierte Detailnetz und das Ausgabeverzeichnis existiert
     filename_suffix = "_neukoelln" if clip_neukoelln else ""
-    seg_path = f"./output/qa-snapping/rvn-segmented{filename_suffix}.fgb"
+    seg_path = f"./output/snapping/rvn-segmented{filename_suffix}.fgb"
     os.makedirs(os.path.dirname(seg_path), exist_ok=True)
     
     if os.path.exists(seg_path):
@@ -656,7 +656,7 @@ def process(net_path, osm_path, out_path, crs, buf, clip_neukoelln=False, data_d
         logging.info(f"✔  Segmentiertes Netz gespeichert als {seg_path}")
 
     # ---------- Snapping/Attributübernahme auf Segmente ---------------------
-    seg_attr_path = f"./output/qa-snapping/rvn-segmented-attributed-osm{filename_suffix}.fgb"
+    seg_attr_path = f"./output/snapping/rvn-segmented-attributed-osm{filename_suffix}.fgb"
     os.makedirs(os.path.dirname(seg_attr_path), exist_ok=True)
     
     if os.path.exists(seg_attr_path):
@@ -674,7 +674,7 @@ def process(net_path, osm_path, out_path, crs, buf, clip_neukoelln=False, data_d
         # Optional: Öffne Kandidaten-Log-Datei für QA-Zwecke
         candidates_log = None
         if log_candidates:
-            qa_dir = "./output/qa-snapping"
+            qa_dir = "./output/snapping"
             os.makedirs(qa_dir, exist_ok=True)
             candidates_log_file = os.path.join(qa_dir, f"osm_candidates_per_edge{filename_suffix}.txt")
             
