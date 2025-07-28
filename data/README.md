@@ -1,10 +1,12 @@
 # Data
 
-The checkedin datasets are used to 
+Bei den eingecheckten Dateien handelt es sich um:
 
-The `TILDA Radwege Berlin.fgb` is the export of the TILDA Region, based on OpenStreetMap.
-`TILDA Straßen Berlin.fgb` is the export of the street network of TILDA Region, based on OpenStreetMap.
-`Berlin Radvorrangsnetz.fgb` is a filtered geodata file of the cycle network of Berlin, which only contains "Radvorrangsnetz" edges.
+`TILDA Radwege Berlin.fgb` Export von Radwegen in TILDA, basierend auf OpenStreetMap.
+`TILDA Straßen Berlin.fgb` Export von Straßen in TILDA, basierend auf OpenStreetMap.
+`Berlin Radvorrangsnetz.fgb` gefilterte Geodaten basierend auf dem Radnetz Berlin, welches nur „Radvorrangsnetz“ Kanten enthält.
+
+Für Lizenzen, siehe LIZENZEN.md
 
 # Data Modifiers
 
