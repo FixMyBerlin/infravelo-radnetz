@@ -34,8 +34,8 @@ from helpers.traffic_signs import has_traffic_sign
 from helpers.clipping import clip_to_neukoelln
 
 # -------------------------------------------------------------- Konstanten --
-CONFIG_BUFFER_DEFAULT = 30.0     # Standard-Puffergröße in Metern für Matching
-CONFIG_MAX_ANGLE_DIFFERENCE = 50.0 # Maximaler Winkelunterschied für Ausrichtung in Grad
+CONFIG_BUFFER_DEFAULT = 25     # Standard-Puffergröße in Metern zum Suchraum
+CONFIG_MAX_ANGLE_DIFFERENCE = 50 # Maximaler Winkelunterschied für Ausrichtung in Grad
 
 # Neukölln Grenzendatei
 INPUT_NEUKOELLN_BOUNDARY_FILE = "Bezirk Neukölln Grenze.fgb"
@@ -637,14 +637,14 @@ def create_directional_segment_variants_from_matched_tilda_ways(seg_dict: dict, 
 
 
 # ------------------------------------------------------------- Hauptablauf --
-def process(net_path, osm_path, out_path, crs, buf, clip_neukoelln=False, data_dir="./data", log_candidates=False):
+def process(net_path, osm_path, out_path, crs, buffer, clip_neukoelln=False, data_dir="./data", log_candidates=False):
     """
     Hauptfunktion: Segmentiert das Netz, führt das Snapping durch und verschmilzt die Segmente wieder.
     net_path: Pfad zum Netz (mit Layer)
     osm_path: Pfad zu TILDA-übersetzten Daten (mit Layer)
     out_path: Ausgabepfad (mit Layer)
     crs: Ziel-Koordinatensystem (EPSG)
-    buf: Puffergröße für Matching
+    buffer: Puffergröße für Matching
     clip_neukoelln: Ob auf Neukölln zugeschnitten werden soll
     data_dir: Verzeichnis mit den Eingabedateien
     """
@@ -735,7 +735,7 @@ def process(net_path, osm_path, out_path, crs, buf, clip_neukoelln=False, data_d
             candidates_log = open(candidates_log_file, 'w', encoding='utf-8')
             candidates_log.write("# TILDA-Kandidaten pro okstra_id und Richtung\n")
             candidates_log.write("# Generiert von start_snapping.py\n")
-            candidates_log.write(f"# Puffergröße: {buf}m\n")
+            candidates_log.write(f"# Puffergröße: {buffer}m\n")
             candidates_log.write(f"# Max. Winkelunterschied: {CONFIG_MAX_ANGLE_DIFFERENCE}°\n")
             candidates_log.write("#\n")
             candidates_log.write("# Format: okstra_id -> Segment #X -> ri=0/1: bester_kandidat [Details] verfügbare: [alle_kandidaten]\n")
@@ -770,7 +770,7 @@ def process(net_path, osm_path, out_path, crs, buf, clip_neukoelln=False, data_d
                     candidates_log.write(f"okstra_id: {okstra_id}\n")
             
             # Kandidaten im Buffer suchen (räumliche Suche)
-            cand_idx = list(osm_sidx.intersection(g.buffer(buf, cap_style='flat').bounds))
+            cand_idx = list(osm_sidx.intersection(g.buffer(buffer, cap_style='flat').bounds))
             if not cand_idx:
                 # Keine TILDA-Kandidaten gefunden - Varianten mit "Keine Radinfrastruktur vorhanden" erzeugen
                 seg_dict = seg._asdict()
@@ -790,7 +790,7 @@ def process(net_path, osm_path, out_path, crs, buf, clip_neukoelln=False, data_d
 
             # Filtere Kandidaten nach tatsächlicher Entfernung zum Segment
             cand["d"] = cand.geometry.distance(g)
-            cand = cand[cand["d"] <= buf]
+            cand = cand[cand["d"] <= buffer]
             if cand.empty:
                 # Keine TILDA-Kandidaten im Buffer - Varianten mit "Keine Radinfrastruktur vorhanden" erzeugen
                 seg_dict = seg._asdict()
