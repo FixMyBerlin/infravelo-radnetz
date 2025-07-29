@@ -522,6 +522,89 @@ const App = () => {
                       }
                     })}
 
+                  {/* Centralized Arrow Layers - arrows for all line layers */}
+                  {layers
+                    .filter((layer) => activeLayers.includes(layer.id))
+                    .map((layer) => {
+                      const sourceLayer = sourceLayerMap[layer.source]
+                      if (!sourceLayer) return null
+
+                      // Create arrow layer for each source that has line layers
+                      switch (layer.source) {
+                        case 'roads':
+                          return (
+                            <Layer
+                              key="roads-arrows"
+                              id="roads-arrows"
+                              type="symbol"
+                              source="roads"
+                              layout={{
+                                'symbol-placement': 'line',
+                                'icon-image': 'arrow-image',
+                                'icon-size': 0.25,
+                                'icon-allow-overlap': true,
+                                'icon-ignore-placement': true,
+                                'icon-rotation-alignment': 'map',
+                              }}
+                              paint={{
+                                'icon-color': 'black',
+                                'icon-opacity': 0.8,
+                              }}
+                              source-layer={sourceLayer}
+                              beforeId="static-layers-start"
+                            />
+                          )
+                        case 'roadsPathClasses':
+                          return (
+                            <Layer
+                              key="roadsPathClasses-arrows"
+                              id="roadsPathClasses-arrows"
+                              type="symbol"
+                              source="roadsPathClasses"
+                              layout={{
+                                'symbol-placement': 'line',
+                                'icon-image': 'arrow-image',
+                                'icon-size': 0.25,
+                                'icon-allow-overlap': true,
+                                'icon-ignore-placement': true,
+                                'icon-rotation-alignment': 'map',
+                              }}
+                              paint={{
+                                'icon-color': 'black',
+                                'icon-opacity': 0.8,
+                              }}
+                              source-layer={sourceLayer}
+                              beforeId="static-layers-start"
+                            />
+                          )
+                        case 'bikelanes':
+                          return (
+                            <Layer
+                              key="bikelanes-arrows"
+                              id="bikelanes-arrows"
+                              type="symbol"
+                              source="bikelanes"
+                              layout={{
+                                'symbol-placement': 'line',
+                                'icon-image': 'arrow-image',
+                                'icon-size': 0.25,
+                                'icon-allow-overlap': true,
+                                'icon-ignore-placement': true,
+                                'icon-rotation-alignment': 'map',
+                              }}
+                              paint={{
+                                'icon-color': 'black',
+                                'icon-opacity': 0.8,
+                              }}
+                              source-layer={sourceLayer}
+                              beforeId="static-layers-start"
+                            />
+                          )
+                        default:
+                          return null
+                      }
+                    })}
+
                   {/* Static layers on top */}
                   <StaticLayers />
                 </Fragment>
