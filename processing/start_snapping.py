@@ -26,11 +26,11 @@ import numpy as np
 import pandas as pd
 import geopandas as gpd
 from shapely.geometry import LineString, MultiLineString, Point
+from shapely.ops import linemerge
 from helpers.progressbar import print_progressbar
 from helpers.globals import DEFAULT_CRS
 from helpers.traffic_signs import has_traffic_sign
 from helpers.clipping import clip_to_neukoelln
-
 
 # -------------------------------------------------------------- Konstanten --
 CONFIG_BUFFER_DEFAULT = 30.0     # Standard-Puffergröße in Metern für Matching
@@ -249,8 +249,6 @@ def merge_segments(gdf, id_field, osm_fields):
     Behandelt None/NaN-Werte und Floating-Point-Präzision korrekt.
     Zeigt einen Fortschrittsbalken an.
     """
-    from shapely.ops import linemerge
-    import logging
     
     # Erstelle eine Kopie für die Bearbeitung
     gdf_work = gdf.copy()
@@ -319,7 +317,6 @@ def debug_merge_attributes(gdf, id_field, osm_fields, sample_okstra_id=None):
     Debug-Funktion: Analysiert die Attributwerte für das Merging.
     Zeigt potenzielle Probleme bei der Gruppierung auf.
     """
-    import logging
     
     # Wähle eine okstra_id zum Debuggen (falls nicht angegeben, nimm die erste)
     if sample_okstra_id is None:
@@ -524,7 +521,6 @@ def create_directional_segment_variants_from_matched_tilda_ways(seg_dict: dict, 
         # Prüfe, ob mindestens eine tilda_id "cycleway" enthält
         if any("cycleway" in str(tid) for tid in candidate_ids):
             candidate_links = [f"https://osm.org/{tid}" for tid in candidate_ids]
-            import logging
             logging.debug(f"Seg:{seg_dict.get('element_nr', 'unknown')}: {len(original_candidates)} Kandidaten, tilda_id: {candidate_ids}/Links: {candidate_links}")
     
     # Prüfe, ob wir einen eindeutigen Einrichtungsverkehr-Kandidaten haben
@@ -534,9 +530,17 @@ def create_directional_segment_variants_from_matched_tilda_ways(seg_dict: dict, 
             target_candidates.get('verkehrsri', '') == 'Einrichtungsverkehr'
         ]
     
-    # Sonderfall: Nur Einrichtungsverkehr-Kandidaten mit Mischverkehr
+    # Prüfe auf Dual Carriageway Kandidaten
+    dual_carriageway_candidates = []
+    if target_candidates is not None and len(target_candidates) > 0:
+        dual_carriageway_candidates = target_candidates[
+            target_candidates.get('tilda_oneway', '') == 'yes_dual_carriageway'
+        ]
+    
+    # Sonderfall: Nur Einrichtungsverkehr-Kandidaten mit Mischverkehr (aber NICHT dual carriageway)
     if (len(einrichtung_candidates) > 0 and 
         len(einrichtung_candidates) == len(target_candidates) and
+        len(dual_carriageway_candidates) == 0 and  # KEINE dual carriageway Kandidaten
         all(cand.get('fuehr') == 'Mischverkehr mit motorisiertem Verkehr' 
             for _, cand in einrichtung_candidates.iterrows())):
         
@@ -559,13 +563,28 @@ def create_directional_segment_variants_from_matched_tilda_ways(seg_dict: dict, 
                 
             variants.append(variant)
     else:
-        # Standardfall: Erstelle zwei Varianten, eine für jede Richtung
+        # Bestimme welche Kandidaten verwendet werden sollen
+        candidates_to_use = target_candidates
+        
+        # Sonderfall: Dual Carriageway mit Einrichtungsverkehr
+        if (len(dual_carriageway_candidates) > 0 and 
+            len(dual_carriageway_candidates) == len(target_candidates) and
+            all(cand.get('verkehrsri') == 'Einrichtungsverkehr' 
+                for _, cand in dual_carriageway_candidates.iterrows())):
+            
+            logging.debug(f"Dual carriageway erkannt für element_nr={seg_dict.get('element_nr', 'unknown')}: "
+                         f"{len(dual_carriageway_candidates)} Kandidaten")
+            candidates_to_use = dual_carriageway_candidates
+        
+        # Standardfall/Dual Carriageway: Erstelle zwei Varianten, eine für jede Richtung
+        # Bei dual carriageway werden beide Richtungen erstellt, auch wenn OSM-Wege Einrichtungsverkehr sind
+        # Dies repräsentiert die Tatsache, dass beide Fahrbahnen physisch vorhanden sind
         for ri_value in [0, 1]:  # 0 = Hinrichtung, 1 = Rückrichtung
             variant = seg_dict.copy()
             variant["ri"] = ri_value
 
             # Finde den besten Kandidaten für diese spezifische Richtung
-            best_osm = find_best_candidate_for_direction(target_candidates, seg_dict, ri_value, segment_angle)
+            best_osm = find_best_candidate_for_direction(candidates_to_use, seg_dict, ri_value, segment_angle)
 
             if best_osm:
                 # Übertrage alle relevanten Attribute vom besten OSM-Match
