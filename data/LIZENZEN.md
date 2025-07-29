@@ -32,19 +32,19 @@ Gleiche Lizenzangaben, aber Anpasungen: Extrakt aus `Berlin Bezirke.gpkg`
 ## TILDA Radwege Berlin.fgb
 
 * **Lizenz:** ODbL
-* **Urheber:** © OpenStreetMap Mitwirkende / TILDA
+* **Urheber:** © OpenStreetMap; tilda-geo.de
 * Export von https://tilda-geo.de
 
 ## TILDA Straßen Berlin.fgb
 
 * **Lizenz:** ODbL
-* **Urheber:** © OpenStreetMap Mitwirkende / TILDA
+* **Urheber:** © OpenStreetMap; tilda-geo.de
 * Export von https://tilda-geo.de
 
 ## TILDA Wege Berlin.fgb
 
 * **Lizenz:** ODbL
-* **Urheber:** © OpenStreetMap Mitwirkende / TILDA
+* **Urheber:** © OpenStreetMap; tilda-geo.de
 * Export von https://tilda-geo.de
 
 ## Verbindungspunkte im RVN.gpkg
