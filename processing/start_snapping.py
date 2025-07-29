@@ -10,6 +10,7 @@ start_snapping.py
       beginnt_bei_vp     = From-Node
       endet_bei_vp       = To-Node
 – Verwendet übersetzte TILDA-Attribute: fuehr, ofm, protek, pflicht, breite, farbe
+– Bei fehlenden TILDA-Daten wird fuehr="Keine Radinfrastruktur vorhanden" gesetzt
 
 INPUT:
 - output/rvn/vorrangnetz_details_combined_rvn.fgb (Straßennetz)
@@ -495,6 +496,9 @@ def create_directional_segment_variants_from_matched_tilda_ways(seg_dict: dict, 
     Die Attribute werden richtungsabhängig basierend auf den besten gematchten TILDA-Wegen gesetzt.
     Führt die Bewertung und Priorisierung der Kandidaten für jede Richtung durch.
     
+    Keine Kandidaten: Wenn keine TILDA-Kandidaten gefunden werden, werden zwei Kanten
+    erzeugt mit fuehr="Keine Radinfrastruktur vorhanden" (für geplante Infrastruktur).
+    
     Sonderfall: Bei verkehrsri=Einrichtungsverkehr wird nur eine Kante erzeugt,
     wobei das ri basierend auf der Richtungsausrichtung zwischen Segment und OSM-Weg bestimmt wird.
     
@@ -537,8 +541,30 @@ def create_directional_segment_variants_from_matched_tilda_ways(seg_dict: dict, 
             target_candidates.get('tilda_oneway', '') == 'yes_dual_carriageway'
         ]
     
+    # Sonderfall: Keine TILDA-Kandidaten gefunden
+    if target_candidates is None or len(target_candidates) == 0:
+        # Erstelle zwei Varianten ohne OSM-Daten, aber mit speziellem fuehr-Attribut
+        for ri_value in [0, 1]:  # 0 = Hinrichtung, 1 = Rückrichtung
+            variant = seg_dict.copy()
+            variant["ri"] = ri_value
+            
+            # Setze alle Merge-Attribute auf None, außer fuehr
+            for attr in FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES:
+                if attr == 'ri':  # ri wird explizit durch die Schleife gesetzt
+                    continue
+                elif attr == 'fuehr':
+                    variant[attr] = 'Keine Radinfrastruktur vorhanden'
+                elif attr not in variant:  # Behalte existierende Spalten wie 'geometry' etc.
+                    variant[attr] = None
+            
+            # Zusätzliche OSM-Attribute für Debugging/Referenz auf None setzen
+            for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
+                variant[attr] = None
+                
+            variants.append(variant)
+    
     # Sonderfall: Nur Einrichtungsverkehr-Kandidaten mit Mischverkehr (aber NICHT dual carriageway)
-    if (len(einrichtung_candidates) > 0 and 
+    elif (len(einrichtung_candidates) > 0 and 
         len(einrichtung_candidates) == len(target_candidates) and
         len(dual_carriageway_candidates) == 0 and  # KEINE dual carriageway Kandidaten
         all(cand.get('fuehr') == 'Mischverkehr mit motorisiertem Verkehr' 
@@ -746,7 +772,7 @@ def process(net_path, osm_path, out_path, crs, buf, clip_neukoelln=False, data_d
             # Kandidaten im Buffer suchen (räumliche Suche)
             cand_idx = list(osm_sidx.intersection(g.buffer(buf, cap_style='flat').bounds))
             if not cand_idx:
-                # Keine TILDA-Kandidaten gefunden - Standardvarianten erzeugen
+                # Keine TILDA-Kandidaten gefunden - Varianten mit "Keine Radinfrastruktur vorhanden" erzeugen
                 seg_dict = seg._asdict()
                 variants = create_directional_segment_variants_from_matched_tilda_ways(seg_dict, None)
                 snapped_records.extend(variants)
@@ -766,7 +792,7 @@ def process(net_path, osm_path, out_path, crs, buf, clip_neukoelln=False, data_d
             cand["d"] = cand.geometry.distance(g)
             cand = cand[cand["d"] <= buf]
             if cand.empty:
-                # Keine TILDA-Kandidaten im Buffer - Standardvarianten erzeugen
+                # Keine TILDA-Kandidaten im Buffer - Varianten mit "Keine Radinfrastruktur vorhanden" erzeugen
                 seg_dict = seg._asdict()
                 variants = create_directional_segment_variants_from_matched_tilda_ways(seg_dict, None)
                 snapped_records.extend(variants)
