@@ -389,6 +389,7 @@ const App = () => {
 
               {mapLoaded && (
                 <Fragment>
+                  {/* QA Layers - rendered first, will be at the bottom */}
                   {layers
                     .filter((layer) => activeLayers.includes(layer.id))
                     .map((layer) => {
@@ -461,6 +462,7 @@ const App = () => {
                       }
                     })}
 
+                  {/* Interaction Layers - above QA layers but below static layers */}
                   {layers
                     .filter((layer) => activeLayers.includes(layer.id))
                     .map((layer) => {
@@ -472,6 +474,7 @@ const App = () => {
                         case 'roads':
                           return (
                             <Layer
+                              key={`${sourceLayer}-interaction`}
                               id="roads-interaction"
                               type="line"
                               source="roads"
@@ -481,11 +484,13 @@ const App = () => {
                                 'line-opacity': 0.5,
                               }}
                               source-layer={sourceLayer}
+                              beforeId="static-layers-start"
                             />
                           )
                         case 'roadsPathClasses':
                           return (
                             <Layer
+                              key={`${sourceLayer}-interaction`}
                               id="roadsPathClasses-interaction"
                               type="line"
                               source="roadsPathClasses"
@@ -495,11 +500,13 @@ const App = () => {
                                 'line-opacity': 0.5,
                               }}
                               source-layer={sourceLayer}
+                              beforeId="static-layers-start"
                             />
                           )
                         case 'bikelanes':
                           return (
                             <Layer
+                              key={`${sourceLayer}-interaction`}
                               id="bikelanes-interaction"
                               type="line"
                               source="bikelanes"
@@ -509,10 +516,13 @@ const App = () => {
                                 'line-opacity': 0.5,
                               }}
                               source-layer={sourceLayer}
+                              beforeId="static-layers-start"
                             />
                           )
                       }
                     })}
+
+                  {/* Static layers on top */}
                   <StaticLayers />
                 </Fragment>
               )}

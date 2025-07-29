@@ -4,6 +4,9 @@ import { Layer, Source } from 'react-map-gl/maplibre'
 export const StaticLayers = () => {
   return (
     <Fragment>
+      {/* Marker layer to ensure static layers are on top */}
+      <Layer id="static-layers-start" type="background" paint={{ 'background-opacity': 0 }} />
+
       <Source
         id="vorrangnetz-mask"
         type="vector"
