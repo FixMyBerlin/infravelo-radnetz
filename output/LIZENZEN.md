@@ -7,21 +7,21 @@ Angabe der Lizenzen der in diesem Ordner durch die Prozessierung erstellten Geod
 ## matched_*.fgb Dateien
 
 * **Lizenz:** ODbL
-* **Urheber:** © OpenStreetMap Mitwirkende
+* **Urheber:** © OpenStreetMap
 
 ## osm_*.fgb Dateien
 
 * **Lizenz:** ODbL
-* **Urheber:** © OpenStreetMap Mitwirkende
+* **Urheber:** © OpenStreetMap
 
 ## TILDA*.fgb Dateien
 
 * **Lizenz:** ODbL
-* **Urheber:** © OpenStreetMap Mitwirkende / TILDA
+* **Urheber:** © OpenStreetMap; tilda-geo.de
 
 ## aggregated_rvn_final.gpkg + snapping_network_enriched_*.fgb Dateien
 
 * **Lizenz:** ODbL
-* **Urheber:** © OpenStreetMap Mitwirkende / TILDA / Senatsverwaltung für Mobilität, Verkehr, Klimaschutz und Umwelt Berlin
+* **Urheber:** © OpenStreetMap; tilda-geo.de; Senatsverwaltung für Mobilität, Verkehr, Klimaschutz und Umwelt Berlin
 
 ## TODO
