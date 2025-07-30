@@ -389,6 +389,7 @@ const App = () => {
 
               {mapLoaded && (
                 <Fragment>
+                  {/* QA Layers - rendered first, will be at the bottom */}
                   {layers
                     .filter((layer) => activeLayers.includes(layer.id))
                     .map((layer) => {
@@ -461,6 +462,7 @@ const App = () => {
                       }
                     })}
 
+                  {/* Interaction Layers - above QA layers but below static layers */}
                   {layers
                     .filter((layer) => activeLayers.includes(layer.id))
                     .map((layer) => {
@@ -472,6 +474,7 @@ const App = () => {
                         case 'roads':
                           return (
                             <Layer
+                              key={`${sourceLayer}-interaction`}
                               id="roads-interaction"
                               type="line"
                               source="roads"
@@ -481,11 +484,13 @@ const App = () => {
                                 'line-opacity': 0.5,
                               }}
                               source-layer={sourceLayer}
+                              beforeId="static-layers-start"
                             />
                           )
                         case 'roadsPathClasses':
                           return (
                             <Layer
+                              key={`${sourceLayer}-interaction`}
                               id="roadsPathClasses-interaction"
                               type="line"
                               source="roadsPathClasses"
@@ -495,11 +500,13 @@ const App = () => {
                                 'line-opacity': 0.5,
                               }}
                               source-layer={sourceLayer}
+                              beforeId="static-layers-start"
                             />
                           )
                         case 'bikelanes':
                           return (
                             <Layer
+                              key={`${sourceLayer}-interaction`}
                               id="bikelanes-interaction"
                               type="line"
                               source="bikelanes"
@@ -509,10 +516,96 @@ const App = () => {
                                 'line-opacity': 0.5,
                               }}
                               source-layer={sourceLayer}
+                              beforeId="static-layers-start"
                             />
                           )
                       }
                     })}
+
+                  {/* Centralized Arrow Layers - arrows for all line layers */}
+                  {layers
+                    .filter((layer) => activeLayers.includes(layer.id))
+                    .map((layer) => {
+                      const sourceLayer = sourceLayerMap[layer.source]
+                      if (!sourceLayer) return null
+
+                      // Create arrow layer for each source that has line layers
+                      switch (layer.source) {
+                        case 'roads':
+                          return (
+                            <Layer
+                              key="roads-arrows"
+                              id="roads-arrows"
+                              type="symbol"
+                              source="roads"
+                              layout={{
+                                'symbol-placement': 'line',
+                                'icon-image': 'arrow-image',
+                                'icon-size': 0.25,
+                                'icon-allow-overlap': true,
+                                'icon-ignore-placement': true,
+                                'icon-rotation-alignment': 'map',
+                              }}
+                              paint={{
+                                'icon-color': 'black',
+                                'icon-opacity': 0.8,
+                              }}
+                              source-layer={sourceLayer}
+                              beforeId="static-layers-start"
+                            />
+                          )
+                        case 'roadsPathClasses':
+                          return (
+                            <Layer
+                              key="roadsPathClasses-arrows"
+                              id="roadsPathClasses-arrows"
+                              type="symbol"
+                              source="roadsPathClasses"
+                              layout={{
+                                'symbol-placement': 'line',
+                                'icon-image': 'arrow-image',
+                                'icon-size': 0.25,
+                                'icon-allow-overlap': true,
+                                'icon-ignore-placement': true,
+                                'icon-rotation-alignment': 'map',
+                              }}
+                              paint={{
+                                'icon-color': 'black',
+                                'icon-opacity': 0.8,
+                              }}
+                              source-layer={sourceLayer}
+                              beforeId="static-layers-start"
+                            />
+                          )
+                        case 'bikelanes':
+                          return (
+                            <Layer
+                              key="bikelanes-arrows"
+                              id="bikelanes-arrows"
+                              type="symbol"
+                              source="bikelanes"
+                              layout={{
+                                'symbol-placement': 'line',
+                                'icon-image': 'arrow-image',
+                                'icon-size': 0.25,
+                                'icon-allow-overlap': true,
+                                'icon-ignore-placement': true,
+                                'icon-rotation-alignment': 'map',
+                              }}
+                              paint={{
+                                'icon-color': 'black',
+                                'icon-opacity': 0.8,
+                              }}
+                              source-layer={sourceLayer}
+                              beforeId="static-layers-start"
+                            />
+                          )
+                        default:
+                          return null
+                      }
+                    })}
+
+                  {/* Static layers on top */}
                   <StaticLayers />
                 </Fragment>
               )}
