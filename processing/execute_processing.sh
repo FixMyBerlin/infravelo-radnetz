@@ -44,11 +44,11 @@ if [ -d "output/matching" ]; then
     rm -f output/matching/osm_*_orthogonal_removed.fgb
 fi
 
-# Lösche QA-Snapping Zwischendateien
-if [ -d "output/qa-snapping" ]; then
+# Lösche Snapping Zwischendateien
+if [ -d "output/snapping" ]; then
     echo "  - Lösche segmentierte Netzwerk-Dateien..."
-    rm -f output/qa-snapping/rvn-segmented-attributed*.fgb
-    rm -f output/qa-snapping/osm_candidates_per_edge*.txt
+    rm -f output/snapping/rvn-segmented-attributed*.fgb
+    rm -f output/snapping/osm_candidates_per_edge*.txt
 fi
 
 # Lösche finale Ausgabedateien um sauberen Neustart zu gewährleisten  
