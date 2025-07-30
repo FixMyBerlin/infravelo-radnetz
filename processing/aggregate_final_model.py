@@ -23,6 +23,7 @@ Aggregationsregeln:
 
 INPUT:
 - output/snapping_network_enriched.fgb (angereicherte Netzwerkdaten mit element_nr und ri)
+- data/Berlin Bezirke.gpkg (Berliner Bezirksgrenzen für Bezirkszuweisung)
 
 OUTPUT:
 - output/aggregated_rvn_final.gpkg (finale aggregierte Netzwerkdaten als GeoPackage)
@@ -76,7 +77,42 @@ TRENNSTREIFEN_HIERARCHY = [
 # Spalten, die nach der Aggregation gelöscht werden sollen
 COLUMNS_TO_DROP = [
     "okstra_id", "existenz", "ist_radvorrangnetz", "elem_nr", "gisid", "gueltig_von", 
-    "dnez__sdatenid", "str_bez", "Index", "laenge"
+    "dnez__sdatenid", "str_bez", "Index", "strassenklasse"
+]
+
+# Gewünschte Spaltenreihenfolge für das finale Ergebnis
+COLUMN_ORDER = [
+    "fid",                    # 1. eindeutige ID Nummer
+    "element_nr",             # 2. element_nr
+    "beginnt_bei_vp",         # 3. beginnt_bei_vp
+    "endet_bei_vp",           # 4. endet_bei_vp
+    "Länge",                  # 5. Länge (gerundet, ohne Nachkommastellen)
+    "ri",                     # 6. ri
+    "verkehrsri",             # 7. verkehrsri
+    "Bezirksnummer",          # 8. Bezirksnummer
+    "strassenname",           # 9. Straßenname
+    "fuehr",                  # 10. fuehr
+    "pflicht",                # 11. pflicht
+    "breite",                 # 12. breite
+    "ofm",                    # 13. ofm
+    "farbe",                  # 14. farbliche beschichtung
+    "protek",                 # 15. protek
+    "trennstreifen",          # 16. trennstreifen
+    "nutz_beschr",            # 17. nutzungsbeschränkung
+    # TILDA-Spalten (geprefixte Spalten)
+    "tilda_id",
+    "tilda_name",
+    "tilda_oneway",
+    "tilda_category",
+    "tilda_traffic_sign",
+    "tilda_mapillary",
+    "tilda_mapillary_traffic_sign",
+    "tilda_mapillary_backward",
+    "tilda_mapillary_forward",
+    # Weitere Standardspalten
+    "data_source",
+    "edge_source",
+    "geometry"                # Geometrie immer als letzte Spalte
 ]
 
 
@@ -265,6 +301,9 @@ def aggregate_edge_group(edge_group):
     merged_geom = linemerge(all_lines)
     aggregated['geometry'] = merged_geom
     
+    # Berechne die neue Länge der aggregierten Kante in Metern (gerundet, ohne Nachkommastellen)
+    aggregated['Länge'] = int(round(calculate_segment_length(merged_geom)))
+    
     # Signifikante Änderungen erkennen
     changes = detect_significant_changes(edge_group)
     if changes:
@@ -335,6 +374,12 @@ def aggregate_network(gdf):
         result_gdf = result_gdf.drop(columns=columns_to_drop)
         logging.info(f"Entfernte Spalten: {columns_to_drop}")
     
+    # Prüfe und logge die Längenberechnung
+    if 'Länge' in result_gdf.columns:
+        total_length = result_gdf['Länge'].sum()
+        avg_length = result_gdf['Länge'].mean()
+        logging.info(f"Längenstatistiken: Gesamtlänge={total_length:.0f}m, Durchschnitt={avg_length:.0f}m")
+    
     # Statistiken über Richtungsverteilung
     if 'ri' in result_gdf.columns:
         ri_counts = result_gdf['ri'].value_counts()
@@ -345,8 +390,135 @@ def aggregate_network(gdf):
     return result_gdf
 
 
+def assign_district_to_edges(edges_gdf, districts_path, crs):
+    """
+    Weist den Kanten Bezirksnummern basierend auf dem größten räumlichen Anteil zu.
+    Kanten, die sich über mehrere Bezirke erstrecken, erhalten den Bezirk,
+    in dem sie den größten Anteil haben.
+    
+    Args:
+        edges_gdf: GeoDataFrame mit den Kanten
+        districts_path: Pfad zur Bezirks-Datei
+        crs: Koordinatensystem für Berechnungen
+        
+    Returns:
+        GeoDataFrame mit zusätzlicher 'Bezirksnummer'-Spalte
+    """
+    logging.info(f"Lade Bezirksgrenzen von {districts_path}")
+    districts_gdf = gpd.read_file(districts_path).to_crs(crs)
+    
+    # Sicherstellen, dass die CRS übereinstimmen
+    if edges_gdf.crs != districts_gdf.crs:
+        logging.info("Projiziere Bezirke auf das CRS der Kanten")
+        districts_gdf = districts_gdf.to_crs(edges_gdf.crs)
+    
+    logging.info("Berechne Bezirkszuweisungen basierend auf größtem räumlichen Anteil...")
+    
+    # Initialisiere Bezirksnummer-Spalte
+    edges_gdf['Bezirksnummer'] = None
+    
+    total_edges = len(edges_gdf)
+    processed_edges = 0
+    
+    for idx, edge in edges_gdf.iterrows():
+        edge_geom = edge.geometry
+        max_intersection_length = 0
+        assigned_district = None
+        
+        # Prüfe Überschneidung mit allen Bezirken
+        for _, district in districts_gdf.iterrows():
+            try:
+                # Berechne Überschneidung zwischen Kante und Bezirk
+                intersection = edge_geom.intersection(district.geometry)
+                
+                if intersection.is_empty:
+                    continue
+                
+                # Berechne Länge der Überschneidung
+                if hasattr(intersection, 'length'):
+                    intersection_length = intersection.length
+                else:
+                    # Falls Punkt oder andere Geometrie
+                    intersection_length = 0
+                
+                # Speichere Bezirk mit größter Überschneidung
+                if intersection_length > max_intersection_length:
+                    max_intersection_length = intersection_length
+                    # Extrahiere zweistellige Bezirksnummer aus 'gem'-Spalte
+                    if 'gem' in district and pd.notna(district['gem']):
+                        assigned_district = str(district['gem'])[-2:]
+                    else:
+                        assigned_district = None
+                        
+            except Exception as e:
+                logging.warning(f"Fehler bei Überschneidungsberechnung für Kante {idx}: {e}")
+                continue
+        
+        # Weise Bezirksnummer zu
+        edges_gdf.at[idx, 'Bezirksnummer'] = assigned_district
+        
+        processed_edges += 1
+        if processed_edges % 100 == 0:
+            print_progressbar(processed_edges, total_edges, prefix="Bezirkszuweisung: ")
+    
+    # Finale Fortschrittsanzeige
+    print_progressbar(total_edges, total_edges, prefix="Bezirkszuweisung: ")
+    
+    # Statistiken
+    assigned_count = edges_gdf['Bezirksnummer'].notna().sum()
+    logging.info(f"Bezirkszuweisung abgeschlossen: {assigned_count}/{total_edges} Kanten haben eine Bezirksnummer erhalten")
+    
+    if assigned_count > 0:
+        district_counts = edges_gdf['Bezirksnummer'].value_counts()
+        logging.info(f"Verteilung nach Bezirken: {dict(district_counts)}")
+    
+    return edges_gdf
+
+
+def reorder_columns_and_add_fid(gdf):
+    """
+    Ordnet die Spalten gemäß der definierten Reihenfolge und fügt eine FID-Spalte hinzu.
+    
+    Args:
+        gdf: GeoDataFrame mit den aggregierten Kanten
+        
+    Returns:
+        GeoDataFrame mit geordneten Spalten und FID
+    """
+    # Arbeite mit einer Kopie
+    gdf = gdf.copy()
+    
+    # Füge FID-Spalte hinzu (fortlaufende Nummer)
+    gdf['fid'] = range(1, len(gdf) + 1)
+    
+    # Bestimme verfügbare Spalten in der gewünschten Reihenfolge (ohne geometry)
+    available_columns = []
+    for col in COLUMN_ORDER:
+        if col in gdf.columns and col != 'geometry':
+            available_columns.append(col)
+    
+    # Füge alle anderen Spalten hinzu, die nicht in COLUMN_ORDER definiert sind (ohne geometry)
+    for col in gdf.columns:
+        if col not in available_columns and col != 'geometry':
+            available_columns.append(col)
+    
+    # Erstelle neues GeoDataFrame mit geordneten Spalten
+    # Behalte die originale geometry-Spalte bei
+    ordered_data = {}
+    for col in available_columns:
+        ordered_data[col] = gdf[col]
+    
+    # Erstelle GeoDataFrame mit originaler geometry
+    result_gdf = gpd.GeoDataFrame(ordered_data, geometry=gdf.geometry, crs=gdf.crs)
+    
+    logging.info(f"Spalten neu geordnet: {len(available_columns) + 1} Spalten (inkl. geometry)")
+    logging.debug(f"Spaltenreihenfolge: {available_columns + ['geometry']}")
+    
+    return result_gdf
+
+
 # ------------------------------------------------------------- Hauptablauf --
-def process(input_path, output_path, crs, clip_neukoelln=False, data_dir="./data"):
+def process(input_path, output_path, crs, clip_neukoelln=False, data_dir="./data", assign_districts=True):
     """
     Hauptfunktion: Lädt angereicherte Netzwerkdaten und führt finale Aggregation durch.
     
@@ -356,6 +528,7 @@ def process(input_path, output_path, crs, clip_neukoelln=False, data_dir="./data
         crs: Ziel-Koordinatensystem (EPSG)
         clip_neukoelln: Ob auf Neukölln zugeschnitten werden soll
         data_dir: Verzeichnis mit den Eingabedateien
+        assign_districts: Ob Bezirksnummern zugewiesen werden sollen
     """
     # Logging konfigurieren
     logging.basicConfig(
@@ -393,6 +566,19 @@ def process(input_path, output_path, crs, clip_neukoelln=False, data_dir="./data
     logging.info("Starte finale Aggregation...")
     result_gdf = aggregate_network(gdf)
 
+    # ---------- Bezirkszuweisung durchführen -------------------------------
+    if assign_districts:
+        districts_path = os.path.join(data_dir, "Berlin Bezirke.gpkg")
+        if os.path.exists(districts_path):
+            logging.info("Starte Bezirkszuweisung...")
+            result_gdf = assign_district_to_edges(result_gdf, districts_path, crs)
+        else:
+            logging.warning(f"Bezirksdatei nicht gefunden: {districts_path}. Überspringe Bezirkszuweisung.")
+
+    # ---------- Spalten ordnen und FID hinzufügen --------------------------
+    logging.info("Ordne Spalten und füge FID hinzu...")
+    result_gdf = reorder_columns_and_add_fid(result_gdf)
+
     # ---------- Ergebnis speichern ------------------------------------------
     p, *layer = output_path.split(":")
     layer = layer[0] if layer else "aggregated_edges"
@@ -418,17 +604,19 @@ def process(input_path, output_path, crs, clip_neukoelln=False, data_dir="./data
         if not p_gpkg.endswith('.gpkg'):
             p_gpkg = f"{p_gpkg}.gpkg"
         
-        # Filtere nach Richtungen
-        ri_0_gdf = result_gdf[result_gdf['ri'] == 0]
-        ri_1_gdf = result_gdf[result_gdf['ri'] == 1]
+        # Filtere nach Richtungen und ordne Spalten für jeden Layer separat
+        ri_0_gdf = result_gdf[result_gdf['ri'] == 0].copy()
+        ri_1_gdf = result_gdf[result_gdf['ri'] == 1].copy()
         
-        # Schreibe Hinrichtung (ri=0)
+        # Schreibe Hinrichtung (ri=0) mit separater FID-Nummerierung
         if len(ri_0_gdf) > 0:
+            ri_0_gdf['fid'] = range(1, len(ri_0_gdf) + 1)  # Separate FID-Nummerierung für Layer
             ri_0_gdf.to_file(p_gpkg, layer="hinrichtung", driver="GPKG")
             logging.info(f"✔  {len(ri_0_gdf)} Kanten Hinrichtung (ri=0) → {p_gpkg}:hinrichtung")
         
-        # Schreibe Gegenrichtung (ri=1)
+        # Schreibe Gegenrichtung (ri=1) mit separater FID-Nummerierung
         if len(ri_1_gdf) > 0:
+            ri_1_gdf['fid'] = range(1, len(ri_1_gdf) + 1)  # Separate FID-Nummerierung für Layer
             ri_1_gdf.to_file(p_gpkg, layer="gegenrichtung", driver="GPKG", mode='a')
             logging.info(f"✔  {len(ri_1_gdf)} Kanten Gegenrichtung (ri=1) → {p_gpkg}:gegenrichtung")
         
@@ -458,7 +646,9 @@ if __name__ == "__main__":
                     help="Schneide Daten auf Neukölln zu (optional)")
     ap.add_argument("--data-dir", default="./data", 
                     help="Pfad zum Datenverzeichnis (default: ./data)")
+    ap.add_argument("--no-districts", action="store_true",
+                    help="Überspringe Bezirkszuweisung (optional)")
     args = ap.parse_args()
 
     # Hauptfunktion aufrufen
-    process(args.input, args.output, args.crs, args.clip_neukoelln, args.data_dir)
+    process(args.input, args.output, args.crs, args.clip_neukoelln, args.data_dir, not args.no_districts)
