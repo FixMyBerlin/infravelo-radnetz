@@ -286,40 +286,40 @@ def aggregate_edge_group(edge_group):
     """
     if len(edge_group) == 1:
         # Nur ein Segment - keine Aggregation nötig
-        return edge_group.iloc[0].copy()
+        aggregated = edge_group.iloc[0].copy()
+    else:
+        # Basis-Informationen der Kante übernehmen (erste Zeile)
+        aggregated = edge_group.iloc[0].copy()
+        
+        # Geometrie zusammenführen
+        
+        # Extrahiere alle LineString-Komponenten
+        all_lines = []
+        for geom in edge_group.geometry:
+            all_lines.extend(lines_from_geom(geom))
+        
+        merged_geom = linemerge(all_lines)
+        aggregated['geometry'] = merged_geom
+        
+        # Signifikante Änderungen erkennen
+        changes = detect_significant_changes(edge_group)
+        if changes:
+            element_nr = aggregated.get('element_nr', 'unknown')
+            ri = aggregated.get('ri', 'unknown')
+            logging.info(f"Signifikante Änderungen in Kante {element_nr} (Richtung: {ri}): {'; '.join(changes)}")
+        
+        # Attribute nach "längster Abschnitt" aggregieren
+        for attr in LONGEST_SECTION_ATTRIBUTES:
+            if attr in edge_group.columns:
+                aggregated[attr] = aggregate_by_longest_section(edge_group, attr)
+        
+        # Attribute nach "schlechtestem Fall" aggregieren
+        for attr, agg_type in WORST_CASE_ATTRIBUTES.items():
+            if attr in edge_group.columns:
+                aggregated[attr] = aggregate_by_worst_case(edge_group, attr, agg_type)
     
-    # Basis-Informationen der Kante übernehmen (erste Zeile)
-    aggregated = edge_group.iloc[0].copy()
-    
-    # Geometrie zusammenführen
-    
-    # Extrahiere alle LineString-Komponenten
-    all_lines = []
-    for geom in edge_group.geometry:
-        all_lines.extend(lines_from_geom(geom))
-    
-    merged_geom = linemerge(all_lines)
-    aggregated['geometry'] = merged_geom
-    
-    # Berechne die neue Länge der aggregierten Kante in Metern (gerundet, ohne Nachkommastellen)
-    aggregated['Länge'] = int(round(calculate_segment_length(merged_geom)))
-    
-    # Signifikante Änderungen erkennen
-    changes = detect_significant_changes(edge_group)
-    if changes:
-        element_nr = aggregated.get('element_nr', 'unknown')
-        ri = aggregated.get('ri', 'unknown')
-        logging.info(f"Signifikante Änderungen in Kante {element_nr} (Richtung: {ri}): {'; '.join(changes)}")
-    
-    # Attribute nach "längster Abschnitt" aggregieren
-    for attr in LONGEST_SECTION_ATTRIBUTES:
-        if attr in edge_group.columns:
-            aggregated[attr] = aggregate_by_longest_section(edge_group, attr)
-    
-    # Attribute nach "schlechtestem Fall" aggregieren
-    for attr, agg_type in WORST_CASE_ATTRIBUTES.items():
-        if attr in edge_group.columns:
-            aggregated[attr] = aggregate_by_worst_case(edge_group, attr, agg_type)
+    # Berechne die Länge für ALLE Kanten (Einzelsegmente und aggregierte Kanten)
+    aggregated['Länge'] = int(round(calculate_segment_length(aggregated.geometry)))
     
     # Zusätzliche Metadaten
     # DEBUG 
