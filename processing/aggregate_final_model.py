@@ -279,6 +279,39 @@ def aggregate_by_worst_case(segments_group, attribute, aggregation_type):
         raise ValueError(f"Unbekannter Aggregationstyp: {aggregation_type}")
 
 
+def aggregate_tilda_attributes(segments_group, attribute):
+    """
+    Aggregiert TILDA-Attribute durch Kombination aller einzigartigen Werte mit Semikolon.
+    Wird für alle Attribute verwendet, die mit 'tilda_' beginnen.
+    
+    Args:
+        segments_group: DataFrame-Gruppe mit Segmenten einer Kante
+        attribute: Name des TILDA-Attributs
+        
+    Returns:
+        String mit allen einzigartigen Werten getrennt durch Semikolon, oder None
+    """
+    if attribute not in segments_group.columns:
+        return None
+    
+    # Extrahiere alle nicht-leeren Werte
+    values = segments_group[attribute].dropna().astype(str)
+    
+    # Entferne leere Strings und 'nan' Werte
+    values = values[values != '']
+    values = values[values.str.lower() != 'nan']
+    values = values[values.str.lower() != 'none']
+    
+    if len(values) == 0:
+        return None
+    
+    # Ermittle einzigartige Werte und sortiere sie
+    unique_values = sorted(values.unique())
+    
+    # Kombiniere mit Semikolon
+    return ';'.join(unique_values) if len(unique_values) > 0 else None
+
+
 def aggregate_edge_group(edge_group):
     """
     Aggregiert alle Segmente einer Kante (gleiche element_nr und ri) zu einer finalen Kante.
@@ -317,6 +350,11 @@ def aggregate_edge_group(edge_group):
         for attr, agg_type in WORST_CASE_ATTRIBUTES.items():
             if attr in edge_group.columns:
                 aggregated[attr] = aggregate_by_worst_case(edge_group, attr, agg_type)
+        
+        # TILDA-Attribute durch Semikolon-Kombination aggregieren (dynamisch erkannt)
+        tilda_attributes = [col for col in edge_group.columns if col.startswith('tilda_')]
+        for attr in tilda_attributes:
+            aggregated[attr] = aggregate_tilda_attributes(edge_group, attr)
     
     # Berechne die Länge für ALLE Kanten (Einzelsegmente und aggregierte Kanten)
     aggregated['Länge'] = int(round(calculate_segment_length(aggregated.geometry)))
