@@ -185,6 +185,9 @@ def determine_fuehrung(row, data_source: str) -> str:
         # Prüfe auf gemeinsamen Geh- und Radweg mit Z240
         if category.startswith("footAndCyclewayShared") and has_traffic_sign(traffic_sign, "240"):
             return "Gemeinsamer Geh- und Radweg mit Z240"
+        # Falls kein traffic_sign vorhanden, als Sonstige Wege klassifizieren
+        elif traffic_sign.strip() in ["none", "nan", ""]:
+            return "Sonstige Wege (Gehwege, Wege durch Grünflächen, Plätze)"
         return "Radweg"
     elif category == "cycleway_isolated":
         return "Radweg"
