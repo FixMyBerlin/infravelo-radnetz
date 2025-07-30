@@ -556,7 +556,7 @@ def process_file(input_file: str, data_source: str, output_dir: str, crs: str, c
 def clip_to_neukoelln(gdf: gpd.GeoDataFrame, data_dir: str, crs: str) -> gpd.GeoDataFrame:
     """
     Schneidet die Geodaten auf die Grenzen von Neukölln zu.
-    Basierend auf clip_bikelanes.py.
+    Basierend auf clip_tilda_data.py.
     
     Args:
         gdf: GeoDataFrame mit den zu zuschneidenden Daten

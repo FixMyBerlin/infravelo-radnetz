@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-clip_bikelanes.py
+clip_tilda_data.py
 -----------------
 Schneidet eine Vektordatei mit Linien auf die Polygone einer anderen Vektordatei zu.
 
@@ -12,14 +12,14 @@ schneiden, werden geteilt.
 Nutze den GeoPackage Export von TILDA als Input.
 
 Aufrufbeispiel:
-    python ./scripts/clip_bikelanes.py \
+    python ./scripts/clip_tilda_data.py \
         --input ./bikelanes.fgb \
         --clip-features ./data/"Berlin Bezirke.gpkg" \
         --output "./TILDA Radwege Berlin.fgb"
 
 
 Nutzen für TILDA roads Datensatz:
-    python ./scripts/clip_bikelanes.py   \
+    python ./scripts/clip_tilda_data.py   \
         --input ./roads.fgb \
         --clip-features ./data/"Berlin Bezirke.gpkg" \
         --output ./roads_berlin.fgb
@@ -65,7 +65,7 @@ def clip_geodata(input_path: str, clip_features_path: str, output_path: str):
 
         # Fasse alle Polygone der Clip-Features zu einem einzigen Geometrieobjekt zusammen
         logging.info("Fasse die Clip-Polygone zu einer einzigen Geometrie zusammen.")
-        clip_boundary = clip_polygons.unary_union
+        clip_boundary = clip_polygons.union_all()
 
         # Führe den Zuschnitt durch
         logging.info("Führe den Zuschnitt der Linien auf die Clip-Geometrie durch.")
