@@ -11,6 +11,8 @@ start_snapping.py
       endet_bei_vp       = To-Node
 – Verwendet übersetzte TILDA-Attribute: fuehr, ofm, protek, pflicht, breite, farbe
 – Bei fehlenden TILDA-Daten wird fuehr="Keine Radinfrastruktur vorhanden" gesetzt
+– Berechnet die Länge jedes Segments in Metern (gerundet, ohne Nachkommastellen)
+– Enthält Datenaufbereitung: Spaltenordnung für finale Ausgabe
 
 INPUT:
 - output/rvn/vorrangnetz_details_combined_rvn.fgb (Straßennetz)
@@ -47,8 +49,44 @@ RVN_ATTRIBUT_ENDE_VP   = "endet_bei_vp"         # Endknoten-ID
 
 # Attribute an denen die Kanten getrennt werden bzw. verschmolzen werden
 # Diese Attribute müssen in den übersetzten TILDA Daten vorhanden sein
-FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES = ["fuehr", "ofm", "protek", "pflicht", "breite", "farbe", "ri", "verkehrsri", "trennstreifen", "nutz_beschr"]
+FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES = ["fuehr", "ofm", "protek", "pflicht", "breite", "farbe", "ri", "verkehrsri", "trennstreifen", "nutz_beschr", "Kommentar"]
 FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES=["data_source", "tilda_id", "tilda_name","tilda_oneway", "tilda_category", "tilda_traffic_sign", "tilda_mapillary", "tilda_mapillary_traffic_sign", "tilda_mapillary_backward", "tilda_mapillary_forward"]
+
+# Gewünschte Spaltenreihenfolge für Datenaufbereitung (finale Ausgabe)
+COLUMN_ORDER = [
+    "fid",                    # 1. eindeutige ID Nummer
+    "element_nr",             # 2. element_nr
+    "beginnt_bei_vp",         # 3. beginnt_bei_vp
+    "endet_bei_vp",           # 4. endet_bei_vp
+    "Länge",                  # 5. Länge (gerundet, ohne Nachkommastellen)
+    "ri",                     # 6. ri
+    "verkehrsri",             # 7. verkehrsri
+    "Bezirksnummer",          # 8. Bezirksnummer
+    "strassenname",           # 9. Straßenname
+    "fuehr",                  # 10. fuehr
+    "pflicht",                # 11. pflicht
+    "breite",                 # 12. breite
+    "ofm",                    # 13. ofm
+    "farbe",                  # 14. farbliche beschichtung
+    "protek",                 # 15. protek
+    "trennstreifen",          # 16. trennstreifen
+    "nutz_beschr",            # 17. nutzungsbeschränkung
+    "Kommentar",
+    # TILDA-Spalten (geprefixte Spalten)
+    "tilda_id",
+    "tilda_name",
+    "tilda_oneway",
+    "tilda_category",
+    "tilda_traffic_sign",
+    "tilda_mapillary",
+    "tilda_mapillary_traffic_sign",
+    "tilda_mapillary_backward",
+    "tilda_mapillary_forward",
+    # Weitere Standardspalten
+    "data_source",
+    "edge_source",
+    "geometry"                # Geometrie immer als letzte Spalte
+]
 
 # Prioritäten für OSM-Weg-Auswahl (höhere Zahl = höhere Priorität)
 TILDA_TRAFFIC_SIGN_PRIORITIES = {
@@ -71,6 +109,13 @@ TILDA_CATEGORY_PRIORITIES = {
 
 
 # --------------------------------------------------------- Hilfsfunktionen --
+def calculate_segment_length(geometry):
+    """
+    Berechnet die Länge eines Segments in Metern.
+    """
+    return geometry.length
+
+
 def lines_from_geom(g):
     """
     Gibt alle Linien einer Geometrie als Liste von LineStrings zurück.
@@ -291,6 +336,9 @@ def merge_segments(gdf, id_field, osm_fields):
         merged_row = gruppe.iloc[0].copy()
         merged_row["geometry"] = merged
         
+        # Berechne die Länge für das verschmolzene Segment (gerundet, ohne Nachkommastellen)
+        merged_row["Länge"] = int(round(calculate_segment_length(merged)))
+        
         # Entferne die temporären normalisierten Felder
         for field in normalized_fields:
             if field in merged_row.index:
@@ -309,6 +357,12 @@ def merge_segments(gdf, id_field, osm_fields):
     result_gdf = gpd.GeoDataFrame(gruppen, geometry="geometry", crs=gdf.crs)
     
     logging.info(f"Verschmelzung abgeschlossen: {len(gdf)} → {len(result_gdf)} Segmente")
+    
+    # Prüfe und logge die Längenberechnung
+    if 'Länge' in result_gdf.columns:
+        total_length = result_gdf['Länge'].sum()
+        avg_length = result_gdf['Länge'].mean()
+        logging.info(f"Längenstatistiken nach Verschmelzung: Gesamtlänge={total_length:.0f}m, Durchschnitt={avg_length:.0f}m")
     
     return result_gdf
 
@@ -630,10 +684,59 @@ def create_directional_segment_variants_from_matched_tilda_ways(seg_dict: dict, 
                         continue
                     if attr not in variant:  # Behalte existierende Spalten wie 'geometry' etc.
                         variant[attr] = None
-            
-            variants.append(variant)
+                
+                # Zusätzliche OSM-Attribute für Debugging/Referenz auf None setzen
+                for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
+                    variant[attr] = None
 
+            variants.append(variant)
+    
+    # Berechne die Länge für alle Varianten einmalig am Ende (gerundet, ohne Nachkommastellen)
+    for variant in variants:
+        variant["Länge"] = int(round(calculate_segment_length(variant["geometry"])))
+    
     return variants
+
+
+# -------------------------------------------------- Datenaufbereitung --
+def reorder_columns_for_output(gdf):
+    """
+    Ordnet die Spalten gemäß der definierten Reihenfolge für die finale Ausgabe.
+    Diese Funktion ist Teil der Datenaufbereitung, nicht der Hauptverarbeitung.
+    
+    Args:
+        gdf: GeoDataFrame mit den angereicherten Kanten
+        
+    Returns:
+        GeoDataFrame mit geordneten Spalten
+    """
+    # Arbeite mit einer Kopie
+    gdf = gdf.copy()
+    
+    # Bestimme verfügbare Spalten in der gewünschten Reihenfolge (ohne geometry)
+    available_columns = []
+    for col in COLUMN_ORDER:
+        if col in gdf.columns and col != 'geometry':
+            available_columns.append(col)
+    
+    # Füge alle anderen Spalten hinzu, die nicht in COLUMN_ORDER definiert sind (ohne geometry)
+    for col in gdf.columns:
+        if col not in available_columns and col != 'geometry':
+            available_columns.append(col)
+    
+    # Erstelle neues GeoDataFrame mit geordneten Spalten
+    # Behalte die originale geometry-Spalte bei
+    ordered_data = {}
+    for col in available_columns:
+        ordered_data[col] = gdf[col]
+    
+    # Erstelle GeoDataFrame mit originaler geometry
+    result_gdf = gpd.GeoDataFrame(ordered_data, geometry=gdf.geometry, crs=gdf.crs)
+    
+    logging.info(f"Spalten für Ausgabe geordnet: {len(available_columns) + 1} Spalten (inkl. geometry)")
+    logging.debug(f"Spaltenreihenfolge: {available_columns + ['geometry']}")
+    
+    return result_gdf
 
 
 # ------------------------------------------------------------- Hauptablauf --
@@ -887,6 +990,10 @@ def process(net_path, osm_path, out_path, crs, buffer, clip_neukoelln=False, dat
     if mischverkehr_count > 0:
         logging.info(f"Entferne Breite-Attribut bei {mischverkehr_count} Kanten mit Mischverkehr")
         out_gdf.loc[mischverkehr_mask, 'breite'] = None
+
+    # ---------- Datenaufbereitung: Spaltenordnung --------------------------
+    logging.info("Bereite Daten für Ausgabe vor: Ordne Spalten...")
+    out_gdf = reorder_columns_for_output(out_gdf)
 
     # ---------- Ergebnis speichern ------------------------------------------
     p, *layer = out_path.split(":")

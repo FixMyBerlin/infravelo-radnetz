@@ -80,40 +80,7 @@ COLUMNS_TO_DROP = [
     "dnez__sdatenid", "str_bez", "Index", "strassenklasse"
 ]
 
-# Gewünschte Spaltenreihenfolge für das finale Ergebnis
-COLUMN_ORDER = [
-    "fid",                    # 1. eindeutige ID Nummer
-    "element_nr",             # 2. element_nr
-    "beginnt_bei_vp",         # 3. beginnt_bei_vp
-    "endet_bei_vp",           # 4. endet_bei_vp
-    "Länge",                  # 5. Länge (gerundet, ohne Nachkommastellen)
-    "ri",                     # 6. ri
-    "verkehrsri",             # 7. verkehrsri
-    "Bezirksnummer",          # 8. Bezirksnummer
-    "strassenname",           # 9. Straßenname
-    "fuehr",                  # 10. fuehr
-    "pflicht",                # 11. pflicht
-    "breite",                 # 12. breite
-    "ofm",                    # 13. ofm
-    "farbe",                  # 14. farbliche beschichtung
-    "protek",                 # 15. protek
-    "trennstreifen",          # 16. trennstreifen
-    "nutz_beschr",            # 17. nutzungsbeschränkung
-    # TILDA-Spalten (geprefixte Spalten)
-    "tilda_id",
-    "tilda_name",
-    "tilda_oneway",
-    "tilda_category",
-    "tilda_traffic_sign",
-    "tilda_mapillary",
-    "tilda_mapillary_traffic_sign",
-    "tilda_mapillary_backward",
-    "tilda_mapillary_forward",
-    # Weitere Standardspalten
-    "data_source",
-    "edge_source",
-    "geometry"                # Geometrie immer als letzte Spalte
-]
+# Spaltenreihenfolge wird jetzt in start_snapping.py als Datenvorbereitung behandelt
 
 
 # --------------------------------------------------------- Hilfsfunktionen --
@@ -513,15 +480,15 @@ def assign_district_to_edges(edges_gdf, districts_path, crs):
     return edges_gdf
 
 
-def reorder_columns_and_add_fid(gdf):
+def add_fid_column(gdf):
     """
-    Ordnet die Spalten gemäß der definierten Reihenfolge und fügt eine FID-Spalte hinzu.
+    Fügt eine FID-Spalte mit fortlaufender Nummerierung hinzu.
     
     Args:
         gdf: GeoDataFrame mit den aggregierten Kanten
         
     Returns:
-        GeoDataFrame mit geordneten Spalten und FID
+        GeoDataFrame mit FID-Spalte
     """
     # Arbeite mit einer Kopie
     gdf = gdf.copy()
@@ -529,30 +496,9 @@ def reorder_columns_and_add_fid(gdf):
     # Füge FID-Spalte hinzu (fortlaufende Nummer)
     gdf['fid'] = range(1, len(gdf) + 1)
     
-    # Bestimme verfügbare Spalten in der gewünschten Reihenfolge (ohne geometry)
-    available_columns = []
-    for col in COLUMN_ORDER:
-        if col in gdf.columns and col != 'geometry':
-            available_columns.append(col)
+    logging.info(f"FID-Spalte hinzugefügt: {len(gdf)} Kanten nummeriert")
     
-    # Füge alle anderen Spalten hinzu, die nicht in COLUMN_ORDER definiert sind (ohne geometry)
-    for col in gdf.columns:
-        if col not in available_columns and col != 'geometry':
-            available_columns.append(col)
-    
-    # Erstelle neues GeoDataFrame mit geordneten Spalten
-    # Behalte die originale geometry-Spalte bei
-    ordered_data = {}
-    for col in available_columns:
-        ordered_data[col] = gdf[col]
-    
-    # Erstelle GeoDataFrame mit originaler geometry
-    result_gdf = gpd.GeoDataFrame(ordered_data, geometry=gdf.geometry, crs=gdf.crs)
-    
-    logging.info(f"Spalten neu geordnet: {len(available_columns) + 1} Spalten (inkl. geometry)")
-    logging.debug(f"Spaltenreihenfolge: {available_columns + ['geometry']}")
-    
-    return result_gdf
+    return gdf
 
 
 # ------------------------------------------------------------- Hauptablauf --
@@ -613,9 +559,9 @@ def process(input_path, output_path, crs, clip_neukoelln=False, data_dir="./data
         else:
             logging.warning(f"Bezirksdatei nicht gefunden: {districts_path}. Überspringe Bezirkszuweisung.")
 
-    # ---------- Spalten ordnen und FID hinzufügen --------------------------
-    logging.info("Ordne Spalten und füge FID hinzu...")
-    result_gdf = reorder_columns_and_add_fid(result_gdf)
+    # ---------- FID hinzufügen ----------------------------------------------
+    logging.info("Füge FID-Spalte hinzu...")
+    result_gdf = add_fid_column(result_gdf)
 
     # ---------- Ergebnis speichern ------------------------------------------
     p, *layer = output_path.split(":")

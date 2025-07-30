@@ -4,6 +4,7 @@
 translate_attributes_tilda_to_rvn.py
 -----------------------------------
 Übersetzt TILDA-Attribute in RVN-Attribute basierend auf den Mapping-Regeln.
+Berechnet zusätzlich die Länge jedes Segments in Metern (gerundet, ohne Nachkommastellen).
 
 INPUT: 
 - data/TILDA Radwege Berlin.fgb
@@ -21,6 +22,7 @@ import argparse
 import logging
 import os
 from pathlib import Path
+from datetime import datetime
 import geopandas as gpd
 from helpers.globals import DEFAULT_CRS
 from helpers.progressbar import print_progressbar
@@ -29,7 +31,7 @@ from helpers.width_parser import parse_width
 
 # --------------------------------------------------------- Konstanten --
 # Liste der neuen RVN-Attribute, die nicht umbenannt werden sollen
-CONFIG_ATTRIBUTES_NOT_RENAMING = ["pflicht", "breite", "ofm", "farbe", "protek", "trennstreifen", "nutz_beschr", "fuehr", "verkehrsri"]
+CONFIG_ATTRIBUTES_NOT_RENAMING = ["pflicht", "breite", "ofm", "farbe", "protek", "trennstreifen", "nutz_beschr", "fuehr", "verkehrsri", "Länge", "Kommentar"]
 
 # Eingabedateien im data/ Ordner
 INPUT_FILES = {
@@ -404,6 +406,37 @@ def determine_nutz_beschr(row) -> str:
     return "keine"
 
 
+def determine_kommentar(row) -> str:
+    """
+    Bestimmt den Kommentar basierend auf dem lifecycle-Attribut.
+    
+    Args:
+        row: Datenzeile mit OSM-Attributen
+    
+    Returns:
+        Kommentar oder None (null)
+    """
+    # TODO Umbennung in lifecycle
+    lifecycle = str(row.get("livecycle", "")).strip().lower()
+    
+    if lifecycle == "construction":
+        # Formatiere das updated_at Datum
+        updated_at = row.get("updated_at")
+        try:
+            if updated_at and str(updated_at).strip() and str(updated_at).strip() != "nan":
+                # Konvertiere Unix-Timestamp zu lesbarem Datum
+                timestamp = int(float(str(updated_at).strip()))
+                date_str = datetime.fromtimestamp(timestamp).strftime("%d.%m.%Y")
+                return f"Derzeit Baustelle (Stand {date_str})"
+            else:
+                return "Derzeit Baustelle (Stand unbekannt)"
+        except (ValueError, TypeError, OSError) as e:
+            logging.warning(f"Fehler beim Formatieren des updated_at Datums: {updated_at}, Fehler: {e}")
+            return "Derzeit Baustelle (Stand unbekannt)"
+    
+    return None
+
+
 def assign_prefix_and_remove_unnecessary_attrs(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     """
     Fügt den Prefix 'tilda_' zu allen ursprünglichen Attributen hinzu und entfernt bestimmte unerwünschte Attribute.
@@ -424,6 +457,13 @@ def assign_prefix_and_remove_unnecessary_attrs(gdf: gpd.GeoDataFrame) -> gpd.Geo
             rename_mapping[col] = f"tilda_{col}"
     
     return gdf.rename(columns=rename_mapping)
+
+
+def calculate_segment_length(geometry):
+    """
+    Berechnet die Länge eines Segments in Metern.
+    """
+    return geometry.length
 
 
 def translate_tilda_attributes(gdf: gpd.GeoDataFrame, data_source: str) -> gpd.GeoDataFrame:
@@ -493,6 +533,14 @@ def translate_tilda_attributes(gdf: gpd.GeoDataFrame, data_source: str) -> gpd.G
         nutz_beschr = determine_nutz_beschr(row)
         result_gdf.loc[result_gdf.index[idx-1], "nutz_beschr"] = nutz_beschr
         
+        # Kommentar
+        kommentar = determine_kommentar(row)
+        result_gdf.loc[result_gdf.index[idx-1], "Kommentar"] = kommentar
+        
+        # Länge berechnen (gerundet, ohne Nachkommastellen)
+        length = int(round(calculate_segment_length(row.geometry)))
+        result_gdf.loc[result_gdf.index[idx-1], "Länge"] = length
+        
         # Fortschrittsanzeige
         print_progressbar(idx, total, prefix=f"Übersetze {data_source}: ")
     
@@ -501,6 +549,12 @@ def translate_tilda_attributes(gdf: gpd.GeoDataFrame, data_source: str) -> gpd.G
         if count > 0:
             percentage = (count / total) * 100
             logging.warning(f"{count} von {total} Features ({percentage:.1f}%) haben keine Zuordnung für '{attr}'")
+    
+    # Prüfe und logge die Längenberechnung
+    if 'Länge' in result_gdf.columns:
+        total_length = result_gdf['Länge'].sum()
+        avg_length = result_gdf['Länge'].mean()
+        logging.info(f"Längenstatistiken für {data_source}: Gesamtlänge={total_length:.0f}m, Durchschnitt={avg_length:.0f}m")
     
     # Füge tilda_ Prefix zu ursprünglichen Attributen hinzu
     result_gdf = assign_prefix_and_remove_unnecessary_attrs(result_gdf)
