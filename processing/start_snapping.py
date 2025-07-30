@@ -38,6 +38,7 @@ from helpers.clipping import clip_to_neukoelln
 # -------------------------------------------------------------- Konstanten --
 CONFIG_BUFFER_DEFAULT = 25     # Standard-Puffergröße in Metern zum Suchraum
 CONFIG_MAX_ANGLE_DIFFERENCE = 50 # Maximaler Winkelunterschied für Ausrichtung in Grad
+CONFIG_SEGMENT_LENGTH = 2.5    # Segmentlänge in Metern für die Netz-Aufteilung
 
 # Neukölln Grenzendatei
 INPUT_NEUKOELLN_BOUNDARY_FILE = "Bezirk Neukölln Grenze.fgb"
@@ -200,9 +201,9 @@ def determine_segment_direction(segment_geom, osm_geom) -> int:
     return 0 if angle_diff < 90 else 1
 
 
-def split_network_into_segments(net_gdf, crs, segment_length=1.0):
+def split_network_into_segments(net_gdf, crs, segment_length=CONFIG_SEGMENT_LENGTH):
     """
-    Teilt alle Linien im Netz in ca. 1-Meter-Abschnitte auf.
+    Teilt alle Linien im Netz in Segmente auf.
     Gibt ein neues GeoDataFrame mit Segmenten und okstra_id zurück.
     """
     segmente = []
@@ -798,8 +799,8 @@ def process(net_path, osm_path, out_path, crs, buffer, clip_neukoelln=False, dat
             logging.info(f"Transformiere CRS von {net_segmented.crs} zu {crs}")
             net_segmented = net_segmented.to_crs(crs)
     else:
-        logging.info("Segmentiere Netz in 1-Meter-Abschnitte ...")
-        net_segmented = split_network_into_segments(net, crs, segment_length=1.0)
+        logging.info("Segmentiere Netz in Segmente ...")
+        net_segmented = split_network_into_segments(net, crs, segment_length=CONFIG_SEGMENT_LENGTH)
         net_segmented.to_file(seg_path, driver="FlatGeobuf")
         logging.info(f"✔  Segmentiertes Netz gespeichert als {seg_path}")
 
