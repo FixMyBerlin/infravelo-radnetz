@@ -73,10 +73,9 @@ def difference_streets_without_bikelanes(streets_gdf, bikelanes_gdf, target_crs=
 
 def get_or_create_difference_fgb(streets_gdf, bikelanes_gdf, output_path, target_crs=None):
     """
-    Lädt das Differenz-Ergebnis aus der Ausgabedatei oder berechnet es neu.
+    Berechnet die Differenz zwischen Straßen und Radwegen und speichert sie als FlatGeobuf.
     
-    Überprüft, ob die Ausgabedatei bereits existiert. Falls ja, wird sie geladen.
-    Andernfalls wird die Differenz berechnet und als FlatGeobuf gespeichert.
+    Berechnet immer neu um Cache-Probleme zu vermeiden und aktuelle Daten zu gewährleisten.
     
     Args:
         streets_gdf (GeoDataFrame): GeoDataFrame mit Straßengeometrien
@@ -87,12 +86,7 @@ def get_or_create_difference_fgb(streets_gdf, bikelanes_gdf, output_path, target
     Returns:
         GeoDataFrame: Straßen ohne Überschneidung mit Radwegen-Buffern
     """
-    # Prüfen, ob Ausgabedatei bereits existiert
-    if os.path.exists(output_path):
-        logging.info(f"Lade vorhandene Differenzdatei: {output_path}")
-        return gpd.read_file(output_path)
-    
-    # Differenz neu berechnen
+    # Differenz immer neu berechnen um Cache-Probleme zu vermeiden
     logging.info("Berechne Differenz: nur Straßen ohne Radwege...")
     diff_gdf = difference_streets_without_bikelanes(streets_gdf, bikelanes_gdf, target_crs=target_crs)
     
