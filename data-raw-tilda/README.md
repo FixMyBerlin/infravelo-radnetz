@@ -17,3 +17,7 @@ This folder should contain only five files:
 * .gitignore
 
 => Don't store the original data in GitHub.
+
+## Convert to TILDA * Berlin.fgb
+
+Execute `./scripts/process_tilda_data.sh`
