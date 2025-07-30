@@ -25,6 +25,7 @@ OUTPUT:
 import argparse, sys
 from pathlib import Path
 import os, logging
+import time
 import numpy as np
 import pandas as pd
 import geopandas as gpd
@@ -39,6 +40,8 @@ from helpers.clipping import clip_to_neukoelln
 CONFIG_BUFFER_DEFAULT = 25     # Standard-Puffergröße in Metern zum Suchraum
 CONFIG_MAX_ANGLE_DIFFERENCE = 50 # Maximaler Winkelunterschied für Ausrichtung in Grad
 CONFIG_SEGMENT_LENGTH = 2.5    # Segmentlänge in Metern für die Netz-Aufteilung
+CONFIG_PROGRESS_UPDATE_INTERVAL = 100  # Fortschritt alle N Segmente aktualisieren
+CONFIG_BATCH_SIZE = 250        # Anzahl Segmente pro Batch für bessere Performance
 
 # Neukölln Grenzendatei
 INPUT_NEUKOELLN_BOUNDARY_FILE = "Bezirk Neukölln Grenze.fgb"
@@ -107,6 +110,165 @@ TILDA_CATEGORY_PRIORITIES = {
     "pedestrianAreaBicycleYes": 2,  # Fußgängerzone mit Radverkehr
     "sharedMotorVehicleLane": 1,  # Niedrigste Priorität
 }
+
+
+def calculate_angles_vectorized(geometries):
+    """
+    Berechnet Winkel für alle Geometrien vektorisiert.
+    Deutlich schneller als einzelne apply()-Aufrufe.
+    """
+    angles = np.zeros(len(geometries))
+    
+    for i, geom in enumerate(geometries):
+        if isinstance(geom, MultiLineString):
+            # Bei MultiLineString den ersten Punkt der ersten Linie und 
+            # den letzten Punkt der letzten Linie verwenden
+            first_line = geom.geoms[0]
+            last_line = geom.geoms[-1]
+            
+            first_coords = list(first_line.coords)
+            last_coords = list(last_line.coords)
+            
+            if len(first_coords) >= 1 and len(last_coords) >= 1:
+                p1 = first_coords[0]  # Erster Punkt der ersten Linie
+                p2 = last_coords[-1]  # Letzter Punkt der letzten Linie
+            else:
+                angles[i] = 0.0
+                continue
+        elif hasattr(geom, 'coords'):
+            coords = list(geom.coords)
+            if len(coords) >= 2:
+                p1, p2 = coords[0], coords[-1]
+            else:
+                angles[i] = 0.0
+                continue
+        else:
+            angles[i] = 0.0
+            continue
+            
+        angle = np.degrees(np.arctan2(p2[1] - p1[1], p2[0] - p1[0]))
+        angles[i] = angle if angle >= 0 else angle + 360
+    
+    return angles
+
+
+def create_base_variant_optimized(seg_dict: dict, ri_value: int) -> dict:
+    """
+    Erstellt eine Basis-Variante ohne redundante Kopieroperationen.
+    Optimiert für bessere Performance.
+    """
+    # Nur die notwendigen Felder kopieren statt seg_dict.copy()
+    variant = {
+        'geometry': seg_dict['geometry'],
+        'ri': ri_value,
+        'element_nr': seg_dict.get('element_nr'),
+        'beginnt_bei_vp': seg_dict.get('beginnt_bei_vp'),
+        'endet_bei_vp': seg_dict.get('endet_bei_vp'),
+        'Länge': int(round(seg_dict['geometry'].length)),
+        'Bezirksnummer': seg_dict.get('Bezirksnummer'),
+        'strassenname': seg_dict.get('strassenname'),
+        'data_source': seg_dict.get('data_source'),
+        'edge_source': seg_dict.get('edge_source')
+    }
+    
+    return variant
+
+
+def process_segments_batch(segments_batch, osm_gdf, osm_sidx, buffer, candidates_log=None, batch_start_idx=0):
+    """
+    Verarbeitet eine Batch von Segmenten gleichzeitig.
+    Reduziert Overhead durch Batch-Operationen.
+    """
+    batch_results = []
+    
+    for local_idx, seg in enumerate(segments_batch):
+        global_idx = batch_start_idx + local_idx + 1
+        g = seg.geometry
+        okstra_id = getattr(seg, 'okstra_id', 'unknown')
+        
+        # Buffer einmal berechnen und cachen
+        buffer_geom = g.buffer(buffer, cap_style='flat')
+        cand_idx = list(osm_sidx.intersection(buffer_geom.bounds))
+        
+        if not cand_idx:
+            # Keine TILDA-Kandidaten gefunden
+            seg_dict = seg._asdict()
+            variants = create_directional_segment_variants_optimized(seg_dict, None)
+            batch_results.extend(variants)
+            
+            if candidates_log:
+                candidates_log.write(f"  Segment #{global_idx}: KEINE KANDIDATEN GEFUNDEN\n")
+            continue
+            
+        # Kopiere die TILDA-Kandidaten, die im räumlichen Buffer gefunden wurden
+        cand = osm_gdf.iloc[cand_idx].copy()
+
+        # Vektorisierte Entfernungsberechnung
+        cand["d"] = cand.geometry.distance(g)
+        cand = cand[cand["d"] <= buffer]
+        
+        if cand.empty:
+            # Keine TILDA-Kandidaten im Buffer
+            seg_dict = seg._asdict()
+            variants = create_directional_segment_variants_optimized(seg_dict, None)
+            batch_results.extend(variants)
+            
+            if candidates_log:
+                candidates_log.write(f"  Segment #{global_idx}: KEINE KANDIDATEN IM PUFFER\n")
+            continue
+
+        # Berechne Winkel vektorisiert statt mit apply()
+        seg_angle = calculate_line_angle(g)
+        cand_angles = calculate_angles_vectorized(cand.geometry)
+        cand["angle"] = cand_angles
+        
+        # Berechne Winkeldifferenzen vektorisiert
+        angle_diffs = np.array([angle_difference(a, seg_angle) for a in cand_angles])
+        cand["angle_diff"] = angle_diffs
+
+        # Kandidaten-Logging (falls aktiviert)
+        if candidates_log:
+            all_tilda_ids = [c.get('tilda_id', 'unknown') for _, c in cand.iterrows()]
+            candidates_log.write(f"  Segment #{global_idx}:\n")
+            
+            for ri_value in [0, 1]:
+                ri_name = "Hinrichtung" if ri_value == 0 else "Rückrichtung"
+                best_candidate = find_best_candidate_for_direction(cand, seg._asdict(), ri_value, seg_angle)
+                
+                if best_candidate:
+                    best_tilda_id = best_candidate.get('tilda_id', 'unknown')
+                    distance = best_candidate.get('d', -1)
+                    angle_diff = best_candidate.get('angle_diff', -1)
+                    dir_compat = best_candidate.get('direction_compatibility', -1)
+                    verkehrsri = best_candidate.get('verkehrsri', 'unknown')
+                    
+                    candidates_log.write(f"    ri={ri_value} ({ri_name}): {best_tilda_id}")
+                    candidates_log.write(f" [dist={distance:.1f}m, angle_diff={angle_diff:.1f}°, dir_compat={dir_compat}, verkehrsri={verkehrsri}]")
+                    
+                    if len(all_tilda_ids) > 1:
+                        candidates_log.write(f" verfügbare: {all_tilda_ids}")
+                    candidates_log.write("\n")
+                else:
+                    candidates_log.write(f"    ri={ri_value} ({ri_name}): KEIN BESTER KANDIDAT")
+                    if all_tilda_ids:
+                        candidates_log.write(f" verfügbare: {all_tilda_ids}")
+                    candidates_log.write("\n")
+
+        # Erzeuge Segment-Varianten basierend auf TILDA-Daten (optimiert)
+        seg_dict = seg._asdict()
+        variants = create_directional_segment_variants_optimized(seg_dict, cand, cand)
+        batch_results.extend(variants)
+        
+        # Logge ausgewählte Kandidaten
+        if candidates_log:
+            candidates_log.write(f"    AUSGEWÄHLT für Segment #{global_idx}:\n")
+            for variant in variants:
+                ri = variant.get('ri', 'unknown')
+                tilda_id = variant.get('tilda_id', 'None')
+                ri_name = "Hinrichtung" if ri == 0 else "Rückrichtung" if ri == 1 else f"ri={ri}"
+                candidates_log.write(f"      ri={ri} ({ri_name}): {tilda_id}\n")
+    
+    return batch_results
 
 
 # --------------------------------------------------------- Hilfsfunktionen --
@@ -545,6 +707,97 @@ def find_best_candidate_for_direction(candidates, seg_dict, ri_value, segment_an
     return candidates.iloc[0].to_dict() if len(candidates) > 0 else None
 
 
+def create_directional_segment_variants_optimized(seg_dict: dict, target_candidates, original_candidates=None) -> list[dict]:
+    """
+    Memory-optimierte Version der Varianten-Erstellung.
+    Reduziert Memory-Allokationen und redundante Operationen für bessere Performance.
+    Verwendet create_base_variant_optimized() für effizientere Variant-Erstellung.
+    """
+    variants = []
+    
+    # Berechne Segmentwinkel nur einmal für alle Verwendungen
+    segment_angle = calculate_line_angle(seg_dict["geometry"])
+    
+    # Prüfe auf Einrichtungsverkehr und Dual Carriageway Kandidaten
+    einrichtung_candidates = []
+    dual_carriageway_candidates = []
+    
+    if target_candidates is not None and len(target_candidates) > 0:
+        einrichtung_candidates = target_candidates[
+            target_candidates.get('verkehrsri', '') == 'Einrichtungsverkehr'
+        ]
+        dual_carriageway_candidates = target_candidates[
+            target_candidates.get('tilda_oneway', '') == 'yes_dual_carriageway'
+        ]
+    
+    # Sonderfall: Keine TILDA-Kandidaten gefunden
+    if target_candidates is None or len(target_candidates) == 0:
+        for ri_value in [0, 1]:
+            variant = create_base_variant_optimized(seg_dict, ri_value)
+            variant["fuehr"] = 'Keine Radinfrastruktur vorhanden'
+            # Setze alle anderen Merge-Attribute auf None
+            for attr in FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES:
+                if attr not in ['ri', 'fuehr'] and attr not in variant:
+                    variant[attr] = None
+            for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
+                variant[attr] = None
+            variants.append(variant)
+    
+    # Sonderfall: Nur Einrichtungsverkehr-Kandidaten mit Mischverkehr
+    elif (len(einrichtung_candidates) > 0 and 
+        len(einrichtung_candidates) == len(target_candidates) and
+        len(dual_carriageway_candidates) == 0 and
+        all(cand.get('fuehr') == 'Mischverkehr mit motorisiertem Verkehr' 
+            for _, cand in einrichtung_candidates.iterrows())):
+        
+        best_osm = find_best_candidate_for_direction(einrichtung_candidates, seg_dict, None, segment_angle)
+        if best_osm:
+            variant = create_base_variant_optimized(seg_dict, 
+                determine_segment_direction(seg_dict["geometry"], best_osm["geometry"]))
+            
+            # Übertrage Attribute effizienter
+            for attr in FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES:
+                if attr != 'ri' and attr in best_osm:
+                    variant[attr] = best_osm.get(attr)
+            for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
+                variant[attr] = best_osm.get(attr)
+                
+            variants.append(variant)
+    else:
+        # Standardfall: Erstelle zwei Varianten
+        candidates_to_use = target_candidates
+        
+        # Dual Carriageway Behandlung
+        if (len(dual_carriageway_candidates) > 0 and 
+            len(dual_carriageway_candidates) == len(target_candidates) and
+            all(cand.get('verkehrsri') == 'Einrichtungsverkehr' 
+                for _, cand in dual_carriageway_candidates.iterrows())):
+            candidates_to_use = dual_carriageway_candidates
+        
+        for ri_value in [0, 1]:
+            variant = create_base_variant_optimized(seg_dict, ri_value)
+            best_osm = find_best_candidate_for_direction(candidates_to_use, seg_dict, ri_value, segment_angle)
+
+            if best_osm:
+                # Übertrage Attribute ohne redundante Schleifen
+                for attr in FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES:
+                    if attr != 'ri' and attr in best_osm:
+                        variant[attr] = best_osm.get(attr)
+                for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
+                    variant[attr] = best_osm.get(attr)
+            else:
+                # Setze fehlende Attribute auf None
+                for attr in FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES:
+                    if attr not in variant:
+                        variant[attr] = None
+                for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
+                    variant[attr] = None
+
+            variants.append(variant)
+    
+    return variants
+
+
 def create_directional_segment_variants_from_matched_tilda_ways(seg_dict: dict, target_candidates, original_candidates=None) -> list[dict]:
     """
     Erstellt für jedes Segment gerichtete Varianten basierend auf den TILDA-Attributen.
@@ -849,120 +1102,38 @@ def process(net_path, osm_path, out_path, crs, buffer, clip_neukoelln=False, dat
         total = len(net_segmented)
         snapped_records = []
         current_okstra_id = None
-        # Starte die TILDA-Attributübernahme für jedes Segment
-        # --------------------------------------------------
-        # Für jedes Segment:
-        # 1. Suche TILDA-Kandidaten im räumlichen Puffer
-        # 2. Filtere nach Entfernung und Ausrichtung
-        # 3. Berechne Priorität und wähle den besten TILDA-Weg
-        # 4. Übertrage relevante TILDA-Attribute auf das Segment
-        # 5. Erzeuge ggf. Varianten für beide Richtungen
-        # 6. Fortschrittsanzeige für den Nutzer
-
-        # Iteriere über alle Detailnetz Segmente des Netzwerks und führe das Snapping sowie die Attributübernahme durch
-        # cand => Mögliche TILDA-Kandidaten
-        # seg => Detailnetz Kantensegment
-        # idx => Segment-Index für Fortschrittsanzeige
-        for idx, seg in enumerate(net_segmented.itertuples(), 1):
-            g = seg.geometry
-            okstra_id = getattr(seg, 'okstra_id', 'unknown')
+        
+        logging.info(f"Starte Snapping von {total} Segmenten mit Batch-Verarbeitung...")
+        start_time = time.time()
+        
+        # Konvertiere zu Liste für Batch-Verarbeitung
+        segments_list = list(net_segmented.itertuples())
+        
+        # Verarbeite Segmente in Batches für bessere Performance
+        for batch_start in range(0, total, CONFIG_BATCH_SIZE):
+            batch_end = min(batch_start + CONFIG_BATCH_SIZE, total)
+            segments_batch = segments_list[batch_start:batch_end]
             
-            # Schreibe neue okstra_id Header falls geändert
-            if current_okstra_id != okstra_id:
-                current_okstra_id = okstra_id
-                if candidates_log:
-                    candidates_log.write(f"okstra_id: {okstra_id}\n")
+            # Verarbeite aktuelle Batch
+            batch_results = process_segments_batch(
+                segments_batch, osm, osm_sidx, buffer, 
+                candidates_log, batch_start
+            )
+            snapped_records.extend(batch_results)
             
-            # Kandidaten im Buffer suchen (räumliche Suche)
-            cand_idx = list(osm_sidx.intersection(g.buffer(buffer, cap_style='flat').bounds))
-            if not cand_idx:
-                # Keine TILDA-Kandidaten gefunden - Varianten mit "Keine Radinfrastruktur vorhanden" erzeugen
-                seg_dict = seg._asdict()
-                variants = create_directional_segment_variants_from_matched_tilda_ways(seg_dict, None)
-                snapped_records.extend(variants)
+            # Aktualisiere Fortschritt nur periodisch (deutlich schneller)
+            if batch_end % CONFIG_PROGRESS_UPDATE_INTERVAL == 0 or batch_end == total:
+                elapsed = time.time() - start_time
+                rate = batch_end / elapsed if elapsed > 0 else 0
+                eta_minutes = (total - batch_end) / rate / 60 if rate > 0 else 0
                 
-                # Logge in Kandidaten-Datei
-                if candidates_log:
-                    candidates_log.write(f"  Segment #{idx}: KEINE KANDIDATEN GEFUNDEN\n")
-
-                # Fortschrittsanzeige aktualisieren
-                print_progressbar(idx, total, prefix="Snapping: ")
-                continue
-                
-            # Kopiere die TILDA-Kandidaten, die im räumlichen Buffer gefunden wurden, für weitere Verarbeitung
-            cand = osm.iloc[cand_idx].copy()
-
-            # Filtere Kandidaten nach tatsächlicher Entfernung zum Segment
-            cand["d"] = cand.geometry.distance(g)
-            cand = cand[cand["d"] <= buffer]
-            if cand.empty:
-                # Keine TILDA-Kandidaten im Buffer - Varianten mit "Keine Radinfrastruktur vorhanden" erzeugen
-                seg_dict = seg._asdict()
-                variants = create_directional_segment_variants_from_matched_tilda_ways(seg_dict, None)
-                snapped_records.extend(variants)
-                
-                # Logge in Kandidaten-Datei
-                if candidates_log:
-                    candidates_log.write(f"  Segment #{idx}: KEINE KANDIDATEN IM PUFFER\n")
-
-                # Fortschrittsanzeige aktualisieren
-                print_progressbar(idx, total, prefix="Snapping: ")
-                continue
-
-            # Berechne den Winkel des Netzsegments
-            seg_angle = calculate_line_angle(g)
-
-            # Berechne Winkel und Winkeldifferenz für alle TILDA-Kandidaten
-            cand["angle"] = cand.geometry.apply(calculate_line_angle)
-            cand["angle_diff"] = cand["angle"].apply(lambda a: angle_difference(a, seg_angle))
-
-            # Sammle alle verfügbaren Kandidaten für das Log (nur wenn Logging aktiviert)
-            if candidates_log:
-                all_tilda_ids = [c.get('tilda_id', 'unknown') for _, c in cand.iterrows()]
-                # Logge Kandidaten für beide Richtungen
-                candidates_log.write(f"  Segment #{idx}:\n")
-            
-            # Prüfe für ri=0 (Hinrichtung) und ri=1 (Rückrichtung)
-            for ri_value in [0, 1]:
-                ri_name = "Hinrichtung" if ri_value == 0 else "Rückrichtung"
-                best_candidate = find_best_candidate_for_direction(cand, seg._asdict(), ri_value, seg_angle)
-                
-                if candidates_log:
-                    if best_candidate:
-                        best_tilda_id = best_candidate.get('tilda_id', 'unknown')
-                        distance = best_candidate.get('d', -1)
-                        angle_diff = best_candidate.get('angle_diff', -1)
-                        dir_compat = best_candidate.get('direction_compatibility', -1)
-                        verkehrsri = best_candidate.get('verkehrsri', 'unknown')
-                        
-                        candidates_log.write(f"    ri={ri_value} ({ri_name}): {best_tilda_id}")
-                        candidates_log.write(f" [dist={distance:.1f}m, angle_diff={angle_diff:.1f}°, dir_compat={dir_compat}, verkehrsri={verkehrsri}]")
-                        
-                        if len(all_tilda_ids) > 1:
-                            candidates_log.write(f" verfügbare: {all_tilda_ids}")
-                        candidates_log.write("\n")
-                    else:
-                        candidates_log.write(f"    ri={ri_value} ({ri_name}): KEIN BESTER KANDIDAT")
-                        if 'all_tilda_ids' in locals() and all_tilda_ids:
-                            candidates_log.write(f" verfügbare: {all_tilda_ids}")
-                        candidates_log.write("\n")
-
-            ### Erzeuge Segment-Varianten basierend auf TILDA-Daten (mit integrierter Bewertung)
-            seg_dict = seg._asdict()
-            variants = create_directional_segment_variants_from_matched_tilda_ways(seg_dict, cand, cand)
-            snapped_records.extend(variants)
-            
-            # Logge die tatsächlich ausgewählten Kandidaten
-            if candidates_log:
-                candidates_log.write(f"    AUSGEWÄHLT für Segment #{idx}:\n")
-                for variant in variants:
-                    ri = variant.get('ri', 'unknown')
-                    tilda_id = variant.get('tilda_id', 'None')
-                    ri_name = "Hinrichtung" if ri == 0 else "Rückrichtung" if ri == 1 else f"ri={ri}"
-                    candidates_log.write(f"      ri={ri} ({ri_name}): {tilda_id}\n")
-            
-            # Aktualisiere den Fortschrittsbalken
-            print_progressbar(idx, total, prefix="Snapping: ")
+                print_progressbar(batch_end, total, 
+                    prefix=f"Snapping ({rate:.1f}/s, ETA: {eta_minutes:.1f}min): ")
+        
+        elapsed_total = time.time() - start_time
+        final_rate = total / elapsed_total
+        logging.info(f"Snapping abgeschlossen: {total} Segmente in {elapsed_total:.1f}s "
+                    f"(Durchschnitt: {final_rate:.1f} Segmente/s)")
         # Schließe die Kandidaten-Log-Datei falls geöffnet
         if candidates_log:
             candidates_log.close()
