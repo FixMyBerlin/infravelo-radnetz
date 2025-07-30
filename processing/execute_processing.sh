@@ -104,32 +104,32 @@ fi
 echo "✅ Schritt 4 abgeschlossen."
 echo ""
 
-# Schritt 5: GeoJSON-Konvertierung
-echo "🗺️  Schritt 5/5: Konvertiere finale Ergebnisse zu GeoJSON..."
+# # Schritt 5: GeoJSON-Konvertierung
+# echo "🗺️  Schritt 5/5: Konvertiere finale Ergebnisse zu GeoJSON..."
 
-# Konvertiere aggregierte Ergebnisse (GeoPackage mit zwei Layern)
-echo "  📦 Konvertiere aggregated_rvn_final.gpkg..."
-./.venv/bin/python scripts/convert_to_geojson.py --input ./output/aggregated_rvn_final_neukoelln.gpkg
-if [ $? -ne 0 ]; then
-    echo "❌ Fehler bei der Konvertierung von aggregated_rvn_final_neukoelln.gpkg"
-    exit 1
-fi
+# # Konvertiere aggregierte Ergebnisse (GeoPackage mit zwei Layern)
+# echo "  📦 Konvertiere aggregated_rvn_final.gpkg..."
+# ./.venv/bin/python scripts/convert_to_geojson.py --input ./output/aggregated_rvn_final_neukoelln.gpkg
+# if [ $? -ne 0 ]; then
+#     echo "❌ Fehler bei der Konvertierung von aggregated_rvn_final_neukoelln.gpkg"
+#     exit 1
+# fi
 
-# Konvertiere angereichertes Netzwerk (FlatGeoBuf)
-echo "  📍 Konvertiere snapping_network_enriched_neukoelln.fgb..."
-./.venv/bin/python scripts/convert_to_geojson.py --input ./output/snapping_network_enriched_neukoelln.fgb
-if [ $? -ne 0 ]; then
-    echo "❌ Fehler bei der Konvertierung von snapping_network_enriched_neukoelln.fgb"
-    exit 1
-fi
+# # Konvertiere angereichertes Netzwerk (FlatGeoBuf)
+# echo "  📍 Konvertiere snapping_network_enriched_neukoelln.fgb..."
+# ./.venv/bin/python scripts/convert_to_geojson.py --input ./output/snapping_network_enriched_neukoelln.fgb
+# if [ $? -ne 0 ]; then
+#     echo "❌ Fehler bei der Konvertierung von snapping_network_enriched_neukoelln.fgb"
+#     exit 1
+# fi
 
-# Konvertiere gematchte TILDA Ways (FlatGeoBuf)
-echo "  🛣️  Konvertiere matched_tilda_ways.fgb..."
-./.venv/bin/python scripts/convert_to_geojson.py --input ./output/matched/matched_tilda_ways.fgb --output ./output/matched_tilda_ways.geojson
-if [ $? -ne 0 ]; then
-    echo "❌ Fehler bei der Konvertierung von matched_tilda_ways.fgb"
-    exit 1
-fi
+# # Konvertiere gematchte TILDA Ways (FlatGeoBuf)
+# echo "  🛣️  Konvertiere matched_tilda_ways.fgb..."
+# ./.venv/bin/python scripts/convert_to_geojson.py --input ./output/matched/matched_tilda_ways.fgb --output ./output/matched_tilda_ways.geojson
+# if [ $? -ne 0 ]; then
+#     echo "❌ Fehler bei der Konvertierung von matched_tilda_ways.fgb"
+#     exit 1
+# fi
 
 echo "✅ Schritt 5 abgeschlossen."
 echo ""
