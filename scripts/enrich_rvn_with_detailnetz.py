@@ -31,6 +31,11 @@ except ImportError:
     DEFAULT_CRS = 25833
     DEFAULT_OUTPUT_DIR = "output/"
 
+# Konfiguration: Auszuschließende element_nr
+EXCLUDED_ELEMENT_NRS = [
+    "48500463_49500011.01"
+]
+
 # Logging konfigurieren
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -293,6 +298,39 @@ def check_for_duplicates(combined_gdf):
     return combined_unique
 
 
+def filter_excluded_elements(gdf):
+    """
+    Filtert ausgeschlossene element_nr aus dem GeoDataFrame.
+    
+    Args:
+        gdf (GeoDataFrame): Eingabe-GeoDataFrame
+        
+    Returns:
+        GeoDataFrame: Gefilterter GeoDataFrame ohne ausgeschlossene Elemente
+    """
+    if not EXCLUDED_ELEMENT_NRS:
+        logger.info("Keine element_nr zum Ausschließen konfiguriert")
+        return gdf
+    
+    initial_count = len(gdf)
+    
+    # Filtere Kanten mit ausgeschlossenen element_nr heraus
+    filtered_gdf = gdf[~gdf['element_nr'].isin(EXCLUDED_ELEMENT_NRS)].copy()
+    
+    excluded_count = initial_count - len(filtered_gdf)
+    
+    if excluded_count > 0:
+        logger.info(f"Ausgeschlossen: {excluded_count} Kanten mit element_nr in {EXCLUDED_ELEMENT_NRS}")
+        # Zeige welche element_nr tatsächlich gefunden und ausgeschlossen wurden
+        found_excluded = gdf[gdf['element_nr'].isin(EXCLUDED_ELEMENT_NRS)]['element_nr'].unique()
+        if len(found_excluded) > 0:
+            logger.info(f"  - Gefundene und ausgeschlossene element_nr: {list(found_excluded)}")
+    else:
+        logger.info(f"Keine der konfigurierten element_nr ({EXCLUDED_ELEMENT_NRS}) im Datensatz gefunden")
+    
+    return filtered_gdf
+
+
 def save_result(combined_gdf, output_path):
     """
     Speichert den finalen Datensatz.
@@ -337,7 +375,10 @@ def main():
         # 6. Duplikate entfernen
         final_gdf = check_for_duplicates(combined_gdf)
         
-        # 7. Ergebnis speichern
+        # 7. Ausgeschlossene element_nr entfernen
+        final_gdf = filter_excluded_elements(final_gdf)
+        
+        # 8. Ergebnis speichern
         output_path = "output/rvn/vorrangnetz_details_combined_rvn.fgb"
         save_result(final_gdf, output_path)
         
