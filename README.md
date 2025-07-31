@@ -43,6 +43,7 @@ pip install -r processing/requirements.txt
 
 ```sh
 # Short way to execute processing:
+# --clip-neukoelln Clips all data to Neukölln district
 ./processing/execute_processing.sh
 
 # Don't forget to make it executable before.
