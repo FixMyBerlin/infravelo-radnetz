@@ -26,6 +26,9 @@ import argparse, sys
 from pathlib import Path
 import os, logging
 import time
+import tempfile
+import pickle
+import multiprocessing as mp
 import numpy as np
 import pandas as pd
 import geopandas as gpd
@@ -42,6 +45,7 @@ CONFIG_MAX_ANGLE_DIFFERENCE = 50 # Maximaler Winkelunterschied für Ausrichtung 
 CONFIG_SEGMENT_LENGTH = 2.5    # Segmentlänge in Metern für die Netz-Aufteilung
 CONFIG_PROGRESS_UPDATE_INTERVAL = 100  # Fortschritt alle N Segmente aktualisieren
 CONFIG_BATCH_SIZE = 250        # Anzahl Segmente pro Batch für bessere Performance
+CONFIG_CPU_CORES = mp.cpu_count() - 1  # Anzahl CPU-Kerne für Parallelisierung (alle minus 1)
 
 # Neukölln Grenzendatei
 INPUT_NEUKOELLN_BOUNDARY_FILE = "Bezirk Neukölln Grenze.fgb"
@@ -174,17 +178,29 @@ def create_base_variant_optimized(seg_dict: dict, ri_value: int) -> dict:
     return variant
 
 
-def process_segments_batch(segments_batch, osm_gdf, osm_sidx, buffer, candidates_log=None, batch_start_idx=0):
+def process_segments_batch_parallel(batch_data):
     """
-    Verarbeitet eine Batch von Segmenten gleichzeitig.
-    Reduziert Overhead durch Batch-Operationen.
+    Parallelisierte Version der Batch-Verarbeitung für multiprocessing.
+    Jeder Worker-Prozess lädt die OSM-Daten aus einer temporären Pickle-Datei.
+    
+    Args:
+        batch_data: Tuple mit (segments_batch, osm_temp_path, buffer, batch_start_idx)
+    
+    Returns:
+        List[dict]: Liste der verarbeiteten Segment-Varianten
     """
+    segments_batch, osm_temp_path, buffer, batch_start_idx = batch_data
+    
+    # Lade OSM-Daten aus temporärer Pickle-Datei
+    with open(osm_temp_path, 'rb') as f:
+        osm_gdf = pickle.load(f)
+    osm_sidx = osm_gdf.sindex
+    
     batch_results = []
     
-    for local_idx, seg in enumerate(segments_batch):
+    for local_idx, seg_dict in enumerate(segments_batch):
         global_idx = batch_start_idx + local_idx + 1
-        g = seg.geometry
-        okstra_id = getattr(seg, 'okstra_id', 'unknown')
+        g = seg_dict['geometry']
         
         # Buffer einmal berechnen und cachen
         buffer_geom = g.buffer(buffer, cap_style='flat')
@@ -192,7 +208,57 @@ def process_segments_batch(segments_batch, osm_gdf, osm_sidx, buffer, candidates
         
         if not cand_idx:
             # Keine TILDA-Kandidaten gefunden
-            seg_dict = seg._asdict()
+            variants = create_directional_segment_variants_optimized(seg_dict, None)
+            batch_results.extend(variants)
+            continue
+            
+        # Kopiere die TILDA-Kandidaten, die im räumlichen Buffer gefunden wurden
+        cand = osm_gdf.iloc[cand_idx].copy()
+
+        # Vektorisierte Entfernungsberechnung
+        cand["d"] = cand.geometry.distance(g)
+        cand = cand[cand["d"] <= buffer]
+        
+        if cand.empty:
+            # Keine TILDA-Kandidaten im Buffer
+            variants = create_directional_segment_variants_optimized(seg_dict, None)
+            batch_results.extend(variants)
+            continue
+
+        # Berechne Winkel vektorisiert statt mit apply()
+        seg_angle = calculate_line_angle(g)
+        cand_angles = calculate_angles_vectorized(cand.geometry)
+        cand["angle"] = cand_angles
+        
+        # Berechne Winkeldifferenzen vektorisiert
+        angle_diffs = np.array([angle_difference(a, seg_angle) for a in cand_angles])
+        cand["angle_diff"] = angle_diffs
+
+        # Erzeuge Segment-Varianten basierend auf TILDA-Daten (optimiert)
+        variants = create_directional_segment_variants_optimized(seg_dict, cand, cand)
+        batch_results.extend(variants)
+    
+    return batch_results
+
+
+def process_segments_batch(segments_batch, osm_gdf, osm_sidx, buffer, candidates_log=None, batch_start_idx=0):
+    """
+    Verarbeitet eine Batch von Segmenten gleichzeitig.
+    Reduziert Overhead durch Batch-Operationen.
+    """
+    batch_results = []
+    
+    for local_idx, seg_dict in enumerate(segments_batch):
+        global_idx = batch_start_idx + local_idx + 1
+        g = seg_dict['geometry']
+        okstra_id = seg_dict.get('okstra_id', 'unknown')
+        
+        # Buffer einmal berechnen und cachen
+        buffer_geom = g.buffer(buffer, cap_style='flat')
+        cand_idx = list(osm_sidx.intersection(buffer_geom.bounds))
+        
+        if not cand_idx:
+            # Keine TILDA-Kandidaten gefunden
             variants = create_directional_segment_variants_optimized(seg_dict, None)
             batch_results.extend(variants)
             
@@ -209,7 +275,6 @@ def process_segments_batch(segments_batch, osm_gdf, osm_sidx, buffer, candidates
         
         if cand.empty:
             # Keine TILDA-Kandidaten im Buffer
-            seg_dict = seg._asdict()
             variants = create_directional_segment_variants_optimized(seg_dict, None)
             batch_results.extend(variants)
             
@@ -233,7 +298,7 @@ def process_segments_batch(segments_batch, osm_gdf, osm_sidx, buffer, candidates
             
             for ri_value in [0, 1]:
                 ri_name = "Hinrichtung" if ri_value == 0 else "Rückrichtung"
-                best_candidate = find_best_candidate_for_direction(cand, seg._asdict(), ri_value, seg_angle)
+                best_candidate = find_best_candidate_for_direction(cand, seg_dict, ri_value, seg_angle)
                 
                 if best_candidate:
                     best_tilda_id = best_candidate.get('tilda_id', 'unknown')
@@ -255,7 +320,6 @@ def process_segments_batch(segments_batch, osm_gdf, osm_sidx, buffer, candidates
                     candidates_log.write("\n")
 
         # Erzeuge Segment-Varianten basierend auf TILDA-Daten (optimiert)
-        seg_dict = seg._asdict()
         variants = create_directional_segment_variants_optimized(seg_dict, cand, cand)
         batch_results.extend(variants)
         
@@ -1101,34 +1165,92 @@ def process(net_path, osm_path, out_path, crs, buffer, clip_neukoelln=False, dat
         # Verarbeite alle Segmente
         total = len(net_segmented)
         snapped_records = []
-        current_okstra_id = None
         
-        logging.info(f"Starte Snapping von {total} Segmenten mit Batch-Verarbeitung...")
+        logging.info(f"Starte Snapping von {total} Segmenten mit CPU-Parallelisierung ({CONFIG_CPU_CORES} Kerne)...")
         start_time = time.time()
         
         # Konvertiere zu Liste für Batch-Verarbeitung
-        segments_list = list(net_segmented.itertuples())
+        segments_list = []
+        for _, row in net_segmented.iterrows():
+            seg_dict = row.to_dict()
+            segments_list.append(seg_dict)
         
-        # Verarbeite Segmente in Batches für bessere Performance
-        for batch_start in range(0, total, CONFIG_BATCH_SIZE):
-            batch_end = min(batch_start + CONFIG_BATCH_SIZE, total)
-            segments_batch = segments_list[batch_start:batch_end]
-            
-            # Verarbeite aktuelle Batch
-            batch_results = process_segments_batch(
-                segments_batch, osm, osm_sidx, buffer, 
-                candidates_log, batch_start
-            )
-            snapped_records.extend(batch_results)
-            
-            # Aktualisiere Fortschritt nur periodisch (deutlich schneller)
-            if batch_end % CONFIG_PROGRESS_UPDATE_INTERVAL == 0 or batch_end == total:
-                elapsed = time.time() - start_time
-                rate = batch_end / elapsed if elapsed > 0 else 0
-                eta_minutes = (total - batch_end) / rate / 60 if rate > 0 else 0
+        # Entscheide zwischen paralleler und sequenzieller Verarbeitung
+        if log_candidates or total < CONFIG_BATCH_SIZE * 2:
+            # Sequenzielle Verarbeitung für Kandidaten-Logging oder kleine Datenmengen
+            logging.info("Verwende sequenzielle Verarbeitung (Kandidaten-Logging aktiviert oder kleine Datenmenge)")
+            for batch_start in range(0, total, CONFIG_BATCH_SIZE):
+                batch_end = min(batch_start + CONFIG_BATCH_SIZE, total)
+                segments_batch = segments_list[batch_start:batch_end]
                 
-                print_progressbar(batch_end, total, 
-                    prefix=f"Snapping ({rate:.1f}/s, ETA: {eta_minutes:.1f}min): ")
+                # Verarbeite aktuelle Batch
+                batch_results = process_segments_batch(
+                    segments_batch, osm, osm.sindex, buffer, 
+                    candidates_log, batch_start
+                )
+                snapped_records.extend(batch_results)
+                
+                # Aktualisiere Fortschritt nur periodisch (deutlich schneller)
+                if batch_end % CONFIG_PROGRESS_UPDATE_INTERVAL == 0 or batch_end == total:
+                    elapsed = time.time() - start_time
+                    rate = batch_end / elapsed if elapsed > 0 else 0
+                    eta_minutes = (total - batch_end) / rate / 60 if rate > 0 else 0
+                    
+                    print_progressbar(batch_end, total, 
+                        prefix=f"Snapping ({rate:.1f}/s, ETA: {eta_minutes:.1f}min): ")
+        else:
+            # Parallelisierte Verarbeitung für bessere Performance
+            logging.info(f"Verwende parallelisierte Verarbeitung mit {CONFIG_CPU_CORES} Kernen")
+            
+            # Erstelle temporäre Pickle-Datei für OSM-Daten (für Worker-Prozesse)
+            with tempfile.NamedTemporaryFile(suffix='.pkl', delete=False) as temp_file:
+                osm_temp_path = temp_file.name
+            
+            # Speichere OSM-Daten als Pickle (unterstützt alle Python-Objekte)
+            with open(osm_temp_path, 'wb') as f:
+                pickle.dump(osm, f)
+            
+            try:
+                # Bereite Batches für Parallelverarbeitung vor
+                batch_data_list = []
+                
+                for batch_start in range(0, total, CONFIG_BATCH_SIZE):
+                    batch_end = min(batch_start + CONFIG_BATCH_SIZE, total)
+                    segments_batch = segments_list[batch_start:batch_end]
+                    batch_data_list.append((segments_batch, osm_temp_path, buffer, batch_start))
+                
+                # Verwende multiprocessing Pool für parallele Verarbeitung mit Progress-Balken
+                with mp.Pool(processes=CONFIG_CPU_CORES) as pool:
+                    # Verwende imap für iterative Verarbeitung mit Progress-Updates
+                    batch_count = len(batch_data_list)
+                    processed_segments = 0
+                    
+                    # Starte parallele Verarbeitung mit imap (behält Reihenfolge bei)
+                    for i, batch_results in enumerate(pool.imap(process_segments_batch_parallel, batch_data_list)):
+                        snapped_records.extend(batch_results)
+                        
+                        # Zähle verarbeitete EINGABE-Segmente (nicht Ausgabe-Kanten)
+                        # Jede Batch verarbeitet CONFIG_BATCH_SIZE Segmente (außer der letzten)
+                        batch_size = len(batch_data_list[i][0])  # Anzahl Segmente in dieser Batch
+                        processed_segments += batch_size
+                        
+                        # Aktualisiere Progress-Balken basierend auf verarbeiteten EINGABE-Segmenten
+                        elapsed = time.time() - start_time
+                        rate = processed_segments / elapsed if elapsed > 0 else 0
+                        
+                        print_progressbar(processed_segments, total, 
+                            prefix=f"Snapping ({rate:.1f}/s, parallel): ")
+                    
+                    # Finale Statistiken
+                    elapsed = time.time() - start_time
+                    rate = total / elapsed if elapsed > 0 else 0
+                    output_edges = len(snapped_records)
+                    logging.info(f"Parallelverarbeitung abgeschlossen: {total} Segmente → {output_edges} Kanten in {elapsed:.1f}s ({rate:.1f} seg/s)")
+                    
+            finally:
+                # Aufräumen: Lösche temporäre Datei
+                if os.path.exists(osm_temp_path):
+                    os.unlink(osm_temp_path)
         
         elapsed_total = time.time() - start_time
         final_rate = total / elapsed_total
@@ -1212,8 +1334,18 @@ if __name__ == "__main__":
                     help="Pfad zum Datenverzeichnis (default: ./data)")
     ap.add_argument("--log-candidates", action="store_true",
                     help="Erstelle detaillierte Kandidaten-Log-Datei für Debugging (optional)")
+    ap.add_argument("--cpu-cores", type=int, default=CONFIG_CPU_CORES,
+                    help=f"Anzahl CPU-Kerne für Parallelisierung (default: {CONFIG_CPU_CORES})")
     args = ap.parse_args()
 
+    # CPU-Kerne-Konfiguration übernehmen (validiere Eingabe)
+    cpu_cores = max(1, min(args.cpu_cores, mp.cpu_count()))
+    if cpu_cores != CONFIG_CPU_CORES:
+        logging.info(f"CPU-Kerne konfiguriert: {cpu_cores} (Standard: {CONFIG_CPU_CORES})")
+    
+    # Überschreibe globale Konfiguration
+    CONFIG_CPU_CORES = cpu_cores
+    
     # Hauptfunktion aufrufen
     process(args.net, args.osm, args.out, args.crs, args.buffer, args.clip_neukoelln, args.data_dir, args.log_candidates)
 
