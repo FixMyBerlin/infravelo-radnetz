@@ -18,6 +18,43 @@
 
 set -e  # Script bei Fehlern beenden
 
+# Zeiterfassung initialisieren
+SCRIPT_START_TIME=$(date +%s)
+
+# Funktion zur Berechnung und Anzeige der verstrichenen Zeit
+show_elapsed_time() {
+    local start_time=$1
+    local step_name=$2
+    local end_time=$(date +%s)
+    local elapsed=$((end_time - start_time))
+    local minutes=$((elapsed / 60))
+    local seconds=$((elapsed % 60))
+    
+    if [ $minutes -gt 0 ]; then
+        echo "⏱️  $step_name dauerte: ${minutes}m ${seconds}s"
+    else
+        echo "⏱️  $step_name dauerte: ${seconds}s"
+    fi
+}
+
+# Funktion zur Anzeige der Gesamtzeit
+show_total_time() {
+    local start_time=$1
+    local end_time=$(date +%s)
+    local total_elapsed=$((end_time - start_time))
+    local total_minutes=$((total_elapsed / 60))
+    local total_seconds=$((total_elapsed % 60))
+    
+    echo ""
+    echo "⏱️  =========================================="
+    if [ $total_minutes -gt 0 ]; then
+        echo "⏱️  Gesamte Verarbeitungszeit: ${total_minutes}m ${total_seconds}s"
+    else
+        echo "⏱️  Gesamte Verarbeitungszeit: ${total_seconds}s"
+    fi
+    echo "⏱️  =========================================="
+}
+
 # CLI-Argumente verarbeiten
 CLIP_NEUKOELLN=""
 if [[ "$1" == "--clip-neukoelln" ]]; then
@@ -75,36 +112,43 @@ echo "🔄 Starte Verarbeitungsprozess..."
 
 # Schritt 1: TILDA Attribut-Übersetzung
 echo "📝 Schritt 1/5: TILDA Attribute übersetzen..."
+STEP1_START=$(date +%s)
 ./.venv/bin/python processing/translate_attributes_tilda_to_rvn.py $CLIP_NEUKOELLN
 if [ $? -ne 0 ]; then
     echo "❌ Fehler in Schritt 1: translate_attributes_tilda_to_rvn.py"
     exit 1
 fi
+show_elapsed_time $STEP1_START "Schritt 1"
 echo "✅ Schritt 1 abgeschlossen."
 echo ""
 
 # Schritt 2: Matching
 echo "🔍 Schritt 2/5: OSM-Wege mit Radvorrangsnetz matchen..."
+STEP2_START=$(date +%s)
 ./.venv/bin/python processing/start_matching.py $CLIP_NEUKOELLN
 if [ $? -ne 0 ]; then
     echo "❌ Fehler in Schritt 2: start_matching.py"
     exit 1
 fi
+show_elapsed_time $STEP2_START "Schritt 2"
 echo "✅ Schritt 2 abgeschlossen."
 echo ""
 
 # Schritt 3: Snapping
 echo "📍 Schritt 3/5: Snapping und Attribut-Übernahme..."
+STEP3_START=$(date +%s)
 ./.venv/bin/python processing/start_snapping.py $CLIP_NEUKOELLN
 if [ $? -ne 0 ]; then
     echo "❌ Fehler in Schritt 3: start_snapping.py"
     exit 1
 fi
+show_elapsed_time $STEP3_START "Schritt 3"
 echo "✅ Schritt 3 abgeschlossen."
 echo ""
 
 # Schritt 4: Finale Aggregation
 echo "🎯 Schritt 4/5: Finale Aggregation..."
+STEP4_START=$(date +%s)
 if [[ "$CLIP_NEUKOELLN" == "--clip-neukoelln" ]]; then
     ./.venv/bin/python processing/aggregate_final_model.py --input ./output/snapping_network_enriched_neukoelln.fgb
 else
@@ -114,11 +158,13 @@ if [ $? -ne 0 ]; then
     echo "❌ Fehler in Schritt 4: aggregate_final_model.py"
     exit 1
 fi
+show_elapsed_time $STEP4_START "Schritt 4"
 echo "✅ Schritt 4 abgeschlossen."
 echo ""
 
 # # Schritt 5: GeoJSON-Konvertierung
 # echo "🗺️  Schritt 5/5: Konvertiere finale Ergebnisse zu GeoJSON..."
+# STEP5_START=$(date +%s)
 
 # # Konvertiere aggregierte Ergebnisse (GeoPackage mit zwei Layern)
 # echo "  📦 Konvertiere aggregated_rvn_final.gpkg..."
@@ -144,10 +190,15 @@ echo ""
 #     exit 1
 # fi
 
+# show_elapsed_time $STEP5_START "Schritt 5"
 echo "✅ Schritt 5 abgeschlossen."
 echo ""
 
 echo "🎉 Verarbeitungsprozess erfolgreich abgeschlossen!"
+
+# Gesamtzeit anzeigen
+show_total_time $SCRIPT_START_TIME
+
 echo ""
 echo "📁 Ausgabedateien verfügbar in:"
 if [[ "$CLIP_NEUKOELLN" == "--clip-neukoelln" ]]; then
