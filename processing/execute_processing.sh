@@ -1,7 +1,7 @@
 #!/bin/bash
 # execute_processing.sh
 # 
-# Dieses Script führt den gesamten infraVelo Radnetz Verarbeitungsprozess für Neukölln aus.
+# Dieses Script führt den gesamten infraVelo Radnetz Verarbeitungsprozess aus.
 # Es löscht temporäre/zwischengespeicherte Dateien und führt dann alle Prozessierungsschritte in der richtigen Reihenfolge durch.
 # Am Ende werden die finalen Ergebnisse zusätzlich als GeoJSON-Dateien exportiert.
 #
@@ -12,11 +12,20 @@
 # 4. Finale Aggregation
 # 5. GeoJSON-Konvertierung (für TILDA Static Data)
 #
-# Verwendung: ./execute_processing.sh
+# Verwendung: ./execute_processing.sh [--clip-neukoelln]
 # 
 # Voraussetzung: Python venv ist bereits erstellt und requirements.txt wurde installiert
 
 set -e  # Script bei Fehlern beenden
+
+# CLI-Argumente verarbeiten
+CLIP_NEUKOELLN=""
+if [[ "$1" == "--clip-neukoelln" ]]; then
+    CLIP_NEUKOELLN="--clip-neukoelln"
+    echo "🌍 Verarbeitung wird auf Neukölln beschränkt."
+else
+    echo "🌍 Vollständige Verarbeitung für ganz Berlin."
+fi
 
 echo "🚀 Starte infraVelo Radnetz Verarbeitungsprozess..."
 
@@ -66,7 +75,7 @@ echo "🔄 Starte Verarbeitungsprozess..."
 
 # Schritt 1: TILDA Attribut-Übersetzung
 echo "📝 Schritt 1/5: TILDA Attribute übersetzen..."
-./.venv/bin/python processing/translate_attributes_tilda_to_rvn.py --clip-neukoelln
+./.venv/bin/python processing/translate_attributes_tilda_to_rvn.py $CLIP_NEUKOELLN
 if [ $? -ne 0 ]; then
     echo "❌ Fehler in Schritt 1: translate_attributes_tilda_to_rvn.py"
     exit 1
@@ -76,7 +85,7 @@ echo ""
 
 # Schritt 2: Matching
 echo "🔍 Schritt 2/5: OSM-Wege mit Radvorrangsnetz matchen..."
-./.venv/bin/python processing/start_matching.py --clip-neukoelln
+./.venv/bin/python processing/start_matching.py $CLIP_NEUKOELLN
 if [ $? -ne 0 ]; then
     echo "❌ Fehler in Schritt 2: start_matching.py"
     exit 1
@@ -86,7 +95,7 @@ echo ""
 
 # Schritt 3: Snapping
 echo "📍 Schritt 3/5: Snapping und Attribut-Übernahme..."
-./.venv/bin/python processing/start_snapping.py --clip-neukoelln
+./.venv/bin/python processing/start_snapping.py $CLIP_NEUKOELLN
 if [ $? -ne 0 ]; then
     echo "❌ Fehler in Schritt 3: start_snapping.py"
     exit 1
@@ -96,7 +105,11 @@ echo ""
 
 # Schritt 4: Finale Aggregation
 echo "🎯 Schritt 4/5: Finale Aggregation..."
-./.venv/bin/python processing/aggregate_final_model.py --input ./output/snapping_network_enriched_neukoelln.fgb
+if [[ "$CLIP_NEUKOELLN" == "--clip-neukoelln" ]]; then
+    ./.venv/bin/python processing/aggregate_final_model.py --input ./output/snapping_network_enriched_neukoelln.fgb
+else
+    ./.venv/bin/python processing/aggregate_final_model.py --input ./output/snapping_network_enriched.fgb
+fi
 if [ $? -ne 0 ]; then
     echo "❌ Fehler in Schritt 4: aggregate_final_model.py"
     exit 1
@@ -137,10 +150,17 @@ echo ""
 echo "🎉 Verarbeitungsprozess erfolgreich abgeschlossen!"
 echo ""
 echo "📁 Ausgabedateien verfügbar in:"
-echo "   - output/aggregated_rvn_final_neukoelln.gpkg (finale Ergebnisse als GeoPackage)"
-echo "   - output/aggregated_rvn_final_neukoelln.geojson (finale Ergebnisse als GeoJSON)"
-echo "   - output/snapping_network_enriched_neukoelln.fgb (angereichertes Netzwerk als FlatGeoBuf)"
-echo "   - output/snapping_network_enriched_neukoelln.geojson (angereichertes Netzwerk als GeoJSON)"
+if [[ "$CLIP_NEUKOELLN" == "--clip-neukoelln" ]]; then
+    echo "   - output/aggregated_rvn_final_neukoelln.gpkg (finale Ergebnisse als GeoPackage)"
+    echo "   - output/aggregated_rvn_final_neukoelln.geojson (finale Ergebnisse als GeoJSON)"
+    echo "   - output/snapping_network_enriched_neukoelln.fgb (angereichertes Netzwerk als FlatGeoBuf)"
+    echo "   - output/snapping_network_enriched_neukoelln.geojson (angereichertes Netzwerk als GeoJSON)"
+else
+    echo "   - output/aggregated_rvn_final.gpkg (finale Ergebnisse als GeoPackage)"
+    echo "   - output/aggregated_rvn_final.geojson (finale Ergebnisse als GeoJSON)"
+    echo "   - output/snapping_network_enriched.fgb (angereichertes Netzwerk als FlatGeoBuf)"
+    echo "   - output/snapping_network_enriched.geojson (angereichertes Netzwerk als GeoJSON)"
+fi
 echo "   - output/matched/ (gematchte OSM-Wege)"
 echo ""
 echo "🔍 Für QA-Zwecke:"
