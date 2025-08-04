@@ -460,7 +460,7 @@ def main():
 
         # Erstelle Buffer für diese Datenquelle
         buffer_size = source_config['buffer_meters']
-        unified_buffer, _ = create_unified_buffer(vorrangnetz_gdf, buffer_size, TARGET_CRS)
+        unified_buffer, _ = create_unified_buffer(vorrangnetz_gdf, buffer_size, TARGET_CRS, cap_style='round')
         
         # Verarbeite die Datenquelle
         processed_gdf = process_data_source(
