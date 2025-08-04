@@ -387,16 +387,22 @@ def determine_trennstreifen(row) -> str:
     return "nein"
 
 
-def determine_nutz_beschr(row) -> str:
+def determine_nutz_beschr(row, fuehr: str) -> str:
     """
     Bestimmt Nutzungsbeschränkungen aufgrund baulicher Mängel.
+    Wende Nutzungsbeschränkungen nicht auf Wege mit Mischverkehr an.
     
     Args:
         row: Datenzeile mit OSM-Attributen
+        fuehr: Art der Radverkehrsführung
     
     Returns:
         Nutzungsbeschränkung oder "keine"
     """
+    # Keine Nutzungsbeschränkungen für Mischverkehr mit motorisiertem Verkehr
+    if fuehr == "Mischverkehr mit motorisiertem Verkehr":
+        return "keine"
+    
     traffic_sign = str(row.get("traffic_sign", ""))
     
     # Prüfe auf Schadensschilder
@@ -532,8 +538,8 @@ def translate_tilda_attributes(gdf: gpd.GeoDataFrame, data_source: str) -> gpd.G
         trennstreifen = determine_trennstreifen(row)
         result_gdf.loc[result_gdf.index[idx-1], "trennstreifen"] = trennstreifen
         
-        # Nutzungsbeschränkung
-        nutz_beschr = determine_nutz_beschr(row)
+        # Nutzungsbeschränkung (berücksichtigt die bereits bestimmte Führung)
+        nutz_beschr = determine_nutz_beschr(row, fuehr)
         result_gdf.loc[result_gdf.index[idx-1], "nutz_beschr"] = nutz_beschr
         
         # Kommentar
