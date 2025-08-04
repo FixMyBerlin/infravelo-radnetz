@@ -5,29 +5,28 @@
 # Es sichert finale Dateien vom vorherigen Lauf in output_last_run/
 #
 # Verarbeitungsschritte:
-# 1. TILDA Attribut-Übersetzung
-# 2. OSM-Wege mit Radvorrangsnetz matchen
-# 3. Snapping und Attribut-Übernahme  
-# 4. Finale Aggregation
-# 5. GeoJSON-Konvertierung (für TILDA Static Data)
+# 1. OSM-Wege mit Radvorrangsnetz matchen
+# 2. Snapping und Attribut-Übernahme  
+# 3. Finale Aggregation
+# 4. GeoJSON-Konvertierung (für TILDA Static Data)
 #
 # Dateiverwaltung:
 # - Finale Dateien (snapping_network_enriched*, aggregated_rvn_final*) werden in output_last_run/ gesichert
 # - Temporäre Dateien werden vor dem entsprechenden Verarbeitungsschritt gelöscht
 # - Zwischendateien bleiben zwischen Schritten erhalten (für --start-step Funktionalität)
 #
-# Verwendung: ./execute_processing.sh [--clip-neukoelln] [--start-step <1-5>]
+# Verwendung: ./execute_processing.sh [--clip-neukoelln] [--start-step <1-4>]
 # 
 # Argumente:
 #   --clip-neukoelln    Beschränkt die Verarbeitung auf den Bezirk Neukölln
-#   --start-step <1-5>  Startet die Verarbeitung ab dem angegebenen Schritt
-#                       1: TILDA Attribut-Übersetzung
-#                       2: OSM-Wege Matching
-#                       3: Snapping und Attribut-Übernahme
-#                       4: Finale Aggregation
-#                       5: GeoJSON-Konvertierung
+#   --start-step <1-4>  Startet die Verarbeitung ab dem angegebenen Schritt
+#                       1: OSM-Wege Matching
+#                       2: Snapping und Attribut-Übernahme
+#                       3: Finale Aggregation
+#                       4: GeoJSON-Konvertierung
 # 
 # Voraussetzung: Python venv ist bereits erstellt und requirements.txt wurde installiert
+#               TILDA Daten sind bereits prozessiert (./scripts/process_tilda_data.sh)
 
 set -e  # Script bei Fehlern beenden
 
@@ -156,36 +155,10 @@ echo ""
 
 echo "🔄 Starte Verarbeitungsprozess..."
 
-# Schritt 1: TILDA Attribut-Übersetzung
+# Schritt 1: Matching
 if [[ $START_STEP -le 1 ]]; then
     echo "🧹 Bereinigte temporäre Dateien für Schritt 1..."
-    # Lösche TILDA-translated Dateien (werden in Schritt 1 erstellt)
-    rm -f output/TILDA-translated/tilda_*.fgb
-    echo "  - Gelöscht: TILDA-translated Dateien"
-    
-    echo "📝 Schritt 1/5: TILDA Attribute übersetzen..."
-    STEP1_START=$(date +%s)
-    if [[ "$CLIP_NEUKOELLN" == "--clip-neukoelln" ]]; then
-        ./.venv/bin/python processing/translate_attributes_tilda_to_rvn.py --clip-neukoelln
-    else
-        ./.venv/bin/python processing/translate_attributes_tilda_to_rvn.py
-    fi
-    if [ $? -ne 0 ]; then
-        echo "❌ Fehler in Schritt 1: translate_attributes_tilda_to_rvn.py"
-        exit 1
-    fi
-    show_elapsed_time $STEP1_START "Schritt 1"
-    echo "✅ Schritt 1 abgeschlossen."
-    echo ""
-else
-    echo "⏭️  Überspringe Schritt 1 (TILDA Attribut-Übersetzung)"
-    echo ""
-fi
-
-# Schritt 2: Matching
-if [[ $START_STEP -le 2 ]]; then
-    echo "🧹 Bereinigte temporäre Dateien für Schritt 2..."
-    # Lösche Cache- und Zwischendateien aus output/matching/ (werden in Schritt 2 erstellt)
+    # Lösche Cache- und Zwischendateien aus output/matching/ (werden in Schritt 1 erstellt)
     if [ -d "output/matching" ]; then
         rm -f output/matching/osm_*_in_buffering.fgb
         rm -f output/matching/osm_*_manual_interventions.fgb
@@ -193,41 +166,41 @@ if [[ $START_STEP -le 2 ]]; then
         rm -f output/matching/osm_*_orthogonal_removed.fgb
         echo "  - Gelöscht: Matching Zwischendateien"
     fi
-    # Lösche matched Dateien (werden in Schritt 2 erstellt)
+    # Lösche matched Dateien (werden in Schritt 1 erstellt)
     rm -f output/matched/matched_tilda_*.fgb
     rm -f output/matched/matched_tilda_*.txt
     echo "  - Gelöscht: Matched TILDA Dateien"
     
-    echo "🔍 Schritt 2/5: OSM-Wege mit Radvorrangsnetz matchen..."
-    STEP2_START=$(date +%s)
+    echo "🔍 Schritt 1/4: OSM-Wege mit Radvorrangsnetz matchen..."
+    STEP1_START=$(date +%s)
     if [[ "$CLIP_NEUKOELLN" == "--clip-neukoelln" ]]; then
         ./.venv/bin/python processing/start_matching.py --clip-neukoelln
     else
         ./.venv/bin/python processing/start_matching.py
     fi
     if [ $? -ne 0 ]; then
-        echo "❌ Fehler in Schritt 2: start_matching.py"
+        echo "❌ Fehler in Schritt 1: start_matching.py"
         exit 1
     fi
-    show_elapsed_time $STEP2_START "Schritt 2"
-    echo "✅ Schritt 2 abgeschlossen."
+    show_elapsed_time $STEP1_START "Schritt 1"
+    echo "✅ Schritt 1 abgeschlossen."
     echo ""
 else
-    echo "⏭️  Überspringe Schritt 2 (OSM-Wege Matching)"
+    echo "⏭️  Überspringe Schritt 1 (OSM-Wege Matching)"
     echo ""
 fi
 
-# Schritt 3: Snapping
-if [[ $START_STEP -le 3 ]]; then
-    echo "🧹 Bereinigte temporäre Dateien für Schritt 3..."
-    # Lösche Snapping Zwischendateien (werden in Schritt 3 erstellt)
+# Schritt 2: Snapping
+if [[ $START_STEP -le 2 ]]; then
+    echo "🧹 Bereinigte temporäre Dateien für Schritt 2..."
+    # Lösche Snapping Zwischendateien (werden in Schritt 2 erstellt)
     if [ -d "output/snapping" ]; then
         rm -f output/snapping/rvn-segmented*.fgb
         rm -f output/snapping/rvn-segmented-attributed*.fgb
         rm -f output/snapping/osm_candidates_per_edge*.txt
         echo "  - Gelöscht: Snapping Zwischendateien"
     fi
-    # Lösche snapping_network_enriched Dateien (werden in Schritt 3 erstellt)
+    # Lösche snapping_network_enriched Dateien (werden in Schritt 2 erstellt)
     if [[ "$CLIP_NEUKOELLN" == "--clip-neukoelln" ]]; then
         SUFFIX="_neukoelln"
     else
@@ -236,29 +209,29 @@ if [[ $START_STEP -le 3 ]]; then
     rm -f "output/snapping_network_enriched${SUFFIX}.fgb"
     echo "  - Gelöscht: snapping_network_enriched${SUFFIX}.fgb"
     
-    echo "📍 Schritt 3/5: Snapping und Attribut-Übernahme..."
-    STEP3_START=$(date +%s)
+    echo "📍 Schritt 2/4: Snapping und Attribut-Übernahme..."
+    STEP2_START=$(date +%s)
     if [[ "$CLIP_NEUKOELLN" == "--clip-neukoelln" ]]; then
         ./.venv/bin/python processing/start_snapping.py --clip-neukoelln
     else
         ./.venv/bin/python processing/start_snapping.py
     fi
     if [ $? -ne 0 ]; then
-        echo "❌ Fehler in Schritt 3: start_snapping.py"
+        echo "❌ Fehler in Schritt 2: start_snapping.py"
         exit 1
     fi
-    show_elapsed_time $STEP3_START "Schritt 3"
-    echo "✅ Schritt 3 abgeschlossen."
+    show_elapsed_time $STEP2_START "Schritt 2"
+    echo "✅ Schritt 2 abgeschlossen."
     echo ""
 else
-    echo "⏭️  Überspringe Schritt 3 (Snapping und Attribut-Übernahme)"
+    echo "⏭️  Überspringe Schritt 2 (Snapping und Attribut-Übernahme)"
     echo ""
 fi
 
-# Schritt 4: Finale Aggregation
-if [[ $START_STEP -le 4 ]]; then
-    echo "🧹 Bereinigte temporäre Dateien für Schritt 4..."
-    # Lösche aggregated_rvn_final Dateien (werden in Schritt 4 erstellt)
+# Schritt 3: Finale Aggregation
+if [[ $START_STEP -le 3 ]]; then
+    echo "🧹 Bereinigte temporäre Dateien für Schritt 3..."
+    # Lösche aggregated_rvn_final Dateien (werden in Schritt 3 erstellt)
     if [[ "$CLIP_NEUKOELLN" == "--clip-neukoelln" ]]; then
         SUFFIX="_neukoelln"
     else
@@ -268,29 +241,29 @@ if [[ $START_STEP -le 4 ]]; then
     rm -f "output/aggregated_rvn_final${SUFFIX}.fgb"
     echo "  - Gelöscht: aggregated_rvn_final${SUFFIX} Dateien"
     
-    echo "🎯 Schritt 4/5: Finale Aggregation..."
-    STEP4_START=$(date +%s)
+    echo "🎯 Schritt 3/4: Finale Aggregation..."
+    STEP3_START=$(date +%s)
     if [[ "$CLIP_NEUKOELLN" == "--clip-neukoelln" ]]; then
         ./.venv/bin/python processing/aggregate_final_model.py --input ./output/snapping_network_enriched_neukoelln.fgb
     else
         ./.venv/bin/python processing/aggregate_final_model.py --input ./output/snapping_network_enriched.fgb
     fi
     if [ $? -ne 0 ]; then
-        echo "❌ Fehler in Schritt 4: aggregate_final_model.py"
+        echo "❌ Fehler in Schritt 3: aggregate_final_model.py"
         exit 1
     fi
-    show_elapsed_time $STEP4_START "Schritt 4"
-    echo "✅ Schritt 4 abgeschlossen."
+    show_elapsed_time $STEP3_START "Schritt 3"
+    echo "✅ Schritt 3 abgeschlossen."
     echo ""
 else
-    echo "⏭️  Überspringe Schritt 4 (Finale Aggregation)"
+    echo "⏭️  Überspringe Schritt 3 (Finale Aggregation)"
     echo ""
 fi
 
-# # Schritt 5: GeoJSON-Konvertierung
-# if [[ $START_STEP -le 5 ]]; then
-#     echo "🗺️  Schritt 5/5: Konvertiere finale Ergebnisse zu GeoJSON..."
-#     STEP5_START=$(date +%s)
+# # Schritt 4: GeoJSON-Konvertierung
+# if [[ $START_STEP -le 4 ]]; then
+#     echo "🗺️  Schritt 4/4: Konvertiere finale Ergebnisse zu GeoJSON..."
+#     STEP4_START=$(date +%s)
 
 #     # Konvertiere aggregierte Ergebnisse (GeoPackage mit zwei Layern)
 #     echo "  📦 Konvertiere aggregated_rvn_final.gpkg..."
@@ -324,12 +297,12 @@ fi
 #         exit 1
 #     fi
 
-#     show_elapsed_time $STEP5_START "Schritt 5"
-#     echo "✅ Schritt 5 abgeschlossen."
+#     show_elapsed_time $STEP4_START "Schritt 4"
+#     echo "✅ Schritt 4 abgeschlossen."
 # else
-#     echo "⏭️  Überspringe Schritt 5 (GeoJSON-Konvertierung)"
+#     echo "⏭️  Überspringe Schritt 4 (GeoJSON-Konvertierung)"
 # fi
-echo "✅ Schritt 5 abgeschlossen."
+echo "✅ Schritt 4 abgeschlossen."
 echo ""
 
 echo "🎉 Verarbeitungsprozess erfolgreich abgeschlossen!"

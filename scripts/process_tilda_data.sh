@@ -4,20 +4,30 @@
 process_tilda_data.sh
 ---------------------
 Verarbeitet die TILDA Rohdaten aus data-raw-tilda/ und schneidet sie auf Berlin zu.
+Anschließend werden die TILDA-Attribute zu RVN-Attributen übersetzt.
 
-Dieses Skript verwendet clip_tilda_data.py, um die drei FGB-Dateien aus dem 
-data-raw-tilda Verzeichnis zu verarbeiten und auf die Berliner Bezirksgrenzen 
-zuzuschneiden. Die Ergebnisse werden im data/ Verzeichnis gespeichert.
+Dieses Skript führt zwei Hauptschritte aus:
+1. Verwendet clip_tilda_data.py, um die drei FGB-Dateien aus dem 
+   data-raw-tilda Verzeichnis zu verarbeiten und auf die Berliner 
+   Bezirksgrenzen zuzuschneiden. Die Ergebnisse werden im data/ Verzeichnis gespeichert.
+2. Verwendet translate_attributes_tilda_to_rvn.py, um die TILDA-Attribute 
+   in RVN-Attribute zu übersetzen. Die Ergebnisse werden im output/TILDA-translated/ 
+   Verzeichnis gespeichert.
 
 Eingabedateien (data-raw-tilda/):
-- bikelanes.fgb -> TILDA Radwege Berlin.fgb
-- roads.fgb -> TILDA Straßen Berlin.fgb  
-- roadsPathClasses.fgb -> TILDA Wege Berlin.fgb
+- bikelanes.fgb -> TILDA Radwege Berlin.fgb -> TILDA Bikelanes Translated.fgb
+- roads.fgb -> TILDA Straßen Berlin.fgb -> TILDA Streets Translated.fgb
+- roadsPathClasses.fgb -> TILDA Wege Berlin.fgb -> TILDA Paths Translated.fgb
 
 Ausgabedateien (data/):
 - TILDA Radwege Berlin.fgb
 - TILDA Straßen Berlin.fgb
 - TILDA Wege Berlin.fgb
+
+Ausgabedateien (output/TILDA-translated/):
+- TILDA Bikelanes Translated.fgb
+- TILDA Streets Translated.fgb
+- TILDA Paths Translated.fgb
 
 Verwendung:
     ./scripts/process_tilda_data.sh
@@ -94,8 +104,43 @@ python3 "$CLIP_SCRIPT" \
     --output "$OUTPUT_DIR/TILDA Wege Berlin.fgb"
 
 echo ""
-echo "✅ Alle TILDA Daten erfolgreich verarbeitet!"
-echo "📊 Ausgabedateien:"
+echo "✅ Clipping der TILDA Daten erfolgreich abgeschlossen!"
+echo "📊 Geclippte Dateien:"
 echo "   - $OUTPUT_DIR/TILDA Radwege Berlin.fgb"
 echo "   - $OUTPUT_DIR/TILDA Straßen Berlin.fgb"
 echo "   - $OUTPUT_DIR/TILDA Wege Berlin.fgb"
+
+# TILDA Attribut-Übersetzung nach dem Clipping
+echo ""
+echo "🔄 Starte TILDA Attribut-Übersetzung..."
+TRANSLATE_SCRIPT="$PROJECT_ROOT/processing/translate_attributes_tilda_to_rvn.py"
+TRANSLATE_OUTPUT_DIR="$PROJECT_ROOT/output/TILDA-translated"
+
+# Prüfe ob das Übersetzungsskript existiert
+if [ ! -f "$TRANSLATE_SCRIPT" ]; then
+    echo "❌ Fehler: translate_attributes_tilda_to_rvn.py wurde nicht gefunden: $TRANSLATE_SCRIPT"
+    exit 1
+fi
+
+# Erstelle das Ausgabeverzeichnis für die Übersetzung falls es nicht existiert
+mkdir -p "$TRANSLATE_OUTPUT_DIR"
+
+# Aktiviere die virtuelle Umgebung und führe die Übersetzung aus
+echo "📝 Übersetze TILDA-Attribute zu RVN-Attributen..."
+cd "$PROJECT_ROOT"
+python3 "$TRANSLATE_SCRIPT" --data-dir "$OUTPUT_DIR"
+
+if [ $? -ne 0 ]; then
+    echo "❌ Fehler bei der TILDA Attribut-Übersetzung"
+    exit 1
+fi
+
+echo ""
+echo "✅ TILDA Attribut-Übersetzung erfolgreich abgeschlossen!"
+echo "📊 Übersetzte Dateien:"
+echo "   - $TRANSLATE_OUTPUT_DIR/TILDA Bikelanes Translated.fgb"
+echo "   - $TRANSLATE_OUTPUT_DIR/TILDA Streets Translated.fgb"  
+echo "   - $TRANSLATE_OUTPUT_DIR/TILDA Paths Translated.fgb"
+
+echo ""
+echo "🎉 Vollständige TILDA Datenverarbeitung erfolgreich abgeschlossen!"
