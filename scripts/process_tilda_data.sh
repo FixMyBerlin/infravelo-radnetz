@@ -30,10 +30,39 @@ Ausgabedateien (output/TILDA-translated/):
 - TILDA Paths Translated.fgb
 
 Verwendung:
-    ./scripts/process_tilda_data.sh
+    ./scripts/process_tilda_data.sh [--translate-only]
+
+Argumente:
+    --translate-only    Überspringt das Clipping und führt nur die TILDA-Attribut-Übersetzung durch
+                       (Voraussetzung: geclippte Dateien in data/ sind bereits vorhanden)
 """
 
 set -e  # Beende das Skript bei Fehlern
+
+# Argumentverarbeitung
+TRANSLATE_ONLY=false
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --translate-only)
+            TRANSLATE_ONLY=true
+            shift
+            ;;
+        -h|--help)
+            echo "Verwendung: $0 [--translate-only]"
+            echo ""
+            echo "Optionen:"
+            echo "  --translate-only    Überspringt das Clipping und führt nur die TILDA-Attribut-Übersetzung durch"
+            echo "  -h, --help         Zeigt diese Hilfe an"
+            exit 0
+            ;;
+        *)
+            echo "❌ Unbekanntes Argument: $1"
+            echo "Verwende --help für Hilfe"
+            exit 1
+            ;;
+    esac
+done
 
 # Variablen definieren
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -59,14 +88,14 @@ if [ ! -f "$CLIP_SCRIPT" ]; then
     exit 1
 fi
 
-# Prüfe ob das Eingabeverzeichnis existiert
-if [ ! -d "$INPUT_DIR" ]; then
+# Prüfe ob das Eingabeverzeichnis existiert (nur wenn Clipping durchgeführt wird)
+if [ "$TRANSLATE_ONLY" = false ] && [ ! -d "$INPUT_DIR" ]; then
     echo "❌ Fehler: Eingabeverzeichnis nicht gefunden: $INPUT_DIR"
     exit 1
 fi
 
-# Prüfe ob die Clip-Features existieren
-if [ ! -f "$CLIP_FEATURES" ]; then
+# Prüfe ob die Clip-Features existieren (nur wenn Clipping durchgeführt wird)
+if [ "$TRANSLATE_ONLY" = false ] && [ ! -f "$CLIP_FEATURES" ]; then
     echo "❌ Fehler: Berlin Bezirke Datei nicht gefunden: $CLIP_FEATURES"
     exit 1
 fi
@@ -74,41 +103,62 @@ fi
 # Erstelle das Ausgabeverzeichnis falls es nicht existiert
 mkdir -p "$OUTPUT_DIR"
 
-echo "🚀 Starte Verarbeitung der TILDA Daten..."
-echo "📁 Eingabeverzeichnis: $INPUT_DIR"
-echo "📁 Ausgabeverzeichnis: $OUTPUT_DIR"
-echo "🗺️  Clip-Features: $CLIP_FEATURES"
-echo ""
+if [ "$TRANSLATE_ONLY" = false ]; then
+    echo "🚀 Starte Verarbeitung der TILDA Daten..."
+    echo "📁 Eingabeverzeichnis: $INPUT_DIR"
+    echo "📁 Ausgabeverzeichnis: $OUTPUT_DIR"
+    echo "🗺️  Clip-Features: $CLIP_FEATURES"
+    echo ""
 
-# Verarbeite bikelanes.fgb -> TILDA Radwege Berlin.fgb
-echo "🚴 Verarbeite Radwege (bikelanes.fgb)..."
-python3 "$CLIP_SCRIPT" \
-    --input "$INPUT_DIR/bikelanes.fgb" \
-    --clip-features "$CLIP_FEATURES" \
-    --output "$OUTPUT_DIR/TILDA Radwege Berlin.fgb"
+    # Verarbeite bikelanes.fgb -> TILDA Radwege Berlin.fgb
+    echo "🚴 Verarbeite Radwege (bikelanes.fgb)..."
+    python3 "$CLIP_SCRIPT" \
+        --input "$INPUT_DIR/bikelanes.fgb" \
+        --clip-features "$CLIP_FEATURES" \
+        --output "$OUTPUT_DIR/TILDA Radwege Berlin.fgb"
 
-# Verarbeite roads.fgb -> TILDA Straßen Berlin.fgb
-echo ""
-echo "🚗 Verarbeite Straßen (roads.fgb)..."
-python3 "$CLIP_SCRIPT" \
-    --input "$INPUT_DIR/roads.fgb" \
-    --clip-features "$CLIP_FEATURES" \
-    --output "$OUTPUT_DIR/TILDA Straßen Berlin.fgb"
+    # Verarbeite roads.fgb -> TILDA Straßen Berlin.fgb
+    echo ""
+    echo "🚗 Verarbeite Straßen (roads.fgb)..."
+    python3 "$CLIP_SCRIPT" \
+        --input "$INPUT_DIR/roads.fgb" \
+        --clip-features "$CLIP_FEATURES" \
+        --output "$OUTPUT_DIR/TILDA Straßen Berlin.fgb"
 
-# Verarbeite roadsPathClasses.fgb -> TILDA Wege Berlin.fgb
-echo ""
-echo "🚶 Verarbeite Wege (roadsPathClasses.fgb)..."
-python3 "$CLIP_SCRIPT" \
-    --input "$INPUT_DIR/roadsPathClasses.fgb" \
-    --clip-features "$CLIP_FEATURES" \
-    --output "$OUTPUT_DIR/TILDA Wege Berlin.fgb"
+    # Verarbeite roadsPathClasses.fgb -> TILDA Wege Berlin.fgb
+    echo ""
+    echo "🚶 Verarbeite Wege (roadsPathClasses.fgb)..."
+    python3 "$CLIP_SCRIPT" \
+        --input "$INPUT_DIR/roadsPathClasses.fgb" \
+        --clip-features "$CLIP_FEATURES" \
+        --output "$OUTPUT_DIR/TILDA Wege Berlin.fgb"
 
-echo ""
-echo "✅ Clipping der TILDA Daten erfolgreich abgeschlossen!"
-echo "📊 Geclippte Dateien:"
-echo "   - $OUTPUT_DIR/TILDA Radwege Berlin.fgb"
-echo "   - $OUTPUT_DIR/TILDA Straßen Berlin.fgb"
-echo "   - $OUTPUT_DIR/TILDA Wege Berlin.fgb"
+    echo ""
+    echo "✅ Clipping der TILDA Daten erfolgreich abgeschlossen!"
+    echo "📊 Geclippte Dateien:"
+    echo "   - $OUTPUT_DIR/TILDA Radwege Berlin.fgb"
+    echo "   - $OUTPUT_DIR/TILDA Straßen Berlin.fgb"
+    echo "   - $OUTPUT_DIR/TILDA Wege Berlin.fgb"
+else
+    echo "⏭️  Überspringe Clipping (--translate-only aktiviert)"
+    
+    # Prüfe ob die benötigten geclippten Dateien vorhanden sind
+    REQUIRED_FILES=(
+        "$OUTPUT_DIR/TILDA Radwege Berlin.fgb"
+        "$OUTPUT_DIR/TILDA Straßen Berlin.fgb"
+        "$OUTPUT_DIR/TILDA Wege Berlin.fgb"
+    )
+    
+    for file in "${REQUIRED_FILES[@]}"; do
+        if [ ! -f "$file" ]; then
+            echo "❌ Fehler: Benötigte geclippte Datei nicht gefunden: $file"
+            echo "Bitte führe zuerst das Clipping ohne --translate-only aus oder stelle sicher, dass alle Dateien vorhanden sind."
+            exit 1
+        fi
+    done
+    
+    echo "✅ Alle benötigten geclippten Dateien sind vorhanden"
+fi
 
 # TILDA Attribut-Übersetzung nach dem Clipping
 echo ""
@@ -143,4 +193,8 @@ echo "   - $TRANSLATE_OUTPUT_DIR/TILDA Streets Translated.fgb"
 echo "   - $TRANSLATE_OUTPUT_DIR/TILDA Paths Translated.fgb"
 
 echo ""
-echo "🎉 Vollständige TILDA Datenverarbeitung erfolgreich abgeschlossen!"
+if [ "$TRANSLATE_ONLY" = false ]; then
+    echo "🎉 Vollständige TILDA Datenverarbeitung (Clipping + Translation) erfolgreich abgeschlossen!"
+else
+    echo "🎉 TILDA Attribut-Übersetzung erfolgreich abgeschlossen!"
+fi
