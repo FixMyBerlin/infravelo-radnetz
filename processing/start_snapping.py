@@ -251,7 +251,6 @@ def process_segments_batch(segments_batch, osm_gdf, osm_sidx, buffer, candidates
     for local_idx, seg_dict in enumerate(segments_batch):
         global_idx = batch_start_idx + local_idx + 1
         g = seg_dict['geometry']
-        okstra_id = seg_dict.get('okstra_id', 'unknown')
         
         # Buffer einmal berechnen und cachen
         buffer_geom = g.buffer(buffer, cap_style='flat')
@@ -430,7 +429,7 @@ def determine_segment_direction(segment_geom, osm_geom) -> int:
 def split_network_into_segments(net_gdf, crs, segment_length=CONFIG_SEGMENT_LENGTH):
     """
     Teilt alle Linien im Netz in Segmente auf.
-    Gibt ein neues GeoDataFrame mit Segmenten und okstra_id zurück.
+    Gibt ein neues GeoDataFrame mit Segmenten zurück.
     """
     segmente = []
     total = len(net_gdf)
@@ -518,7 +517,7 @@ def normalize_merge_attribute(value):
 
 def merge_segments(gdf, id_field, osm_fields):
     """
-    Verschmilzt benachbarte Segmente mit gleicher okstra_id und identischen OSM-Attributen.
+    Verschmilzt benachbarte Segmente mit gleicher element_nr und identischen OSM-Attributen.
     Behandelt None/NaN-Werte und Floating-Point-Präzision korrekt.
     Zeigt einen Fortschrittsbalken an.
     """
@@ -539,7 +538,7 @@ def merge_segments(gdf, id_field, osm_fields):
     logging.info(f"Anzahl einzigartiger Attributkombinationen: {len(unique_combinations)}")
     
     gruppen = []
-    # Gruppiere die Segmente nach okstra_id und den normalisierten OSM-Attributen (ohne Sortierung für bessere Performance)
+    # Gruppiere die Segmente nach element_nr und den normalisierten OSM-Attributen (ohne Sortierung für bessere Performance)
     grouped = list(gdf_work.groupby(groupby_fields, sort=False))
     total = len(grouped)
     
@@ -594,21 +593,21 @@ def merge_segments(gdf, id_field, osm_fields):
     return result_gdf
 
 
-def debug_merge_attributes(gdf, id_field, osm_fields, sample_okstra_id=None):
+def debug_merge_attributes(gdf, id_field, osm_fields, sample_element_nr=None):
     """
     Debug-Funktion: Analysiert die Attributwerte für das Merging.
     Zeigt potenzielle Probleme bei der Gruppierung auf.
     """
     
-    # Wähle eine okstra_id zum Debuggen (falls nicht angegeben, nimm die erste)
-    if sample_okstra_id is None:
-        sample_okstra_id = gdf[id_field].iloc[0]
+    # Wähle eine element_nr zum Debuggen (falls nicht angegeben, nimm die erste)
+    if sample_element_nr is None:
+        sample_element_nr = gdf[id_field].iloc[0]
     
-    # Filtere Segmente mit der gewählten okstra_id
-    sample_segments = gdf[gdf[id_field] == sample_okstra_id].copy()
+    # Filtere Segmente mit der gewählten element_nr
+    sample_segments = gdf[gdf[id_field] == sample_element_nr].copy()
     
-    logging.info(f"\n=== DEBUG: Attributanalyse für okstra_id = {sample_okstra_id} ===")
-    logging.info(f"Anzahl Segmente mit dieser okstra_id: {len(sample_segments)}")
+    logging.info(f"\n=== DEBUG: Attributanalyse für element_nr = {sample_element_nr} ===")
+    logging.info(f"Anzahl Segmente mit dieser element_nr: {len(sample_segments)}")
     
     if len(sample_segments) <= 1:
         logging.info("Nur ein Segment - kein Merging möglich.")
@@ -1154,12 +1153,12 @@ def process(net_path, osm_path, out_path, crs, buffer, clip_neukoelln=False, dat
                 logging.info(f"Alte Kandidaten-Log-Datei umbenannt: {old_file}")
             
             candidates_log = open(candidates_log_file, 'w', encoding='utf-8')
-            candidates_log.write("# TILDA-Kandidaten pro okstra_id und Richtung\n")
+            candidates_log.write("# TILDA-Kandidaten pro element_nr und Richtung\n")
             candidates_log.write("# Generiert von start_snapping.py\n")
             candidates_log.write(f"# Puffergröße: {buffer}m\n")
             candidates_log.write(f"# Max. Winkelunterschied: {CONFIG_MAX_ANGLE_DIFFERENCE}°\n")
             candidates_log.write("#\n")
-            candidates_log.write("# Format: okstra_id -> Segment #X -> ri=0/1: bester_kandidat [Details] verfügbare: [alle_kandidaten]\n")
+            candidates_log.write("# Format: element_nr -> Segment #X -> ri=0/1: bester_kandidat [Details] verfügbare: [alle_kandidaten]\n")
             candidates_log.write("#\n\n")
 
         # Verarbeite alle Segmente
