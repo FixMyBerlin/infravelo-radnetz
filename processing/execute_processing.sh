@@ -2,7 +2,7 @@
 # execute_processing.sh
 # 
 # Dieses Script führt den gesamten infraVelo Radnetz Verarbeitungsprozess aus.
-# Es sichert finale Dateien vom vorherigen Lauf in output_last_run/
+# Es sichert finale Dateien vom vorherigen Lauf in output-last-run/
 #
 # Verarbeitungsschritte:
 # 1. OSM-Wege mit Radvorrangsnetz matchen
@@ -11,7 +11,7 @@
 # 4. GeoJSON-Konvertierung (für TILDA Static Data)
 #
 # Dateiverwaltung:
-# - Finale Dateien (snapping_network_enriched*, aggregated_rvn_final*) werden in output_last_run/ gesichert
+# - Finale Dateien (snapping_network_enriched*, aggregated_rvn_final*) werden in output-last-run/ gesichert
 # - Temporäre Dateien werden vor dem entsprechenden Verarbeitungsschritt gelöscht
 # - Zwischendateien bleiben zwischen Schritten erhalten (für --start-step Funktionalität)
 #
@@ -117,10 +117,7 @@ if [ ! -d ".venv" ]; then
     exit 1
 fi
 
-# Erstelle output_last_run Verzeichnis falls es nicht existiert
-mkdir -p output_last_run
-
-# Sichere finale Ausgabedateien von vorherigem Lauf in output_last_run
+# Sichere finale Ausgabedateien von vorherigem Lauf in output-last-run
 echo "💾 Sichere finale Dateien von vorherigem Lauf..."
 if [[ "$CLIP_NEUKOELLN" == "--clip-neukoelln" ]]; then
     SUFFIX="_neukoelln"
@@ -128,26 +125,26 @@ else
     SUFFIX=""
 fi
 
-# Verschiebe finale Dateien in output_last_run (überschreibt vorherige)
+# Verschiebe finale Dateien in output-last-run (überschreibt vorherige)
 if [ -f "output/snapping_network_enriched${SUFFIX}.fgb" ]; then
     echo "  - Sichere snapping_network_enriched${SUFFIX}.fgb"
-    mv "output/snapping_network_enriched${SUFFIX}.fgb" "output_last_run/"
+    mv "output/snapping_network_enriched${SUFFIX}.fgb" "output-last-run/"
 fi
 if [ -f "output/snapping_network_enriched${SUFFIX}.geojson" ]; then
     echo "  - Sichere snapping_network_enriched${SUFFIX}.geojson"
-    mv "output/snapping_network_enriched${SUFFIX}.geojson" "output_last_run/"
+    mv "output/snapping_network_enriched${SUFFIX}.geojson" "output-last-run/"
 fi
 if [ -f "output/aggregated_rvn_final${SUFFIX}.gpkg" ]; then
     echo "  - Sichere aggregated_rvn_final${SUFFIX}.gpkg"
-    mv "output/aggregated_rvn_final${SUFFIX}.gpkg" "output_last_run/"
+    mv "output/aggregated_rvn_final${SUFFIX}.gpkg" "output-last-run/"
 fi
 if [ -f "output/aggregated_rvn_final${SUFFIX}.fgb" ]; then
     echo "  - Sichere aggregated_rvn_final${SUFFIX}.fgb"
-    mv "output/aggregated_rvn_final${SUFFIX}.fgb" "output_last_run/"
+    mv "output/aggregated_rvn_final${SUFFIX}.fgb" "output-last-run/"
 fi
 if [ -f "output/aggregated_rvn_final${SUFFIX}.geojson" ]; then
     echo "  - Sichere aggregated_rvn_final${SUFFIX}.geojson"
-    mv "output/aggregated_rvn_final${SUFFIX}.geojson" "output_last_run/"
+    mv "output/aggregated_rvn_final${SUFFIX}.geojson" "output-last-run/"
 fi
 
 echo "✅ Finale Dateien erfolgreich gesichert."
@@ -324,7 +321,7 @@ else
     echo "   - output/snapping_network_enriched.geojson (angereichertes Netzwerk als GeoJSON)"
 fi
 echo "   - output/matched/ (gematchte OSM-Wege)"
-echo "   - output_last_run/ (gesicherte Dateien vom vorherigen Lauf)"
+echo "   - output-last-run/ (gesicherte Dateien vom vorherigen Lauf)"
 echo ""
 echo "🔍 Für QA-Zwecke:"
 echo "   - Verwende den Inspector: cd inspector && npm run dev"
