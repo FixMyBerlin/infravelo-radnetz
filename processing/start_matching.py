@@ -35,6 +35,9 @@ import pandas as pd
 import logging
 import argparse
 import os
+import multiprocessing as mp
+import pickle
+import tempfile
 from matching.orthogonal_filter import process_and_filter_short_segments
 from matching.manual_interventions import get_excluded_ways, get_included_ways
 from matching.difference import get_or_create_difference_fgb
@@ -42,7 +45,7 @@ from helpers.progressbar import print_progressbar
 from helpers.buffer_utils import create_unified_buffer
 #from export_geojson import export_all_geojson
 
-# Konfiguration
+# --------------------------------------------------------- Konfiguration --
 # Standard-Dateipfade (ohne Neukölln-Suffix)
 INPUT_VORRANGNETZ_FGB = './output/rvn/Berlin Vorrangnetz_with_element_nr.fgb'  # Pfad zum Vorrangnetz mit Element-Nummern
 
@@ -53,6 +56,10 @@ BUFFER_PATHS_METERS = 15      # Buffer-Radius in Metern für Wege
 
 # TODO Use globals.py
 TARGET_CRS = 'EPSG:25833'
+
+# Konfiguration für Parallelisierung
+CONFIG_CPU_CORES = mp.cpu_count() - 1  # Anzahl CPU-Kerne für Parallelisierung (alle minus 1)
+CONFIG_BATCH_SIZE = 100  # Größe der Batches für parallele Verarbeitung
 
 
 def get_data_sources_config(use_neukoelln=False):
@@ -97,33 +104,103 @@ def load_geodataframe(path, name, target_crs):
     return gdf
 
 
-def find_osm_ways_in_buffer(osm_gdf, unified_buffer, cache_path, fraction_threshold=0.7):
+def line_in_buffer_fraction(line, buffer_geom):
     """
-    Findet alle OSM-Wege, die zu mindestens fraction_threshold im Buffer liegen. Nutzt File Caching.
-    Zeigt einen Fortschrittsbalken für den Geometrie-Check an.
+    Berechnet den Anteil einer Linie, der sich innerhalb eines Buffers befindet.
+    """
+    if line.is_empty or line.length == 0:
+        return 0
+    intersected = line.intersection(buffer_geom)
+    return intersected.length / line.length if not intersected.is_empty else 0
+
+
+def process_geometries_batch_parallel(batch_data):
+    """
+    Parallelisierte Verarbeitung eines Batches von Geometrien für Buffer-Matching.
+    
+    Args:
+        batch_data: Tuple mit (geometries_batch, unified_buffer_path, fraction_threshold, batch_start_idx)
+    
+    Returns:
+        List[bool]: Maske, welche Geometrien den Threshold erfüllen
+    """
+    geometries_batch, unified_buffer_path, fraction_threshold, batch_start_idx = batch_data
+    
+    # Lade Buffer-Geometrie aus temporärer Pickle-Datei
+    with open(unified_buffer_path, 'rb') as f:
+        unified_buffer = pickle.load(f)
+    
+    batch_mask = []
+    for geom in geometries_batch:
+        if line_in_buffer_fraction(geom, unified_buffer) >= fraction_threshold:
+            batch_mask.append(True)
+        else:
+            batch_mask.append(False)
+    
+    return batch_mask
+
+
+def find_osm_ways_in_buffer_parallel(osm_gdf, unified_buffer, cache_path, fraction_threshold=0.7, use_parallel=True):
+    """
+    Findet alle OSM-Wege, die zu mindestens fraction_threshold im Buffer liegen. 
+    Nutzt File Caching und optionale Parallelisierung.
     """
     if os.path.exists(cache_path):
         print(f'Lade zwischengespeichertes Ergebnis aus {cache_path}...')
         matched_gdf = gpd.read_file(cache_path)
     else:
-        print('Finde alle OSM-Wege, die den vereinten Buffer schneiden (dies kann dauern)...')
-        def line_in_buffer_fraction(line, buffer_geom):
-            if line.is_empty or line.length == 0:
-                return 0
-            intersected = line.intersection(buffer_geom)
-            return intersected.length / line.length if not intersected.is_empty else 0
+        print('Finde alle OSM-Wege, die den vereinten Buffer schneiden...')
         total = len(osm_gdf)
-        mask = []
-        for idx, geom in enumerate(osm_gdf.geometry):
-            if line_in_buffer_fraction(geom, unified_buffer) >= fraction_threshold:
-                mask.append(True)
-            else:
-                mask.append(False)
-            print_progressbar(idx + 1, total, prefix="Buffer-Matching: ", length=40)
+        
+        if use_parallel and total > CONFIG_BATCH_SIZE:
+            print(f'Verwende parallelisierte Verarbeitung mit {CONFIG_CPU_CORES} Kernen')
+            
+            # Erstelle temporäre Datei für Buffer-Geometrie
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.pkl') as tmp_buffer:
+                pickle.dump(unified_buffer, tmp_buffer)
+                unified_buffer_path = tmp_buffer.name
+            
+            try:
+                # Teile Geometrien in Batches auf
+                geometries = osm_gdf.geometry.tolist()
+                batches = []
+                
+                for i in range(0, total, CONFIG_BATCH_SIZE):
+                    batch_end = min(i + CONFIG_BATCH_SIZE, total)
+                    batch_geometries = geometries[i:batch_end]
+                    batches.append((batch_geometries, unified_buffer_path, fraction_threshold, i))
+                
+                print(f'Verarbeite {len(batches)} Batches parallel...')
+                
+                # Verwende multiprocessing Pool für parallele Verarbeitung
+                with mp.Pool(processes=CONFIG_CPU_CORES) as pool:
+                    batch_results = []
+                    for i, result in enumerate(pool.imap(process_geometries_batch_parallel, batches)):
+                        batch_results.extend(result)
+                        print_progressbar(i + 1, len(batches), prefix="Buffer-Matching: ", length=40)
+                
+                mask = batch_results
+                
+            finally:
+                # Lösche temporäre Buffer-Datei
+                os.unlink(unified_buffer_path)
+                
+        else:
+            # Fallback auf sequenzielle Verarbeitung
+            print('Verwende sequenzielle Verarbeitung...')
+            mask = []
+            for idx, geom in enumerate(osm_gdf.geometry):
+                if line_in_buffer_fraction(geom, unified_buffer) >= fraction_threshold:
+                    mask.append(True)
+                else:
+                    mask.append(False)
+                print_progressbar(idx + 1, total, prefix="Buffer-Matching: ", length=40)
+        
         matched_gdf = osm_gdf[mask].copy()
         matched_gdf = matched_gdf.loc[:, ~matched_gdf.columns.duplicated()]
         matched_gdf.to_file(cache_path, driver='FlatGeobuf')
         print(f'Zwischenergebnis gespeichert in {cache_path}')
+    
     print(f'Gefundene TILDA Linien im Buffer: {len(matched_gdf)}')
     return matched_gdf
 
@@ -258,6 +335,12 @@ def parse_arguments():
     parser.add_argument('--skip-difference-paths-streets-bikelanes', action='store_true', help='Skip difference: only paths without streets and bikelanes')
     parser.add_argument('--use-all-streets-in-buffer', action='store_true', help='Verwende alle Straßen im Buffer anstatt nur Straßen ohne Radwege für das finale Dataset')
     parser.add_argument('--clip-neukoelln', action='store_true', help='Verwende Neukölln-spezifische Eingabedateien')
+    # Parallelisierungs-Optionen
+    parser.add_argument('--disable-parallel-matching', action='store_true', help='Deaktiviert die parallele Verarbeitung beim Buffer-Matching')
+    parser.add_argument('--cpu-cores', type=int, default=CONFIG_CPU_CORES,
+                        help=f'Anzahl CPU-Kerne für Parallelisierung (default: {CONFIG_CPU_CORES})')
+    parser.add_argument('--batch-size', type=int, default=CONFIG_BATCH_SIZE,
+                        help=f'Größe der Batches für parallele Verarbeitung (default: {CONFIG_BATCH_SIZE})')
     return parser.parse_args()
 
 
@@ -271,7 +354,8 @@ def process_data_source(osm_fgb_path, output_prefix, vorrangnetz_gdf, unified_bu
     osm_gdf = load_geodataframe(osm_fgb_path, f"OSM {output_prefix}", TARGET_CRS)
     # Schritt 2: OSM-Wege im Buffer finden
     cache_path = f'./output/matching/osm_{output_prefix}_in_buffering.fgb'
-    matched_gdf_step1 = find_osm_ways_in_buffer(osm_gdf, unified_buffer, cache_path)
+    use_parallel = not args.disable_parallel_matching
+    matched_gdf_step1 = find_osm_ways_in_buffer_parallel(osm_gdf, unified_buffer, cache_path, use_parallel=use_parallel)
     # Schritt 3: Optional Orthogonalfilter anwenden
     use_orthogonal_filter = (output_prefix == 'bikelanes' and not args.skip_orthogonalfilter_bikelanes) or \
                             (output_prefix == 'streets' and not args.skip_orthogonalfilter_streets) or \
@@ -434,6 +518,21 @@ def main():
     Orchestriert den gesamten Matching- und Filterprozess.
     """
     args = parse_arguments()
+    
+    # Konfiguriere globale Variablen basierend auf Argumenten
+    global CONFIG_CPU_CORES, CONFIG_BATCH_SIZE
+    if args.cpu_cores != CONFIG_CPU_CORES:
+        print(f"CPU-Kerne konfiguriert: {args.cpu_cores} (Standard: {CONFIG_CPU_CORES})")
+        CONFIG_CPU_CORES = args.cpu_cores
+    if args.batch_size != CONFIG_BATCH_SIZE:
+        print(f"Batch-Größe konfiguriert: {args.batch_size} (Standard: {CONFIG_BATCH_SIZE})")
+        CONFIG_BATCH_SIZE = args.batch_size
+    
+    # Parallelisierung anzeigen
+    if not args.disable_parallel_matching:
+        print(f"Parallelisierung aktiviert: {CONFIG_CPU_CORES} Kerne, Batch-Größe: {CONFIG_BATCH_SIZE}")
+    else:
+        print("Parallelisierung deaktiviert (sequenzielle Verarbeitung)")
     
     # Konfiguriere Datenquellen basierend auf Neukölln-Parameter
     DATA_SOURCES = get_data_sources_config(use_neukoelln=args.clip_neukoelln)
