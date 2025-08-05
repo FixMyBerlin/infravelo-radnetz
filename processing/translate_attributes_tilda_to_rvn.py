@@ -426,7 +426,7 @@ def determine_kommentar(row) -> str:
         Kommentar oder None (null)
     """
     # TODO Umbennung in lifecycle
-    lifecycle = str(row.get("livecycle", "")).strip().lower()
+    lifecycle = str(row.get("lifecycle", "")).strip().lower()
     
     if lifecycle == "construction":
         # Formatiere das updated_at Datum
