@@ -4,6 +4,7 @@ Bei den eingecheckten Dateien handelt es sich um:
 
 `TILDA Radwege Berlin.fgb` Export von Radwegen in TILDA, basierend auf OpenStreetMap.
 `TILDA Straßen Berlin.fgb` Export von Straßen in TILDA, basierend auf OpenStreetMap.
+`TILDA Wege Berlin.fgb` Export von Straßen in TILDA, basierend auf OpenStreetMap.
 `Berlin Radvorrangsnetz.fgb` gefilterte Geodaten basierend auf dem Radnetz Berlin, welches nur „Radvorrangsnetz“ Kanten enthält.
 
 Für Lizenzen, siehe LIZENZEN.md
