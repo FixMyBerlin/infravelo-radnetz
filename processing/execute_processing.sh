@@ -8,7 +8,7 @@
 # 1. OSM-Wege mit Radvorrangsnetz matchen
 # 2. Snapping und Attribut-Übernahme  
 # 3. Finale Aggregation
-# 4. GeoJSON-Konvertierung (für TILDA Static Data)
+# 4. Qualitätssicherungstests
 #
 # Dateiverwaltung:
 # - Finale Dateien (snapping_network_enriched*, aggregated_rvn_final*) werden in output-last-run/ gesichert
@@ -23,7 +23,7 @@
 #                       1: OSM-Wege Matching
 #                       2: Snapping und Attribut-Übernahme
 #                       3: Finale Aggregation
-#                       4: GeoJSON-Konvertierung
+#                       4: Qualitätssicherungstests
 # 
 # Voraussetzung: Python venv ist bereits erstellt und requirements.txt wurde installiert
 #               TILDA Daten sind bereits prozessiert (./scripts/process_tilda_data.sh)
@@ -257,49 +257,33 @@ else
     echo ""
 fi
 
-# # Schritt 4: GeoJSON-Konvertierung
-# if [[ $START_STEP -le 4 ]]; then
-#     echo "🗺️  Schritt 4/4: Konvertiere finale Ergebnisse zu GeoJSON..."
-#     STEP4_START=$(date +%s)
-
-#     # Konvertiere aggregierte Ergebnisse (GeoPackage mit zwei Layern)
-#     echo "  📦 Konvertiere aggregated_rvn_final.gpkg..."
-#     if [[ "$CLIP_NEUKOELLN" == "--clip-neukoelln" ]]; then
-#         ./.venv/bin/python scripts/convert_to_geojson.py --input ./output/aggregated_rvn_final_neukoelln.gpkg
-#     else
-#         ./.venv/bin/python scripts/convert_to_geojson.py --input ./output/aggregated_rvn_final.gpkg
-#     fi
-#     if [ $? -ne 0 ]; then
-#         echo "❌ Fehler bei der Konvertierung von aggregated_rvn_final.gpkg"
-#         exit 1
-#     fi
-
-#     # Konvertiere angereichertes Netzwerk (FlatGeoBuf)
-#     echo "  📍 Konvertiere snapping_network_enriched.fgb..."
-#     if [[ "$CLIP_NEUKOELLN" == "--clip-neukoelln" ]]; then
-#         ./.venv/bin/python scripts/convert_to_geojson.py --input ./output/snapping_network_enriched_neukoelln.fgb
-#     else
-#         ./.venv/bin/python scripts/convert_to_geojson.py --input ./output/snapping_network_enriched.fgb
-#     fi
-#     if [ $? -ne 0 ]; then
-#         echo "❌ Fehler bei der Konvertierung von snapping_network_enriched.fgb"
-#         exit 1
-#     fi
-
-#     # Konvertiere gematchte TILDA Ways (FlatGeoBuf)
-#     echo "  🛣️  Konvertiere matched_tilda_ways.fgb..."
-#     ./.venv/bin/python scripts/convert_to_geojson.py --input ./output/matched/matched_tilda_ways.fgb --output ./output/matched_tilda_ways.geojson
-#     if [ $? -ne 0 ]; then
-#         echo "❌ Fehler bei der Konvertierung von matched_tilda_ways.fgb"
-#         exit 1
-#     fi
-
-#     show_elapsed_time $STEP4_START "Schritt 4"
-#     echo "✅ Schritt 4 abgeschlossen."
-# else
-#     echo "⏭️  Überspringe Schritt 4 (GeoJSON-Konvertierung)"
-# fi
-echo "✅ Schritt 4 abgeschlossen."
+# Schritt 4: Qualitätssicherungstests
+if [[ $START_STEP -le 4 ]]; then
+    echo "🧪 Schritt 4/4: Führe Qualitätssicherungstests durch..."
+    STEP4_START=$(date +%s)
+    
+    if [[ "$CLIP_NEUKOELLN" == "--clip-neukoelln" ]]; then
+        ./.venv/bin/python testing/test_final_results.py --clip-neukoelln
+    else
+        ./.venv/bin/python testing/test_final_results.py
+    fi
+    
+    if [ $? -ne 0 ]; then
+        echo "❌ Qualitätssicherungstests fehlgeschlagen!"
+        echo "   Die Verarbeitung wurde zwar abgeschlossen, aber die erwarteten"
+        echo "   Attributwerte stimmen nicht mit den Test-Definitionen überein."
+        echo "   Bitte überprüfen Sie die Ausgabe der Tests und die Verarbeitung."
+        # Beende Script mit Fehlercode
+        exit 1
+    fi
+    
+    show_elapsed_time $STEP4_START "Schritt 4"
+    echo "✅ Schritt 4 abgeschlossen."
+    echo ""
+else
+    echo "⏭️  Überspringe Schritt 4 (Qualitätssicherungstests)"
+    echo ""
+fi
 echo ""
 
 echo "🎉 Verarbeitungsprozess erfolgreich abgeschlossen!"
@@ -326,3 +310,4 @@ echo ""
 echo "🔍 Für QA-Zwecke:"
 echo "   - Verwende den Inspector: cd inspector && npm run dev"
 echo "   - Oder öffne das QGIS Projekt: QGIS QA Processing.qgz"
+echo "   - Führe manuelle Tests durch: python testing/test_final_results.py [--clip-neukoelln]"

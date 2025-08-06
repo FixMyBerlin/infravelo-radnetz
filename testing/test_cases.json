@@ -1,0 +1,64 @@
+{
+  "aggregated_tests": [
+    {
+      "name": "Herrfurthplatz",
+      "element_nr": "47500024_47500011.02",
+      "expected_attributes": {
+        "beginnt_bei_vp": 47500024,
+        "endet_bei_vp": 47500011,
+        "ri": 1,
+        "verkehrsri": "Einrichtungsverkehr",
+        "Bezirksnummer": 8,
+        "strassenname": "Herrfurthplatz",
+        "fuehr": "Fahrradstraße /-zone (Z 244)",
+        "pflicht": false,
+        "ofm": "Kopfsteinpflaster / Großstein",
+        "farbe": false,
+        "protek": "Ohne",
+        "trennstreifen": "nein",
+        "nutz_beschr": "keine"
+      }
+    }
+  ],
+  "snapping_tests": [
+    {
+      "name": "Herrfurthplatz",
+      "element_nr": "47500024_47500011.02",
+      "expected_attributes": {
+        "Bezirksnummer": "08",
+        "strassenname": "Herrfurthplatz",
+        "fuehr": "Fahrradstraße /-zone (Z 244)",
+        "pflicht": false,
+        "ofm": "Kopfsteinpflaster / Großstein",
+        "farbe": false,
+        "protek": "Ohne",
+        "trennstreifen": "nein",
+        "nutz_beschr": "keine"
+      },
+      "test_mode": "any_segment"
+    },
+    {
+      "name": "Thomasstraße",
+      "element_nr": "48490062_48490057.02",
+      "expected_attributes": {
+        "beginnt_bei_vp": 48490062,
+        "endet_bei_vp": 48490057,
+        "ri": 0,
+        "verkehrsri": "Zweirichtungsverkehr",
+        "Bezirksnummer": 8,
+        "strassenname": "Thomasstraße",
+        "fuehr": "Mischverkehr mit motorisiertem Verkehr",
+        "pflicht": false,
+        "ofm": "Asphalt",
+        "farbe": false,
+        "protek": "Ohne",
+        "trennstreifen": "entfällt",
+        "nutz_beschr": "keine"
+      },
+      "test_mode": "any_segment",
+      "geometry_requirements": {
+        "min_length_meters": 1.0
+      }
+    }
+  ]
+}
