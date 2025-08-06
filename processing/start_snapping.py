@@ -62,7 +62,7 @@ FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES=["data_source", "tilda_id", "tilda_n
 
 # Gewünschte Spaltenreihenfolge für Datenaufbereitung (finale Ausgabe)
 COLUMN_ORDER = [
-    "fid",                    # 1. eindeutige ID Nummer
+    "sfid",                   # 1. Snapping FID
     "element_nr",             # 2. element_nr
     "beginnt_bei_vp",         # 3. beginnt_bei_vp
     "endet_bei_vp",           # 4. endet_bei_vp
@@ -1287,6 +1287,11 @@ def process(net_path, osm_path, out_path, crs, buffer, clip_neukoelln=False, dat
     # ---------- Datenaufbereitung: Spaltenordnung --------------------------
     logging.info("Bereite Daten für Ausgabe vor: Ordne Spalten...")
     out_gdf = reorder_columns_for_output(out_gdf)
+    
+    # ---------- SFID hinzufügen ---------------------------------------------
+    logging.info("Füge SFID-Spalte (Snapping FID) hinzu...")
+    out_gdf['sfid'] = range(1, len(out_gdf) + 1)
+    logging.info(f"SFID-Spalte hinzugefügt: {len(out_gdf)} Kanten nummeriert")
 
     # ---------- Ergebnis speichern ------------------------------------------
     p, *layer = out_path.split(":")

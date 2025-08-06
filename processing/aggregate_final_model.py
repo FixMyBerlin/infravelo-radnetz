@@ -77,7 +77,7 @@ TRENNSTREIFEN_HIERARCHY = [
 # Spalten, die nach der Aggregation gelöscht werden sollen
 COLUMNS_TO_DROP = [
     "okstra_id", "existenz", "ist_radvorrangnetz", "elem_nr", "gisid", "gueltig_von", 
-    "dnez__sdatenid", "str_bez", "Index", "strassenklasse"
+    "dnez__sdatenid", "str_bez", "Index", "strassenklasse", "sfid"
 ]
 
 # Spaltenreihenfolge wird jetzt in start_snapping.py als Datenvorbereitung behandelt
@@ -480,23 +480,23 @@ def assign_district_to_edges(edges_gdf, districts_path, crs):
     return edges_gdf
 
 
-def add_fid_column(gdf):
+def add_afid_column(gdf):
     """
-    Fügt eine FID-Spalte mit fortlaufender Nummerierung hinzu.
+    Fügt eine AFID-Spalte (Aggregation FID) mit fortlaufender Nummerierung hinzu.
     
     Args:
         gdf: GeoDataFrame mit den aggregierten Kanten
         
     Returns:
-        GeoDataFrame mit FID-Spalte
+        GeoDataFrame mit AFID-Spalte
     """
     # Arbeite mit einer Kopie
     gdf = gdf.copy()
     
-    # Füge FID-Spalte hinzu (fortlaufende Nummer)
-    gdf['fid'] = range(1, len(gdf) + 1)
+    # Füge AFID-Spalte hinzu (fortlaufende Nummer)
+    gdf['afid'] = range(1, len(gdf) + 1)
     
-    logging.info(f"FID-Spalte hinzugefügt: {len(gdf)} Kanten nummeriert")
+    logging.info(f"AFID-Spalte hinzugefügt: {len(gdf)} Kanten nummeriert")
     
     return gdf
 
@@ -560,8 +560,8 @@ def process(input_path, output_path, crs, clip_neukoelln=False, data_dir="./data
             logging.warning(f"Bezirksdatei nicht gefunden: {districts_path}. Überspringe Bezirkszuweisung.")
 
     # ---------- FID hinzufügen ----------------------------------------------
-    logging.info("Füge FID-Spalte hinzu...")
-    result_gdf = add_fid_column(result_gdf)
+    logging.info("Füge AFID-Spalte hinzu...")
+    result_gdf = add_afid_column(result_gdf)
 
     # ---------- Ergebnis speichern ------------------------------------------
     p, *layer = output_path.split(":")
@@ -594,13 +594,13 @@ def process(input_path, output_path, crs, clip_neukoelln=False, data_dir="./data
         
         # Schreibe Hinrichtung (ri=0) mit separater FID-Nummerierung
         if len(ri_0_gdf) > 0:
-            ri_0_gdf['fid'] = range(1, len(ri_0_gdf) + 1)  # Separate FID-Nummerierung für Layer
+            ri_0_gdf['afid'] = range(1, len(ri_0_gdf) + 1)  # Separate AFID-Nummerierung für Layer
             ri_0_gdf.to_file(p_gpkg, layer="hinrichtung", driver="GPKG")
             logging.info(f"✔  {len(ri_0_gdf)} Kanten Hinrichtung (ri=0) → {p_gpkg}:hinrichtung")
         
         # Schreibe Gegenrichtung (ri=1) mit separater FID-Nummerierung
         if len(ri_1_gdf) > 0:
-            ri_1_gdf['fid'] = range(1, len(ri_1_gdf) + 1)  # Separate FID-Nummerierung für Layer
+            ri_1_gdf['afid'] = range(1, len(ri_1_gdf) + 1)  # Separate AFID-Nummerierung für Layer
             ri_1_gdf.to_file(p_gpkg, layer="gegenrichtung", driver="GPKG", mode='a')
             logging.info(f"✔  {len(ri_1_gdf)} Kanten Gegenrichtung (ri=1) → {p_gpkg}:gegenrichtung")
         
