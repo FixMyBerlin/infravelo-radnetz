@@ -26,9 +26,8 @@ def difference_streets_without_bikelanes(streets_gdf, bikelanes_gdf, target_crs=
     """
     Berechnet die Differenz zwischen Straßen und Radwegen.
     
-    Gibt nur die Teile der Straßen zurück, die nicht im Buffer (BUFFER_METERS) 
-    um Radwege liegen. Ein Buffer wird um alle Radwege gelegt, und alle Straßen, 
-    die diesen Buffer schneiden, werden entfernt.
+    Entfernt vollständig alle Straßen, die zu 80% oder mehr im Buffer (BUFFER_METERS) 
+    um Radwege liegen. Straßen mit weniger als 80% Überschneidung bleiben vollständig erhalten.
     
     Args:
         streets_gdf (GeoDataFrame): GeoDataFrame mit Straßengeometrien
@@ -37,7 +36,7 @@ def difference_streets_without_bikelanes(streets_gdf, bikelanes_gdf, target_crs=
                                    Wenn None, wird nicht reprojiziert.
     
     Returns:
-        GeoDataFrame: Straßen ohne Überschneidung mit Radwegen-Buffern
+        GeoDataFrame: Straßen mit weniger als 80% Überschneidung mit Radwegen-Buffern
     """
     # Sicherstellen, dass beide GeoDataFrames im projizierten CRS vorliegen für korrekte Pufferung
     if target_crs is not None:
@@ -52,21 +51,34 @@ def difference_streets_without_bikelanes(streets_gdf, bikelanes_gdf, target_crs=
     logging.info(f"Erzeuge {BUFFER_METERS}m Buffer um Radwege...")
     bikelanes_buffer = bikelanes_gdf.buffer(BUFFER_METERS, cap_style='flat')
     
-    # Alle Buffer zu einer Geometrie vereinen für effiziente Differenzberechnung
+    # Alle Buffer zu einer Geometrie vereinen für effiziente Berechnung
     bikelanes_union = bikelanes_buffer.unary_union
     
-    # Differenz berechnen: Straßengeometrien minus Radwege-Buffer
-    logging.info("Berechne Differenz: Entferne Linien im Radwege/Straßen-Buffer...")
-    diff_geoms = streets_gdf.geometry.apply(
-        lambda geom: geom.difference(bikelanes_union) if not geom.is_empty else geom
-    )
+    # Berechne für jede Straße den Anteil, der im Buffer liegt
+    logging.info("Berechne Überschneidungsanteile: Entferne Straßen mit >80% Überschneidung...")
     
-    # Ergebnis-GeoDataFrame erstellen
-    result_gdf = streets_gdf.copy()
-    result_gdf["geometry"] = diff_geoms
+    def calculate_overlap_ratio(geom):
+        """Berechnet den Anteil einer Geometrie, der im Buffer liegt."""
+        if geom.is_empty:
+            return 0.0
+        
+        intersection = geom.intersection(bikelanes_union)
+        if intersection.is_empty:
+            return 0.0
+        
+        # Verhältnis der Längen berechnen
+        return intersection.length / geom.length if geom.length > 0 else 0.0
     
-    # Leere Geometrien entfernen
-    result_gdf = result_gdf[~result_gdf.geometry.is_empty & result_gdf.geometry.notnull()]
+    # Überschneidungsanteile berechnen
+    overlap_ratios = streets_gdf.geometry.apply(calculate_overlap_ratio)
+    
+    # Nur Straßen behalten, die weniger als 80% im Buffer liegen
+    threshold = 0.8
+    keep_mask = overlap_ratios < threshold
+    result_gdf = streets_gdf[keep_mask].copy()
+    
+    logging.info(f"Von {len(streets_gdf)} Straßen bleiben {len(result_gdf)} erhalten "
+                f"(entfernt: {len(streets_gdf) - len(result_gdf)} mit ≥{threshold*100}% Überschneidung)")
     
     return result_gdf
 
@@ -75,6 +87,7 @@ def get_or_create_difference_fgb(streets_gdf, bikelanes_gdf, output_path, target
     """
     Berechnet die Differenz zwischen Straßen und Radwegen und speichert sie als FlatGeobuf.
     
+    Entfernt vollständig alle Straßen, die zu 80% oder mehr im Buffer um Radwege liegen.
     Berechnet immer neu um Cache-Probleme zu vermeiden und aktuelle Daten zu gewährleisten.
     
     Args:
@@ -84,10 +97,10 @@ def get_or_create_difference_fgb(streets_gdf, bikelanes_gdf, output_path, target
         target_crs (str, optional): Ziel-CRS für Projektion vor Pufferung
     
     Returns:
-        GeoDataFrame: Straßen ohne Überschneidung mit Radwegen-Buffern
+        GeoDataFrame: Straßen mit weniger als 80% Überschneidung mit Radwegen-Buffern
     """
     # Differenz immer neu berechnen um Cache-Probleme zu vermeiden
-    logging.info("Berechne Differenz: nur Straßen ohne Radwege...")
+    logging.info("Berechne Differenz: entferne Straßen mit ≥80% Überschneidung mit Radwegen...")
     diff_gdf = difference_streets_without_bikelanes(streets_gdf, bikelanes_gdf, target_crs=target_crs)
     
     # Ergebnis als FlatGeobuf speichern
