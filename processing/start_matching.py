@@ -338,7 +338,7 @@ def parse_arguments():
     parser.add_argument('--use-all-streets-in-buffer', action='store_true', help='Verwende alle Straßen im Buffer anstatt nur Straßen ohne Radwege für das finale Dataset')
     parser.add_argument('--clip-neukoelln', action='store_true', help='Verwende Neukölln-spezifische Eingabedateien')
     # Parallelisierungs-Optionen
-    parser.add_argument('--disable-parallel-matching', action='store_true', help='Deaktiviert die parallele Verarbeitung beim Buffer-Matching')
+    parser.add_argument('--disable-multiprocessing', action='store_true', help='Deaktiviert die parallele Verarbeitung beim Buffer-Matching')
     parser.add_argument('--cpu-cores', type=int, default=CONFIG_CPU_CORES,
                         help=f'Anzahl CPU-Kerne für Parallelisierung (default: {CONFIG_CPU_CORES})')
     parser.add_argument('--batch-size', type=int, default=CONFIG_BATCH_SIZE,
@@ -356,8 +356,8 @@ def process_data_source(osm_fgb_path, output_prefix, vorrangnetz_gdf, unified_bu
     osm_gdf = load_geodataframe(osm_fgb_path, f"OSM {output_prefix}", TARGET_CRS)
     # Schritt 2: OSM-Wege im Buffer finden
     cache_path = f'./output/matching/osm_{output_prefix}_in_buffering.fgb'
-    use_parallel = not args.disable_parallel_matching
-    matched_gdf_step1 = find_osm_ways_in_buffer_parallel(osm_gdf, unified_buffer, cache_path, use_parallel=use_parallel)
+    use_multiprocessing = not args.disable_multiprocessing
+    matched_gdf_step1 = find_osm_ways_in_buffer_parallel(osm_gdf, unified_buffer, cache_path, use_parallel=use_multiprocessing)
     # Schritt 3: Optional Orthogonalfilter anwenden
     use_orthogonal_filter = (output_prefix == 'bikelanes' and not args.skip_orthogonalfilter_bikelanes) or \
                             (output_prefix == 'streets' and not args.skip_orthogonalfilter_streets) or \
@@ -718,7 +718,7 @@ def main():
         CONFIG_BATCH_SIZE = args.batch_size
     
     # Parallelisierung anzeigen
-    if not args.disable_parallel_matching:
+    if not args.disable_multiprocessing:
         print(f"Parallelisierung aktiviert: {CONFIG_CPU_CORES} Kerne, Batch-Größe: {CONFIG_BATCH_SIZE}")
     else:
         print("Parallelisierung deaktiviert (sequenzielle Verarbeitung)")
