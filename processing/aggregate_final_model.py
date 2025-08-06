@@ -77,7 +77,29 @@ TRENNSTREIFEN_HIERARCHY = [
 # Spalten, die nach der Aggregation gelöscht werden sollen
 COLUMNS_TO_DROP = [
     "okstra_id", "existenz", "ist_radvorrangnetz", "elem_nr", "gisid", "gueltig_von", 
-    "dnez__sdatenid", "str_bez", "Index", "strassenklasse", "sfid"
+    "dnez__sdatenid", "str_bez", "Index", "strassenklasse", "sfid", "fid"
+]
+
+# Spaltenreihenfolge für finale Ausgabe (ohne geometry)
+AGGREGATED_COLUMN_ORDER = [
+    "afid",                   # 1. Aggregation FID
+    "element_nr",             # 2. element_nr
+    "beginnt_bei_vp",         # 3. beginnt_bei_vp
+    "endet_bei_vp",           # 4. endet_bei_vp
+    "Länge",                  # 5. Länge (gerundet, ohne Nachkommastellen)
+    "ri",                     # 6. ri
+    "verkehrsri",             # 7. verkehrsri
+    "Bezirksnummer",          # 8. Bezirksnummer
+    "strassenname",           # 9. Straßenname
+    "fuehr",                  # 10. fuehr
+    "pflicht",                # 11. pflicht
+    "breite",                 # 12. breite
+    "ofm",                    # 13. ofm
+    "farbe",                  # 14. farbliche beschichtung
+    "protek",                 # 15. protek
+    "trennstreifen",          # 16. trennstreifen
+    "nutz_beschr",            # 17. nutzungsbeschränkung
+    "Kommentar",              # 18. Kommentar
 ]
 
 # Spaltenreihenfolge wird jetzt in start_snapping.py als Datenvorbereitung behandelt
@@ -501,6 +523,45 @@ def add_afid_column(gdf):
     return gdf
 
 
+def reorder_aggregated_columns(gdf):
+    """
+    Ordnet die Spalten gemäß der definierten Reihenfolge für aggregierte Daten.
+    
+    Args:
+        gdf: GeoDataFrame mit den aggregierten Kanten
+        
+    Returns:
+        GeoDataFrame mit geordneten Spalten
+    """
+    # Arbeite mit einer Kopie
+    gdf = gdf.copy()
+    
+    # Bestimme verfügbare Spalten in der gewünschten Reihenfolge (ohne geometry)
+    available_columns = []
+    for col in AGGREGATED_COLUMN_ORDER:
+        if col in gdf.columns and col != 'geometry':
+            available_columns.append(col)
+    
+    # Füge alle anderen Spalten hinzu, die nicht in AGGREGATED_COLUMN_ORDER definiert sind (ohne geometry)
+    for col in gdf.columns:
+        if col not in available_columns and col != 'geometry':
+            available_columns.append(col)
+    
+    # Erstelle neues GeoDataFrame mit geordneten Spalten
+    # Behalte die originale geometry-Spalte bei
+    ordered_data = {}
+    for col in available_columns:
+        ordered_data[col] = gdf[col]
+    
+    # Erstelle GeoDataFrame mit originaler geometry
+    result_gdf = gpd.GeoDataFrame(ordered_data, geometry=gdf.geometry, crs=gdf.crs)
+    
+    logging.info(f"Spalten für aggregierte Ausgabe geordnet: {len(available_columns) + 1} Spalten (inkl. geometry)")
+    logging.debug(f"Aggregierte Spaltenreihenfolge: {available_columns + ['geometry']}")
+    
+    return result_gdf
+
+
 # ------------------------------------------------------------- Hauptablauf --
 def process(input_path, output_path, crs, clip_neukoelln=False, data_dir="./data", assign_districts=True):
     """
@@ -562,6 +623,10 @@ def process(input_path, output_path, crs, clip_neukoelln=False, data_dir="./data
     # ---------- FID hinzufügen ----------------------------------------------
     logging.info("Füge AFID-Spalte hinzu...")
     result_gdf = add_afid_column(result_gdf)
+    
+    # ---------- Spalten ordnen ----------------------------------------------
+    logging.info("Ordne Spalten für finale Ausgabe...")
+    result_gdf = reorder_aggregated_columns(result_gdf)
 
     # ---------- Ergebnis speichern ------------------------------------------
     p, *layer = output_path.split(":")

@@ -1284,14 +1284,14 @@ def process(net_path, osm_path, out_path, crs, buffer, clip_neukoelln=False, dat
         logging.info(f"Entferne Breite-Attribut bei {mischverkehr_count} Kanten mit Mischverkehr")
         out_gdf.loc[mischverkehr_mask, 'breite'] = None
 
-    # ---------- Datenaufbereitung: Spaltenordnung --------------------------
-    logging.info("Bereite Daten für Ausgabe vor: Ordne Spalten...")
-    out_gdf = reorder_columns_for_output(out_gdf)
-    
     # ---------- SFID hinzufügen ---------------------------------------------
     logging.info("Füge SFID-Spalte (Snapping FID) hinzu...")
     out_gdf['sfid'] = range(1, len(out_gdf) + 1)
     logging.info(f"SFID-Spalte hinzugefügt: {len(out_gdf)} Kanten nummeriert")
+    
+    # ---------- Datenaufbereitung: Spaltenordnung --------------------------
+    logging.info("Bereite Daten für Ausgabe vor: Ordne Spalten...")
+    out_gdf = reorder_columns_for_output(out_gdf)
 
     # ---------- Ergebnis speichern ------------------------------------------
     p, *layer = out_path.split(":")
