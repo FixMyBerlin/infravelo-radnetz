@@ -263,9 +263,9 @@ if [[ $START_STEP -le 4 ]]; then
     STEP4_START=$(date +%s)
     
     if [[ "$CLIP_NEUKOELLN" == "--clip-neukoelln" ]]; then
-        ./.venv/bin/python testing/test_final_results.py --clip-neukoelln
+        ./.venv/bin/python testing/run_tests.py --clip-neukoelln
     else
-        ./.venv/bin/python testing/test_final_results.py
+        ./.venv/bin/python testing/run_tests.py
     fi
     
     if [ $? -ne 0 ]; then
@@ -310,4 +310,4 @@ echo ""
 echo "🔍 Für QA-Zwecke:"
 echo "   - Verwende den Inspector: cd inspector && npm run dev"
 echo "   - Oder öffne das QGIS Projekt: QGIS QA Processing.qgz"
-echo "   - Führe manuelle Tests durch: python testing/test_final_results.py [--clip-neukoelln]"
+echo "   - Führe manuelle Tests durch: python testing/run_tests.py [--clip-neukoelln]"
