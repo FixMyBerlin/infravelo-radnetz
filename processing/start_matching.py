@@ -19,6 +19,8 @@ OUTPUT TMP FILES:
 - output/matched/matched_tilda_streets_ways.fgb
 - output/matched/matched_tilda_paths_ways.fgb
 - output/matched/matched_tilda_streets_without_bikelanes.fgb
+- output/matched/matched_tilda_streets_one_sided_bikelanes.fgb
+- output/matched/matched_tilda_streets_enhanced.fgb (Straßen ohne Radwege + einseitige Radwege)
 - output/matched/matched_tilda_paths_without_streets_and_bikelanes.fgb
 
 OUTPUT:
@@ -513,6 +515,193 @@ def calculate_multiple_difference_datasets(base_gdf, subtract_gdfs, output_path,
     return difference_gdf
 
 
+def find_streets_with_one_sided_bikelanes(streets_gdf, output_path):
+    """
+    Identifiziert Straßen mit einseitigen Radwegen, bei denen eine Seite eine separate Radinfrastruktur hat
+    und die andere Seite im Mischverkehr befahren wird. Diese Straßen sollen zusätzlich ins finale Matching
+    einbezogen werden, da Radfahrende auf einer Seite die Straße nutzen müssen.
+    
+    Schließt dual carriageways aus, da dort jede Fahrbahn separat betrachtet wird.
+    
+    Args:
+        streets_gdf: GeoDataFrame mit TILDA Streets Daten
+        output_path: Pfad zum Speichern der identifizierten Straßen
+        
+    Returns:
+        GeoDataFrame mit Straßen, die einseitige Radwege haben
+    """
+    if streets_gdf is None:
+        print("Warnung: Streets-Datensatz ist nicht verfügbar.")
+        return None
+    
+    print("\n--- Identifiziere Straßen mit einseitigen Radwegen ---")
+    
+    # Prüfe, ob die notwendigen Spalten vorhanden sind
+    required_cols = ['tilda_bikelane_left', 'tilda_bikelane_right']
+    missing_cols = [col for col in required_cols if col not in streets_gdf.columns]
+    if missing_cols:
+        print(f"Warnung: Fehlende Spalten für einseitige Radwege: {missing_cols}")
+        return None
+    
+    # Definiere Werte, die auf separate Radinfrastruktur hinweisen
+    separate_infrastructure_values = {
+        'separate_geometry',
+        'cycleway_adjoining',
+        'cyclewayOnHighwayProtected',
+        'cyclewayOnHighway_advisoryOrExclusive',
+        'cyclewayOnHighway_advisory',
+        'footAndCyclewaySegregated_adjoining',
+        'footAndCyclewayShared_adjoining',
+        'footwayBicycleYes_adjoining',
+        'sharedBusLaneBikeWithBus',
+        'sharedMotorVehicleLane'
+    }
+    
+    # Definiere Werte, die auf keine Radinfrastruktur hinweisen (Mischverkehr)
+    no_infrastructure_values = {
+        'data_no',
+        'not_expected',
+        'missing',
+        'assumed_no'
+    }
+    
+    # Schließe dual carriageways aus
+    is_dual_carriageway = False
+    if 'tilda_oneway' in streets_gdf.columns:
+        is_dual_carriageway = streets_gdf['tilda_oneway'] == 'yes_dual_carriageway'
+        dual_count = is_dual_carriageway.sum()
+        print(f"Schließe {dual_count} dual carriageways aus der Analyse aus")
+    else:
+        print("Warnung: tilda_oneway-Spalte nicht gefunden, kann dual carriageways nicht ausschließen")
+        is_dual_carriageway = pd.Series([False] * len(streets_gdf), index=streets_gdf.index)
+    
+    # Finde Straßen mit einseitigen Radwegen (ohne dual carriageways)
+    condition_left_separate = (
+        streets_gdf['tilda_bikelane_left'].isin(separate_infrastructure_values) & 
+        streets_gdf['tilda_bikelane_right'].isin(no_infrastructure_values) &
+        ~is_dual_carriageway
+    )
+    condition_right_separate = (
+        streets_gdf['tilda_bikelane_right'].isin(separate_infrastructure_values) & 
+        streets_gdf['tilda_bikelane_left'].isin(no_infrastructure_values) &
+        ~is_dual_carriageway
+    )
+    
+    one_sided_streets = streets_gdf[condition_left_separate | condition_right_separate].copy()
+    
+    if one_sided_streets.empty:
+        print("Keine Straßen mit einseitigen Radwegen gefunden.")
+        return None
+    
+    # Füge detaillierte Markierungen hinzu
+    one_sided_streets['has_one_sided_bikelane'] = True
+    one_sided_streets['one_sided_bikelane_side'] = 'unknown'
+    one_sided_streets['separate_infrastructure_type'] = 'unknown'
+    one_sided_streets['mixed_traffic_side'] = 'unknown'
+    
+    # Kategorisiere Links-separate Geometrien
+    left_mask = condition_left_separate
+    one_sided_streets.loc[left_mask, 'one_sided_bikelane_side'] = 'left_separate'
+    one_sided_streets.loc[left_mask, 'separate_infrastructure_type'] = one_sided_streets.loc[left_mask, 'tilda_bikelane_left']
+    one_sided_streets.loc[left_mask, 'mixed_traffic_side'] = 'right'
+    
+    # Kategorisiere Rechts-separate Geometrien  
+    right_mask = condition_right_separate
+    one_sided_streets.loc[right_mask, 'one_sided_bikelane_side'] = 'right_separate'
+    one_sided_streets.loc[right_mask, 'separate_infrastructure_type'] = one_sided_streets.loc[right_mask, 'tilda_bikelane_right']
+    one_sided_streets.loc[right_mask, 'mixed_traffic_side'] = 'left'
+    
+    # Entferne doppelte Spaltennamen
+    one_sided_streets = one_sided_streets.loc[:, ~one_sided_streets.columns.duplicated()]
+    
+    # Speichere Ergebnis
+    one_sided_streets.to_file(output_path, driver='FlatGeobuf')
+    
+    print(f"Straßen mit einseitigen Radwegen gefunden: {len(one_sided_streets)}")
+    print(f"Anteil an allen Streets: {len(one_sided_streets)/len(streets_gdf)*100:.1f}%")
+    print(f"Datei gespeichert: {output_path}")
+    
+    # Zeige detaillierte Statistiken
+    left_separate_count = len(one_sided_streets[one_sided_streets['one_sided_bikelane_side'] == 'left_separate'])
+    right_separate_count = len(one_sided_streets[one_sided_streets['one_sided_bikelane_side'] == 'right_separate'])
+    print(f"  - Links separate Infrastruktur: {left_separate_count}")
+    print(f"  - Rechts separate Infrastruktur: {right_separate_count}")
+    
+    # Zeige Verteilung der Infrastruktur-Typen
+    print(f"\\nTypen der separaten Infrastruktur:")
+    infra_types = one_sided_streets['separate_infrastructure_type'].value_counts()
+    for infra_type, count in infra_types.items():
+        print(f"  - {infra_type}: {count}")
+    
+    return one_sided_streets
+
+
+def combine_streets_with_one_sided_bikelanes(streets_without_bikelanes, one_sided_streets, output_path):
+    """
+    Kombiniert Straßen ohne Radwege mit Straßen mit einseitigen Radwegen.
+    
+    Args:
+        streets_without_bikelanes: GeoDataFrame mit Straßen ohne Radwege
+        one_sided_streets: GeoDataFrame mit Straßen mit einseitigen Radwegen
+        output_path: Pfad zum Speichern des kombinierten Datensatzes
+        
+    Returns:
+        GeoDataFrame mit kombiniertem Datensatz
+    """
+    print("\n--- Kombiniere Straßen ohne Radwege mit einseitigen Radwegen ---")
+    
+    combined_gdfs = []
+    
+    # Füge Straßen ohne Radwege hinzu
+    if streets_without_bikelanes is not None:
+        streets_copy = streets_without_bikelanes.copy()
+        streets_copy['street_type'] = 'no_bikelanes'
+        if 'has_one_sided_bikelane' not in streets_copy.columns:
+            streets_copy['has_one_sided_bikelane'] = False
+        combined_gdfs.append(streets_copy)
+        print(f"Straßen ohne Radwege: {len(streets_copy)}")
+    
+    # Füge Straßen mit einseitigen Radwegen hinzu
+    if one_sided_streets is not None:
+        one_sided_copy = one_sided_streets.copy()
+        one_sided_copy['street_type'] = 'one_sided_bikelanes'
+        combined_gdfs.append(one_sided_copy)
+        print(f"Straßen mit einseitigen Radwegen: {len(one_sided_copy)}")
+    
+    if not combined_gdfs:
+        print("Keine Daten zum Kombinieren verfügbar.")
+        return None
+    
+    # Kombiniere die GeoDataFrames
+    print("Kombiniere Datensätze...")
+    combined_gdf = pd.concat(combined_gdfs, ignore_index=True)
+    
+    # Entferne Duplikate basierend auf der ID-Spalte
+    id_col = 'tilda_id' if 'tilda_id' in combined_gdf.columns else 'tilda_osm_id'
+    if id_col in combined_gdf.columns:
+        initial_count = len(combined_gdf)
+        combined_gdf = combined_gdf.drop_duplicates(subset=[id_col])
+        if len(combined_gdf) < initial_count:
+            print(f"Entfernte {initial_count - len(combined_gdf)} Duplikate.")
+    
+    # Entferne doppelte Spaltennamen
+    combined_gdf = combined_gdf.loc[:, ~combined_gdf.columns.duplicated()]
+    
+    # Speichere Ergebnis
+    combined_gdf.to_file(output_path, driver='FlatGeobuf')
+    
+    print(f"Kombinierte Straßen gesamt: {len(combined_gdf)}")
+    print(f"Datei gespeichert: {output_path}")
+    
+    # Zeige finale Statistiken
+    if 'street_type' in combined_gdf.columns:
+        type_counts = combined_gdf['street_type'].value_counts()
+        for street_type, count in type_counts.items():
+            print(f"  - {street_type}: {count}")
+    
+    return combined_gdf
+
+
 def main():
     """
     Orchestriert den gesamten Matching- und Filterprozess.
@@ -584,6 +773,25 @@ def main():
             'bikelanes'
         )
 
+    # Identifiziere Straßen mit einseitigen Radwegen
+    one_sided_streets = None
+    if processed_datasets.get('streets') is not None:
+        output_path = './output/matched/matched_tilda_streets_one_sided_bikelanes.fgb'
+        one_sided_streets = find_streets_with_one_sided_bikelanes(
+            processed_datasets.get('streets'),
+            output_path
+        )
+
+    # Kombiniere Straßen ohne Radwege mit einseitigen Radwegen
+    streets_enhanced = None
+    if not args.use_all_streets_in_buffer:
+        output_path = './output/matched/matched_tilda_streets_enhanced.fgb'
+        streets_enhanced = combine_streets_with_one_sided_bikelanes(
+            streets_without_bikelanes,
+            one_sided_streets,
+            output_path
+        )
+
     # Wege ohne Straßen UND Radwege
     paths_without_streets_and_bikelanes = None
     if not args.skip_difference_paths_streets_bikelanes:
@@ -609,9 +817,14 @@ def main():
             datasets_for_combination['streets'] = processed_datasets['streets']
             print("Hinweis: Verwende alle Straßen im Buffer für das finale Dataset.")
     else:
-        # Verwende nur Straßen ohne Radwege (um Überschneidungen zu vermeiden)
-        if streets_without_bikelanes is not None:
+        # Verwende enhanced Streets (ohne Radwege PLUS einseitige Radwege)
+        if streets_enhanced is not None:
+            datasets_for_combination['streets'] = streets_enhanced
+            print("Hinweis: Verwende Straßen ohne Radwege plus Straßen mit einseitigen Radwegen.")
+        elif streets_without_bikelanes is not None:
+            # Fallback auf normale Straßen ohne Radwege, falls enhanced Version nicht verfügbar
             datasets_for_combination['streets'] = streets_without_bikelanes
+            print("Hinweis: Verwende nur Straßen ohne Radwege (Fallback).")
     
     # Verwende die gefilterten Wege (ohne Streets und Bikelanes) anstatt der ursprünglichen Wege
     if paths_without_streets_and_bikelanes is not None:
@@ -625,7 +838,8 @@ def main():
             if args.use_all_streets_in_buffer:
                 print(f"Hinweis: Alle Straßen im Buffer wurden verwendet. Wege wurden von Straßen und Radwegen subtrahiert.")
             else:
-                print(f"Hinweis: Wege wurden von Straßen und Radwegen subtrahiert, um Überschneidungen zu vermeiden.")
+                print(f"Hinweis: Straßen ohne Radwege UND Straßen mit einseitigen Radwegen wurden verwendet.")
+                print(f"         Wege wurden von Straßen und Radwegen subtrahiert, um Überschneidungen zu vermeiden.")
     else:
         print("Warnung: Keine Daten zum Kombinieren verfügbar.")
 
