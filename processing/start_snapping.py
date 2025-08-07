@@ -44,8 +44,8 @@ CONFIG_BUFFER_DEFAULT = 25     # Standard-Puffergröße in Metern zum Suchraum
 CONFIG_MAX_ANGLE_DIFFERENCE = 50 # Maximaler Winkelunterschied für Ausrichtung in Grad
 CONFIG_SEGMENT_LENGTH = 2.5    # Segmentlänge in Metern für die Netz-Aufteilung
 CONFIG_PROGRESS_UPDATE_INTERVAL = 100  # Fortschritt alle N Segmente aktualisieren
-CONFIG_BATCH_SIZE = 250        # Anzahl Segmente pro Batch für bessere Performance
-CONFIG_CPU_CORES = mp.cpu_count() - 1  # Anzahl CPU-Kerne für Parallelisierung (alle minus 1)
+CONFIG_BATCH_SIZE = 750        # Anzahl Segmente pro Batch für bessere Performance
+CONFIG_CPU_CORES = mp.cpu_count() - 2  # Anzahl CPU-Kerne für Parallelisierung (alle minus 1)
 
 # Neukölln Grenzendatei
 INPUT_NEUKOELLN_BOUNDARY_FILE = "Bezirk Neukölln Grenze.fgb"

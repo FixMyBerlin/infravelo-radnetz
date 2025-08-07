@@ -60,8 +60,8 @@ BUFFER_PATHS_METERS = 15      # Buffer-Radius in Metern für Wege
 TARGET_CRS = 'EPSG:25833'
 
 # Konfiguration für Parallelisierung
-CONFIG_CPU_CORES = mp.cpu_count() - 1  # Anzahl CPU-Kerne für Parallelisierung (alle minus 1)
-CONFIG_BATCH_SIZE = 100  # Größe der Batches für parallele Verarbeitung
+CONFIG_CPU_CORES = mp.cpu_count() - 2  # Anzahl CPU-Kerne für Parallelisierung (alle minus 1)
+CONFIG_BATCH_SIZE = 300  # Größe der Batches für parallele Verarbeitung
 
 
 def get_data_sources_config(use_neukoelln=False):
