@@ -46,6 +46,7 @@ from matching.manual_interventions import get_excluded_ways, get_included_ways
 from matching.difference import get_or_create_difference_fgb
 from helpers.progressbar import print_progressbar
 from helpers.buffer_utils import create_unified_buffer
+from helpers.clipping import clip_to_view
 #from export_geojson import export_all_geojson
 
 # --------------------------------------------------------- Konfiguration --
@@ -314,7 +315,7 @@ def apply_manual_interventions(args, matched_gdf, osm_gdf, output_prefix):
     return matched_gdf
 
 
-def write_outputs(matched_gdf, output_prefix):
+def write_outputs(matched_gdf, output_prefix, base_dir="./output"):
     """
     Schreibt die Ergebnisse als FlatGeobuf.
     """
@@ -323,7 +324,8 @@ def write_outputs(matched_gdf, output_prefix):
         matched_gdf = matched_gdf.drop(columns=['index_right'])
     matched_gdf = matched_gdf.loc[:,~matched_gdf.columns.duplicated()]
     # Schreibe FlatGeobuf
-    fgb_file = f'./output/matched/matched_tilda_{output_prefix}_ways.fgb'
+    os.makedirs(f"{base_dir}/matched", exist_ok=True)
+    fgb_file = f'{base_dir}/matched/matched_tilda_{output_prefix}_ways.fgb'
     matched_gdf.to_file(fgb_file, driver='FlatGeobuf')
     print(f'FlatGeobuf gespeichert in {fgb_file}')
 
@@ -362,16 +364,20 @@ def parse_arguments():
     parser.add_argument('--skip-difference-paths-streets-bikelanes', action='store_true', help='Skip difference: only paths without streets and bikelanes')
     parser.add_argument('--use-all-streets-in-buffer', action='store_true', help='Verwende alle Straßen im Buffer anstatt nur Straßen ohne Radwege für das finale Dataset')
     parser.add_argument('--clip-neukoelln', action='store_true', help='Verwende Neukölln-spezifische Eingabedateien')
+    parser.add_argument('--view', type=str, help="Viewport Zuschnitt 'zoom/lat/lon' (WGS84, z.B. 18/52.488306/13.425140). Nicht mit --clip-neukoelln kombinierbar.")
     # Parallelisierungs-Optionen
     parser.add_argument('--disable-multiprocessing', action='store_true', help='Deaktiviert die parallele Verarbeitung beim Buffer-Matching')
     parser.add_argument('--cpu-cores', type=int, default=CONFIG_CPU_CORES,
                         help=f'Anzahl CPU-Kerne für Parallelisierung (default: {CONFIG_CPU_CORES})')
     parser.add_argument('--batch-size', type=int, default=CONFIG_BATCH_SIZE,
                         help=f'Größe der Batches für parallele Verarbeitung (default: {CONFIG_BATCH_SIZE})')
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.clip_neukoelln and args.view:
+        parser.error('--clip-neukoelln und --view dürfen nicht gemeinsam verwendet werden')
+    return args
 
 
-def process_data_source(osm_fgb_path, output_prefix, vorrangnetz_gdf, unified_buffer, args):
+def process_data_source(osm_fgb_path, output_prefix, vorrangnetz_gdf, unified_buffer, args, base_dir):
     """
     Führt den kompletten Verarbeitungsprozess für eine Datenquelle durch.
     Gibt das finale GeoDataFrame zurück.
@@ -379,10 +385,22 @@ def process_data_source(osm_fgb_path, output_prefix, vorrangnetz_gdf, unified_bu
     print(f"\n--- Starte Verarbeitung für: {output_prefix} ---")
     # Schritt 1: OSM-Daten laden
     osm_gdf = load_geodataframe(osm_fgb_path, f"OSM {output_prefix}", TARGET_CRS)
-    # Schritt 1a: Entferne category == cyclewayLink (soll nicht gematcht werden)
+    
+    # Schritt 1b: Clip OSM-Daten auf das gleiche Gebiet wie das Vorrangnetz (Performance-Optimierung)
+    if args.view:
+        print(f"Schneide OSM {output_prefix} auf Viewport {args.view} zu (Performance-Optimierung)")
+        osm_gdf_before_clip = len(osm_gdf)
+        osm_gdf = clip_to_view(osm_gdf, args.view, TARGET_CRS)
+        print(f"OSM {output_prefix}: {osm_gdf_before_clip} → {len(osm_gdf)} Features nach Clipping")
+        if osm_gdf.empty:
+            print(f"⚠️  OSM {output_prefix} nach Viewport-Clipping leer - erstelle leeres Ergebnis")
+            return osm_gdf  # Return empty GeoDataFrame
+    
+    # Schritt 1c: Entferne category == cyclewayLink (soll nicht gematcht werden)
     osm_gdf = filter_out_cycleway_link(osm_gdf, f"OSM {output_prefix}")
     # Schritt 2: OSM-Wege im Buffer finden
-    cache_path = f'./output/matching/osm_{output_prefix}_in_buffering.fgb'
+    os.makedirs(f"{base_dir}/matching", exist_ok=True)
+    cache_path = f'{base_dir}/matching/osm_{output_prefix}_in_buffering.fgb'
     use_multiprocessing = not args.disable_multiprocessing
     matched_gdf_step1 = find_osm_ways_in_buffer_parallel(osm_gdf, unified_buffer, cache_path, use_parallel=use_multiprocessing)
     # Schritt 3: Optional Orthogonalfilter anwenden
@@ -400,7 +418,7 @@ def process_data_source(osm_fgb_path, output_prefix, vorrangnetz_gdf, unified_bu
     # Schritt 4: Manuelle Eingriffe anwenden
     matched_gdf = apply_manual_interventions(args, matched_gdf, osm_gdf, output_prefix)
     # Schritt 5: Ergebnisse schreiben
-    write_outputs(matched_gdf, output_prefix)
+    write_outputs(matched_gdf, output_prefix, base_dir)
     # Exportiere gematchte OSM way IDs als Textliste
     export_matched_way_ids(matched_gdf, output_prefix)
     print(f"--- Verarbeitung für {output_prefix} abgeschlossen ---")
@@ -752,6 +770,8 @@ def main():
     
     # Konfiguriere Datenquellen basierend auf Neukölln-Parameter
     DATA_SOURCES = get_data_sources_config(use_neukoelln=args.clip_neukoelln)
+    base_output_dir = './output-bbox' if (args.view and not args.clip_neukoelln) else './output'
+    os.makedirs(base_output_dir, exist_ok=True)
     
     if args.clip_neukoelln:
         print("--- Verwende Neukölln-spezifische Eingabedateien ---")
@@ -760,6 +780,11 @@ def main():
     
     # Vorrangnetz einmalig laden
     vorrangnetz_gdf = load_geodataframe(INPUT_VORRANGNETZ_FGB, "Vorrangnetz", TARGET_CRS)
+    if args.view:
+        print(f"Schneide Vorrangnetz auf Viewport {args.view}")
+        vorrangnetz_gdf = clip_to_view(vorrangnetz_gdf, args.view, TARGET_CRS)
+        if vorrangnetz_gdf.empty:
+            raise SystemExit("Abbruch: Vorrangnetz nach Viewport-Clipping leer")
 
     # Dictionary zum Sammeln aller verarbeiteten Datensätze
     processed_datasets = {}
@@ -783,7 +808,8 @@ def main():
             source_name, 
             vorrangnetz_gdf, 
             unified_buffer, 
-            args
+            args,
+            base_output_dir
         )
         processed_datasets[source_name] = processed_gdf
 
@@ -791,7 +817,7 @@ def main():
     # Straßen ohne Radwege
     streets_without_bikelanes = None
     if not args.skip_difference_streets_bikelanes:
-        output_path = './output/matched/matched_tilda_streets_without_bikelanes.fgb'
+        output_path = f'{base_output_dir}/matched/matched_tilda_streets_without_bikelanes.fgb'
         streets_without_bikelanes = calculate_difference_datasets(
             processed_datasets.get('streets'),
             processed_datasets.get('bikelanes'),
@@ -803,7 +829,7 @@ def main():
     # Identifiziere Straßen mit einseitigen Radwegen
     one_sided_streets = None
     if processed_datasets.get('streets') is not None:
-        output_path = './output/matched/matched_tilda_streets_one_sided_bikelanes.fgb'
+        output_path = f'{base_output_dir}/matched/matched_tilda_streets_one_sided_bikelanes.fgb'
         one_sided_streets = find_streets_with_one_sided_bikelanes(
             processed_datasets.get('streets'),
             output_path
@@ -812,7 +838,7 @@ def main():
     # Kombiniere Straßen ohne Radwege mit einseitigen Radwegen
     streets_enhanced = None
     if not args.use_all_streets_in_buffer:
-        output_path = './output/matched/matched_tilda_streets_enhanced.fgb'
+        output_path = f'{base_output_dir}/matched/matched_tilda_streets_enhanced.fgb'
         streets_enhanced = combine_streets_with_one_sided_bikelanes(
             streets_without_bikelanes,
             one_sided_streets,
@@ -822,7 +848,7 @@ def main():
     # Wege ohne Straßen UND Radwege
     paths_without_streets_and_bikelanes = None
     if not args.skip_difference_paths_streets_bikelanes:
-        output_path = './output/matched/matched_tilda_paths_without_streets_and_bikelanes.fgb'
+        output_path = f'{base_output_dir}/matched/matched_tilda_paths_without_streets_and_bikelanes.fgb'
         paths_without_streets_and_bikelanes = calculate_multiple_difference_datasets(
             processed_datasets.get('paths'),
             [processed_datasets.get('streets'), processed_datasets.get('bikelanes')],
@@ -858,7 +884,7 @@ def main():
         datasets_for_combination['paths'] = paths_without_streets_and_bikelanes
 
     if datasets_for_combination:
-        combined_path = './output/matched/matched_tilda_ways.fgb'
+        combined_path = f'{base_output_dir}/matched/matched_tilda_ways.fgb'
         combined_gdf = combine_multiple_datasets(datasets_for_combination, combined_path)
         if combined_gdf is not None:
             print(f"Kombinierte Daten gespeichert: {combined_path}")

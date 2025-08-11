@@ -39,7 +39,7 @@ from shapely.ops import linemerge
 from shapely.geometry import LineString, MultiLineString
 from helpers.progressbar import print_progressbar
 from helpers.globals import DEFAULT_CRS
-from helpers.clipping import clip_to_neukoelln
+from helpers.clipping import clip_to_neukoelln, clip_to_view
 
 
 # -------------------------------------------------------------- Konstanten --
@@ -563,7 +563,7 @@ def reorder_aggregated_columns(gdf):
 
 
 # ------------------------------------------------------------- Hauptablauf --
-def process(input_path, output_path, crs, clip_neukoelln=False, data_dir="./data", assign_districts=True):
+def process(input_path, output_path, crs, clip_neukoelln=False, data_dir="./data", assign_districts=True, view=None):
     """
     Hauptfunktion: Lädt angereicherte Netzwerkdaten und führt finale Aggregation durch.
     
@@ -592,11 +592,18 @@ def process(input_path, output_path, crs, clip_neukoelln=False, data_dir="./data
     
     logging.info(f"Eingangsdaten: {len(gdf)} Segmente geladen")
     
-    # Optional: Auf Neukölln zuschneiden
+    # Optional: Auf Gebiet zuschneiden
     if clip_neukoelln:
         logging.info("Schneide Daten auf Neukölln zu")
         gdf = clip_to_neukoelln(gdf, data_dir, crs)
         logging.info(f"Nach Neukölln-Clipping: {len(gdf)} Segmente")
+    elif view:
+        logging.info(f"Schneide Daten auf Viewport {view} (WGS84) zu")
+        gdf = clip_to_view(gdf, view, crs)
+        logging.info(f"Nach Viewport-Clipping: {len(gdf)} Segmente")
+
+    if gdf.empty:
+        raise SystemExit("Abbruch: Keine Daten nach Clipping vorhanden")
 
     # Prüfen, ob Pflichtfelder vorhanden sind
     if 'element_nr' not in gdf.columns:
@@ -693,11 +700,18 @@ if __name__ == "__main__":
                     help=f"Ziel-EPSG (default {DEFAULT_CRS})")
     ap.add_argument("--clip-neukoelln", action="store_true",
                     help="Schneide Daten auf Neukölln zu (optional)")
+    ap.add_argument("--view", type=str, help="Viewport Zuschnitt 'zoom/lat/lon' (WGS84). Nicht zusammen mit --clip-neukoelln verwenden.")
     ap.add_argument("--data-dir", default="./data", 
                     help="Pfad zum Datenverzeichnis (default: ./data)")
     ap.add_argument("--no-districts", action="store_true",
                     help="Überspringe Bezirkszuweisung (optional)")
     args = ap.parse_args()
+    if args.clip_neukoelln and args.view:
+        ap.error('--clip-neukoelln und --view können nicht gemeinsam verwendet werden')
+
+    # Bei View Standard-Ausgabepfad in output-bbox umlenken
+    if args.view and args.output == "./output/aggregated_rvn_final.gpkg":
+        args.output = "./output-bbox/aggregated_rvn_final_view.gpkg"
 
     # Hauptfunktion aufrufen
-    process(args.input, args.output, args.crs, args.clip_neukoelln, args.data_dir, not args.no_districts)
+    process(args.input, args.output, args.crs, args.clip_neukoelln, args.data_dir, not args.no_districts, args.view)

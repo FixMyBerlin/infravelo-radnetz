@@ -37,7 +37,7 @@ from shapely.ops import linemerge
 from helpers.progressbar import print_progressbar
 from helpers.globals import DEFAULT_CRS
 from helpers.traffic_signs import has_traffic_sign
-from helpers.clipping import clip_to_neukoelln
+from helpers.clipping import clip_to_neukoelln, clip_to_view
 
 # -------------------------------------------------------------- Konstanten --
 CONFIG_BUFFER_DEFAULT = 25     # Standard-Puffergröße in Metern zum Suchraum
@@ -110,7 +110,8 @@ TILDA_CATEGORY_PRIORITIES = {
     "footAndCycleway*": 5,  # Fußweg mit Radverkehr
     "footwayBicycle*": 4,  # Fußweg mit Radverkehr
     "sharedBusLaneBikeWithBus": 3,  # Gemeinsame Busspur mit Radverkehr
-    "sharedBusLaneBusWithBike": 2,
+    "sharedBusLaneBusWithBike": 3,
+    "crossing": 3,
     "pedestrianAreaBicycleYes": 2,  # Fußgängerzone mit Radverkehr
     "sharedMotorVehicleLane": 1,  # Niedrigste Priorität
 }
@@ -1057,7 +1058,7 @@ def reorder_columns_for_output(gdf):
 
 
 # ------------------------------------------------------------- Hauptablauf --
-def process(net_path, osm_path, out_path, crs, buffer, clip_neukoelln=False, data_dir="./data", log_candidates=False):
+def process(net_path, osm_path, out_path, crs, buffer, clip_neukoelln=False, data_dir="./data", log_candidates=False, view=None):
     """
     Hauptfunktion: Segmentiert das Netz, führt das Snapping durch und verschmilzt die Segmente wieder.
     net_path: Pfad zum Netz (mit Layer)
@@ -1087,12 +1088,24 @@ def process(net_path, osm_path, out_path, crs, buffer, clip_neukoelln=False, dat
     logging.info(f"Netzwerk: {len(net)} Features geladen")
     logging.info(f"TILDA-übersetzte Daten: {len(osm)} Features geladen")
     
-    # Optional: Auf Neukölln zuschneiden
+    # Räumliche Filter: Entweder Neukölln oder View (nicht beides erlaubt – wird vorher geprüft)
     if clip_neukoelln:
         logging.info("Schneide Netzwerk auf Neukölln zu")
         net = clip_to_neukoelln(net, data_dir, crs)
         logging.info("Schneide TILDA-übersetzte Daten auf Neukölln zu")
         osm = clip_to_neukoelln(osm, data_dir, crs)
+    elif view:
+        logging.info(f"Schneide Daten auf Viewport {view} (WGS84, Standard 1920x1080) zu")
+        net = clip_to_view(net, view, crs)
+        osm = clip_to_view(osm, view, crs)
+
+    # Abort wenn eine der Quellen leer ist
+    if len(net) == 0:
+        logging.error("Abbruch: Netzwerk nach Clipping leer – keine weitere Verarbeitung möglich")
+        sys.exit(1)
+    if len(osm) == 0:
+        logging.error("Abbruch: TILDA-Daten nach Clipping leer – keine weitere Verarbeitung möglich")
+        sys.exit(1)
 
     # Prüfen, ob alle Pflichtfelder im Netz vorhanden sind
     for fld in (RVN_ATTRIBUT_ELEMENT_NR, RVN_ATTRIBUT_BEGINN_VP, RVN_ATTRIBUT_ENDE_VP):
@@ -1103,8 +1116,14 @@ def process(net_path, osm_path, out_path, crs, buffer, clip_neukoelln=False, dat
     logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
     
     # Stelle sicher, dass das segmentierte Detailnetz und das Ausgabeverzeichnis existiert
-    filename_suffix = "_neukoelln" if clip_neukoelln else ""
-    seg_path = f"./output/snapping/rvn-segmented{filename_suffix}.fgb"
+    # Zielverzeichnis je nach Modus
+    if view and not clip_neukoelln:
+        base_output_dir = "./output-bbox"
+    else:
+        base_output_dir = "./output"
+
+    filename_suffix = "_neukoelln" if clip_neukoelln else ("_view" if view else "")
+    seg_path = f"{base_output_dir}/snapping/rvn-segmented{filename_suffix}.fgb"
     os.makedirs(os.path.dirname(seg_path), exist_ok=True)
     
     if os.path.exists(seg_path):
@@ -1121,7 +1140,7 @@ def process(net_path, osm_path, out_path, crs, buffer, clip_neukoelln=False, dat
         logging.info(f"✔  Segmentiertes Netz gespeichert als {seg_path}")
 
     # ---------- Snapping/Attributübernahme auf Segmente ---------------------
-    seg_attr_path = f"./output/snapping/rvn-segmented-attributed-osm{filename_suffix}.fgb"
+    seg_attr_path = f"{base_output_dir}/snapping/rvn-segmented-attributed-osm{filename_suffix}.fgb"
     os.makedirs(os.path.dirname(seg_attr_path), exist_ok=True)
     
     if os.path.exists(seg_attr_path):
@@ -1139,7 +1158,7 @@ def process(net_path, osm_path, out_path, crs, buffer, clip_neukoelln=False, dat
         # Optional: Öffne Kandidaten-Log-Datei für QA-Zwecke
         candidates_log = None
         if log_candidates:
-            qa_dir = "./output/snapping"
+            qa_dir = f"{base_output_dir}/snapping"
             os.makedirs(qa_dir, exist_ok=True)
             candidates_log_file = os.path.join(qa_dir, f"osm_candidates_per_edge{filename_suffix}.txt")
             
@@ -1275,6 +1294,9 @@ def process(net_path, osm_path, out_path, crs, buffer, clip_neukoelln=False, dat
     debug_merge_attributes(net_segmented, "element_nr", FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES)
     
     out_gdf = merge_segments(net_segmented, "element_nr", FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES)
+    if len(out_gdf) == 0:
+        logging.error("Abbruch: Keine Ausgabesegmente nach Merging entstanden")
+        sys.exit(1)
 
     # ---------- Finale Datenbereinigung ------------------------------------
     # Entferne Breite-Attribut bei allen Kanten mit Mischverkehr mit motorisiertem Verkehr
@@ -1327,7 +1349,7 @@ if __name__ == "__main__":
     ap.add_argument("--osm", default="./output/matched/matched_tilda_ways.fgb", 
                     help="TILDA-übersetzte Daten (Pfad[:Layer]) - Default: ../output/matching/matched_tilda_ways.fgb")
     ap.add_argument("--out", default="./output/snapping_network_enriched.fgb", 
-                    help="Ausgabe (Pfad[:Layer]) - Default: ./output/snapping_network_enriched.fgb")
+                    help="Ausgabe (Pfad[:Layer]) - Default: ./output/snapping_network_enriched.fgb (Bei --view automatisch nach output-bbox umgeleitet)")
     ap.add_argument("--crs",  type=int,   default=DEFAULT_CRS,
                     help=f"Ziel-EPSG (default {DEFAULT_CRS})")
     ap.add_argument("--buffer", type=float, default=CONFIG_BUFFER_DEFAULT,
@@ -1336,11 +1358,24 @@ if __name__ == "__main__":
                     help="Schneide Daten auf Neukölln zu (optional)")
     ap.add_argument("--data-dir", default="./data", 
                     help="Pfad zum Datenverzeichnis (default: ./data)")
+    ap.add_argument("--view", type=str, help="Viewport Zuschnitt 'zoom/lat/lon' (WGS84, z.B. 18/52.488306/13.425140). Nicht zusammen mit --clip-neukoelln verwenden.")
     ap.add_argument("--log-candidates", action="store_true",
                     help="Erstelle detaillierte Kandidaten-Log-Datei für Debugging (optional)")
     ap.add_argument("--cpu-cores", type=int, default=CONFIG_CPU_CORES,
                     help=f"Anzahl CPU-Kerne für Parallelisierung (default: {CONFIG_CPU_CORES})")
     args = ap.parse_args()
+
+    # Konfliktprüfung
+    if args.clip_neukoelln and args.view:
+        logging.error("--clip-neukoelln und --view können nicht gemeinsam verwendet werden")
+        sys.exit(1)
+
+    # Bei View Standard-Eingabepfad in output-bbox umlenken falls unverändert
+    if args.view:
+        if args.osm == "./output/matched/matched_tilda_ways.fgb":
+            args.osm = "./output-bbox/matched/matched_tilda_ways.fgb"
+        if args.out == "./output/snapping_network_enriched.fgb":
+            args.out = "./output-bbox/snapping_network_enriched_view.fgb"
 
     # CPU-Kerne-Konfiguration übernehmen (validiere Eingabe)
     cpu_cores = max(1, min(args.cpu_cores, mp.cpu_count()))
@@ -1351,5 +1386,5 @@ if __name__ == "__main__":
     CONFIG_CPU_CORES = cpu_cores
     
     # Hauptfunktion aufrufen
-    process(args.net, args.osm, args.out, args.crs, args.buffer, args.clip_neukoelln, args.data_dir, args.log_candidates)
+    process(args.net, args.osm, args.out, args.crs, args.buffer, args.clip_neukoelln, args.data_dir, args.log_candidates, args.view)
 

@@ -110,12 +110,18 @@ if [ "$TRANSLATE_ONLY" = false ]; then
     echo "🗺️  Clip-Features: $CLIP_FEATURES"
     echo ""
 
+    TRANSLATE_SCRIPT="$PROJECT_ROOT/processing/translate_attributes_tilda_to_rvn.py"
+    TRANSLATE_OUTPUT_DIR="$PROJECT_ROOT/output/TILDA-translated"
+    mkdir -p "$TRANSLATE_OUTPUT_DIR"
+
     # Verarbeite bikelanes.fgb -> TILDA Radwege Berlin.fgb
     echo "🚴 Verarbeite Radwege (bikelanes.fgb)..."
     python3 "$CLIP_SCRIPT" \
         --input "$INPUT_DIR/bikelanes.fgb" \
         --clip-features "$CLIP_FEATURES" \
         --output "$OUTPUT_DIR/TILDA Radwege Berlin.fgb"
+    echo "🔄 Übersetze TILDA Radwege Berlin.fgb..."
+    python3 "$TRANSLATE_SCRIPT" --data-dir "$OUTPUT_DIR" --output-dir "$TRANSLATE_OUTPUT_DIR" --crs 25833
 
     # Verarbeite roads.fgb -> TILDA Straßen Berlin.fgb
     echo ""
@@ -124,6 +130,8 @@ if [ "$TRANSLATE_ONLY" = false ]; then
         --input "$INPUT_DIR/roads.fgb" \
         --clip-features "$CLIP_FEATURES" \
         --output "$OUTPUT_DIR/TILDA Straßen Berlin.fgb"
+    echo "🔄 Übersetze TILDA Straßen Berlin.fgb..."
+    python3 "$TRANSLATE_SCRIPT" --data-dir "$OUTPUT_DIR" --output-dir "$TRANSLATE_OUTPUT_DIR" --crs 25833
 
     # Verarbeite roadsPathClasses.fgb -> TILDA Wege Berlin.fgb
     echo ""
@@ -132,13 +140,15 @@ if [ "$TRANSLATE_ONLY" = false ]; then
         --input "$INPUT_DIR/roadsPathClasses.fgb" \
         --clip-features "$CLIP_FEATURES" \
         --output "$OUTPUT_DIR/TILDA Wege Berlin.fgb"
+    echo "🔄 Übersetze TILDA Wege Berlin.fgb..."
+    python3 "$TRANSLATE_SCRIPT" --data-dir "$OUTPUT_DIR" --output-dir "$TRANSLATE_OUTPUT_DIR" --crs 25833
 
     echo ""
-    echo "✅ Clipping der TILDA Daten erfolgreich abgeschlossen!"
-    echo "📊 Geclippte Dateien:"
-    echo "   - $OUTPUT_DIR/TILDA Radwege Berlin.fgb"
-    echo "   - $OUTPUT_DIR/TILDA Straßen Berlin.fgb"
-    echo "   - $OUTPUT_DIR/TILDA Wege Berlin.fgb"
+    echo "✅ Clipping und Übersetzung der TILDA Daten erfolgreich abgeschlossen!"
+    echo "📊 Geclippte und übersetzte Dateien:"
+    echo "   - $OUTPUT_DIR/TILDA Radwege Berlin.fgb -> $TRANSLATE_OUTPUT_DIR/TILDA Bikelanes Translated.fgb"
+    echo "   - $OUTPUT_DIR/TILDA Straßen Berlin.fgb -> $TRANSLATE_OUTPUT_DIR/TILDA Streets Translated.fgb"
+    echo "   - $OUTPUT_DIR/TILDA Wege Berlin.fgb -> $TRANSLATE_OUTPUT_DIR/TILDA Paths Translated.fgb"
 else
     echo "⏭️  Überspringe Clipping (--translate-only aktiviert)"
     
@@ -158,39 +168,38 @@ else
     done
     
     echo "✅ Alle benötigten geclippten Dateien sind vorhanden"
+    
+    echo ""
+    echo "🔄 Starte TILDA Attribut-Übersetzung..."
+    TRANSLATE_SCRIPT="$PROJECT_ROOT/processing/translate_attributes_tilda_to_rvn.py"
+    TRANSLATE_OUTPUT_DIR="$PROJECT_ROOT/output/TILDA-translated"
+
+    # Prüfe ob das Übersetzungsskript existiert
+    if [ ! -f "$TRANSLATE_SCRIPT" ]; then
+        echo "❌ Fehler: translate_attributes_tilda_to_rvn.py wurde nicht gefunden: $TRANSLATE_SCRIPT"
+        exit 1
+    fi
+
+    # Erstelle das Ausgabeverzeichnis für die Übersetzung falls es nicht existiert
+    mkdir -p "$TRANSLATE_OUTPUT_DIR"
+
+    # Aktiviere die virtuelle Umgebung und führe die Übersetzung aus
+    echo "📝 Übersetze TILDA-Attribute zu RVN-Attributen..."
+    cd "$PROJECT_ROOT"
+    python3 "$TRANSLATE_SCRIPT" --data-dir "$OUTPUT_DIR"
+
+    if [ $? -ne 0 ]; then
+        echo "❌ Fehler bei der TILDA Attribut-Übersetzung"
+        exit 1
+    fi
+
+    echo ""
+    echo "✅ TILDA Attribut-Übersetzung erfolgreich abgeschlossen!"
+    echo "📊 Übersetzte Dateien:"
+    echo "   - $TRANSLATE_OUTPUT_DIR/TILDA Bikelanes Translated.fgb"
+    echo "   - $TRANSLATE_OUTPUT_DIR/TILDA Streets Translated.fgb"  
+    echo "   - $TRANSLATE_OUTPUT_DIR/TILDA Paths Translated.fgb"
 fi
-
-# TILDA Attribut-Übersetzung nach dem Clipping
-echo ""
-echo "🔄 Starte TILDA Attribut-Übersetzung..."
-TRANSLATE_SCRIPT="$PROJECT_ROOT/processing/translate_attributes_tilda_to_rvn.py"
-TRANSLATE_OUTPUT_DIR="$PROJECT_ROOT/output/TILDA-translated"
-
-# Prüfe ob das Übersetzungsskript existiert
-if [ ! -f "$TRANSLATE_SCRIPT" ]; then
-    echo "❌ Fehler: translate_attributes_tilda_to_rvn.py wurde nicht gefunden: $TRANSLATE_SCRIPT"
-    exit 1
-fi
-
-# Erstelle das Ausgabeverzeichnis für die Übersetzung falls es nicht existiert
-mkdir -p "$TRANSLATE_OUTPUT_DIR"
-
-# Aktiviere die virtuelle Umgebung und führe die Übersetzung aus
-echo "📝 Übersetze TILDA-Attribute zu RVN-Attributen..."
-cd "$PROJECT_ROOT"
-python3 "$TRANSLATE_SCRIPT" --data-dir "$OUTPUT_DIR"
-
-if [ $? -ne 0 ]; then
-    echo "❌ Fehler bei der TILDA Attribut-Übersetzung"
-    exit 1
-fi
-
-echo ""
-echo "✅ TILDA Attribut-Übersetzung erfolgreich abgeschlossen!"
-echo "📊 Übersetzte Dateien:"
-echo "   - $TRANSLATE_OUTPUT_DIR/TILDA Bikelanes Translated.fgb"
-echo "   - $TRANSLATE_OUTPUT_DIR/TILDA Streets Translated.fgb"  
-echo "   - $TRANSLATE_OUTPUT_DIR/TILDA Paths Translated.fgb"
 
 echo ""
 if [ "$TRANSLATE_ONLY" = false ]; then

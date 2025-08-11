@@ -15,10 +15,11 @@
 # - Temporäre Dateien werden vor dem entsprechenden Verarbeitungsschritt gelöscht
 # - Zwischendateien bleiben zwischen Schritten erhalten (für --start-step Funktionalität)
 #
-# Verwendung: ./execute_processing.sh [--clip-neukoelln] [--start-step <1-4>]
+# Verwendung: ./execute_processing.sh [--clip-neukoelln | --view z/lat/lon] [--start-step <1-4>]
 # 
 # Argumente:
 #   --clip-neukoelln    Beschränkt die Verarbeitung auf den Bezirk Neukölln
+#   --view z/lat/lon     Viewport Zuschnitt (WGS84, z.B. 18/52.488306/13.425140) – schreibt nach output-bbox
 #   --start-step <1-4>  Startet die Verarbeitung ab dem angegebenen Schritt
 #                       1: OSM-Wege Matching
 #                       2: Snapping und Attribut-Übernahme
@@ -70,6 +71,7 @@ show_total_time() {
 # CLI-Argumente verarbeiten
 CLIP_NEUKOELLN=""
 START_STEP=1
+VIEW=""
 
 # Verarbeite alle Argumente
 while [[ $# -gt 0 ]]; do
@@ -80,6 +82,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --start-step)
             START_STEP="$2"
+            shift 2
+            ;;
+        --view)
+            VIEW="$2"
             shift 2
             ;;
         *)
@@ -96,8 +102,14 @@ if [[ ! "$START_STEP" =~ ^[1-5]$ ]]; then
     exit 1
 fi
 
-if [[ "$CLIP_NEUKOELLN" == "--clip-neukoelln" ]]; then
+if [[ -n "$CLIP_NEUKOELLN" && -n "$VIEW" ]]; then
+    echo "❌ --clip-neukoelln und --view dürfen nicht kombiniert werden"
+    exit 1
+fi
+if [[ -n "$CLIP_NEUKOELLN" ]]; then
     echo "🌍 Verarbeitung wird auf Neukölln beschränkt."
+elif [[ -n "$VIEW" ]]; then
+    echo "🌍 Verarbeitung mit Viewport $VIEW (output-bbox)"
 else
     echo "🌍 Vollständige Verarbeitung für ganz Berlin."
 fi
@@ -119,33 +131,31 @@ fi
 
 # Sichere finale Ausgabedateien von vorherigem Lauf in output-last-run
 echo "💾 Sichere finale Dateien von vorherigem Lauf..."
-if [[ "$CLIP_NEUKOELLN" == "--clip-neukoelln" ]]; then
+if [[ -n "$CLIP_NEUKOELLN" ]]; then
     SUFFIX="_neukoelln"
+elif [[ -n "$VIEW" ]]; then
+    SUFFIX="_view"
 else
     SUFFIX=""
 fi
 
-# Verschiebe finale Dateien in output-last-run (überschreibt vorherige)
-if [ -f "output/snapping_network_enriched${SUFFIX}.fgb" ]; then
-    echo "  - Sichere snapping_network_enriched${SUFFIX}.fgb"
-    mv "output/snapping_network_enriched${SUFFIX}.fgb" "output-last-run/"
+BASE_OUT_DIR="output"
+if [[ -n "$VIEW" && -z "$CLIP_NEUKOELLN" ]]; then
+    BASE_OUT_DIR="output-bbox"
 fi
-if [ -f "output/snapping_network_enriched${SUFFIX}.geojson" ]; then
-    echo "  - Sichere snapping_network_enriched${SUFFIX}.geojson"
-    mv "output/snapping_network_enriched${SUFFIX}.geojson" "output-last-run/"
-fi
-if [ -f "output/aggregated_rvn_final${SUFFIX}.gpkg" ]; then
-    echo "  - Sichere aggregated_rvn_final${SUFFIX}.gpkg"
-    mv "output/aggregated_rvn_final${SUFFIX}.gpkg" "output-last-run/"
-fi
-if [ -f "output/aggregated_rvn_final${SUFFIX}.fgb" ]; then
-    echo "  - Sichere aggregated_rvn_final${SUFFIX}.fgb"
-    mv "output/aggregated_rvn_final${SUFFIX}.fgb" "output-last-run/"
-fi
-if [ -f "output/aggregated_rvn_final${SUFFIX}.geojson" ]; then
-    echo "  - Sichere aggregated_rvn_final${SUFFIX}.geojson"
-    mv "output/aggregated_rvn_final${SUFFIX}.geojson" "output-last-run/"
-fi
+mkdir -p "$BASE_OUT_DIR"
+
+# Verschiebe finale Dateien (falls vorhanden)
+for f in "snapping_network_enriched${SUFFIX}.fgb" \
+                 "snapping_network_enriched${SUFFIX}.geojson" \
+                 "aggregated_rvn_final${SUFFIX}.gpkg" \
+                 "aggregated_rvn_final${SUFFIX}.fgb" \
+                 "aggregated_rvn_final${SUFFIX}.geojson"; do
+    if [ -f "${BASE_OUT_DIR}/$f" ]; then
+        echo "  - Sichere $f"
+        mv "${BASE_OUT_DIR}/$f" output-last-run/ || true
+    fi
+done
 
 echo "✅ Finale Dateien erfolgreich gesichert."
 echo ""
@@ -170,8 +180,10 @@ if [[ $START_STEP -le 1 ]]; then
     
     echo "🔍 Schritt 1/4: OSM-Wege mit Radvorrangsnetz matchen..."
     STEP1_START=$(date +%s)
-    if [[ "$CLIP_NEUKOELLN" == "--clip-neukoelln" ]]; then
+    if [[ -n "$CLIP_NEUKOELLN" ]]; then
         ./.venv/bin/python processing/start_matching.py --clip-neukoelln
+    elif [[ -n "$VIEW" ]]; then
+        ./.venv/bin/python processing/start_matching.py --view "$VIEW"
     else
         ./.venv/bin/python processing/start_matching.py
     fi
@@ -198,18 +210,15 @@ if [[ $START_STEP -le 2 ]]; then
         echo "  - Gelöscht: Snapping Zwischendateien"
     fi
     # Lösche snapping_network_enriched Dateien (werden in Schritt 2 erstellt)
-    if [[ "$CLIP_NEUKOELLN" == "--clip-neukoelln" ]]; then
-        SUFFIX="_neukoelln"
-    else
-        SUFFIX=""
-    fi
-    rm -f "output/snapping_network_enriched${SUFFIX}.fgb"
-    echo "  - Gelöscht: snapping_network_enriched${SUFFIX}.fgb"
+    rm -f "${BASE_OUT_DIR}/snapping_network_enriched${SUFFIX}.fgb"
+    echo "  - Gelöscht: ${BASE_OUT_DIR}/snapping_network_enriched${SUFFIX}.fgb"
     
     echo "📍 Schritt 2/4: Snapping und Attribut-Übernahme..."
     STEP2_START=$(date +%s)
-    if [[ "$CLIP_NEUKOELLN" == "--clip-neukoelln" ]]; then
+    if [[ -n "$CLIP_NEUKOELLN" ]]; then
         ./.venv/bin/python processing/start_snapping.py --clip-neukoelln
+    elif [[ -n "$VIEW" ]]; then
+        ./.venv/bin/python processing/start_snapping.py --view "$VIEW"
     else
         ./.venv/bin/python processing/start_snapping.py
     fi
@@ -229,19 +238,16 @@ fi
 if [[ $START_STEP -le 3 ]]; then
     echo "🧹 Bereinigte temporäre Dateien für Schritt 3..."
     # Lösche aggregated_rvn_final Dateien (werden in Schritt 3 erstellt)
-    if [[ "$CLIP_NEUKOELLN" == "--clip-neukoelln" ]]; then
-        SUFFIX="_neukoelln"
-    else
-        SUFFIX=""
-    fi
-    rm -f "output/aggregated_rvn_final${SUFFIX}.gpkg"
-    rm -f "output/aggregated_rvn_final${SUFFIX}.fgb"
-    echo "  - Gelöscht: aggregated_rvn_final${SUFFIX} Dateien"
+    rm -f "${BASE_OUT_DIR}/aggregated_rvn_final${SUFFIX}.gpkg"
+    rm -f "${BASE_OUT_DIR}/aggregated_rvn_final${SUFFIX}.fgb"
+    echo "  - Gelöscht: ${BASE_OUT_DIR}/aggregated_rvn_final${SUFFIX} Dateien"
     
     echo "🎯 Schritt 3/4: Finale Aggregation..."
     STEP3_START=$(date +%s)
-    if [[ "$CLIP_NEUKOELLN" == "--clip-neukoelln" ]]; then
-        ./.venv/bin/python processing/aggregate_final_model.py --input ./output/snapping_network_enriched_neukoelln.fgb
+    if [[ -n "$CLIP_NEUKOELLN" ]]; then
+        ./.venv/bin/python processing/aggregate_final_model.py --clip-neukoelln --input ./output/snapping_network_enriched_neukoelln.fgb
+    elif [[ -n "$VIEW" ]]; then
+        ./.venv/bin/python processing/aggregate_final_model.py --view "$VIEW" --input ./output-bbox/snapping_network_enriched_view.fgb
     else
         ./.venv/bin/python processing/aggregate_final_model.py --input ./output/snapping_network_enriched.fgb
     fi
@@ -259,26 +265,35 @@ fi
 
 # Schritt 4: Qualitätssicherungstests
 if [[ $START_STEP -le 4 ]]; then
-    echo "🧪 Schritt 4/4: Führe Qualitätssicherungstests durch..."
-    STEP4_START=$(date +%s)
-    
-    if [[ "$CLIP_NEUKOELLN" == "--clip-neukoelln" ]]; then
-        ./.venv/bin/python testing/run_tests.py --clip-neukoelln
+    if [[ -n "$VIEW" ]]; then
+        echo "🧪 Schritt 4/4: Überspringe Qualitätssicherungstests bei Viewport-Verarbeitung"
+        echo "   ℹ️  Tests werden bei --view Parameter nicht ausgeführt (kleine Datenmenge nicht repräsentativ)"
+        STEP4_START=$(date +%s)
+        STEP4_DURATION=0
+        echo "⏱️  Schritt 4 dauerte: ${STEP4_DURATION}s"
+        echo "✅ Schritt 4 übersprungen."
     else
-        ./.venv/bin/python testing/run_tests.py
+        echo "🧪 Schritt 4/4: Führe Qualitätssicherungstests durch..."
+        STEP4_START=$(date +%s)
+        
+        if [[ "$CLIP_NEUKOELLN" == "--clip-neukoelln" ]]; then
+            ./.venv/bin/python testing/run_tests.py --clip-neukoelln
+        else
+            ./.venv/bin/python testing/run_tests.py
+        fi
+        
+        if [ $? -ne 0 ]; then
+            echo "❌ Qualitätssicherungstests fehlgeschlagen!"
+            echo "   Die Verarbeitung wurde zwar abgeschlossen, aber die erwarteten"
+            echo "   Attributwerte stimmen nicht mit den Test-Definitionen überein."
+            echo "   Bitte überprüfen Sie die Ausgabe der Tests und die Verarbeitung."
+            # Beende Script mit Fehlercode
+            exit 1
+        fi
+        
+        show_elapsed_time $STEP4_START "Schritt 4"
+        echo "✅ Schritt 4 abgeschlossen."
     fi
-    
-    if [ $? -ne 0 ]; then
-        echo "❌ Qualitätssicherungstests fehlgeschlagen!"
-        echo "   Die Verarbeitung wurde zwar abgeschlossen, aber die erwarteten"
-        echo "   Attributwerte stimmen nicht mit den Test-Definitionen überein."
-        echo "   Bitte überprüfen Sie die Ausgabe der Tests und die Verarbeitung."
-        # Beende Script mit Fehlercode
-        exit 1
-    fi
-    
-    show_elapsed_time $STEP4_START "Schritt 4"
-    echo "✅ Schritt 4 abgeschlossen."
     echo ""
 else
     echo "⏭️  Überspringe Schritt 4 (Qualitätssicherungstests)"
@@ -293,16 +308,15 @@ show_total_time $SCRIPT_START_TIME
 
 echo ""
 echo "📁 Ausgabedateien verfügbar in:"
-if [[ "$CLIP_NEUKOELLN" == "--clip-neukoelln" ]]; then
-    echo "   - output/aggregated_rvn_final_neukoelln.gpkg (finale Ergebnisse als GeoPackage)"
-    echo "   - output/aggregated_rvn_final_neukoelln.geojson (finale Ergebnisse als GeoJSON)"
-    echo "   - output/snapping_network_enriched_neukoelln.fgb (angereichertes Netzwerk als FlatGeoBuf)"
-    echo "   - output/snapping_network_enriched_neukoelln.geojson (angereichertes Netzwerk als GeoJSON)"
+if [[ -n "$CLIP_NEUKOELLN" ]]; then
+    echo "   - output/aggregated_rvn_final_neukoelln.gpkg"
+    echo "   - output/snapping_network_enriched_neukoelln.fgb"
+elif [[ -n "$VIEW" ]]; then
+    echo "   - output-bbox/aggregated_rvn_final_view.gpkg"
+    echo "   - output-bbox/snapping_network_enriched_view.fgb"
 else
-    echo "   - output/aggregated_rvn_final.gpkg (finale Ergebnisse als GeoPackage)"
-    echo "   - output/aggregated_rvn_final.geojson (finale Ergebnisse als GeoJSON)"
-    echo "   - output/snapping_network_enriched.fgb (angereichertes Netzwerk als FlatGeoBuf)"
-    echo "   - output/snapping_network_enriched.geojson (angereichertes Netzwerk als GeoJSON)"
+    echo "   - output/aggregated_rvn_final.gpkg"
+    echo "   - output/snapping_network_enriched.fgb"
 fi
 echo "   - output/matched/ (gematchte OSM-Wege)"
 echo "   - output-last-run/ (gesicherte Dateien vom vorherigen Lauf)"
