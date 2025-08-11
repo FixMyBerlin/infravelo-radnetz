@@ -10,6 +10,7 @@ INPUT:
 - output/TILDA-translated/TILDA Bikelanes [Neukoelln] Translated.fgb
 - output/TILDA-translated/TILDA Streets [Neukoelln] Translated.fgb
 - output/TILDA-translated/TILDA Paths [Neukoelln] Translated.fgb
+- output/rvn/Berlin Vorrangnetz_with_element_nr.fgb
 - data/Berlin Radvorrangsnetz.fgb
 - data/include_ways.txt (manuelle Eingriffe)
 - data/exclude_ways.txt (manuelle Eingriffe)
@@ -104,6 +105,30 @@ def load_geodataframe(path, name, target_crs):
     if gdf.crs != target_crs:
         gdf = gdf.to_crs(target_crs)
     return gdf
+
+
+def filter_out_cycleway_link(gdf, dataset_name):
+    """Filtert alle Elemente mit category == 'cyclewayLink' heraus.
+
+    Args:
+        gdf (GeoDataFrame): Eingangs-Datensatz.
+        dataset_name (str): Name des Datensatzes für Logging.
+
+    Returns:
+        GeoDataFrame: Gefilterter Datensatz ohne category == 'cyclewayLink'.
+    """
+    if 'category' not in gdf.columns:
+        # Keine category-Spalte vorhanden – nichts zu tun
+        return gdf
+    initial_count = len(gdf)
+    if initial_count == 0:
+        return gdf
+    mask = gdf['category'] != 'cyclewayLink'
+    filtered = gdf[mask].copy()
+    removed = initial_count - len(filtered)
+    if removed > 0:
+        print(f"Filter: Entferne {removed} 'cyclewayLink' Features aus {dataset_name} (vorher {initial_count}, jetzt {len(filtered)}).")
+    return filtered
 
 
 def line_in_buffer_fraction(line, buffer_geom):
@@ -354,6 +379,8 @@ def process_data_source(osm_fgb_path, output_prefix, vorrangnetz_gdf, unified_bu
     print(f"\n--- Starte Verarbeitung für: {output_prefix} ---")
     # Schritt 1: OSM-Daten laden
     osm_gdf = load_geodataframe(osm_fgb_path, f"OSM {output_prefix}", TARGET_CRS)
+    # Schritt 1a: Entferne category == cyclewayLink (soll nicht gematcht werden)
+    osm_gdf = filter_out_cycleway_link(osm_gdf, f"OSM {output_prefix}")
     # Schritt 2: OSM-Wege im Buffer finden
     cache_path = f'./output/matching/osm_{output_prefix}_in_buffering.fgb'
     use_multiprocessing = not args.disable_multiprocessing
