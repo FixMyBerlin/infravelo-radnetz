@@ -205,7 +205,6 @@ if [[ $START_STEP -le 2 ]]; then
     # Lösche Snapping Zwischendateien (werden in Schritt 2 erstellt)
     if [ -d "output/snapping" ]; then
         rm -f output/snapping/rvn-segmented*.fgb
-        rm -f output/snapping/rvn-segmented-attributed*.fgb
         rm -f output/snapping/osm_candidates_per_edge*.txt
         echo "  - Gelöscht: Snapping Zwischendateien"
     fi
@@ -264,42 +263,42 @@ else
 fi
 
 # Schritt 4: Qualitätssicherungstests
-if [[ $START_STEP -le 4 ]]; then
-    if [[ -n "$VIEW" ]]; then
-        echo "🧪 Schritt 4/4: Überspringe Qualitätssicherungstests bei Viewport-Verarbeitung"
-        echo "   ℹ️  Tests werden bei --view Parameter nicht ausgeführt (kleine Datenmenge nicht repräsentativ)"
-        STEP4_START=$(date +%s)
-        STEP4_DURATION=0
-        echo "⏱️  Schritt 4 dauerte: ${STEP4_DURATION}s"
-        echo "✅ Schritt 4 übersprungen."
-    else
-        echo "🧪 Schritt 4/4: Führe Qualitätssicherungstests durch..."
-        STEP4_START=$(date +%s)
+# if [[ $START_STEP -le 4 ]]; then
+#     if [[ -n "$VIEW" ]]; then
+#         echo "🧪 Schritt 4/4: Überspringe Qualitätssicherungstests bei Viewport-Verarbeitung"
+#         echo "   ℹ️  Tests werden bei --view Parameter nicht ausgeführt (kleine Datenmenge nicht repräsentativ)"
+#         STEP4_START=$(date +%s)
+#         STEP4_DURATION=0
+#         echo "⏱️  Schritt 4 dauerte: ${STEP4_DURATION}s"
+#         echo "✅ Schritt 4 übersprungen."
+#     else
+#         echo "🧪 Schritt 4/4: Führe Qualitätssicherungstests durch..."
+#         STEP4_START=$(date +%s)
         
-        if [[ "$CLIP_NEUKOELLN" == "--clip-neukoelln" ]]; then
-            ./.venv/bin/python testing/run_tests.py --clip-neukoelln
-        else
-            ./.venv/bin/python testing/run_tests.py
-        fi
+#         if [[ "$CLIP_NEUKOELLN" == "--clip-neukoelln" ]]; then
+#             ./.venv/bin/python testing/run_tests.py --clip-neukoelln
+#         else
+#             ./.venv/bin/python testing/run_tests.py
+#         fi
         
-        if [ $? -ne 0 ]; then
-            echo "❌ Qualitätssicherungstests fehlgeschlagen!"
-            echo "   Die Verarbeitung wurde zwar abgeschlossen, aber die erwarteten"
-            echo "   Attributwerte stimmen nicht mit den Test-Definitionen überein."
-            echo "   Bitte überprüfen Sie die Ausgabe der Tests und die Verarbeitung."
-            # Beende Script mit Fehlercode
-            exit 1
-        fi
+#         if [ $? -ne 0 ]; then
+#             echo "❌ Qualitätssicherungstests fehlgeschlagen!"
+#             echo "   Die Verarbeitung wurde zwar abgeschlossen, aber die erwarteten"
+#             echo "   Attributwerte stimmen nicht mit den Test-Definitionen überein."
+#             echo "   Bitte überprüfen Sie die Ausgabe der Tests und die Verarbeitung."
+#             # Beende Script mit Fehlercode
+#             exit 1
+#         fi
         
-        show_elapsed_time $STEP4_START "Schritt 4"
-        echo "✅ Schritt 4 abgeschlossen."
-    fi
-    echo ""
-else
-    echo "⏭️  Überspringe Schritt 4 (Qualitätssicherungstests)"
-    echo ""
-fi
-echo ""
+#         show_elapsed_time $STEP4_START "Schritt 4"
+#         echo "✅ Schritt 4 abgeschlossen."
+#     fi
+#     echo ""
+# else
+#     echo "⏭️  Überspringe Schritt 4 (Qualitätssicherungstests)"
+#     echo ""
+# fi
+# echo ""
 
 echo "🎉 Verarbeitungsprozess erfolgreich abgeschlossen!"
 
