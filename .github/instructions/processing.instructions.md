@@ -29,3 +29,4 @@ The result is an enriched street network where each segment carries the relevant
 - Update the requirements.txt file with the new packages used in the code.
 - Every Python module should include all relevant input and output files in the docstring at the top of the file.
 - When testing the scripts, make sure to execute the scripts with the neukoelln cli parameter, so the execution is faster.
+- Be aware, that there are always MultiLineString geometry objects, not just LineString.
