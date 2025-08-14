@@ -41,7 +41,6 @@ from helpers.clipping import clip_to_neukoelln, clip_to_view
 
 # -------------------------------------------------------------- Konstanten --
 CONFIG_BUFFER_DEFAULT = 25     # Standard-Puffergröße in Metern zum Suchraum
-CONFIG_MAX_ANGLE_DIFFERENCE = 50 # Maximaler Winkelunterschied für Ausrichtung in Grad
 CONFIG_SEGMENT_LENGTH = 2.5    # Segmentlänge in Metern für die Netz-Aufteilung
 CONFIG_PROGRESS_UPDATE_INTERVAL = 100  # Fortschritt alle N Segmente aktualisieren
 CONFIG_BATCH_SIZE = 750        # Anzahl Segmente pro Batch für bessere Performance
@@ -405,6 +404,37 @@ def angle_difference(angle1: float, angle2: float) -> float:
     return min(diff, 360 - diff)
 
 
+def calculate_angle_priority(segment_geom, tilda_geom) -> float:
+    """
+    Berechnet Winkel-Priorität zwischen RVN-Segment und TILDA-Weg.
+    
+    Winkel-Priorität basiert auf orthogonaler Entfernung:
+    - 0° Differenz (parallel): +10 Priorität
+    - 90° Differenz (orthogonal): -10 Priorität (schlechteste Bewertung)
+    - 180° Differenz (gegenläufig): +10 Priorität (könnte richtige Richtung sein)
+    
+    Args:
+        segment_geom: Geometrie des Netzwerksegments
+        tilda_geom: Geometrie des TILDA-Wegs
+        
+    Returns:
+        float: Winkel-Priorität von -10 bis +10
+    """
+    segment_angle = calculate_line_angle(segment_geom)
+    tilda_angle = calculate_line_angle(tilda_geom)
+    angle_diff = angle_difference(segment_angle, tilda_angle)
+    
+    # Transformiere so dass orthogonale Wege (90°) die niedrigste Priorität (-10) bekommen
+    # und parallele/gegenläufige Wege (0°/180°) die höchste Priorität (+10)
+    # Formula: priority = 10 * cos(2 * angle_diff_radians)
+    # Bei 0°: cos(0) = 1 → +10, Bei 90°: cos(π) = -1 → -10, Bei 180°: cos(2π) = 1 → +10
+    angle_rad = np.radians(angle_diff)
+    angle_priority = 10 * np.cos(2 * angle_rad)
+    
+    logging.debug(f"Winkel-Priorität: {angle_diff:.1f}° → {angle_priority:.2f} Punkte")
+    return angle_priority
+
+
 def determine_segment_direction(segment_geom, osm_geom) -> int:
     """
     Bestimmt die Richtung (ri) eines Segments basierend auf der Ausrichtung
@@ -640,11 +670,18 @@ def debug_merge_attributes(gdf, id_field, osm_fields, sample_element_nr=None):
             logging.info(f"  Kombination {idx}: {dict(row)}")
 
 
-def calculate_osm_priority(row) -> int:
+def calculate_osm_priority(row, seg_dict=None) -> int:
     """
-    Berechnet die Priorität eines OSM-Wegs basierend auf traffic_sign und category.
+    Berechnet die Priorität eines OSM-Wegs basierend auf traffic_sign, category und Straßennamen-Match.
     Höhere Zahl = höhere Priorität.
     Unterstützt Wildcard-Matching: Kategorien mit '*' am Ende verwenden Präfix-Match.
+    
+    Args:
+        row: TILDA-Kandidat Zeile mit den zu bewertenden Attributen
+        seg_dict: Segment-Dictionary mit strassenname für Straßennamen-Vergleich
+        
+    Returns:
+        int: Prioritätswert (höher = besser)
     """
     priority = 0
     
@@ -670,6 +707,24 @@ def calculate_osm_priority(row) -> int:
                 # Exakter Match
                 if category_str == pattern:
                     priority = max(priority, prio)
+    
+    # Priorität basierend auf Straßennamen-Match
+    if seg_dict is not None:
+        segment_strassenname = seg_dict.get("strassenname", "")
+        tilda_name = row.get("tilda_name", "")
+        
+        # Nur vergleichen wenn beide Namen vorhanden sind
+        if segment_strassenname and tilda_name:
+            # Normalisiere die Namen für Vergleich (Leerzeichen trimmen, Case-Insensitive)
+            segment_name_norm = str(segment_strassenname).strip().lower()
+            tilda_name_norm = str(tilda_name).strip().lower()
+            
+            if segment_name_norm == tilda_name_norm:
+                priority += 10  # Straßenname stimmt überein
+                logging.debug(f"Straßenname-Match: '{segment_strassenname}' == '{tilda_name}' → +10 Punkte")
+            else:
+                priority -= 10  # Straßenname stimmt nicht überein
+                logging.debug(f"Straßenname-Mismatch: '{segment_strassenname}' != '{tilda_name}' → -10 Punkte")
     
     return priority
 
@@ -698,8 +753,14 @@ def find_best_candidate_for_direction(candidates, seg_dict, ri_value, segment_an
     
     logging.debug(f"Bewerte {len(candidates)} Kandidaten für ri={ri_value}, element_nr={element_nr}")
     
-    # Berechne Priorität für alle Kandidaten
-    candidates["priority"] = candidates.apply(calculate_osm_priority, axis=1)
+    # Berechne Priorität für alle Kandidaten (inkl. Straßennamen-Match)
+    candidates["priority"] = candidates.apply(lambda row: calculate_osm_priority(row, seg_dict), axis=1)
+    
+    # Berechne Winkel-Priorität für alle Kandidaten
+    candidates["angle_priority"] = 0.0
+    for idx, candidate in candidates.iterrows():
+        angle_prio = calculate_angle_priority(segment_geom, candidate.geometry)
+        candidates.at[idx, "angle_priority"] = angle_prio
     
     # Berechne Entfernung zum Segmentmittelpunkt
     mid = segment_geom.interpolate(0.5, normalized=True)
@@ -735,19 +796,29 @@ def find_best_candidate_for_direction(candidates, seg_dict, ri_value, segment_an
                 candidates.at[idx, "direction_compatibility"] = 10
                 logging.debug(f"    → Richtung passt perfekt! direction_compatibility=10")
             else:
-                # Richtung passt nicht - niedrigere Priorität
-                candidates.at[idx, "direction_compatibility"] = 0
-                logging.debug(f"    → Richtung passt NICHT! direction_compatibility=0")
+                # Richtung passt nicht - NEGATIVE Priorität für gegenläufige Wege
+                candidates.at[idx, "direction_compatibility"] = -10
+                logging.debug(f"    → Richtung passt NICHT! direction_compatibility=-10 (gegenläufig)")
         else:
             # Bei Zweirichtungsverkehr: Kann für beide Richtungen verwendet werden
             candidates.at[idx, "direction_compatibility"] = 1
             logging.debug(f"  Kandidat {candidate_tilda_id}: Zweirichtungsverkehr, "
                          f"Winkel={candidate_angle:.1f}°, direction_compatibility=1")
     
-    # Sortiere nach Richtungskompatibilität, Priorität und Entfernung
+    # Filtere gegenläufige Kandidaten mit negativer direction_compatibility aus
+    positive_candidates = candidates[candidates["direction_compatibility"] >= 0]
+    
+    if len(positive_candidates) == 0:
+        logging.debug(f"Alle Kandidaten für ri={ri_value} haben negative direction_compatibility - nehme besten trotzdem")
+        # Fallback: Wenn alle Kandidaten negativ sind, nehme den am wenigsten negativen
+    else:
+        candidates = positive_candidates
+        logging.debug(f"Filtere {len(candidates.index) - len(positive_candidates)} gegenläufige Kandidaten aus")
+    
+    # Sortiere nach Richtungskompatibilität, Winkel-Priorität, TILDA-Priorität und Entfernung
     candidates = candidates.sort_values(
-        ["direction_compatibility", "priority", "dist_to_mid"], 
-        ascending=[False, False, True]
+        ["direction_compatibility", "angle_priority", "priority", "dist_to_mid"], 
+        ascending=[False, False, False, True]
     )
     
     # Logge die Sortierreihenfolge
@@ -755,6 +826,7 @@ def find_best_candidate_for_direction(candidates, seg_dict, ri_value, segment_an
         best_candidate = candidates.iloc[0]
         logging.debug(f"Bester Kandidat für ri={ri_value}: {best_candidate.get('tilda_id', 'unknown')} "
                      f"(dir_compat={best_candidate.get('direction_compatibility', -1)}, "
+                     f"angle_prio={best_candidate.get('angle_priority', -1):.2f}, "
                      f"priority={best_candidate.get('priority', -1)}, "
                      f"dist={best_candidate.get('dist_to_mid', -1):.1f}m)")
         
@@ -764,6 +836,7 @@ def find_best_candidate_for_direction(candidates, seg_dict, ri_value, segment_an
             for i, (_, cand) in enumerate(candidates.iloc[1:].iterrows(), 1):
                 logging.debug(f"  {i+1}. {cand.get('tilda_id', 'unknown')} "
                              f"(dir_compat={cand.get('direction_compatibility', -1)}, "
+                             f"angle_prio={cand.get('angle_priority', -1):.2f}, "
                              f"priority={cand.get('priority', -1)}, "
                              f"dist={cand.get('dist_to_mid', -1):.1f}m)")
     
@@ -1175,7 +1248,6 @@ def process(net_path, osm_path, out_path, crs, buffer, clip_neukoelln=False, dat
             candidates_log.write("# TILDA-Kandidaten pro element_nr und Richtung\n")
             candidates_log.write("# Generiert von start_snapping.py\n")
             candidates_log.write(f"# Puffergröße: {buffer}m\n")
-            candidates_log.write(f"# Max. Winkelunterschied: {CONFIG_MAX_ANGLE_DIFFERENCE}°\n")
             candidates_log.write("#\n")
             candidates_log.write("# Format: element_nr -> Segment #X -> ri=0/1: bester_kandidat [Details] verfügbare: [alle_kandidaten]\n")
             candidates_log.write("#\n\n")
