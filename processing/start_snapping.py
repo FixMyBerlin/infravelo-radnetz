@@ -57,7 +57,7 @@ RVN_ATTRIBUT_ENDE_VP   = "endet_bei_vp"         # Endknoten-ID
 # Attribute an denen die Kanten getrennt werden bzw. verschmolzen werden
 # Diese Attribute müssen in den übersetzten TILDA Daten vorhanden sein
 FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES = ["fuehr", "ofm", "protek", "pflicht", "breite", "farbe", "ri", "verkehrsri", "trennstreifen", "nutz_beschr", "Kommentar"]
-FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES=["data_source", "tilda_id", "tilda_name","tilda_oneway", "tilda_category", "tilda_traffic_sign", "tilda_mapillary", "tilda_mapillary_traffic_sign", "tilda_mapillary_backward", "tilda_mapillary_forward"]
+FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES=["data_source", "tilda_id", "tilda_name","tilda_oneway", "tilda_category", "tilda_traffic_sign", "tilda_mapillary", "tilda_mapillary_traffic_sign", "tilda_mapillary_backward", "tilda_mapillary_forward", "prio_traffic", "prio_category", "prio_street", "prio_total", "prio_angle", "prio_direction", "prio_distance", "prio_distance_weighted", "prio_total_weighted", "angle_diff", "angle_segment", "angle_tilda"]
 
 # Gewünschte Spaltenreihenfolge für Datenaufbereitung (finale Ausgabe)
 COLUMN_ORDER = [
@@ -89,31 +89,80 @@ COLUMN_ORDER = [
     "tilda_mapillary_traffic_sign",
     "tilda_mapillary_backward",
     "tilda_mapillary_forward",
+    # Prioritäts-Spalten für die Kandidatenauswahl
+    "prio_traffic",           # Priorität basierend auf Verkehrszeichen
+    "prio_category",          # Priorität basierend auf Kategorie
+    "prio_street",            # Priorität basierend auf Straßennamen-Match
+    "prio_total",             # Gesamtpriorität
+    "prio_angle",             # Priorität basierend auf Winkelausrichtung
+    "prio_direction",         # Priorität basierend auf Richtungskompatibilität  
+    "prio_distance",          # Entfernung zum Segmentmittelpunkt (in Metern)
+    "prio_distance_weighted", # Gewichtete Entfernungs-Priorität (hyperbolisch)
+    "prio_total_weighted",    # Gewichtete Gesamtpriorität (TILDA + Winkel + Entfernung)
+    "angle_diff",             # Winkeldifferenz zwischen Segment und TILDA-Weg (in Grad)
+    "angle_segment",          # Winkel des Segments (in Grad)
+    "angle_tilda",            # Winkel des TILDA-Wegs (in Grad)
     # Weitere Standardspalten
     "data_source",
     "edge_source",
     "geometry"                # Geometrie immer als letzte Spalte
 ]
 
-# Prioritäten für OSM-Weg-Auswahl (höhere Zahl = höhere Priorität)
-TILDA_TRAFFIC_SIGN_PRIORITIES = {
-    "237": 3,  # Radweg
-    "240": 3,  # Gemeinsamer Geh- und Radweg
-    "241": 3,  # Getrennter Rad- und Gehweg
-}
+# -------------------------------------------------------- PRIORITÄTS-KONFIGURATION --
+# Zentrale Konfiguration aller Prioritäten, Belohnungen und Strafen für die Kandidatenauswahl
+# Diese Werte werden sowohl im Snapping als auch in der Analyse verwendet
+#
+# ANPASSUNG DER WERTE:
+# Um die Prioritäten zu ändern, passen Sie die Werte in der SnappingPriorities-Klasse an.
+# Höhere Werte = höhere Priorität bei der Kandidatenauswahl.
+# Negative Werte = Strafen, die Kandidaten weniger wahrscheinlich machen.
 
-# Kategorie-Prioritäten
-TILDA_CATEGORY_PRIORITIES = {
-    "bicycleRoad*": 6,  # Fahrradstraße
-    "cycleway*": 6,  # Radweg
-    "footAndCycleway*": 5,  # Fußweg mit Radverkehr
-    "footwayBicycle*": 4,  # Fußweg mit Radverkehr
-    "sharedBusLaneBikeWithBus": 3,  # Gemeinsame Busspur mit Radverkehr
-    "sharedBusLaneBusWithBike": 3,
-    "crossing": 3,
-    "pedestrianAreaBicycleYes": 2,  # Fußgängerzone mit Radverkehr
-    "sharedMotorVehicleLane": 1,  # Niedrigste Priorität
-}
+class SnappingPriorities:
+    """
+    Zentrale Konfiguration für alle Prioritätswerte beim Snapping.
+    Alle Werte sind als Klassenvariablen definiert und können einfach angepasst werden.
+    
+    Diese Konfiguration wird sowohl vom Snapping-Algorithmus als auch vom
+    Analyse-Skript (analyze_snapping_candidates.py) verwendet.
+    """
+    
+    # Verkehrszeichen-Prioritäten (höhere Zahl = höhere Priorität)
+    TRAFFIC_SIGN_PRIORITIES = {
+        "237": 3,  # Radweg
+        "240": 3,  # Gemeinsamer Geh- und Radweg
+        "241": 3,  # Getrennter Rad- und Gehweg
+    }
+    
+    # Kategorie-Prioritäten (höhere Zahl = höhere Priorität)
+    CATEGORY_PRIORITIES = {
+        "bicycleRoad*": 15,  # Fahrradstraße
+        "cycleway*": 15,  # Radweg
+        "footAndCycleway*": 12,  # Fußweg mit Radverkehr
+        "crossing": 10,
+        "sharedBusLaneBikeWithBus": 8,  # Gemeinsame Busspur mit Radverkehr
+        "sharedBusLaneBusWithBike": 8,
+        "footwayBicycle*": 5,  # Fußweg mit Radverkehr
+        "pedestrianAreaBicycleYes": 5,  # Fußgängerzone mit Radverkehr
+        "sharedMotorVehicleLane": 1,  # Niedrigste Priorität
+    }
+    
+    # Straßennamen-Match Prioritäten
+    STREET_NAME_MATCH_REWARD = 10     # Belohnung für exakte Straßennamen-Übereinstimmung
+    STREET_NAME_MISMATCH_PENALTY = -20  # Strafe für Straßennamen-Mismatch
+    
+    # Richtungskompatibilität Prioritäten
+    DIRECTION_PERFECT_MATCH = 10     # Einrichtungsverkehr mit passender Richtung
+    DIRECTION_BIDIRECTIONAL = 8      # Zweirichtungsverkehr (beide Richtungen möglich)
+    DIRECTION_WRONG_WAY = -10        # Einrichtungsverkehr mit falscher Richtung
+    
+    # Winkel-Priorität Konfiguration (kontinuierliche Funktion)
+    ANGLE_PARALLEL_REWARD = 10       # Belohnung für parallele Wege (0°, 180°) - maximaler Wert
+    ANGLE_ORTHOGONAL_PENALTY = -20   # Strafe für orthogonale Wege (90°) - minimaler Wert der kontinuierlichen Funktion
+    
+    # Entfernungs-Priorität Konfiguration
+    DISTANCE_MAX_PRIORITY = 20       # Maximale Priorität bei Entfernung 0m
+    DISTANCE_REFERENCE = 10.0        # Referenz-Entfernung in Metern (bei dieser Entfernung = halbe Priorität)
+    DISTANCE_WEIGHT_FACTOR = 1.0     # Gewichtungsfaktor für Entfernungseinfluss (1.0 = volle Gewichtung)
 
 
 def calculate_angles_vectorized(geometries):
@@ -154,6 +203,57 @@ def calculate_angles_vectorized(geometries):
         angles[i] = angle if angle >= 0 else angle + 360
     
     return angles
+
+
+def set_priority_values(variant, best_osm, segment_angle):
+    """
+    Hilfsfunktion: Setzt alle Prioritätswerte in einer Variante basierend auf dem besten OSM-Kandidaten.
+    
+    Args:
+        variant: Das Segment-Dictionary, in das die Prioritäten geschrieben werden
+        best_osm: Der beste OSM-Kandidat mit allen berechneten Prioritäten
+        segment_angle: Der Winkel des Segments
+    """
+    if best_osm is not None:
+        # Übertrage TILDA-Prioritätswerte
+        priority_details = best_osm.get('priority_details', {})
+        variant["prio_traffic"] = priority_details.get('traffic_priority', 0)
+        variant["prio_category"] = priority_details.get('category_priority', 0)
+        variant["prio_street"] = priority_details.get('street_name_priority', 0)
+        variant["prio_total"] = priority_details.get('total_priority', 0)
+        
+        # Übertrage geometrische und räumliche Prioritäten
+        variant["prio_angle"] = best_osm.get('angle_priority', 0)
+        variant["prio_direction"] = best_osm.get('direction_compatibility', 0)
+        variant["prio_distance"] = best_osm.get('dist_to_mid', None)
+        variant["prio_distance_weighted"] = best_osm.get('distance_priority', 0)  # Neue gewichtete Entfernungs-Priorität
+        variant["prio_total_weighted"] = best_osm.get('total_priority_weighted', 0)  # Neue Gesamtpriorität
+        
+        # Berechne und speichere Winkelinformationen
+        tilda_geom = best_osm.get('geometry')
+        if tilda_geom is not None:
+            tilda_angle = calculate_line_angle(tilda_geom)
+            variant["angle_segment"] = segment_angle
+            variant["angle_tilda"] = tilda_angle
+            variant["angle_diff"] = angle_difference(segment_angle, tilda_angle)
+        else:
+            variant["angle_segment"] = segment_angle
+            variant["angle_tilda"] = None
+            variant["angle_diff"] = None
+    else:
+        # Keine OSM-Kandidaten: Alle Prioritätswerte auf Standardwerte setzen
+        variant["prio_traffic"] = 0
+        variant["prio_category"] = 0
+        variant["prio_street"] = 0
+        variant["prio_total"] = 0
+        variant["prio_angle"] = 0
+        variant["prio_direction"] = 0
+        variant["prio_distance"] = None
+        variant["prio_distance_weighted"] = 0
+        variant["prio_total_weighted"] = 0
+        variant["angle_segment"] = segment_angle
+        variant["angle_tilda"] = None
+        variant["angle_diff"] = None
 
 
 def create_base_variant_optimized(seg_dict: dict, ri_value: int) -> dict:
@@ -249,7 +349,7 @@ def process_segments_batch(segments_batch, osm_gdf, osm_sidx, buffer, candidates
     batch_results = []
     
     for local_idx, seg_dict in enumerate(segments_batch):
-        global_idx = batch_start_idx + local_idx + 1
+        element_nr = seg_dict.get('element_nr', 'unknown')  # Verwende sfid statt global_idx
         g = seg_dict['geometry']
         
         # Buffer einmal berechnen und cachen
@@ -262,7 +362,7 @@ def process_segments_batch(segments_batch, osm_gdf, osm_sidx, buffer, candidates
             batch_results.extend(variants)
             
             if candidates_log:
-                candidates_log.write(f"  Segment #{global_idx}: KEINE KANDIDATEN GEFUNDEN\n")
+                candidates_log.write(f"  Segment element_nr={element_nr}: KEINE KANDIDATEN GEFUNDEN\n")
             continue
             
         # Kopiere die TILDA-Kandidaten, die im räumlichen Buffer gefunden wurden
@@ -278,7 +378,7 @@ def process_segments_batch(segments_batch, osm_gdf, osm_sidx, buffer, candidates
             batch_results.extend(variants)
             
             if candidates_log:
-                candidates_log.write(f"  Segment #{global_idx}: KEINE KANDIDATEN IM PUFFER\n")
+                candidates_log.write(f"  Segment element_nr={element_nr}: KEINE KANDIDATEN IM PUFFER\n")
             continue
 
         # Berechne Winkel vektorisiert statt mit apply()
@@ -293,7 +393,7 @@ def process_segments_batch(segments_batch, osm_gdf, osm_sidx, buffer, candidates
         # Kandidaten-Logging (falls aktiviert)
         if candidates_log:
             all_tilda_ids = [c.get('tilda_id', 'unknown') for _, c in cand.iterrows()]
-            candidates_log.write(f"  Segment #{global_idx}:\n")
+            candidates_log.write(f"  Segment element_nr={element_nr}:\n")
             
             for ri_value in [0, 1]:
                 ri_name = "Hinrichtung" if ri_value == 0 else "Rückrichtung"
@@ -304,19 +404,46 @@ def process_segments_batch(segments_batch, osm_gdf, osm_sidx, buffer, candidates
                     distance = best_candidate.get('d', -1)
                     angle_diff = best_candidate.get('angle_diff', -1)
                     dir_compat = best_candidate.get('direction_compatibility', -1)
+                    angle_prio = best_candidate.get('angle_priority', -1)
+                    tilda_prio = best_candidate.get('priority', -1)
                     verkehrsri = best_candidate.get('verkehrsri', 'unknown')
                     
-                    candidates_log.write(f"    ri={ri_value} ({ri_name}): {best_tilda_id}")
-                    candidates_log.write(f" [dist={distance:.1f}m, angle_diff={angle_diff:.1f}°, dir_compat={dir_compat}, verkehrsri={verkehrsri}]")
+                    # Extrahiere detaillierte Prioritätsinformationen falls verfügbar
+                    priority_details = best_candidate.get('priority_details', {})
+                    
+                    candidates_log.write(f"    ri={ri_value} ({ri_name}): {best_tilda_id}\n")
+                    
+                    # Detaillierte TILDA-Prioritäten einzeln aufführen
+                    if priority_details:
+                        traffic_prio = priority_details.get('traffic_priority', 0)
+                        category_prio = priority_details.get('category_priority', 0)
+                        street_prio = priority_details.get('street_name_priority', 0)
+                        traffic_sign = priority_details.get('traffic_sign', 'None')
+                        category = priority_details.get('category', 'None')
+                        category_pattern = priority_details.get('category_pattern', '')
+                        street_detail = priority_details.get('street_name_detail', '')
+                        
+                        candidates_log.write(f"      → PRIORITÄTEN: dir_compat={dir_compat}, angle_prio={angle_prio:.2f}, dist={distance:.1f}m\n")
+                        candidates_log.write(f"      → TILDA-PRIORITÄTEN:\n")
+                        candidates_log.write(f"        • Traffic_Sign({traffic_sign}): {traffic_prio}\n")
+                        if category_pattern:
+                            candidates_log.write(f"        • Category({category}~{category_pattern}): {category_prio}\n")
+                        else:
+                            candidates_log.write(f"        • Category({category}): {category_prio}\n")
+                        candidates_log.write(f"        • StreetName({street_detail}): {street_prio}\n")
+                        candidates_log.write(f"        • GESAMT: {tilda_prio}\n")
+                    else:
+                        # Fallback falls detaillierte Informationen nicht verfügbar sind
+                        candidates_log.write(f"      → PRIORITÄTEN: dir_compat={dir_compat}, angle_prio={angle_prio:.2f}, tilda_prio={tilda_prio}, dist={distance:.1f}m\n")
+                    
+                    candidates_log.write(f"      → DETAILS: angle_diff={angle_diff:.1f}°, verkehrsri={verkehrsri}\n")
                     
                     if len(all_tilda_ids) > 1:
-                        candidates_log.write(f" verfügbare: {all_tilda_ids}")
-                    candidates_log.write("\n")
+                        candidates_log.write(f"      → VERFÜGBARE: {all_tilda_ids}\n")
                 else:
-                    candidates_log.write(f"    ri={ri_value} ({ri_name}): KEIN BESTER KANDIDAT")
+                    candidates_log.write(f"    ri={ri_value} ({ri_name}): KEIN BESTER KANDIDAT\n")
                     if all_tilda_ids:
-                        candidates_log.write(f" verfügbare: {all_tilda_ids}")
-                    candidates_log.write("\n")
+                        candidates_log.write(f"      → VERFÜGBARE: {all_tilda_ids}\n")
 
         # Erzeuge Segment-Varianten basierend auf TILDA-Daten (optimiert)
         variants = create_directional_segment_variants_optimized(seg_dict, cand, cand)
@@ -324,7 +451,7 @@ def process_segments_batch(segments_batch, osm_gdf, osm_sidx, buffer, candidates
         
         # Logge ausgewählte Kandidaten
         if candidates_log:
-            candidates_log.write(f"    AUSGEWÄHLT für Segment #{global_idx}:\n")
+            candidates_log.write(f"    AUSGEWÄHLT für Segment element_nr={element_nr}:\n")
             for variant in variants:
                 ri = variant.get('ri', 'unknown')
                 tilda_id = variant.get('tilda_id', 'None')
@@ -404,34 +531,66 @@ def angle_difference(angle1: float, angle2: float) -> float:
     return min(diff, 360 - diff)
 
 
+def calculate_distance_priority(distance_to_mid: float) -> float:
+    """
+    Berechnet eine Entfernungs-Priorität basierend auf der Entfernung zum Segmentmittelpunkt.
+    
+    Verwendet eine hyperbolische Funktion:
+    priority = MAX_PRIORITY * WEIGHT_FACTOR / (1 + distance / REFERENCE_DISTANCE)
+    
+    Bei distance = 0m: maximale Priorität (MAX_PRIORITY * WEIGHT_FACTOR)
+    Bei distance = REFERENCE_DISTANCE: halbe maximale Priorität
+    Bei großen Entfernungen: asymptotisch gegen 0
+    
+    Args:
+        distance_to_mid: Entfernung zum Segmentmittelpunkt in Metern
+        
+    Returns:
+        float: Entfernungs-Priorität (0 bis MAX_PRIORITY * WEIGHT_FACTOR)
+    """
+    if distance_to_mid <= 0:
+        return SnappingPriorities.DISTANCE_MAX_PRIORITY * SnappingPriorities.DISTANCE_WEIGHT_FACTOR
+    
+    # Hyperbolische Funktion: hohe Priorität bei geringer Entfernung, asymptotisch fallend
+    distance_priority = (SnappingPriorities.DISTANCE_MAX_PRIORITY * SnappingPriorities.DISTANCE_WEIGHT_FACTOR) / (1 + distance_to_mid / SnappingPriorities.DISTANCE_REFERENCE)
+    
+    logging.debug(f"Entfernungs-Priorität: {distance_to_mid:.1f}m → {distance_priority:.2f} Punkte (hyperbolisch)")
+    return distance_priority
+
+
 def calculate_angle_priority(segment_geom, tilda_geom) -> float:
     """
     Berechnet Winkel-Priorität zwischen RVN-Segment und TILDA-Weg.
     
-    Winkel-Priorität basiert auf orthogonaler Entfernung:
-    - 0° Differenz (parallel): +10 Priorität
-    - 90° Differenz (orthogonal): -10 Priorität (schlechteste Bewertung)
-    - 180° Differenz (gegenläufig): +10 Priorität (könnte richtige Richtung sein)
+    Verwendet eine kontinuierliche Cosinus-Funktion die durchgängig von:
+    - 0° Differenz (parallel): +10 (beste Bewertung)
+    - 90° Differenz (orthogonal): -20 (schlechteste Bewertung)
+    - 180° Differenz (gegenläufig): +10 (könnte richtige Richtung sein)
+    
+    Die Funktion ist kontinuierlich und hat keine Sprünge.
+    Formula: priority = PARALLEL_REWARD + (ORTHOGONAL_PENALTY - PARALLEL_REWARD) * sin²(angle_diff)
     
     Args:
         segment_geom: Geometrie des Netzwerksegments
         tilda_geom: Geometrie des TILDA-Wegs
         
     Returns:
-        float: Winkel-Priorität von -10 bis +10
+        float: Winkel-Priorität (kontinuierlich von +10 bis -20)
     """
     segment_angle = calculate_line_angle(segment_geom)
     tilda_angle = calculate_line_angle(tilda_geom)
     angle_diff = angle_difference(segment_angle, tilda_angle)
     
-    # Transformiere so dass orthogonale Wege (90°) die niedrigste Priorität (-10) bekommen
-    # und parallele/gegenläufige Wege (0°/180°) die höchste Priorität (+10)
-    # Formula: priority = 10 * cos(2 * angle_diff_radians)
-    # Bei 0°: cos(0) = 1 → +10, Bei 90°: cos(π) = -1 → -10, Bei 180°: cos(2π) = 1 → +10
+    # Kontinuierliche Funktion von +PARALLEL_REWARD (bei 0°/180°) bis ORTHOGONAL_PENALTY (bei 90°)
+    # Verwende sin²(angle_diff) um bei 0° und 180° den maximalen Wert zu erreichen
+    # und bei 90° den minimalen Wert ORTHOGONAL_PENALTY
     angle_rad = np.radians(angle_diff)
-    angle_priority = 10 * np.cos(2 * angle_rad)
+    sin_squared = np.sin(angle_rad) ** 2
     
-    logging.debug(f"Winkel-Priorität: {angle_diff:.1f}° → {angle_priority:.2f} Punkte")
+    # Linear interpolieren zwischen PARALLEL_REWARD (beste) und ORTHOGONAL_PENALTY (schlechteste)
+    angle_priority = SnappingPriorities.ANGLE_PARALLEL_REWARD + (SnappingPriorities.ANGLE_ORTHOGONAL_PENALTY - SnappingPriorities.ANGLE_PARALLEL_REWARD) * sin_squared
+    
+    logging.debug(f"Winkel-Priorität: {angle_diff:.1f}° → sin²={sin_squared:.3f} → {angle_priority:.2f} Punkte (kontinuierlich 10 bis -20)")
     return angle_priority
 
 
@@ -670,6 +829,91 @@ def debug_merge_attributes(gdf, id_field, osm_fields, sample_element_nr=None):
             logging.info(f"  Kombination {idx}: {dict(row)}")
 
 
+def calculate_osm_priority_detailed(row, seg_dict=None) -> tuple:
+    """
+    Berechnet die Priorität eines OSM-Wegs mit detailliertem Breakdown.
+    
+    Returns:
+        tuple: (total_priority, {traffic_priority, category_priority, street_name_priority, details})
+    """
+    priority = 0
+    tilda_id = row.get("tilda_id", "unknown")
+    
+    # Priorität basierend auf Verkehrszeichen (mit tilda_ Präfix)
+    traffic_sign = row.get("tilda_traffic_sign", "")
+    traffic_priority = 0
+    traffic_sign_matched = None
+    if traffic_sign:
+        for sign, prio in SnappingPriorities.TRAFFIC_SIGN_PRIORITIES.items():
+            if has_traffic_sign(traffic_sign, sign):
+                traffic_priority = max(traffic_priority, prio)
+                traffic_sign_matched = sign
+        priority += traffic_priority
+    
+    # Priorität basierend auf Kategorie (mit tilda_ Präfix)
+    category = row.get("tilda_category", "")
+    category_priority = 0
+    matched_pattern = None
+    if category:
+        category_str = str(category)
+        for pattern, prio in SnappingPriorities.CATEGORY_PRIORITIES.items():
+            # Prüfe ob Pattern mit * endet (Wildcard-Match)
+            if pattern.endswith("*"):
+                # Entferne das * und prüfe ob Kategorie mit dem Präfix beginnt
+                prefix = pattern[:-1]
+                if category_str.startswith(prefix):
+                    if prio > category_priority:
+                        category_priority = prio
+                        matched_pattern = pattern
+            else:
+                # Exakter Match
+                if category_str == pattern:
+                    if prio > category_priority:
+                        category_priority = prio
+                        matched_pattern = pattern
+        priority += category_priority
+    
+    # Priorität basierend auf Straßennamen-Match
+    street_name_priority = 0
+    street_name_detail = "kein_segment"
+    if seg_dict is not None:
+        segment_strassenname = seg_dict.get("strassenname", "")
+        tilda_name = row.get("tilda_name", "")
+        # Wenn beide leer sind, keine Punkte vergeben
+        if not segment_strassenname and not tilda_name:
+            street_name_detail = "beide_leer"
+        elif segment_strassenname and tilda_name:
+            # Normalisiere die Namen für Vergleich (Leerzeichen trimmen, Case-Insensitive)
+            segment_name_norm = str(segment_strassenname).strip().lower()
+            tilda_name_norm = str(tilda_name).strip().lower()
+            if segment_name_norm == tilda_name_norm:
+                street_name_priority = SnappingPriorities.STREET_NAME_MATCH_REWARD
+                street_name_detail = f"match('{segment_strassenname}')"
+            else:
+                street_name_priority = SnappingPriorities.STREET_NAME_MISMATCH_PENALTY
+                street_name_detail = f"mismatch('{segment_strassenname}'!='{tilda_name}')"
+        # Wenn nur einer leer ist, als Mismatch werten
+        else:
+            street_name_priority = 0
+            street_name_detail = f"einer_leer('{segment_strassenname}'vs'{tilda_name}')"
+        priority += street_name_priority
+    
+    # Detailliertes Breakdown zurückgeben
+    details = {
+        'traffic_priority': traffic_priority,
+        'traffic_sign': traffic_sign or "None",
+        'traffic_sign_matched': traffic_sign_matched,
+        'category_priority': category_priority, 
+        'category': category or "None",
+        'category_pattern': matched_pattern,
+        'street_name_priority': street_name_priority,
+        'street_name_detail': street_name_detail,
+        'total_priority': priority
+    }
+    
+    return priority, details
+
+
 def calculate_osm_priority(row, seg_dict=None) -> int:
     """
     Berechnet die Priorität eines OSM-Wegs basierend auf traffic_sign, category und Straßennamen-Match.
@@ -683,48 +927,29 @@ def calculate_osm_priority(row, seg_dict=None) -> int:
     Returns:
         int: Prioritätswert (höher = besser)
     """
-    priority = 0
+    priority, details = calculate_osm_priority_detailed(row, seg_dict)
     
-    # Priorität basierend auf Verkehrszeichen (mit tilda_ Präfix)
-    traffic_sign = row.get("tilda_traffic_sign", "")
-    if traffic_sign:
-        for sign, prio in TILDA_TRAFFIC_SIGN_PRIORITIES.items():
-            if has_traffic_sign(traffic_sign, sign):
-                priority = max(priority, prio)
+    # Logging für Debug-Zwecke (falls aktiviert)
+    tilda_id = row.get("tilda_id", "unknown")
+    components = []
     
-    # Priorität basierend auf Kategorie (mit tilda_ Präfix)
-    category = row.get("tilda_category", "")
-    if category:
-        category_str = str(category)
-        for pattern, prio in TILDA_CATEGORY_PRIORITIES.items():
-            # Prüfe ob Pattern mit * endet (Wildcard-Match)
-            if pattern.endswith("*"):
-                # Entferne das * und prüfe ob Kategorie mit dem Präfix beginnt
-                prefix = pattern[:-1]
-                if category_str.startswith(prefix):
-                    priority = max(priority, prio)
-            else:
-                # Exakter Match
-                if category_str == pattern:
-                    priority = max(priority, prio)
-    
-    # Priorität basierend auf Straßennamen-Match
-    if seg_dict is not None:
-        segment_strassenname = seg_dict.get("strassenname", "")
-        tilda_name = row.get("tilda_name", "")
+    if details['traffic_sign'] != "None":
+        components.append(f"Traffic_Sign({details['traffic_sign']})={details['traffic_priority']}")
+    else:
+        components.append("Traffic_Sign(None)=0")
         
-        # Nur vergleichen wenn beide Namen vorhanden sind
-        if segment_strassenname and tilda_name:
-            # Normalisiere die Namen für Vergleich (Leerzeichen trimmen, Case-Insensitive)
-            segment_name_norm = str(segment_strassenname).strip().lower()
-            tilda_name_norm = str(tilda_name).strip().lower()
-            
-            if segment_name_norm == tilda_name_norm:
-                priority += 10  # Straßenname stimmt überein
-                logging.debug(f"Straßenname-Match: '{segment_strassenname}' == '{tilda_name}' → +10 Punkte")
-            else:
-                priority -= 10  # Straßenname stimmt nicht überein
-                logging.debug(f"Straßenname-Mismatch: '{segment_strassenname}' != '{tilda_name}' → -10 Punkte")
+    if details['category'] != "None":
+        if details['category_pattern']:
+            components.append(f"Category({details['category']}~{details['category_pattern']})={details['category_priority']}")
+        else:
+            components.append(f"Category({details['category']})=0")
+    else:
+        components.append("Category(None)=0")
+    
+    components.append(f"StreetName({details['street_name_detail']})={details['street_name_priority']}")
+    
+    components_str = " + ".join(components)
+    logging.debug(f"Kandidat {tilda_id}: {components_str} = GESAMT:{priority}")
     
     return priority
 
@@ -753,8 +978,14 @@ def find_best_candidate_for_direction(candidates, seg_dict, ri_value, segment_an
     
     logging.debug(f"Bewerte {len(candidates)} Kandidaten für ri={ri_value}, element_nr={element_nr}")
     
-    # Berechne Priorität für alle Kandidaten (inkl. Straßennamen-Match)
+    # Berechne Priorität für alle Kandidaten (inkl. Straßennamen-Match) mit Details
     candidates["priority"] = candidates.apply(lambda row: calculate_osm_priority(row, seg_dict), axis=1)
+    
+    # Berechne detaillierte Prioritätsinformationen für Logging
+    priority_details = {}
+    for idx, candidate in candidates.iterrows():
+        _, details = calculate_osm_priority_detailed(candidate, seg_dict)
+        priority_details[idx] = details
     
     # Berechne Winkel-Priorität für alle Kandidaten
     candidates["angle_priority"] = 0.0
@@ -762,9 +993,20 @@ def find_best_candidate_for_direction(candidates, seg_dict, ri_value, segment_an
         angle_prio = calculate_angle_priority(segment_geom, candidate.geometry)
         candidates.at[idx, "angle_priority"] = angle_prio
     
-    # Berechne Entfernung zum Segmentmittelpunkt
+    # Berechne Entfernung zum Segmentmittelpunkt und Entfernungs-Priorität
     mid = segment_geom.interpolate(0.5, normalized=True)
     candidates["dist_to_mid"] = candidates.geometry.distance(mid)
+    
+    # Berechne Entfernungs-Priorität für alle Kandidaten
+    candidates["distance_priority"] = candidates["dist_to_mid"].apply(calculate_distance_priority)
+    
+    # Berechne Gesamt-Priorität: TILDA-Inhalt + Winkel + Entfernung + Richtung
+    # Richtungskompatibilität wird separat behandelt, da sie binär ist (positiv/negativ)
+    candidates["total_priority_weighted"] = (
+        candidates["priority"] +           # TILDA-Priorität (Inhalt)
+        candidates["angle_priority"] +     # Winkel-Priorität 
+        candidates["distance_priority"]    # Entfernungs-Priorität
+    )
     
     # Berechne Richtungskompatibilität für jeden Kandidaten
     candidates["direction_compatibility"] = 0
@@ -793,17 +1035,17 @@ def find_best_candidate_for_direction(candidates, seg_dict, ri_value, segment_an
             
             if segment_direction == ri_value:
                 # Richtung passt perfekt
-                candidates.at[idx, "direction_compatibility"] = 10
-                logging.debug(f"    → Richtung passt perfekt! direction_compatibility=10")
+                candidates.at[idx, "direction_compatibility"] = SnappingPriorities.DIRECTION_PERFECT_MATCH
+                logging.debug(f"    → Richtung passt perfekt! direction_compatibility={SnappingPriorities.DIRECTION_PERFECT_MATCH}")
             else:
                 # Richtung passt nicht - NEGATIVE Priorität für gegenläufige Wege
-                candidates.at[idx, "direction_compatibility"] = -10
-                logging.debug(f"    → Richtung passt NICHT! direction_compatibility=-10 (gegenläufig)")
+                candidates.at[idx, "direction_compatibility"] = SnappingPriorities.DIRECTION_WRONG_WAY
+                logging.debug(f"    → Richtung passt NICHT! direction_compatibility={SnappingPriorities.DIRECTION_WRONG_WAY} (gegenläufig)")
         else:
             # Bei Zweirichtungsverkehr: Kann für beide Richtungen verwendet werden
-            candidates.at[idx, "direction_compatibility"] = 1
+            candidates.at[idx, "direction_compatibility"] = SnappingPriorities.DIRECTION_BIDIRECTIONAL
             logging.debug(f"  Kandidat {candidate_tilda_id}: Zweirichtungsverkehr, "
-                         f"Winkel={candidate_angle:.1f}°, direction_compatibility=1")
+                         f"Winkel={candidate_angle:.1f}°, direction_compatibility={SnappingPriorities.DIRECTION_BIDIRECTIONAL}")
     
     # Filtere gegenläufige Kandidaten mit negativer direction_compatibility aus
     positive_candidates = candidates[candidates["direction_compatibility"] >= 0]
@@ -815,33 +1057,45 @@ def find_best_candidate_for_direction(candidates, seg_dict, ri_value, segment_an
         candidates = positive_candidates
         logging.debug(f"Filtere {len(candidates.index) - len(positive_candidates)} gegenläufige Kandidaten aus")
     
-    # Sortiere nach Richtungskompatibilität, Winkel-Priorität, TILDA-Priorität und Entfernung
+    # Sortiere nach Richtungskompatibilität (erst positive), dann nach gewichteter Gesamtpriorität
+    # Richtungskompatibilität wird zuerst sortiert, um gegenläufige Wege zu filtern
+    # Dann nach der gewichteten Gesamtpriorität (TILDA + Winkel + Entfernung)
     candidates = candidates.sort_values(
-        ["direction_compatibility", "angle_priority", "priority", "dist_to_mid"], 
-        ascending=[False, False, False, True]
+        ["direction_compatibility", "total_priority_weighted"], 
+        ascending=[False, False]
     )
     
-    # Logge die Sortierreihenfolge
+    # Logge die Sortierreihenfolge mit detaillierten Prioritäten
     if len(candidates) > 0:
         best_candidate = candidates.iloc[0]
-        logging.debug(f"Bester Kandidat für ri={ri_value}: {best_candidate.get('tilda_id', 'unknown')} "
-                     f"(dir_compat={best_candidate.get('direction_compatibility', -1)}, "
-                     f"angle_prio={best_candidate.get('angle_priority', -1):.2f}, "
-                     f"priority={best_candidate.get('priority', -1)}, "
-                     f"dist={best_candidate.get('dist_to_mid', -1):.1f}m)")
+        logging.debug(f"=== BESTE KANDIDATEN-BEWERTUNG für ri={ri_value} ===")
+        logging.debug(f"Bester Kandidat: {best_candidate.get('tilda_id', 'unknown')}")
+        logging.debug(f"  → Direction_Compatibility: {best_candidate.get('direction_compatibility', -1)}")
+        logging.debug(f"  → Gewichtete_Gesamtpriorität: {best_candidate.get('total_priority_weighted', -1):.2f}")
+        logging.debug(f"    ├─ TILDA_Priority: {best_candidate.get('priority', -1)}")
+        logging.debug(f"    ├─ Angle_Priority: {best_candidate.get('angle_priority', -1):.2f}")
+        logging.debug(f"    └─ Distance_Priority: {best_candidate.get('distance_priority', -1):.2f} (bei {best_candidate.get('dist_to_mid', -1):.1f}m)")
         
         # Logge auch die anderen Kandidaten zur Nachvollziehbarkeit
         if len(candidates) > 1:
-            logging.debug("Andere Kandidaten (in Sortierreihenfolge):")
-            for i, (_, cand) in enumerate(candidates.iloc[1:].iterrows(), 1):
-                logging.debug(f"  {i+1}. {cand.get('tilda_id', 'unknown')} "
-                             f"(dir_compat={cand.get('direction_compatibility', -1)}, "
-                             f"angle_prio={cand.get('angle_priority', -1):.2f}, "
-                             f"priority={cand.get('priority', -1)}, "
-                             f"dist={cand.get('dist_to_mid', -1):.1f}m)")
+            logging.debug("=== ALLE KANDIDATEN (sortiert nach gewichteter Priorität) ===")
+            for i, (_, cand) in enumerate(candidates.iterrows()):
+                marker = "★ GEWÄHLT" if i == 0 else f"  {i+1}."
+                logging.debug(f"{marker} {cand.get('tilda_id', 'unknown')}: "
+                             f"dir_compat={cand.get('direction_compatibility', -1)}, "
+                             f"total_weighted={cand.get('total_priority_weighted', -1):.2f} "
+                             f"(tilda={cand.get('priority', -1)}, angle={cand.get('angle_priority', -1):.2f}, "
+                             f"dist={cand.get('distance_priority', -1):.2f}@{cand.get('dist_to_mid', -1):.1f}m)")
     
-    # Wähle den besten Kandidaten
-    return candidates.iloc[0].to_dict() if len(candidates) > 0 else None
+    # Wähle den besten Kandidaten und füge detaillierte Prioritätsinformationen hinzu
+    if len(candidates) > 0:
+        best_candidate_dict = candidates.iloc[0].to_dict()
+        best_idx = candidates.iloc[0].name  # Index des besten Kandidaten
+        if best_idx in priority_details:
+            best_candidate_dict['priority_details'] = priority_details[best_idx]
+        return best_candidate_dict
+    else:
+        return None
 
 
 def create_directional_segment_variants_optimized(seg_dict: dict, target_candidates, original_candidates=None) -> list[dict]:
@@ -878,6 +1132,8 @@ def create_directional_segment_variants_optimized(seg_dict: dict, target_candida
                     variant[attr] = None
             for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
                 variant[attr] = None
+            # Setze Prioritätswerte auf 0 da keine Kandidaten vorhanden
+            set_priority_values(variant, None, segment_angle)
             variants.append(variant)
     
     # Sonderfall: Nur Einrichtungsverkehr-Kandidaten mit Mischverkehr
@@ -898,6 +1154,9 @@ def create_directional_segment_variants_optimized(seg_dict: dict, target_candida
                     variant[attr] = best_osm.get(attr)
             for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
                 variant[attr] = best_osm.get(attr)
+            
+            # Übertrage Prioritätswerte falls vorhanden
+            set_priority_values(variant, best_osm, segment_angle)
                 
             variants.append(variant)
     else:
@@ -922,6 +1181,9 @@ def create_directional_segment_variants_optimized(seg_dict: dict, target_candida
                         variant[attr] = best_osm.get(attr)
                 for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
                     variant[attr] = best_osm.get(attr)
+                
+                # Übertrage Prioritätswerte falls vorhanden
+                set_priority_values(variant, best_osm, segment_angle)
             else:
                 # Setze fehlende Attribute auf None
                 for attr in FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES:
@@ -929,6 +1191,9 @@ def create_directional_segment_variants_optimized(seg_dict: dict, target_candida
                         variant[attr] = None
                 for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
                     variant[attr] = None
+                
+                # Setze Prioritätswerte auf 0 da keine Kandidaten gefunden
+                set_priority_values(variant, None, segment_angle)
 
             variants.append(variant)
     
@@ -1005,6 +1270,9 @@ def create_directional_segment_variants_from_matched_tilda_ways(seg_dict: dict, 
             # Zusätzliche OSM-Attribute für Debugging/Referenz auf None setzen
             for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
                 variant[attr] = None
+            
+            # Setze Prioritätswerte auf 0 da keine Kandidaten vorhanden  
+            set_priority_values(variant, None, segment_angle)
                 
             variants.append(variant)
     
@@ -1031,6 +1299,9 @@ def create_directional_segment_variants_from_matched_tilda_ways(seg_dict: dict, 
             # Zusätzliche OSM-Attribute für Debugging/Referenz
             for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
                 variant[attr] = best_osm.get(attr)
+            
+            # Übertrage Prioritätswerte falls vorhanden
+            set_priority_values(variant, best_osm, segment_angle)
                 
             variants.append(variant)
     else:
@@ -1068,6 +1339,9 @@ def create_directional_segment_variants_from_matched_tilda_ways(seg_dict: dict, 
                 # Zusätzliche OSM-Attribute für Debugging/Referenz
                 for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
                     variant[attr] = best_osm.get(attr)
+                
+                # Übertrage Prioritätswerte falls vorhanden
+                set_priority_values(variant, best_osm, segment_angle)
             else:
                 # Keine OSM-Daten: Standardwerte setzen
                 for attr in FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES:
@@ -1079,6 +1353,9 @@ def create_directional_segment_variants_from_matched_tilda_ways(seg_dict: dict, 
                 # Zusätzliche OSM-Attribute für Debugging/Referenz auf None setzen
                 for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
                     variant[attr] = None
+                
+                # Setze Prioritätswerte auf 0 da keine Kandidaten gefunden
+                set_priority_values(variant, None, segment_angle)
 
             variants.append(variant)
     
