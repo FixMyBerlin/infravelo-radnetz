@@ -70,6 +70,16 @@ def difference_streets_without_bikelanes(streets_gdf, bikelanes_gdf, target_crs=
         return intersection.length / geom.length if geom.length > 0 else 0.0
     
     # Überschneidungsanteile berechnen
+    if len(streets_gdf) == 0:
+        # Leeres DataFrame - keine Straßen zu verarbeiten
+        logging.info("Keine Straßen vorhanden - überspringe Differenz-Berechnung")
+        return streets_gdf.copy()
+    
+    if len(bikelanes_gdf) == 0:
+        # Keine Radwege - alle Straßen bleiben erhalten
+        logging.info("Keine Radwege vorhanden - alle Straßen bleiben erhalten")
+        return streets_gdf.copy()
+    
     overlap_ratios = streets_gdf.geometry.apply(calculate_overlap_ratio)
     
     # Nur Straßen behalten, die weniger als 80% im Buffer liegen

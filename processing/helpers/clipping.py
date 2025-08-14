@@ -83,11 +83,11 @@ def parse_view_string(view: str) -> Tuple[int, float, float]:
     if len(parts) != 3:
         raise ValueError("Viewport muss Format 'zoom/lat/lon' haben (z.B. 18/52.4883/13.42514)")
     try:
-        zoom = int(parts[0])
+        zoom = float(parts[0])
         lat = float(parts[1])
         lon = float(parts[2])
     except ValueError as e:
-        raise ValueError("Viewport Werte konnten nicht geparst werden (erwartet int/float)") from e
+        raise ValueError("Viewport Werte konnten nicht geparst werden (erwartet float)") from e
     if not (-85 <= lat <= 85):  # Web Mercator Begrenzung
         raise ValueError("Latitude außerhalb des gültigen Bereichs für Web Mercator (-85..85)")
     if not (-180 <= lon <= 180):

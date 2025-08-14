@@ -598,9 +598,10 @@ def process(input_path, output_path, crs, clip_neukoelln=False, data_dir="./data
         gdf = clip_to_neukoelln(gdf, data_dir, crs)
         logging.info(f"Nach Neukölln-Clipping: {len(gdf)} Segmente")
     elif view:
-        logging.info(f"Schneide Daten auf Viewport {view} (WGS84) zu")
-        gdf = clip_to_view(gdf, view, crs)
-        logging.info(f"Nach Viewport-Clipping: {len(gdf)} Segmente")
+        # Bei View-Modus sind die Daten bereits geclippt
+        # Überspringe zusätzliches Clipping um Leer-Resultate zu vermeiden
+        logging.info(f"View-Modus erkannt ({view}) - überspringe zusätzliches Clipping (Daten bereits geclippt)")
+        logging.info(f"Eingangsdaten nach View-Pipeline: {len(gdf)} Segmente")
 
     if gdf.empty:
         raise SystemExit("Abbruch: Keine Daten nach Clipping vorhanden")
