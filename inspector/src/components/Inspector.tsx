@@ -3,6 +3,7 @@ import { clsx } from 'clsx'
 import { formatDistanceToNow, fromUnixTime } from 'date-fns'
 import { useState } from 'react'
 import type { MapGeoJSONFeature } from 'react-map-gl/maplibre'
+import { OsmTagsLoader } from './OsmTagsLoader'
 
 const longOsmType = {
   W: 'way',
@@ -186,6 +187,11 @@ export const Inspector = ({ inspectorFeatures, activeLayerConfigs }: Props) => {
                     <summary className="cursor-pointer hover:underline">Raw</summary>
                     <pre>{JSON.stringify(feature, undefined, 2)}</pre>
                   </details>
+
+                  {/* OSM Tags Loader */}
+                  {feature.properties.osm_id && feature.properties.osm_type && (
+                    <OsmTagsLoader feature={feature} />
+                  )}
                 </section>
               )
             })}
