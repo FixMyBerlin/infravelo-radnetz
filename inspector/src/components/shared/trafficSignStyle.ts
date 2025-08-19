@@ -4,7 +4,7 @@ import type { LayerLegend } from './types'
 // Color constants
 export const TRAFFIC_SIGN_NONE = '#0000FF' // blue - explicitly marked as none
 export const TRAFFIC_SIGN_PRESENT = '#32CD32' // green - traffic sign is present
-export const TRAFFIC_SIGN_DAMAGE = 'purple'
+export const TRAFFIC_SIGN_DAMAGE = '#006400' // dark green - traffic sign indicated with damage note
 export const TRAFFIC_SIGN_MISSING = '#FF0000' // red - traffic sign is missing
 
 export const getTrafficSignOpacity: DataDrivenPropertyValueSpecification<number> = 0.8
