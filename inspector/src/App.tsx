@@ -27,6 +27,7 @@ import { BikeLaneSurfaceSettLayer } from './components/BikeLaneSurfaceSettLayer'
 import { BikeLaneTrafficSignLayer } from './components/BikeLaneTrafficSignLayer'
 import { BikelaneUpdateSourceLayer } from './components/BikelaneUpdateSourceLayer'
 import { BikelaneWidthLayer } from './components/BikelaneWidthLayer'
+import { ContextLayerControls, ContextMapLayers } from './components/ContextLayers'
 import { Inspector } from './components/Inspector'
 import { Legend } from './components/Legend'
 import { RoadAgeLayer } from './components/RoadAgeLayer'
@@ -47,7 +48,6 @@ import {
   getInteractionLineWidth,
 } from './components/shared/interactionStyle'
 import { LAYER_LEGENDS } from './components/shared/legends'
-import { StaticLayers } from './components/StaticLayers'
 import { TildaUpdateInfo } from './components/TildaUpdateInfo'
 import { useMapParam } from './components/useMapParam/useMapParam'
 
@@ -80,6 +80,7 @@ const App = () => {
     'layers',
     parseAsArrayOf(parseAsString).withDefault([]),
   )
+  // Context layers are handled in ContextLayers components
   const [layers, setLayers] = useState<CategoryArray>([])
   const [sourceLayerMap, setSourceLayerMap] = useState<Record<string, string>>({})
   const [mapLoaded, setMapLoaded] = useState(false)
@@ -340,6 +341,7 @@ const App = () => {
                   <TildaUpdateInfo source={source} />
                 </div>
               </section>
+              <ContextLayerControls />
             </nav>
           )}
 
@@ -375,6 +377,9 @@ const App = () => {
               />
               <NavigationControl position="bottom-right" />
               <BackgroundLayer />
+
+              {/* Context sources and layers */}
+              <ContextMapLayers />
 
               {/* Group sources by unique source names to avoid duplicate sources */}
               {Array.from(new Set(layers.map((l) => l.source))).map((sourceId) => (
@@ -604,9 +609,6 @@ const App = () => {
                           return null
                       }
                     })}
-
-                  {/* Static layers on top */}
-                  <StaticLayers />
                 </Fragment>
               )}
             </Map>
