@@ -2,33 +2,38 @@ import type { DataDrivenPropertyValueSpecification } from 'maplibre-gl'
 import type { LayerLegend } from './types'
 
 // Color constants
-export const MAPILLARY_PRESENT = '#32CD32' // green - mapillary reference exists
-export const MAPILLARY_MISSING_SIGN = '#FF0000' // red - traffic sign exists but no mapillary reference
-export const MAPILLARY_MISSING_ANY = '#8B0000' // dark red - no mapillary reference at all
+export const MAPILLARY_PRESENT = '#32CD32' // green - some mapillary reference exists
+export const MAPILLARY_BOTH_PRESENT = '#006400' // dark green - general and traffic sign references exist
+export const MAPILLARY_MISSING = '#FF8C00' // dark orange - no mapillary reference at all
 
 export const getMapillaryOpacity: DataDrivenPropertyValueSpecification<number> = 0.8
 
 export const getMapillaryStyle: DataDrivenPropertyValueSpecification<string> = [
   'case',
-  // First check if there's a traffic sign that needs a mapillary reference
+  // Dark green when (mapillary or mapillary_forward or mapillary_backward) AND mapillary_traffic_sign is present
   [
     'all',
-    ['has', 'traffic_sign'],
-    ['!=', ['get', 'traffic_sign'], 'none'],
-    ['!', ['has', 'mapillary_traffic_sign']],
+    ['any', ['has', 'mapillary'], ['has', 'mapillary_forward'], ['has', 'mapillary_backward']],
+    ['has', 'mapillary_traffic_sign'],
   ],
-  MAPILLARY_MISSING_SIGN,
-  // Then check if any mapillary reference is present
-  ['any', ['has', 'mapillary'], ['has', 'mapillary_left'], ['has', 'mapillary_right']],
+  MAPILLARY_BOTH_PRESENT,
+  // Green when any mapillary OR mapillary_traffic_sign is present
+  [
+    'any',
+    ['has', 'mapillary'],
+    ['has', 'mapillary_forward'],
+    ['has', 'mapillary_backward'],
+    ['has', 'mapillary_traffic_sign'],
+  ],
   MAPILLARY_PRESENT,
-  // Otherwise mark as missing all references
-  MAPILLARY_MISSING_ANY,
+  // Red when nothing mapillary is present
+  MAPILLARY_MISSING,
 ]
 
 export const getMapillaryLegend = (): LayerLegend => ({
   items: [
-    { color: MAPILLARY_MISSING_SIGN, label: '[TODO] Kein Mapillary fürs Verkehrszeichen' },
-    { color: MAPILLARY_MISSING_ANY, label: '[TODO] Keine Mapillary Referenz' },
-    { color: MAPILLARY_PRESENT, label: 'Mapillary Referenz vorhanden' },
+    { color: MAPILLARY_MISSING, label: 'Keine Mapillary Referenz' },
+    { color: MAPILLARY_PRESENT, label: 'Mapillary vorhanden (Weg oder Verkehrszeichen)' },
+    { color: MAPILLARY_BOTH_PRESENT, label: 'Mapillary für Weg und Verkehrszeichen vorhanden' },
   ],
 })

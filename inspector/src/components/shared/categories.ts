@@ -87,10 +87,9 @@ export const categories = [
     source: 'bikelanes',
     inspectorHighlightTags: [
       'mapillary',
-      'mapillary_left',
-      'mapillary_right',
+      'mapillary_forward',
+      'mapillary_backward',
       'mapillary_traffic_sign',
-      'traffic_sign',
     ],
     title: 'Mapillary Fotos',
     category: QA_CATEGORY.BIKELANES,
