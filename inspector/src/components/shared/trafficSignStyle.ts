@@ -11,24 +11,64 @@ export const getTrafficSignOpacity: DataDrivenPropertyValueSpecification<number>
 
 export const getTrafficSignStyle: DataDrivenPropertyValueSpecification<string> = [
   'case',
-  // First check if traffic_sign is explicitly "none"
-  ['all', ['has', 'traffic_sign'], ['==', ['get', 'traffic_sign'], 'none']],
+  // NONE if traffic_sign=none OR (traffic_sign:forward=none AND traffic_sign:backward=none)
+  [
+    'any',
+    ['all', ['has', 'traffic_sign'], ['==', ['get', 'traffic_sign'], 'none']],
+    [
+      'all',
+      ['has', 'traffic_sign:forward'],
+      ['==', ['get', 'traffic_sign:forward'], 'none'],
+      ['has', 'traffic_sign:backward'],
+      ['==', ['get', 'traffic_sign:backward'], 'none'],
+    ],
+  ],
   TRAFFIC_SIGN_NONE,
   // Then check for damage indicators in traffic_sign
   [
-    'all',
-    ['has', 'traffic_sign'],
+    'any',
     [
-      'any',
-      ['in', 'schäden', ['get', 'traffic_sign']],
-      ['in', 'Schäden', ['get', 'traffic_sign']],
-      ['in', 'schaeden', ['get', 'traffic_sign']],
-      ['in', 'Schaeden', ['get', 'traffic_sign']],
+      'all',
+      ['has', 'traffic_sign'],
+      [
+        'any',
+        ['in', 'schäden', ['get', 'traffic_sign']],
+        ['in', 'Schäden', ['get', 'traffic_sign']],
+        ['in', 'schaeden', ['get', 'traffic_sign']],
+        ['in', 'Schaeden', ['get', 'traffic_sign']],
+      ],
+    ],
+    [
+      'all',
+      ['has', 'traffic_sign:forward'],
+      [
+        'any',
+        ['in', 'schäden', ['get', 'traffic_sign:forward']],
+        ['in', 'Schäden', ['get', 'traffic_sign:forward']],
+        ['in', 'schaeden', ['get', 'traffic_sign:forward']],
+        ['in', 'Schaeden', ['get', 'traffic_sign:forward']],
+      ],
+    ],
+    [
+      'all',
+      ['has', 'traffic_sign:backward'],
+      [
+        'any',
+        ['in', 'schäden', ['get', 'traffic_sign:backward']],
+        ['in', 'Schäden', ['get', 'traffic_sign:backward']],
+        ['in', 'schaeden', ['get', 'traffic_sign:backward']],
+        ['in', 'Schaeden', ['get', 'traffic_sign:backward']],
+      ],
     ],
   ],
   TRAFFIC_SIGN_DAMAGE,
   // Then check if any traffic_sign is present
-  ['has', 'traffic_sign'],
+  [
+    'any',
+    ['all', ['has', 'traffic_sign'], ['!=', ['get', 'traffic_sign'], 'none']],
+    ['all', ['has', 'traffic_sign:forward'], ['!=', ['get', 'traffic_sign:forward'], 'none']],
+    ['all', ['has', 'traffic_sign:backward'], ['!=', ['get', 'traffic_sign:backward'], 'none']],
+  ],
   TRAFFIC_SIGN_PRESENT,
   // If no traffic_sign, mark as missing
   TRAFFIC_SIGN_MISSING,

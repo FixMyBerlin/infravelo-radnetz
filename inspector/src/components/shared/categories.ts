@@ -78,7 +78,7 @@ export const categories = [
   {
     id: 'bikelanesTrafficSign',
     source: 'bikelanes',
-    inspectorHighlightTags: ['traffic_sign'],
+    inspectorHighlightTags: ['traffic_sign', 'traffic_sign:forward', 'traffic_sign:backward'],
     title: 'Verkehrszeichen',
     category: QA_CATEGORY.BIKELANES,
   },
