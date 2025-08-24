@@ -2,10 +2,11 @@ import type { DataDrivenPropertyValueSpecification } from 'maplibre-gl'
 import type { LayerLegend } from './types'
 
 // Color constants
-export const ONEWAY_YES_COLOR = '#0000FF' // blue
-export const ONEWAY_NO_COLOR = '#32CD32' // green
+export const BLUE = '#0000FF' // blue
+export const BRIGHT_GREEN = '#32CD32' // green
 export const ONEWAY_MISSING_COLOR = '#FF0000' // red
 export const ONEWAY_NEUTRAL_COLOR = '#808080' // gray
+export const DARK_GREEN = '#006400' // dark green
 
 // Default opacity for all layers
 export const getOnewayOpacity: DataDrivenPropertyValueSpecification<number> = 0.8
@@ -26,7 +27,7 @@ export const getBikeLaneOnewayColor: DataDrivenPropertyValueSpecification<string
       ['==', ['get', 'category'], 'footAndCyclewayShared_adjoining'],
     ],
   ],
-  ONEWAY_YES_COLOR,
+  BLUE,
   [
     'all',
     ['has', 'oneway'],
@@ -37,18 +38,18 @@ export const getBikeLaneOnewayColor: DataDrivenPropertyValueSpecification<string
       ['==', ['get', 'category'], 'pedestrianAreaBicycleYes'],
     ],
   ],
-  ONEWAY_NO_COLOR,
+  BRIGHT_GREEN,
   // Normal oneway handling
   ['has', 'oneway'],
   [
     'match',
     ['get', 'oneway'],
     'yes',
-    ONEWAY_YES_COLOR,
+    BLUE,
     'no',
-    ONEWAY_NO_COLOR,
+    BRIGHT_GREEN,
     'car_not_bike',
-    ONEWAY_NO_COLOR,
+    BRIGHT_GREEN,
     ONEWAY_MISSING_COLOR,
   ],
   ONEWAY_MISSING_COLOR,
@@ -57,8 +58,13 @@ export const getBikeLaneOnewayColor: DataDrivenPropertyValueSpecification<string
 // Style for roads with bicycle specific oneway rules
 export const getRoadOnewayColor: DataDrivenPropertyValueSpecification<string> = [
   'case',
+  // Dual carriageway - no oneway:bicycle expected
+  ['all', ['has', 'oneway'], ['==', ['get', 'oneway'], 'yes_dual_carriageway']],
+  BLUE,
+  // Normal oneway with bicycle specification
   ['all', ['has', 'oneway'], ['==', ['get', 'oneway'], 'yes'], ['has', 'oneway_bicycle']],
-  ONEWAY_YES_COLOR,
+  DARK_GREEN,
+  // Oneway without bicycle specification
   ['all', ['has', 'oneway'], ['==', ['get', 'oneway'], 'yes']],
   ONEWAY_MISSING_COLOR,
   ONEWAY_NEUTRAL_COLOR,
@@ -66,8 +72,8 @@ export const getRoadOnewayColor: DataDrivenPropertyValueSpecification<string> = 
 
 export const getBikeLaneOnewayLegend = (): LayerLegend => ({
   items: [
-    { color: ONEWAY_YES_COLOR, label: 'Einbahnstraße (explizit oder implizit)' },
-    { color: ONEWAY_NO_COLOR, label: 'Keine Einbahnstraße (explizit oder nur für Autos)' },
+    { color: BLUE, label: 'Einbahnstraße (explizit oder implizit)' },
+    { color: BRIGHT_GREEN, label: 'Keine Einbahnstraße (explizit oder nur für Autos)' },
     { color: ONEWAY_MISSING_COLOR, label: '[TODO] Keine oder fehlerhafte Angabe' },
   ],
 })
@@ -75,12 +81,17 @@ export const getBikeLaneOnewayLegend = (): LayerLegend => ({
 export const getRoadOnewayLegend = (): LayerLegend => ({
   items: [
     {
-      color: ONEWAY_YES_COLOR,
-      label: 'Einbahnstraße (Auto) mit vollständiger Angabe zu bicycle:oneway',
+      color: DARK_GREEN,
+      label: 'Explizite Angabe Einbahnstraße (Auto) und oneway:bicycle',
+    },
+    {
+      color: BLUE,
+      label: 'Straße "dual_carriageway" daher kein oneway:bicycle erwartet',
     },
     {
       color: ONEWAY_MISSING_COLOR,
-      label: '[TODO] Einbahnstraße (Auto) aber bicycle:oneway fehlt',
+      label:
+        '[TODO] Explizite Angabe Einbahnstraße (Auto) aber Angabe zu bicycle:oneway=yes|no oder dual_carriageway=yes fehlt',
     },
     { color: ONEWAY_NEUTRAL_COLOR, label: 'Keine Einbahnstraße' },
   ],

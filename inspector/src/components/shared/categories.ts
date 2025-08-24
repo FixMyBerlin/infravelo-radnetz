@@ -118,6 +118,7 @@ export const categories = [
   {
     id: 'roadsOneway',
     source: 'roads',
+    inspectorHighlightTags: ['oneway', 'oneway_bicycle'],
     title: 'Einbahnstraßen',
     category: QA_CATEGORY.ROADS,
   },
