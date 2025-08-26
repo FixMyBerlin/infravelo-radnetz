@@ -8,21 +8,30 @@ Konvertiert Geodateien (GeoPackage, FlatGeoBuf) in GeoJSON-Format.
 Dieses Skript kann verschiedene Eingabeformate verarbeiten:
 1. GeoPackage mit mehreren Layern: Lädt alle verfügbaren Layer und führt sie zusammen
 2. FlatGeoBuf-Dateien: Lädt die Datei direkt und konvertiert sie
-3. Automatische Erkennung des Eingabeformats basierend auf der Dateierweiterung
+3. Automatische Konvertierung der drei Standarddateien
 
 Das Ergebnis wird immer als GeoJSON in WGS84 (EPSG:4326) exportiert, um der 
 GeoJSON-Spezifikation zu entsprechen.
 
+AUTOMATISCHE KONVERTIERUNG:
+Standardmäßig werden diese drei Dateien automatisch konvertiert:
+- aggregated_rvn_final.gpkg
+- snapping_network_enriched.fgb  
+- matched/matched_tilda_ways.fgb
+
+KONFIGURATION:
+Das Skript kann über die globale Variable EXCLUDE_FIELD_PREFIXES konfiguriert werden,
+um bestimmte Spalten basierend auf ihren Präfixen vom Export auszuschließen.
+Standardmäßig werden Spalten die mit 'priority' oder 'angle' beginnen entfernt.
+
 VERWENDUNG:
-    # GeoPackage mit mehreren Layern
+    # Automatische Konvertierung aller Standarddateien
+    python scripts/convert_to_geojson.py
+    
+    # Spezifische Datei konvertieren
     python scripts/convert_to_geojson.py \
         --input ./output/aggregated_rvn_final.gpkg \
         --output ./output/aggregated_rvn_final.geojson
-    
-    # FlatGeoBuf-Datei
-    python scripts/convert_to_geojson.py \
-        --input ./output/snapping_network_enriched_neukoelln.fgb \
-        --output ./output/snapping_network_enriched_neukoelln.geojson
     
     # Mit automatischer Benennung der Ausgabedatei
     python scripts/convert_to_geojson.py \
@@ -34,6 +43,7 @@ UNTERSTÜTZTE EINGABEFORMATE:
 
 OUTPUT:
 - GeoJSON-Datei (.geojson) in WGS84 (EPSG:4326)
+- Spalten mit konfigurierten Präfixen werden automatisch ausgeschlossen
 """
 
 import argparse
@@ -43,6 +53,110 @@ import os
 
 import geopandas as gpd
 import pandas as pd
+
+# Globale Konfiguration: Felder die entfernt werden sollen
+# Alle Spalten die mit diesen Präfixen beginnen werden aus dem Export ausgeschlossen
+EXCLUDE_FIELD_PREFIXES = ['priority', 'angle']
+
+# Standard-Dateien die automatisch konvertiert werden sollen
+DEFAULT_FILES = [
+    'aggregated_rvn_final.gpkg',
+    'snapping_network_enriched.fgb',
+    'matched/matched_tilda_ways.fgb'
+]
+
+
+def find_default_files(base_path: str) -> list:
+    """
+    Findet die Standard-Dateien im angegebenen Verzeichnis.
+    
+    Args:
+        base_path: Basis-Pfad (normalerweise output-Verzeichnis)
+        
+    Returns:
+        Liste der gefundenen Dateipfade
+    """
+    found_files = []
+    
+    for file_pattern in DEFAULT_FILES:
+        file_path = os.path.join(base_path, file_pattern)
+        if os.path.exists(file_path):
+            found_files.append(file_path)
+            logging.info(f"Gefundene Standard-Datei: {file_path}")
+        else:
+            logging.warning(f"Standard-Datei nicht gefunden: {file_path}")
+    
+    return found_files
+
+
+def convert_multiple_files(input_files: list, output_dir: str):
+    """
+    Konvertiert mehrere Dateien zu GeoJSON.
+    
+    Args:
+        input_files: Liste der Eingabedateien
+        output_dir: Verzeichnis für die Ausgabedateien
+    """
+    success_count = 0
+    
+    for input_file in input_files:
+        try:
+            # Erstelle Ausgabedateiname basierend auf Eingabedatei
+            filename = os.path.basename(input_file)
+            name_without_ext = os.path.splitext(filename)[0]
+            output_file = os.path.join(output_dir, f"{name_without_ext}.geojson")
+            
+            logging.info(f"\n{'='*60}")
+            logging.info(f"Konvertiere: {input_file}")
+            logging.info(f"Nach: {output_file}")
+            logging.info(f"{'='*60}")
+            
+            convert_to_geojson(input_file, output_file)
+            success_count += 1
+            
+        except Exception as e:
+            logging.error(f"Fehler bei der Konvertierung von {input_file}: {e}")
+            continue
+    
+    logging.info(f"\n{'='*60}")
+    logging.info(f"✔ Konvertierung abgeschlossen!")
+    logging.info(f"  Erfolgreich konvertiert: {success_count}/{len(input_files)} Dateien")
+    logging.info(f"{'='*60}")
+    
+    return success_count
+
+
+def filter_columns(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    """
+    Filtert Spalten aus dem GeoDataFrame basierend auf konfigurierten Präfixen.
+    
+    Args:
+        gdf: Das zu filternde GeoDataFrame
+        
+    Returns:
+        GeoDataFrame ohne die ausgeschlossenen Spalten
+    """
+    if not EXCLUDE_FIELD_PREFIXES:
+        return gdf
+    
+    # Finde alle Spalten die mit den konfigurierten Präfixen beginnen
+    columns_to_exclude = []
+    for col in gdf.columns:
+        for prefix in EXCLUDE_FIELD_PREFIXES:
+            if col.lower().startswith(prefix.lower()):
+                columns_to_exclude.append(col)
+                break
+    
+    if columns_to_exclude:
+        logging.info(f"Entferne {len(columns_to_exclude)} Spalten mit Präfixen {EXCLUDE_FIELD_PREFIXES}: {columns_to_exclude}")
+        # Behalte nur Spalten die nicht in der Ausschlussliste stehen
+        columns_to_keep = [col for col in gdf.columns if col not in columns_to_exclude]
+        gdf = gdf[columns_to_keep]
+    else:
+        logging.info(f"Keine Spalten mit Präfixen {EXCLUDE_FIELD_PREFIXES} gefunden")
+    
+    return gdf
+
 
 def detect_file_type(input_path: str) -> str:
     """
@@ -164,6 +278,9 @@ def convert_to_geojson(input_path: str, output_path: str):
         else:
             raise ValueError(f"Nicht unterstützter Dateityp: {file_type}")
         
+        # Filtere unerwünschte Spalten
+        combined_gdf = filter_columns(combined_gdf)
+        
         # Erstelle das Ausgabeverzeichnis falls es nicht existiert
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         
@@ -215,29 +332,56 @@ def main():
     )
     parser.add_argument(
         "--input",
-        required=True,
-        help="Pfad zur Eingabedatei (.gpkg oder .fgb)"
+        help="Pfad zur spezifischen Eingabedatei (.gpkg oder .fgb). Wenn nicht angegeben, werden die Standard-Dateien konvertiert."
     )
     parser.add_argument(
         "--output", 
         help="Pfad für die Ausgabe-GeoJSON-Datei (optional - wird automatisch aus Eingabedatei abgeleitet)"
     )
+    parser.add_argument(
+        "--output-dir",
+        default="./output",
+        help="Verzeichnis für Ausgabedateien bei automatischer Konvertierung (Standard: ./output)"
+    )
     
     args = parser.parse_args()
     
-    # Überprüfe, ob die Eingabedatei existiert
-    if not os.path.exists(args.input):
-        logging.error(f"Eingabedatei nicht gefunden: {args.input}")
-        sys.exit(1)
-    
-    # Automatische Ausgabedatei-Benennung falls nicht angegeben
-    if not args.output:
-        input_path = os.path.splitext(args.input)[0]
-        args.output = f"{input_path}.geojson"
-        logging.info(f"Automatische Ausgabedatei: {args.output}")
-    
-    # Konvertierung durchführen
-    convert_to_geojson(args.input, args.output)
+    # Überprüfe ob spezifische Eingabedatei angegeben wurde
+    if args.input:
+        # Einzelne Datei konvertieren (bisheriges Verhalten)
+        if not os.path.exists(args.input):
+            logging.error(f"Eingabedatei nicht gefunden: {args.input}")
+            sys.exit(1)
+        
+        # Automatische Ausgabedatei-Benennung falls nicht angegeben
+        if not args.output:
+            input_path = os.path.splitext(args.input)[0]
+            args.output = f"{input_path}.geojson"
+            logging.info(f"Automatische Ausgabedatei: {args.output}")
+        
+        # Konvertierung durchführen
+        convert_to_geojson(args.input, args.output)
+        
+    else:
+        # Automatische Konvertierung der Standard-Dateien
+        logging.info("Keine spezifische Eingabedatei angegeben - konvertiere Standard-Dateien")
+        
+        # Finde Standard-Dateien
+        default_files = find_default_files(args.output_dir)
+        
+        if not default_files:
+            logging.error("Keine Standard-Dateien gefunden!")
+            logging.info(f"Gesuchte Dateien in {args.output_dir}:")
+            for file_pattern in DEFAULT_FILES:
+                logging.info(f"  - {file_pattern}")
+            sys.exit(1)
+        
+        # Konvertiere alle gefundenen Dateien
+        success_count = convert_multiple_files(default_files, args.output_dir)
+        
+        if success_count == 0:
+            logging.error("Keine Dateien erfolgreich konvertiert!")
+            sys.exit(1)
 
 
 if __name__ == "__main__":
