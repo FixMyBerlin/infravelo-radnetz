@@ -53,6 +53,8 @@ import os
 
 import geopandas as gpd
 import pandas as pd
+import gzip
+import shutil
 
 # Globale Konfiguration: Felder die entfernt werden sollen
 # Alle Spalten die mit diesen Präfixen beginnen werden aus dem Export ausgeschlossen
@@ -295,20 +297,34 @@ def convert_to_geojson(input_path: str, output_path: str):
         # Exportiere als GeoJSON
         logging.info(f"Exportiere {len(combined_gdf)} Features nach {output_path}")
         combined_gdf.to_file(output_path, driver="GeoJSON")
+        # Komprimiere die GeoJSON-Datei zu .gz und entferne die unkomprimierte Datei
+        compressed_path = f"{output_path}.gz"
+        try:
+            logging.info(f"Komprimiere {output_path} nach {compressed_path}")
+            with open(output_path, 'rb') as f_in, gzip.open(compressed_path, 'wb') as f_out:
+                shutil.copyfileobj(f_in, f_out)
+            # Entferne die unkomprimierte GeoJSON-Datei
+            os.remove(output_path)
+            logging.info(f"Erzeugt komprimierte Datei: {compressed_path}")
+            output_path_to_report = compressed_path
+        except Exception as e:
+            logging.error(f"Fehler beim Komprimieren der Datei {output_path}: {e}")
+            # Falls Kompression fehlschlägt, berichte weiterhin den unkomprimierten Pfad
+            output_path_to_report = output_path
         
         # Statistiken ausgeben
         logging.info(f"✔ Konvertierung erfolgreich abgeschlossen!")
         logging.info(f"  Eingabedatei: {input_path}")
-        logging.info(f"  Ausgabedatei: {output_path}")
+        logging.info(f"  Ausgabedatei: {output_path_to_report}")
         logging.info(f"  Anzahl Features: {len(combined_gdf)}")
-        
+
         # Zusätzliche Statistiken für GeoPackage
         if file_type == 'gpkg' and 'ri' in combined_gdf.columns:
             ri_counts = combined_gdf['ri'].value_counts().sort_index()
             logging.info(f"  Richtungsverteilung: {dict(ri_counts)}")
-        
-        print(f"✔ {len(combined_gdf)} Features erfolgreich von {file_type.upper()} nach GeoJSON exportiert")
-        
+
+        print(f"✔ {len(combined_gdf)} Features erfolgreich von {file_type.upper()} nach GeoJSON exportiert (output: {output_path_to_report})")
+
     except Exception as e:
         logging.error(f"Fehler bei der Konvertierung: {e}")
         sys.exit(1)
