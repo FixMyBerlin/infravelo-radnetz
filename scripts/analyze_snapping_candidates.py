@@ -27,20 +27,25 @@ import numpy as np
 import pandas as pd
 from datetime import datetime
 
-# Importiere Funktionen aus dem Snapping-Modul
-sys.path.append('./processing')
+# Füge das processing Verzeichnis zum Pfad hinzu
+processing_dir = os.path.join(os.path.dirname(__file__), '..', 'processing')
+sys.path.insert(0, processing_dir)
+
+# Importiere gemeinsame Snapping-Funktionen
 from helpers.globals import DEFAULT_CRS
-from helpers.traffic_signs import has_traffic_sign
-from start_snapping import (
-    calculate_line_angle, 
+from helpers.snapping_analysis import (
+    SnappingPriorities,
+    calculate_line_angle,
     angle_difference, 
     calculate_angle_priority,
-    calculate_osm_priority_detailed,
-    find_best_candidate_for_direction,
+    calculate_distance_priority,
     determine_segment_direction,
-    SnappingPriorities,
-    CONFIG_BUFFER_DEFAULT
+    calculate_osm_priority_detailed,
+    find_best_candidate_for_direction
 )
+
+# Konstanten
+CONFIG_BUFFER_DEFAULT = 25
 
 
 def analyze_snapping_candidates_for_sfid(sfid, network_path, tilda_path, output_dir="./output/analysis", 
@@ -160,6 +165,7 @@ def analyze_single_candidate(candidate, seg_dict, segment_angle, buffer):
     # Berechne Entfernung zum Segmentmittelpunkt
     segment_mid = seg_dict["geometry"].interpolate(0.5, normalized=True)
     dist_to_mid = candidate_geom.distance(segment_mid)
+    distance_priority = calculate_distance_priority(dist_to_mid)
     
     # Berechne Richtungskompatibilität für beide Richtungen
     ri0_direction = determine_segment_direction(seg_dict["geometry"], candidate_geom)
@@ -191,6 +197,7 @@ def analyze_single_candidate(candidate, seg_dict, segment_angle, buffer):
         'candidate_angle': candidate_angle,
         'angle_diff': angle_diff,
         'angle_priority': angle_priority,
+        'distance_priority': distance_priority,
         'total_priority': total_priority,
         'priority_details': priority_details,
         'ri0_direction': ri0_direction,
@@ -239,7 +246,6 @@ def write_candidate_analysis(f, sfid, segment, seg_dict, segment_angle,
         f.write("Bester Kandidat ri=1:        Keiner gefunden\n")
     
     f.write("\n")
-
     
     # Detaillierte Kandidatenanalyse
     f.write("DETAILLIERTE KANDIDATEN-ANALYSE:\n")
@@ -290,6 +296,7 @@ def write_candidate_analysis(f, sfid, segment, seg_dict, segment_angle,
             f.write(f"    → Pattern:      {details['category_pattern']}\n")
         f.write(f"  Straßenname:      {details['street_name_priority']:+d} Punkte ({details['street_name_detail']})\n")
         f.write(f"  Winkel:           {analysis['angle_priority']:+.2f} Punkte\n")
+        f.write(f"  Entfernung:       {analysis['distance_priority']:+.2f} Punkte\n")
         f.write(f"  GESAMT PRIORITÄT: {analysis['total_priority']:+d} Punkte\n")
         
         # Bewertung
