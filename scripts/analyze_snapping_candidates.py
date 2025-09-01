@@ -346,7 +346,7 @@ def main():
     """Hauptfunktion für CLI-Nutzung"""
     parser = argparse.ArgumentParser(description="Analysiere TILDA-Kandidaten für eine spezifische SFID")
     parser.add_argument("sfid", type=int, help="Die zu analysierende SFID")
-    parser.add_argument("--network", default="./output/snapping_network_enriched_neukoelln.fgb",
+    parser.add_argument("--network", default="./output/snapping_network_enriched.fgb",
                        help="Pfad zur angereicherten Netzwerkdatei")
     parser.add_argument("--tilda", default="./output/matched/matched_tilda_ways.fgb", 
                        help="Pfad zu den TILDA-übersetzten Daten")
