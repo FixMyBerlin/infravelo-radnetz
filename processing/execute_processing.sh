@@ -15,7 +15,7 @@
 # - Temporäre Dateien werden vor dem entsprechenden Verarbeitungsschritt gelöscht
 # - Zwischendateien bleiben zwischen Schritten erhalten (für --start-step Funktionalität)
 #
-# Verwendung: ./execute_processing.sh [--clip-neukoelln | --view z/lat/lon] [--start-step <1-4>]
+# Verwendung: ./execute_processing.sh [--clip-neukoelln | --view z/lat/lon] [--start-step <1-4>] [--clean-cache]
 # 
 # Argumente:
 #   --clip-neukoelln    Beschränkt die Verarbeitung auf den Bezirk Neukölln
@@ -25,6 +25,7 @@
 #                       2: Snapping und Attribut-Übernahme
 #                       3: Finale Aggregation
 #                       4: Qualitätssicherungstests
+#   --clean-cache       Vollständige Bereinigung aller Cache-Dateien vor der Verarbeitung
 # 
 # Voraussetzung: Python venv ist bereits erstellt und requirements.txt wurde installiert
 #               TILDA Daten sind bereits prozessiert (./scripts/process_tilda_data.sh)
@@ -72,6 +73,7 @@ show_total_time() {
 CLIP_NEUKOELLN=""
 START_STEP=1
 VIEW=""
+CLEAN_CACHE=""
 
 # Verarbeite alle Argumente
 while [[ $# -gt 0 ]]; do
@@ -88,9 +90,13 @@ while [[ $# -gt 0 ]]; do
             VIEW="$2"
             shift 2
             ;;
+        --clean-cache)
+            CLEAN_CACHE="--clean-cache"
+            shift
+            ;;
         *)
             echo "❌ Unbekanntes Argument: $1"
-            echo "Verwendung: $0 [--clip-neukoelln] [--start-step <1-5>]"
+            echo "Verwendung: $0 [--clip-neukoelln] [--view z/lat/lon] [--start-step <1-5>] [--clean-cache]"
             exit 1
             ;;
     esac
@@ -145,6 +151,27 @@ if [[ -n "$VIEW" && -z "$CLIP_NEUKOELLN" ]]; then
 fi
 mkdir -p "$BASE_OUT_DIR"
 
+# Zusätzliche Cache-Bereinigung falls --clean-cache gesetzt ist
+if [[ -n "$CLEAN_CACHE" ]]; then
+    echo "🧹 Vollständige Cache-Bereinigung aktiviert..."
+    echo "  - Lösche alle Zwischendateien aus output/ und output-bbox/"
+    
+    # Bereinige alle Zwischendateien aus beiden Verzeichnissen
+    for dir in "output" "output-bbox"; do
+        if [ -d "$dir" ]; then
+            echo "    Bereinige $dir/..."
+            rm -rf $dir/matching/ $dir/matched/ $dir/snapping/ 2>/dev/null || true
+            rm -f $dir/snapping_network_enriched*.fgb 2>/dev/null || true
+            rm -f $dir/aggregated_rvn_final*.gpkg 2>/dev/null || true
+            rm -f $dir/aggregated_rvn_final*.fgb 2>/dev/null || true
+        fi
+    done
+    
+    # Recreate necessary directories
+    mkdir -p ${BASE_OUT_DIR}/matching ${BASE_OUT_DIR}/matched ${BASE_OUT_DIR}/snapping
+    echo "  ✅ Cache vollständig bereinigt und Verzeichnisse neu erstellt"
+fi
+
 # Verschiebe finale Dateien (falls vorhanden)
 for f in "snapping_network_enriched${SUFFIX}.fgb" \
                  "snapping_network_enriched${SUFFIX}.geojson" \
@@ -165,18 +192,18 @@ echo "🔄 Starte Verarbeitungsprozess..."
 # Schritt 1: Matching
 if [[ $START_STEP -le 1 ]]; then
     echo "🧹 Bereinigte temporäre Dateien für Schritt 1..."
-    # Lösche Cache- und Zwischendateien aus output/matching/ (werden in Schritt 1 erstellt)
-    if [ -d "output/matching" ]; then
-        rm -f output/matching/osm_*_in_buffering.fgb
-        rm -f output/matching/osm_*_manual_interventions.fgb
-        rm -f output/matching/osm_*_orthogonal_all_ways.fgb
-        rm -f output/matching/osm_*_orthogonal_removed.fgb
-        echo "  - Gelöscht: Matching Zwischendateien"
+    # Lösche Cache- und Zwischendateien aus dem entsprechenden Verzeichnis
+    if [ -d "${BASE_OUT_DIR}/matching" ]; then
+        rm -f ${BASE_OUT_DIR}/matching/osm_*_in_buffering.fgb
+        rm -f ${BASE_OUT_DIR}/matching/osm_*_manual_interventions.fgb
+        rm -f ${BASE_OUT_DIR}/matching/osm_*_orthogonal_all_ways.fgb
+        rm -f ${BASE_OUT_DIR}/matching/osm_*_orthogonal_removed.fgb
+        echo "  - Gelöscht: ${BASE_OUT_DIR}/matching/ Zwischendateien"
     fi
     # Lösche matched Dateien (werden in Schritt 1 erstellt)
-    rm -f output/matched/matched_tilda_*.fgb
-    rm -f output/matched/matched_tilda_*.txt
-    echo "  - Gelöscht: Matched TILDA Dateien"
+    rm -f ${BASE_OUT_DIR}/matched/matched_tilda_*.fgb
+    rm -f ${BASE_OUT_DIR}/matched/matched_tilda_*.txt
+    echo "  - Gelöscht: ${BASE_OUT_DIR}/matched/ TILDA Dateien"
     
     echo "🔍 Schritt 1/4: OSM-Wege mit Radvorrangsnetz matchen..."
     STEP1_START=$(date +%s)
@@ -203,10 +230,10 @@ fi
 if [[ $START_STEP -le 2 ]]; then
     echo "🧹 Bereinigte temporäre Dateien für Schritt 2..."
     # Lösche Snapping Zwischendateien (werden in Schritt 2 erstellt)
-    if [ -d "output/snapping" ]; then
-        rm -f output/snapping/rvn-segmented*.fgb
-        rm -f output/snapping/osm_candidates_per_edge*.txt
-        echo "  - Gelöscht: Snapping Zwischendateien"
+    if [ -d "${BASE_OUT_DIR}/snapping" ]; then
+        rm -f ${BASE_OUT_DIR}/snapping/rvn-segmented*.fgb
+        rm -f ${BASE_OUT_DIR}/snapping/osm_candidates_per_edge*.txt
+        echo "  - Gelöscht: ${BASE_OUT_DIR}/snapping/ Zwischendateien"
     fi
     # Lösche snapping_network_enriched Dateien (werden in Schritt 2 erstellt)
     rm -f "${BASE_OUT_DIR}/snapping_network_enriched${SUFFIX}.fgb"
