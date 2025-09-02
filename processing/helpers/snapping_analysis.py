@@ -23,6 +23,11 @@ class SnappingPriorities:
     
     Diese Konfiguration wird sowohl vom Snapping-Algorithmus als auch vom
     Analyse-Skript (analyze_snapping_candidates.py) verwendet.
+    
+    Mindestpriorität (MINIMUM_TOTAL_PRIORITY):
+    Kandidaten mit einer TILDA-Gesamtpriorität unter diesem Wert werden komplett
+    ausgeschlossen, auch wenn sie die einzigen verfügbaren Kandidaten sind.
+    Dies verhindert, dass Wege mit sehr schlechter Qualität ausgewählt werden.
     """
     
     # Verkehrszeichen-Prioritäten (höhere Zahl = höhere Priorität)
@@ -62,6 +67,9 @@ class SnappingPriorities:
     DISTANCE_MAX_PRIORITY = 20       # Maximale Priorität bei Entfernung 0m
     DISTANCE_REFERENCE = 10.0        # Referenz-Entfernung in Metern (bei dieser Entfernung = halbe Priorität)
     DISTANCE_WEIGHT_FACTOR = 1.0     # Gewichtungsfaktor für Entfernungseinfluss (1.0 = volle Gewichtung)
+    
+    # Mindestpriorität für Kandidatenauswahl
+    MINIMUM_TOTAL_PRIORITY = -10     # Kandidaten mit Gesamtpriorität unter diesem Wert werden komplett ausgeschlossen
 
 
 def calculate_line_angle(geom):
@@ -431,6 +439,19 @@ def find_best_candidate_for_direction(candidates, seg_dict, ri_value, segment_an
     else:
         candidates = positive_candidates
         logging.debug(f"Filtere {len(candidates.index) - len(positive_candidates)} gegenläufige Kandidaten aus")
+    
+    # Filtere Kandidaten mit zu niedriger TILDA-Gesamtpriorität aus
+    # Dies ist eine harte untere Grenze für die Wegqualität
+    initial_candidate_count = len(candidates)
+    quality_candidates = candidates[candidates["priority"] >= SnappingPriorities.MINIMUM_TOTAL_PRIORITY]
+    
+    if len(quality_candidates) == 0:
+        logging.debug(f"Alle {initial_candidate_count} Kandidaten für ri={ri_value} haben TILDA-Priorität < {SnappingPriorities.MINIMUM_TOTAL_PRIORITY} - KEIN WEG WIRD AUSGEWÄHLT")
+        return None
+    elif len(quality_candidates) < initial_candidate_count:
+        filtered_count = initial_candidate_count - len(quality_candidates)
+        logging.debug(f"Filtere {filtered_count} Kandidaten mit TILDA-Priorität < {SnappingPriorities.MINIMUM_TOTAL_PRIORITY} aus ({len(quality_candidates)} Kandidaten verbleiben)")
+        candidates = quality_candidates
     
     # Sortiere nach Richtungskompatibilität (erst positive), dann nach gewichteter Gesamtpriorität
     # Richtungskompatibilität wird zuerst sortiert, um gegenläufige Wege zu filtern

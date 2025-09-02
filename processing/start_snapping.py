@@ -38,6 +38,8 @@ from helpers.progressbar import print_progressbar
 from helpers.globals import DEFAULT_CRS
 from helpers.traffic_signs import has_traffic_sign
 from helpers.clipping import clip_to_neukoelln, clip_to_view
+from helpers.convert_schutzstreifen import convert_short_schutzstreifen_to_radfahrstreifen
+from helpers.convert_schutzstreifen_at_bus_stops import convert_schutzstreifen_at_bus_stops_main
 from helpers.snapping_analysis import (
     SnappingPriorities,
     calculate_line_angle,
@@ -1218,6 +1220,17 @@ def process(net_path, osm_path, out_path, crs, buffer, clip_neukoelln=False, dat
     if len(out_gdf) == 0:
         logging.error("Abbruch: Keine Ausgabesegmente nach Merging entstanden")
         sys.exit(1)
+
+    # ---------- Schutzstreifen-Konvertierung --------------------------------
+    logging.info("Konvertiere kurze Schutzstreifen zu Radfahrstreifen...")
+    out_gdf = convert_short_schutzstreifen_to_radfahrstreifen(out_gdf, length_threshold=50.0, tolerance=0.1)
+    
+    # Konvertiere Schutzstreifen an Bushaltestellen zu Radfahrstreifen
+    logging.info("Konvertiere Schutzstreifen an Bushaltestellen zu Radfahrstreifen...")
+    out_gdf = convert_schutzstreifen_at_bus_stops_main(out_gdf, 
+                                                       bus_stops_path="output/bus_stops_on_rvn.fgb",
+                                                       buffer_distance=20.0, 
+                                                       tolerance=0.1)
 
     # ---------- Finale Datenbereinigung ------------------------------------
     # Entferne Breite-Attribut bei allen Kanten mit Mischverkehr mit motorisiertem Verkehr
