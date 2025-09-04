@@ -36,19 +36,13 @@ from shapely.geometry import LineString, MultiLineString, Point
 from shapely.ops import linemerge
 from helpers.progressbar import print_progressbar
 from helpers.globals import DEFAULT_CRS
-from helpers.traffic_signs import has_traffic_sign
 from helpers.clipping import clip_to_neukoelln, clip_to_view
 from helpers.convert_schutzstreifen import convert_short_schutzstreifen_to_radfahrstreifen
 from helpers.convert_schutzstreifen_at_bus_stops import convert_schutzstreifen_at_bus_stops_main
 from helpers.snapping_analysis import (
-    SnappingPriorities,
     calculate_line_angle,
     angle_difference, 
-    calculate_angle_priority,
-    calculate_distance_priority,
     determine_segment_direction,
-    calculate_osm_priority_detailed,
-    calculate_osm_priority,
     find_best_candidate_for_direction
 )
 
@@ -70,7 +64,7 @@ RVN_ATTRIBUT_ENDE_VP   = "endet_bei_vp"         # Endknoten-ID
 # Attribute an denen die Kanten getrennt werden bzw. verschmolzen werden
 # Diese Attribute müssen in den übersetzten TILDA Daten vorhanden sein
 FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES = ["fuehr", "ofm", "protek", "pflicht", "breite", "farbe", "ri", "verkehrsri", "trennstreifen", "nutz_beschr", "Kommentar"]
-FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES=["data_source", "tilda_id", "tilda_name","tilda_oneway", "tilda_category", "tilda_traffic_sign", "tilda_mapillary", "tilda_mapillary_traffic_sign", "tilda_mapillary_backward", "tilda_mapillary_forward", "prio_traffic", "prio_category", "prio_street", "prio_total", "prio_angle", "prio_direction", "prio_distance", "prio_distance_weighted", "prio_total_weighted", "angle_diff", "angle_segment", "angle_tilda"]
+FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES=["data_source", "tilda_id", "tilda_name","tilda_oneway", "tilda_category", "tilda_traffic_sign", "tilda_mapillary", "tilda_mapillary_traffic_sign", "tilda_mapillary_backward", "tilda_mapillary_forward", "prio_traffic", "prio_category", "prio_street", "prio_total", "prio_angle", "prio_distance", "prio_distance_weighted", "prio_total_weighted", "angle_diff", "angle_segment", "angle_tilda"]
 
 # Gewünschte Spaltenreihenfolge für Datenaufbereitung (finale Ausgabe)
 COLUMN_ORDER = [
@@ -108,7 +102,6 @@ COLUMN_ORDER = [
     "prio_street",            # Priorität basierend auf Straßennamen-Match
     "prio_total",             # Gesamtpriorität
     "prio_angle",             # Priorität basierend auf Winkelausrichtung
-    "prio_direction",         # Priorität basierend auf Richtungskompatibilität  
     "prio_distance",          # Entfernung zum Segmentmittelpunkt (in Metern)
     "prio_distance_weighted", # Gewichtete Entfernungs-Priorität (hyperbolisch)
     "prio_total_weighted",    # Gewichtete Gesamtpriorität (TILDA + Winkel + Entfernung)
@@ -193,7 +186,6 @@ def set_priority_values(variant, best_osm, segment_angle):
         
         # Übertrage geometrische und räumliche Prioritäten
         variant["prio_angle"] = best_osm.get('angle_priority', 0)
-        variant["prio_direction"] = best_osm.get('direction_compatibility', 0)
         variant["prio_distance"] = best_osm.get('dist_to_mid', None)
         variant["prio_distance_weighted"] = best_osm.get('distance_priority', 0)  # Neue gewichtete Entfernungs-Priorität
         variant["prio_total_weighted"] = best_osm.get('total_priority_weighted', 0)  # Neue Gesamtpriorität
@@ -216,7 +208,6 @@ def set_priority_values(variant, best_osm, segment_angle):
         variant["prio_street"] = 0
         variant["prio_total"] = 0
         variant["prio_angle"] = 0
-        variant["prio_direction"] = 0
         variant["prio_distance"] = None
         variant["prio_distance_weighted"] = 0
         variant["prio_total_weighted"] = 0
@@ -372,7 +363,6 @@ def process_segments_batch(segments_batch, osm_gdf, osm_sidx, buffer, candidates
                     best_tilda_id = best_candidate.get('tilda_id', 'unknown')
                     distance = best_candidate.get('d', -1)
                     angle_diff = best_candidate.get('angle_diff', -1)
-                    dir_compat = best_candidate.get('direction_compatibility', -1)
                     angle_prio = best_candidate.get('angle_priority', -1)
                     tilda_prio = best_candidate.get('priority', -1)
                     verkehrsri = best_candidate.get('verkehrsri', 'unknown')
@@ -1230,7 +1220,7 @@ def process(net_path, osm_path, out_path, crs, buffer, clip_neukoelln=False, dat
     out_gdf = convert_schutzstreifen_at_bus_stops_main(out_gdf, 
                                                        bus_stops_path="output/bus_stops_on_rvn.fgb",
                                                        buffer_distance=20.0, 
-                                                       tolerance=0.1)
+                                                       tolerance=1.0)
 
     # ---------- Finale Datenbereinigung ------------------------------------
     # Entferne Breite-Attribut bei allen Kanten mit Mischverkehr mit motorisiertem Verkehr

@@ -64,7 +64,7 @@ class SnappingPriorities:
     ANGLE_ORTHOGONAL_PENALTY = -20   # Strafe für orthogonale Wege (90°) - minimaler Wert der kontinuierlichen Funktion
     
     # Entfernungs-Priorität Konfiguration
-    DISTANCE_MAX_PRIORITY = 20       # Maximale Priorität bei Entfernung 0m
+    DISTANCE_MAX_PRIORITY = 15       # Maximale Priorität bei Entfernung 0m
     DISTANCE_REFERENCE = 10.0        # Referenz-Entfernung in Metern (bei dieser Entfernung = halbe Priorität)
     DISTANCE_WEIGHT_FACTOR = 1.0     # Gewichtungsfaktor für Entfernungseinfluss (1.0 = volle Gewichtung)
     
@@ -383,14 +383,6 @@ def find_best_candidate_for_direction(candidates, seg_dict, ri_value, segment_an
     # Berechne Entfernungs-Priorität für alle Kandidaten
     candidates["distance_priority"] = candidates["dist_to_mid"].apply(calculate_distance_priority)
     
-    # Berechne Gesamt-Priorität: TILDA-Inhalt + Winkel + Entfernung + Richtung
-    # Richtungskompatibilität wird separat behandelt, da sie binär ist (positiv/negativ)
-    candidates["total_priority_weighted"] = (
-        candidates["priority"] +           # TILDA-Priorität (Inhalt)
-        candidates["angle_priority"] +     # Winkel-Priorität 
-        candidates["distance_priority"]    # Entfernungs-Priorität
-    )
-    
     # Berechne Richtungskompatibilität für jeden Kandidaten
     candidates["direction_compatibility"] = 0
     
@@ -430,15 +422,13 @@ def find_best_candidate_for_direction(candidates, seg_dict, ri_value, segment_an
             logging.debug(f"  Kandidat {candidate_tilda_id}: Zweirichtungsverkehr, "
                          f"Winkel={candidate_angle:.1f}°, direction_compatibility={SnappingPriorities.DIRECTION_BIDIRECTIONAL}")
     
-    # Filtere gegenläufige Kandidaten mit negativer direction_compatibility aus
-    positive_candidates = candidates[candidates["direction_compatibility"] >= 0]
-    
-    if len(positive_candidates) == 0:
-        logging.debug(f"Alle Kandidaten für ri={ri_value} haben negative direction_compatibility - nehme besten trotzdem")
-        # Fallback: Wenn alle Kandidaten negativ sind, nehme den am wenigsten negativen
-    else:
-        candidates = positive_candidates
-        logging.debug(f"Filtere {len(candidates.index) - len(positive_candidates)} gegenläufige Kandidaten aus")
+    # Berechne Gesamt-Priorität: TILDA-Inhalt + Winkel + Entfernung + Richtungskompatibilität
+    candidates["total_priority_weighted"] = (
+        candidates["priority"] +           # TILDA-Priorität (Inhalt)
+        candidates["angle_priority"] +     # Winkel-Priorität (beinhaltet Richtungsausrichtung)
+        candidates["distance_priority"] +  # Entfernungs-Priorität
+        candidates["direction_compatibility"] # Richtungskompatibilität
+    )
     
     # Filtere Kandidaten mit zu niedriger TILDA-Gesamtpriorität aus
     # Dies ist eine harte untere Grenze für die Wegqualität
@@ -453,12 +443,11 @@ def find_best_candidate_for_direction(candidates, seg_dict, ri_value, segment_an
         logging.debug(f"Filtere {filtered_count} Kandidaten mit TILDA-Priorität < {SnappingPriorities.MINIMUM_TOTAL_PRIORITY} aus ({len(quality_candidates)} Kandidaten verbleiben)")
         candidates = quality_candidates
     
-    # Sortiere nach Richtungskompatibilität (erst positive), dann nach gewichteter Gesamtpriorität
-    # Richtungskompatibilität wird zuerst sortiert, um gegenläufige Wege zu filtern
-    # Dann nach der gewichteten Gesamtpriorität (TILDA + Winkel + Entfernung)
+    # Sortiere nach gewichteter Gesamtpriorität (TILDA + Winkel + Entfernung)
+    # Die Winkel-Priorität beinhaltet bereits die Richtungsausrichtung
     candidates = candidates.sort_values(
-        ["direction_compatibility", "total_priority_weighted"], 
-        ascending=[False, False]
+        ["total_priority_weighted"], 
+        ascending=[False]
     )
     
     # Logge die Sortierreihenfolge mit detaillierten Prioritäten
@@ -466,11 +455,11 @@ def find_best_candidate_for_direction(candidates, seg_dict, ri_value, segment_an
         best_candidate = candidates.iloc[0]
         logging.debug(f"=== BESTE KANDIDATEN-BEWERTUNG für ri={ri_value} ===")
         logging.debug(f"Bester Kandidat: {best_candidate.get('tilda_id', 'unknown')}")
-        logging.debug(f"  → Direction_Compatibility: {best_candidate.get('direction_compatibility', -1)}")
         logging.debug(f"  → Gewichtete_Gesamtpriorität: {best_candidate.get('total_priority_weighted', -1):.2f}")
         logging.debug(f"    ├─ TILDA_Priority: {best_candidate.get('priority', -1)}")
         logging.debug(f"    ├─ Angle_Priority: {best_candidate.get('angle_priority', -1):.2f}")
-        logging.debug(f"    └─ Distance_Priority: {best_candidate.get('distance_priority', -1):.2f} (bei {best_candidate.get('dist_to_mid', -1):.1f}m)")
+        logging.debug(f"    ├─ Distance_Priority: {best_candidate.get('distance_priority', -1):.2f} (bei {best_candidate.get('dist_to_mid', -1):.1f}m)")
+        logging.debug(f"    └─ Direction_Compatibility: {best_candidate.get('direction_compatibility', -1)}")
         
         # Logge auch die anderen Kandidaten zur Nachvollziehbarkeit
         if len(candidates) > 1:
@@ -478,10 +467,10 @@ def find_best_candidate_for_direction(candidates, seg_dict, ri_value, segment_an
             for i, (_, cand) in enumerate(candidates.iterrows()):
                 marker = "★ GEWÄHLT" if i == 0 else f"  {i+1}."
                 logging.debug(f"{marker} {cand.get('tilda_id', 'unknown')}: "
-                             f"dir_compat={cand.get('direction_compatibility', -1)}, "
                              f"total_weighted={cand.get('total_priority_weighted', -1):.2f} "
                              f"(tilda={cand.get('priority', -1)}, angle={cand.get('angle_priority', -1):.2f}, "
-                             f"dist={cand.get('distance_priority', -1):.2f}@{cand.get('dist_to_mid', -1):.1f}m)")
+                             f"dist={cand.get('distance_priority', -1):.2f}@{cand.get('dist_to_mid', -1):.1f}m, "
+                             f"dir={cand.get('direction_compatibility', -1)})")
     
     # Wähle den besten Kandidaten und füge detaillierte Prioritätsinformationen hinzu
     if len(candidates) > 0:
