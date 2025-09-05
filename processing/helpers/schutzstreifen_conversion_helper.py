@@ -84,40 +84,50 @@ def get_all_endpoints(geometry):
             return []
         return [Point(coords[0]), Point(coords[-1])]
 
-def find_adjacent_ways(segment_geometry, segment_indices, schutzstreifen_gdf, all_ways_gdf, tolerance=0.1):
+def find_adjacent_ways(geometry, all_ways_gdf, tolerance=0.1, check_direction=True, 
+                      filter_fuehr=None, schutzstreifen_ri=None, segment_indices=None, schutzstreifen_gdf=None):
     """
-    Finde alle angrenzenden Wege zu einem Segment mit räumlichem Index und Richtungscheck.
+    Universelle Funktion zum Finden angrenzender Wege mit flexiblen Optionen.
     
-    Diese Funktion verwendet get_all_endpoints() für korrekte MultiLineString-Behandlung
-    und berücksichtigt Fahrtrichtungen bei der Verbindungsprüfung.
+    Diese Funktion kann sowohl für richtungsbewusste Konvertierungen als auch für
+    richtungsunabhängige Analysen verwendet werden.
     
     Args:
-        segment_geometry: Geometrie des Segments
-        segment_indices: Liste der Indizes der Wege im Segment
-        schutzstreifen_gdf: GeoDataFrame mit Schutzstreifen-Daten
+        geometry: Geometrie des zu prüfenden Segments/Schutzstreifens
         all_ways_gdf: GeoDataFrame mit allen Wegen
         tolerance: Toleranz für räumliche Verbindungen in Metern
+        check_direction: Ob Fahrtrichtung (ri) berücksichtigt werden soll
+        filter_fuehr: Optional - Filtere nur nach bestimmten Führungsformen (z.B. ['Radfahrstreifen'])
+        schutzstreifen_ri: Optional - ri-Wert des Schutzstreifens (für Richtungscheck)
+        segment_indices: Optional - Indizes der Segmente (für Richtungsermittlung)
+        schutzstreifen_gdf: Optional - GeoDataFrame für Richtungsermittlung
         
     Returns:
         list: Liste von Dictionaries mit angrenzenden Wegen
     """
     adjacent_ways = []
     
-    # Ermittle die Richtung des Schutzstreifen-Segments
-    segment_ri = None
-    if len(segment_indices) > 0:
-        # Nimm die Richtung des ersten Schutzstreifens im Segment (alle sollten gleich sein)
-        first_idx = segment_indices[0]
-        segment_ri = schutzstreifen_gdf.loc[first_idx, 'ri'] if 'ri' in schutzstreifen_gdf.columns else None
+    # Ermittle die Richtung wenn nötig
+    segment_ri = schutzstreifen_ri
+    if check_direction and segment_ri is None and segment_indices and schutzstreifen_gdf is not None:
+        if len(segment_indices) > 0:
+            first_idx = segment_indices[0]
+            segment_ri = schutzstreifen_gdf.loc[first_idx, 'ri'] if 'ri' in schutzstreifen_gdf.columns else None
     
-    # Extrahiere alle Endpunkte des Segments
-    segment_endpoints = get_all_endpoints(segment_geometry)
+    # Extrahiere Endpunkte - verwende get_all_endpoints für MultiLineString-Unterstützung
+    if hasattr(geometry, '__iter__') and not isinstance(geometry, (str, Point, LineString, MultiLineString)):
+        # Falls geometry eine Sammlung ist (z.B. für Segmente)
+        endpoints = []
+        for geom in geometry:
+            endpoints.extend(get_all_endpoints(geom))
+    else:
+        endpoints = get_all_endpoints(geometry)
     
-    if not segment_endpoints:
+    if not endpoints:
         return adjacent_ways
     
     # Verwende räumlichen Index für erste Filterung
-    for endpoint in segment_endpoints:
+    for endpoint in endpoints:
         search_buffer = endpoint.buffer(tolerance * 2)
         possible_matches = all_ways_gdf[all_ways_gdf.geometry.intersects(search_buffer)]
         
@@ -125,6 +135,10 @@ def find_adjacent_ways(segment_geometry, segment_indices, schutzstreifen_gdf, al
         for idx, way in possible_matches.iterrows():
             if way['fuehr'] == 'Schutzstreifen':
                 continue  # Skip andere Schutzstreifen
+            
+            # Optional: Filtere nach bestimmten Führungsformen
+            if filter_fuehr and way['fuehr'] not in filter_fuehr:
+                continue
                 
             way_endpoints = get_all_endpoints(way.geometry)
             if not way_endpoints:
@@ -137,13 +151,12 @@ def find_adjacent_ways(segment_geometry, segment_indices, schutzstreifen_gdf, al
                 min_distance = min(min_distance, distance)
             
             if min_distance <= tolerance:
-                # Zusätzlich: Prüfe Richtung bei Radfahrstreifen (alle Varianten)
+                # Richtungscheck nur wenn gewünscht
                 way_ri = way.get('ri', None) if 'ri' in all_ways_gdf.columns else None
                 
-                # Bei allen Radfahrstreifen-Typen: Nur akzeptieren wenn Richtung übereinstimmt
-                if 'Radfahrstreifen' in way['fuehr']:
+                if check_direction and 'Radfahrstreifen' in way['fuehr']:
                     if segment_ri is not None and way_ri is not None and segment_ri != way_ri:
-                        logger.debug(f"{way['fuehr']} {idx} (ri:{way_ri}) hat andere Richtung als Schutzstreifen-Segment (ri:{segment_ri}) - nicht berücksichtigt")
+                        logger.debug(f"{way['fuehr']} {idx} (ri:{way_ri}) hat andere Richtung als Schutzstreifen (ri:{segment_ri}) - nicht berücksichtigt")
                         continue
                 
                 # Vermeide Duplikate
@@ -159,65 +172,31 @@ def find_adjacent_ways(segment_geometry, segment_indices, schutzstreifen_gdf, al
     
     return adjacent_ways
 
-def find_adjacent_radfahrstreifen_simple(schutzstreifen_row, all_ways_gdf, tolerance=1.0):
+def find_adjacent_radfahrstreifen(schutzstreifen_row, all_ways_gdf, tolerance=1.0, check_direction=False):
     """
     Prüfe ob ein einzelner Schutzstreifen an Radfahrstreifen angrenzt.
-    
-    Diese Version berücksichtigt KEINE Fahrtrichtung, da sie für Bus-Haltestellen
-    verwendet wird, wo die Richtung weniger kritisch ist.
     
     Args:
         schutzstreifen_row: Pandas Series mit Schutzstreifen-Daten
         all_ways_gdf: GeoDataFrame mit allen Wegen
         tolerance: Toleranz für räumliche Verbindungen in Metern
+        check_direction: Ob Fahrtrichtung berücksichtigt werden soll
         
     Returns:
         bool: True wenn angrenzende Radfahrstreifen gefunden wurden
     """
-    # Extrahiere Endpunkte des Schutzstreifens
-    start_point, end_point = get_endpoints(schutzstreifen_row.geometry)
+    schutzstreifen_ri = schutzstreifen_row.get('ri', None) if check_direction else None
     
-    if not start_point or not end_point:
-        return False
+    adjacent_ways = find_adjacent_ways(
+        geometry=schutzstreifen_row.geometry,
+        all_ways_gdf=all_ways_gdf,
+        tolerance=tolerance,
+        check_direction=check_direction,
+        filter_fuehr=['Radfahrstreifen', 'Radfahrstreifen (Mittellinie)', 'Radfahrstreifen (breite Mittellinie)'],
+        schutzstreifen_ri=schutzstreifen_ri
+    )
     
-    # Erstelle Puffer um Endpunkte für räumliche Suche
-    search_buffer_start = start_point.buffer(tolerance * 2)
-    search_buffer_end = end_point.buffer(tolerance * 2)
-    
-    # Verwende räumlichen Index für erste Filterung
-    possible_matches_start = all_ways_gdf[all_ways_gdf.geometry.intersects(search_buffer_start)]
-    possible_matches_end = all_ways_gdf[all_ways_gdf.geometry.intersects(search_buffer_end)]
-    
-    # Kombiniere beide Mengen
-    possible_matches = pd.concat([possible_matches_start, possible_matches_end]).drop_duplicates()
-    
-    # Suche nach angrenzenden Radfahrstreifen
-    for idx, way in possible_matches.iterrows():
-        # Skip den Schutzstreifen selbst
-        if way.get('sfid') == schutzstreifen_row.get('sfid'):
-            continue
-            
-        # Prüfe ob es sich um einen Radfahrstreifen handelt
-        if way['fuehr'] not in ['Radfahrstreifen', 'Geschützter Radfahrstreifen']:
-            continue
-            
-        way_start, way_end = get_endpoints(way.geometry)
-        if not way_start or not way_end:
-            continue
-        
-        # Prüfe Verbindung zu Schutzstreifen-Endpunkten
-        distances = [
-            start_point.distance(way_start),
-            start_point.distance(way_end),
-            end_point.distance(way_start),
-            end_point.distance(way_end)
-        ]
-        min_distance = min(distances)
-        
-        if min_distance <= tolerance:
-            return True
-    
-    return False
+    return len(adjacent_ways) > 0
 
 def find_schutzstreifen_adjacent_to_radfahrstreifen(schutzstreifen_near_stops, all_ways_gdf, tolerance=1.0, progress_callback=None):
     """
@@ -243,8 +222,8 @@ def find_schutzstreifen_adjacent_to_radfahrstreifen(schutzstreifen_near_stops, a
         if progress_callback and (i % 50 == 0 or i == total - 1):
             progress_callback(i + 1, total, "Prüfe Angrenzung: ")
         
-        # Prüfe Angrenzung an Radfahrstreifen
-        has_adjacent = find_adjacent_radfahrstreifen_simple(schutzstreifen, all_ways_gdf, tolerance)
+        # Prüfe Angrenzung an Radfahrstreifen (ohne Richtungscheck)
+        has_adjacent = find_adjacent_radfahrstreifen(schutzstreifen, all_ways_gdf, tolerance, check_direction=False)
         if has_adjacent:
             logger.debug(f"Schutzstreifen {schutzstreifen.get('sfid', idx)} hat angrenzende Radfahrstreifen")
             adjacent_schutzstreifen.append(idx)

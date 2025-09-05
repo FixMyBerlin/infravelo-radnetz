@@ -79,8 +79,8 @@ def process_bikelane_conversion(input_path, output_path, clip_neukoelln=False, d
     # Räumliche Filter anwenden (falls erforderlich)
     if clip_neukoelln:
         logging.info("Schneide Daten auf Neukölln zu...")
-        neukoelln_boundary_path = f"{data_dir}/Bezirk Neukölln Grenze.fgb"
-        gdf = clip_to_neukoelln(gdf, neukoelln_boundary_path)
+        # clip_to_neukoelln expects (gdf, data_dir, crs, boundary_file=...)
+        gdf = clip_to_neukoelln(gdf, data_dir, f"EPSG:{DEFAULT_CRS}")
         logging.info(f"Nach Neukölln-Zuschnitt: {len(gdf)} Kanten")
     elif view:
         logging.info(f"Schneide Daten auf Viewport zu: {view}")
@@ -130,14 +130,6 @@ def process_bikelane_conversion(input_path, output_path, clip_neukoelln=False, d
     logging.info(f"Schutzstreifen an Bushaltestellen konvertiert: {converted_bus_stops}")
     logging.info(f"Gesamt konvertierte Schutzstreifen: {total_converted}")
     logging.info(f"Verbleibende Schutzstreifen: {schutzstreifen_final}")
-    
-    # ---------- Finale Datenbereinigung ------------------------------------
-    # Entferne Breite-Attribut bei allen Kanten mit Mischverkehr mit motorisiertem Verkehr
-    mischverkehr_mask = gdf['fuehr'] == 'Mischverkehr mit motorisiertem Verkehr'
-    mischverkehr_count = mischverkehr_mask.sum()
-    if mischverkehr_count > 0:
-        logging.info(f"Entferne Breite-Attribut bei {mischverkehr_count} Kanten mit Mischverkehr")
-        gdf.loc[mischverkehr_mask, 'breite'] = None
     
     # ---------- Ausgabe speichern -------------------------------------------
     # Stelle sicher, dass das Ausgabeverzeichnis existiert

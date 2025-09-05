@@ -216,7 +216,14 @@ def convert_short_schutzstreifen_to_radfahrstreifen(gdf, length_threshold=50.0, 
             continue
         
         # Finde angrenzende Wege
-        adjacent_ways = find_adjacent_ways(merged_geometry, segment_indices, schutzstreifen_gdf, result_gdf, tolerance)
+        adjacent_ways = find_adjacent_ways(
+            geometry=merged_geometry, 
+            all_ways_gdf=result_gdf, 
+            tolerance=tolerance,
+            check_direction=True,
+            segment_indices=segment_indices,
+            schutzstreifen_gdf=schutzstreifen_gdf
+        )
         
         # Prüfe ob Radfahrstreifen unter den angrenzenden Wegen sind
         adjacent_fuehr = [way['fuehr'] for way in adjacent_ways]

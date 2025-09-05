@@ -28,9 +28,10 @@ import logging
 from collections import defaultdict, Counter
 from pathlib import Path
 
-# Import der Progressbar aus helpers
+# Import der Progressbar und Helper aus processing
 sys.path.append(str(Path(__file__).parent.parent / 'processing'))
 from helpers.progressbar import print_progressbar
+from helpers.schutzstreifen_conversion_helper import get_endpoints, find_adjacent_ways
 
 # Logging konfigurieren
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -114,8 +115,12 @@ def analyze_schutzstreifen_at_bus_stops(schutzstreifen_at_stops, all_ways_gdf):
     transitions_counter = Counter()
     
     for idx, schutzstreifen in schutzstreifen_at_stops.iterrows():
-        # Finde angrenzende Wege
-        adjacent_ways = find_adjacent_ways(schutzstreifen.geometry, all_ways_gdf)
+        # Finde angrenzende Wege (ohne Richtungscheck für Analyse)
+        adjacent_ways = find_adjacent_ways(
+            geometry=schutzstreifen.geometry, 
+            all_ways_gdf=all_ways_gdf,
+            check_direction=False
+        )
         
         # Analysiere Führungsformen vor und nach dem Schutzstreifen
         adjacent_fuehr = [way['fuehr'] for way in adjacent_ways]
@@ -145,21 +150,6 @@ def analyze_schutzstreifen_at_bus_stops(schutzstreifen_at_stops, all_ways_gdf):
         results.append(result)
     
     return results, transitions_counter
-
-def get_endpoints(geometry):
-    """Extrahiere Start- und Endpunkte einer Geometrie."""
-    if isinstance(geometry, MultiLineString):
-        # Bei MultiLineString nehme ersten und letzten Punkt der ersten/letzten Linie
-        coords = []
-        for geom in geometry.geoms:
-            coords.extend(list(geom.coords))
-    else:
-        coords = list(geometry.coords)
-    
-    if len(coords) < 2:
-        return None, None
-    
-    return Point(coords[0]), Point(coords[-1])
 
 def find_connected_schutzstreifen(schutzstreifen_gdf, tolerance=0.1):
     """Finde zusammenhängende Schutzstreifen-Segmente mit optimiertem räumlichem Index."""
@@ -290,55 +280,6 @@ def merge_segment_geometries(geometries):
         else:
             return None
 
-def find_adjacent_ways(segment_geometry, all_ways_gdf, tolerance=0.1):
-    """Finde alle angrenzenden Wege zu einem Segment mit räumlichem Index."""
-    adjacent_ways = []
-    
-    # Extrahiere Endpunkte des Segments
-    start_point, end_point = get_endpoints(segment_geometry)
-    
-    if not start_point or not end_point:
-        return adjacent_ways
-    
-    # Erstelle Puffer um Endpunkte für räumliche Suche
-    search_buffer_start = start_point.buffer(tolerance * 2)
-    search_buffer_end = end_point.buffer(tolerance * 2)
-    
-    # Verwende räumlichen Index für erste Filterung
-    possible_matches_start = all_ways_gdf[all_ways_gdf.geometry.intersects(search_buffer_start)]
-    possible_matches_end = all_ways_gdf[all_ways_gdf.geometry.intersects(search_buffer_end)]
-    
-    # Kombiniere beide Mengen
-    possible_matches = pd.concat([possible_matches_start, possible_matches_end]).drop_duplicates()
-    
-    # Suche nach angrenzenden Wegen in der gefilterten Menge
-    for idx, way in possible_matches.iterrows():
-        if way['fuehr'] == 'Schutzstreifen':
-            continue  # Skip andere Schutzstreifen
-            
-        way_start, way_end = get_endpoints(way.geometry)
-        if not way_start or not way_end:
-            continue
-        
-        # Prüfe Verbindung zu Segment-Endpunkten
-        distances = [
-            start_point.distance(way_start),
-            start_point.distance(way_end),
-            end_point.distance(way_start),
-            end_point.distance(way_end)
-        ]
-        min_distance = min(distances)
-        
-        if min_distance <= tolerance:
-            adjacent_ways.append({
-                'way_id': way.get('sfid', idx),
-                'fuehr': way['fuehr'],
-                'element_nr': way.get('element_nr', 'unknown'),
-                'distance': min_distance
-            })
-    
-    return adjacent_ways
-
 def analyze_segments(segments, schutzstreifen_gdf, all_ways_gdf):
     """Analysiere alle Segmente und erstelle Ergebnisse."""
     logger.info("Analysiere Segmente...")
@@ -370,8 +311,12 @@ def analyze_segments(segments, schutzstreifen_gdf, all_ways_gdf):
                 'way_count': len(segment_indices)
             })
         
-        # Finde angrenzende Wege
-        adjacent_ways = find_adjacent_ways(merged_geometry, all_ways_gdf)
+        # Finde angrenzende Wege (ohne Richtungscheck für Analyse)
+        adjacent_ways = find_adjacent_ways(
+            geometry=merged_geometry, 
+            all_ways_gdf=all_ways_gdf,
+            check_direction=False
+        )
         
         # Erstelle Übergangsbeschreibung
         adjacent_fuehr = [way['fuehr'] for way in adjacent_ways]

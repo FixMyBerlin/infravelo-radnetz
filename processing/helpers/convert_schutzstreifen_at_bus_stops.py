@@ -19,168 +19,153 @@ import os
 from shapely.geometry import Point, MultiLineString
 from .progressbar import print_progressbar
 from .schutzstreifen_conversion_helper import (
-    get_endpoints, 
-    find_adjacent_radfahrstreifen_simple,
     find_schutzstreifen_adjacent_to_radfahrstreifen
 )
 
 logger = logging.getLogger(__name__)
 
-def load_bus_stops(bus_stops_path="output/bus_stops_on_rvn.fgb"):
-    """Lade Bushaltestellen auf RVN."""
-    try:
-        if not os.path.exists(bus_stops_path):
-            logger.warning(f"Bushaltestellen-Datei nicht gefunden: {bus_stops_path}")
-            return None
-            
-        bus_stops_gdf = gpd.read_file(bus_stops_path)
-        logger.info(f"Bushaltestellen geladen: {len(bus_stops_gdf)} Haltestellen")
-        return bus_stops_gdf
-    except Exception as e:
-        logger.error(f"Fehler beim Laden der Bushaltestellen: {e}")
-        return None
+def load_bus_stops(path, return_gdf=True):
+    """
+    Lädt die Bus-Haltestellen-Daten.
+    
+    Args:
+        path: Pfad zur Bus-Haltestellen-Datei (.fgb)
+        return_gdf: Wenn True, gibt GeoDataFrame zurück, sonst Pfad
+        
+    Returns:
+        GeoDataFrame oder str: Bus-Haltestellen-Daten oder Pfad
+    """
+    if not os.path.exists(path):
+        logger.error(f"Bus-Haltestellen-Datei nicht gefunden: {path}")
+        return gpd.GeoDataFrame() if return_gdf else None
+    
+    if return_gdf:
+        logger.info(f"Lade Bus-Haltestellen aus {path}")
+        return gpd.read_file(path)
+    else:
+        return path
 
-
-
-def find_schutzstreifen_near_bus_stops(gdf, bus_stops_gdf, buffer_distance=20.0):
-    """Finde Schutzstreifen in der Nähe von Bushaltestellen."""
-    if bus_stops_gdf is None or len(bus_stops_gdf) == 0:
-        logger.warning("Keine Bushaltestellen verfügbar")
-        return gdf[gdf['fuehr'] == 'Schutzstreifen'].copy()  # Fallback: alle Schutzstreifen
+def identify_schutzstreifen_near_bus_stops(all_ways_gdf, bus_stops_gdf, buffer_distance=20):
+    """
+    Identifiziere Schutzstreifen im Umkreis von Bushaltestellen.
     
-    logger.info(f"Suche Schutzstreifen im {buffer_distance}m Umkreis von Bushaltestellen...")
+    Args:
+        all_ways_gdf: GeoDataFrame mit allen Wegen
+        bus_stops_gdf: GeoDataFrame mit Bushaltestellen
+        buffer_distance: Pufferabstand in Metern
+        
+    Returns:
+        GeoDataFrame: Schutzstreifen in der Nähe von Bushaltestellen
+    """
+    if bus_stops_gdf.empty:
+        logger.warning("Keine Bus-Haltestellen verfügbar")
+        return gpd.GeoDataFrame()
     
-    # Filtere zunächst nur Schutzstreifen
-    schutzstreifen_gdf = gdf[gdf['fuehr'] == 'Schutzstreifen'].copy()
-    logger.info(f"Gefundene Schutzstreifen gesamt: {len(schutzstreifen_gdf)}")
+    logger.info(f"Identifiziere Schutzstreifen im {buffer_distance}m Umkreis von {len(bus_stops_gdf)} Bushaltestellen")
     
-    if len(schutzstreifen_gdf) == 0:
-        logger.info("Keine Schutzstreifen gefunden")
-        return schutzstreifen_gdf
+    # Filtere nur Schutzstreifen
+    schutzstreifen_gdf = all_ways_gdf[all_ways_gdf['fuehr'] == 'Schutzstreifen'].copy()
+    logger.info(f"Gesamt Schutzstreifen im Netzwerk: {len(schutzstreifen_gdf)}")
     
-    # Stelle sicher, dass beide GeoDataFrames das gleiche CRS haben
-    # TODO Sollten beide DEFAULT_CRS aus globals.py sein.
-    if schutzstreifen_gdf.crs != bus_stops_gdf.crs:
-        bus_stops_gdf = bus_stops_gdf.to_crs(schutzstreifen_gdf.crs)
+    if schutzstreifen_gdf.empty:
+        logger.warning("Keine Schutzstreifen im Netzwerk gefunden")
+        return gpd.GeoDataFrame()
     
     # Erstelle Puffer um Bushaltestellen
-    bus_stops_buffered = bus_stops_gdf.copy()
-    bus_stops_buffered['geometry'] = bus_stops_buffered.geometry.buffer(buffer_distance)
+    bus_buffer = bus_stops_gdf.geometry.buffer(buffer_distance).unary_union
     
-    # Räumlicher Join: Finde Schutzstreifen die Bushaltestellen-Puffer schneiden
-    schutzstreifen_near_stops = gpd.sjoin(
-        schutzstreifen_gdf, 
-        bus_stops_buffered[['geometry']], 
-        how='inner', 
-        predicate='intersects'
-    )
+    # Finde Schutzstreifen die den Puffer schneiden
+    schutzstreifen_near_stops = schutzstreifen_gdf[
+        schutzstreifen_gdf.geometry.intersects(bus_buffer)
+    ].copy()
     
-    # Entferne Duplikate (falls ein Schutzstreifen mehrere Haltestellen trifft)
-    original_columns = schutzstreifen_gdf.columns.tolist()
-    schutzstreifen_near_stops = schutzstreifen_near_stops[original_columns].drop_duplicates()
-    
-    logger.info(f"Schutzstreifen in {buffer_distance}m Umkreis von Haltestellen: {len(schutzstreifen_near_stops)}")
-    
+    logger.info(f"Schutzstreifen im {buffer_distance}m Umkreis von Bushaltestellen: {len(schutzstreifen_near_stops)}")
     return schutzstreifen_near_stops
 
-def find_adjacent_radfahrstreifen(schutzstreifen_row, all_ways_gdf, tolerance=1.0):
-    """Prüfe ob ein Schutzstreifen an Radfahrstreifen angrenzt."""
-    return find_adjacent_radfahrstreifen_simple(schutzstreifen_row, all_ways_gdf, tolerance)
-
 def find_schutzstreifen_adjacent_to_radfahrstreifen_local(schutzstreifen_near_stops, all_ways_gdf, tolerance=1.0):
-    """Finde Schutzstreifen die an Radfahrstreifen angrenzen."""
-    logger.info("Prüfe welche Schutzstreifen an Radfahrstreifen angrenzen...")
+    """
+    Wrapper-Funktion für find_schutzstreifen_adjacent_to_radfahrstreifen.
+    """
+    def progress_callback(current, total, prefix=""):
+        print_progressbar(current, total, prefix)
     
-    # Verwende die ausgelagerte Funktion mit Progress-Callback
     return find_schutzstreifen_adjacent_to_radfahrstreifen(
         schutzstreifen_near_stops, 
         all_ways_gdf, 
         tolerance, 
-        progress_callback=print_progressbar
+        progress_callback
     )
 
-
-def convert_schutzstreifen_at_bus_stops_with_gdf(gdf, bus_stops_gdf, 
-                                               buffer_distance=20.0, tolerance=1.0):
+def convert_schutzstreifen_at_bus_stops_with_gdf(all_ways_gdf, bus_stops_gdf, 
+                                                buffer_distance=20, tolerance=1.0):
     """
-    Konvertiert Schutzstreifen zu Radfahrstreifen an Bushaltestellen.
-    Verwendet ein bereits geladenes GeoDataFrame mit Bushaltestellen.
+    Konvertiere Schutzstreifen an Bushaltestellen mit direktem GeoDataFrame.
     
     Args:
-        gdf: GeoDataFrame mit allen Straßendaten
-        bus_stops_gdf: GeoDataFrame mit Bushaltestellen
-        buffer_distance: Suchradius um Bushaltestellen in Metern
-        tolerance: Toleranz für Angrenzungsprüfung in Metern
-    
+        all_ways_gdf: GeoDataFrame mit allen Wegen
+        bus_stops_gdf: GeoDataFrame mit Bushaltestellen 
+        buffer_distance: Pufferabstand für Haltestellen in Metern
+        tolerance: Toleranz für Angrenzungscheck in Metern
+        
     Returns:
-        GeoDataFrame: Bearbeitete Daten mit konvertierten Schutzstreifen
+        GeoDataFrame: Aktualisierte Wege-Daten
     """
-    logger.info("=" * 60)
-    logger.info("KONVERTIERUNG: SCHUTZSTREIFEN ZU RADFAHRSTREIFEN AN BUSHALTESTELLEN")
-    logger.info("=" * 60)
+    logger.info("=== Schutzstreifen-Konvertierung an Bushaltestellen ===")
     
-    # Kopie erstellen um Original nicht zu verändern
-    result_gdf = gdf.copy()
+    if bus_stops_gdf.empty:
+        logger.warning("Keine Bus-Haltestellen verfügbar - keine Konvertierung möglich")
+        return all_ways_gdf.copy()
     
-    if bus_stops_gdf is None or len(bus_stops_gdf) == 0:
-        logger.warning("Konvertierung übersprungen: Keine Bushaltestellen verfügbar")
-        return result_gdf
+    result_gdf = all_ways_gdf.copy()
     
-    logger.info(f"Bushaltestellen geladen: {len(bus_stops_gdf)} Haltestellen")
-    
-    # 2. Schutzstreifen in der Nähe von Bushaltestellen finden
-    schutzstreifen_near_stops = find_schutzstreifen_near_bus_stops(
+    # 1. Identifiziere Schutzstreifen im Umkreis von Bushaltestellen
+    schutzstreifen_near_stops = identify_schutzstreifen_near_bus_stops(
         result_gdf, bus_stops_gdf, buffer_distance
     )
     
-    if len(schutzstreifen_near_stops) == 0:
+    if schutzstreifen_near_stops.empty:
         logger.info("Keine Schutzstreifen in der Nähe von Bushaltestellen gefunden")
         return result_gdf
     
-    # 3. Schutzstreifen finden, die an Radfahrstreifen angrenzen
+    # 2. Prüfe welche Schutzstreifen an Radfahrstreifen angrenzen
+    logger.info("Prüfe Angrenzung an Radfahrstreifen...")
     schutzstreifen_to_convert = find_schutzstreifen_adjacent_to_radfahrstreifen_local(
         schutzstreifen_near_stops, result_gdf, tolerance
     )
     
-    if len(schutzstreifen_to_convert) == 0:
-        logger.info("Keine Schutzstreifen gefunden, die beide Bedingungen erfüllen")
+    if schutzstreifen_to_convert.empty:
+        logger.info("Keine Schutzstreifen an Bushaltestellen grenzen an Radfahrstreifen an")
         return result_gdf
     
-    # 4. Konvertierung durchführen
-    logger.info(f"Konvertiere {len(schutzstreifen_to_convert)} Schutzstreifen...")
+    # 3. Konvertiere die identifizierten Schutzstreifen
+    logger.info(f"Konvertiere {len(schutzstreifen_to_convert)} Schutzstreifen an Bushaltestellen")
     
     converted_count = 0
-    for idx in schutzstreifen_to_convert.index:
-        if result_gdf.loc[idx, 'fuehr'] == 'Schutzstreifen':
-            result_gdf.loc[idx, 'fuehr'] = 'Radfahrstreifen (OSM:Schutzstreifen an Haltestelle)'
-            converted_count += 1
+    for idx, row in schutzstreifen_to_convert.iterrows():
+        old_fuehr = result_gdf.loc[idx, 'fuehr']
+        result_gdf.loc[idx, 'fuehr'] = 'Radfahrstreifen (OSM:Schutzstreifen an Haltestelle)'
+        converted_count += 1
+        
+        sfid = row.get('sfid', idx)
+        logger.debug(f"Konvertiert: sfid={sfid}, {old_fuehr} → {result_gdf.loc[idx, 'fuehr']}")
     
-    # 5. Statistiken ausgeben
-    logger.info("=" * 60)
-    logger.info("KONVERTIERUNG ABGESCHLOSSEN:")
-    logger.info(f"Bushaltestellen: {len(bus_stops_gdf)}")
-    logger.info(f"Schutzstreifen in {buffer_distance}m Umkreis: {len(schutzstreifen_near_stops)}")
-    logger.info(f"Davon an Radfahrstreifen angrenzend: {len(schutzstreifen_to_convert)}")
-    logger.info(f"Erfolgreich konvertiert: {converted_count}")
-    logger.info("Neue Führungsform: 'Radfahrstreifen (OSM:Schutzstreifen an Haltestelle)'")
-    logger.info("=" * 60)
-    
+    logger.info(f"✅ {converted_count} Schutzstreifen an Bushaltestellen erfolgreich konvertiert")
     return result_gdf
 
-# Hauptfunktion für externe Verwendung (analog zur bestehenden convert_short_schutzstreifen_to_radfahrstreifen)
-def convert_schutzstreifen_at_bus_stops_main(gdf, bus_stops_gdf=None, bus_stops_path="output/bus_stops_on_rvn.fgb", 
-                                            buffer_distance=20.0, tolerance=1.0):
+def convert_schutzstreifen_at_bus_stops(all_ways_gdf, bus_stops_path, buffer_distance=20, tolerance=1.0):
     """
-    Wrapper-Funktion für die Integration in den Processing-Pipeline.
+    Konvertiere Schutzstreifen an Bushaltestellen basierend auf einem Dateipfad.
     
     Args:
-        gdf: GeoDataFrame mit Straßennetzwerk-Daten
-        bus_stops_gdf: Optional - bereits geladenes GeoDataFrame mit Bushaltestellen
-        bus_stops_path: Pfad zu Bushaltestellen-Datei (falls bus_stops_gdf nicht gegeben)
-        buffer_distance: Suchradius um Bushaltestellen (Standard: 20m)
-        tolerance: Toleranz für Angrenzung (Standard: 1.0m)
-    
+        all_ways_gdf: GeoDataFrame mit allen Wegen
+        bus_stops_path: Pfad zu Bus-Haltestellen-Datei
+        buffer_distance: Pufferabstand für Haltestellen in Metern
+        tolerance: Toleranz für Angrenzungscheck in Metern
+        
     Returns:
-        GeoDataFrame: Modifizierte Daten mit konvertierten Schutzstreifen
+        GeoDataFrame: Aktualisierte Wege-Daten
     """
-    return convert_schutzstreifen_at_bus_stops_with_gdf(gdf, bus_stops_gdf, buffer_distance, tolerance)
+    bus_stops_gdf = load_bus_stops(bus_stops_path, return_gdf=True)
+    return convert_schutzstreifen_at_bus_stops_with_gdf(
+        all_ways_gdf, bus_stops_gdf, buffer_distance, tolerance
+    )
