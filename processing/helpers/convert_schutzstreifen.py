@@ -7,6 +7,11 @@ Funktionen für die Konvertierung von kurzen Schutzstreifen zu Radfahrstreifen.
 
 Diese Funktionen werden im Processing-Pipeline verwendet um kurze Schutzstreifen 
 (<50m), die an Radfahrstreifen angrenzen, automatisch zu Radfahrstreifen zu konvertieren.
+
+Wichtige Richtungsberücksichtigung:
+- Schutzstreifen werden nur mit anderen Schutzstreifen derselben Richtung (ri-Attribut) zu Segmenten zusammengefasst
+- Nur angrenzende Radfahrstreifen mit derselben Richtung werden für die Konvertierung berücksichtigt
+- Dies verhindert fälschliche Konvertierungen bei entgegengesetzten Fahrrichtungen
 """
 
 import logging
@@ -35,7 +40,7 @@ def get_endpoints(geometry):
     return Point(coords[0]), Point(coords[-1])
 
 def find_connected_schutzstreifen(schutzstreifen_gdf, tolerance=0.1):
-    """Finde zusammenhängende Schutzstreifen-Segmente mit optimiertem räumlichem Index."""
+    """Finde zusammenhängende Schutzstreifen-Segmente mit optimiertem räumlichem Index und Richtungscheck."""
     logger.info("Suche zusammenhängende Schutzstreifen-Segmente...")
     
     # Erstelle Index für Endpunkte
@@ -43,7 +48,12 @@ def find_connected_schutzstreifen(schutzstreifen_gdf, tolerance=0.1):
     for idx, row in schutzstreifen_gdf.iterrows():
         start, end = get_endpoints(row.geometry)
         if start and end:
-            endpoints[idx] = {'start': start, 'end': end, 'geometry': row.geometry}
+            endpoints[idx] = {
+                'start': start, 
+                'end': end, 
+                'geometry': row.geometry,
+                'ri': row.get('ri', None)  # Richtungsattribut hinzufügen
+            }
     
     # Optimierte Verbindungssuche
     connections = defaultdict(set)
@@ -80,8 +90,16 @@ def find_connected_schutzstreifen(schutzstreifen_gdf, tolerance=0.1):
             ]
             
             if min(distances) <= tolerance:
-                connections[idx1].add(idx2)
-                connections[idx2].add(idx1)
+                # Zusätzlich: Prüfe ob beide Schutzstreifen die gleiche Richtung haben
+                ri1 = data1.get('ri')
+                ri2 = data2.get('ri')
+                
+                # Nur verbinden wenn Richtung identisch ist (oder eine der Richtungen unbekannt ist)
+                if ri1 is None or ri2 is None or ri1 == ri2:
+                    connections[idx1].add(idx2)
+                    connections[idx2].add(idx1)
+                else:
+                    logger.debug(f"Schutzstreifen {idx1} (ri:{ri1}) und {idx2} (ri:{ri2}) haben unterschiedliche Richtungen - nicht verbunden")
     
     # Erstelle zusammenhängende Komponenten (Segmente)
     visited = set()
@@ -163,9 +181,16 @@ def merge_segment_geometries(geometries):
         else:
             return None
 
-def find_adjacent_ways(segment_geometry, all_ways_gdf, tolerance=0.1):
-    """Finde alle angrenzenden Wege zu einem Segment mit räumlichem Index."""
+def find_adjacent_ways(segment_geometry, segment_indices, schutzstreifen_gdf, all_ways_gdf, tolerance=0.1):
+    """Finde alle angrenzenden Wege zu einem Segment mit räumlichem Index und Richtungscheck."""
     adjacent_ways = []
+    
+    # Ermittle die Richtung des Schutzstreifen-Segments
+    segment_ri = None
+    if len(segment_indices) > 0:
+        # Nimm die Richtung des ersten Schutzstreifens im Segment (alle sollten gleich sein)
+        first_idx = segment_indices[0]
+        segment_ri = schutzstreifen_gdf.loc[first_idx, 'ri'] if 'ri' in schutzstreifen_gdf.columns else None
     
     # Extrahiere Endpunkte des Segments
     start_point, end_point = get_endpoints(segment_geometry)
@@ -203,10 +228,20 @@ def find_adjacent_ways(segment_geometry, all_ways_gdf, tolerance=0.1):
         min_distance = min(distances)
         
         if min_distance <= tolerance:
+            # Zusätzlich: Prüfe Richtung bei Radfahrstreifen (alle Varianten)
+            way_ri = way.get('ri', None) if 'ri' in all_ways_gdf.columns else None
+            
+            # Bei allen Radfahrstreifen-Typen: Nur akzeptieren wenn Richtung übereinstimmt
+            if 'Radfahrstreifen' in way['fuehr']:
+                if segment_ri is not None and way_ri is not None and segment_ri != way_ri:
+                    logger.debug(f"{way['fuehr']} {idx} (ri:{way_ri}) hat andere Richtung als Schutzstreifen-Segment (ri:{segment_ri}) - nicht berücksichtigt")
+                    continue
+            
             adjacent_ways.append({
                 'way_id': way.get('sfid', idx),
                 'fuehr': way['fuehr'],
                 'element_nr': way.get('element_nr', 'unknown'),
+                'ri': way_ri,
                 'distance': min_distance
             })
     
@@ -214,7 +249,11 @@ def find_adjacent_ways(segment_geometry, all_ways_gdf, tolerance=0.1):
 
 def convert_short_schutzstreifen_to_radfahrstreifen(gdf, length_threshold=50.0, tolerance=0.1):
     """
-    Konvertiere kurze Schutzstreifen zu Radfahrstreifen, wenn sie an Radfahrstreifen angrenzen.
+    Konvertiere kurze Schutzstreifen zu Radfahrstreifen, wenn sie an Radfahrstreifen derselben Richtung angrenzen.
+    
+    Diese Funktion berücksichtigt das Richtungsattribut 'ri':
+    - Schutzstreifen werden nur mit anderen Schutzstreifen derselben Richtung zu Segmenten zusammengefasst
+    - Nur angrenzende Radfahrstreifen mit derselben Richtung werden für die Konvertierung berücksichtigt
     
     Args:
         gdf: GeoDataFrame mit allen Wegen nach dem Snapping
@@ -265,22 +304,31 @@ def convert_short_schutzstreifen_to_radfahrstreifen(gdf, length_threshold=50.0, 
             continue
         
         # Finde angrenzende Wege
-        adjacent_ways = find_adjacent_ways(merged_geometry, result_gdf, tolerance)
+        adjacent_ways = find_adjacent_ways(merged_geometry, segment_indices, schutzstreifen_gdf, result_gdf, tolerance)
         
         # Prüfe ob Radfahrstreifen unter den angrenzenden Wegen sind
         adjacent_fuehr = [way['fuehr'] for way in adjacent_ways]
-        has_radfahrstreifen = 'Radfahrstreifen' in adjacent_fuehr
+        has_radfahrstreifen = any('Radfahrstreifen' in fuehr for fuehr in adjacent_fuehr)
         
         if has_radfahrstreifen:
+            # Ermittle Segment-Richtung für Logging
+            segment_ri = schutzstreifen_gdf.loc[segment_indices[0], 'ri'] if len(segment_indices) > 0 and 'ri' in schutzstreifen_gdf.columns else 'unbekannt'
+            
             # Konvertiere alle Wege in diesem Segment
             for idx in segment_indices:
                 result_gdf.loc[idx, 'fuehr'] = 'Radfahrstreifen (OSM:Kurzer Schutzstreifen)'
             
             converted_count += len(segment_indices)
+            
+            # Richtungsinformationen der angrenzenden Radfahrstreifen sammeln
+            adjacent_radfahrstreifen_ri = [way['ri'] for way in adjacent_ways if 'Radfahrstreifen' in way['fuehr']]
+            
             converted_segments.append({
                 'segment_length': round(total_length, 2),
                 'way_count': len(segment_indices),
-                'adjacent_fuehr': adjacent_fuehr
+                'segment_ri': segment_ri,
+                'adjacent_fuehr': adjacent_fuehr,
+                'adjacent_radfahrstreifen_ri': adjacent_radfahrstreifen_ri
             })
     
     # Logging der Ergebnisse
@@ -293,6 +341,16 @@ def convert_short_schutzstreifen_to_radfahrstreifen(gdf, length_threshold=50.0, 
         
         logger.info(f"  - Durchschnittliche Segmentlänge: {avg_length:.1f}m")
         logger.info(f"  - Gesamtlänge konvertiert: {total_converted_length:.1f}m")
+        
+        # Richtungsstatistiken
+        direction_stats = {}
+        for seg in converted_segments:
+            ri = seg['segment_ri']
+            direction_stats[ri] = direction_stats.get(ri, 0) + 1
+        
+        logger.info("  - Richtungsverteilung der konvertierten Segmente:")
+        for ri, count in sorted(direction_stats.items()):
+            logger.info(f"    {ri}: {count}")
         
         # Häufigste Übergänge (Debug-Info)
         transitions = {}
