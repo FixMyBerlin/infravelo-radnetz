@@ -7,24 +7,26 @@
 # Verarbeitungsschritte:
 # 1. OSM-Wege mit Radvorrangsnetz matchen
 # 2. Snapping und Attribut-Übernahme  
-# 3. Finale Aggregation
-# 4. Qualitätssicherungstests
+# 3. Schutzstreifen-Konvertierung
+# 4. Finale Aggregation
+# 5. Qualitätssicherungstests
 #
 # Dateiverwaltung:
-# - Finale Dateien (snapping_network_enriched*, aggregated_rvn_final*) werden in output-last-run/ gesichert
+# - Finale Dateien (snapping_converted_bikelanes*, aggregated_rvn_final*) werden in output-last-run/ gesichert
 # - Temporäre Dateien werden vor dem entsprechenden Verarbeitungsschritt gelöscht
 # - Zwischendateien bleiben zwischen Schritten erhalten (für --start-step Funktionalität)
 #
-# Verwendung: ./execute_processing.sh [--clip-neukoelln | --view z/lat/lon] [--start-step <1-4>] [--clean-cache]
+# Verwendung: ./execute_processing.sh [--clip-neukoelln | --view z/lat/lon] [--start-step <1-5>] [--clean-cache]
 # 
 # Argumente:
 #   --clip-neukoelln    Beschränkt die Verarbeitung auf den Bezirk Neukölln
 #   --view z/lat/lon     Viewport Zuschnitt (WGS84, z.B. 18/52.488306/13.425140) – schreibt nach output-bbox
-#   --start-step <1-4>  Startet die Verarbeitung ab dem angegebenen Schritt
+#   --start-step <1-5>  Startet die Verarbeitung ab dem angegebenen Schritt
 #                       1: OSM-Wege Matching
 #                       2: Snapping und Attribut-Übernahme
-#                       3: Finale Aggregation
-#                       4: Qualitätssicherungstests
+#                       3: Schutzstreifen-Konvertierung
+#                       4: Finale Aggregation
+#                       5: Qualitätssicherungstests
 #   --clean-cache       Vollständige Bereinigung aller Cache-Dateien vor der Verarbeitung
 # 
 # Voraussetzung: Python venv ist bereits erstellt und requirements.txt wurde installiert
@@ -162,6 +164,7 @@ if [[ -n "$CLEAN_CACHE" ]]; then
             echo "    Bereinige $dir/..."
             rm -rf $dir/matching/ $dir/matched/ $dir/snapping/ 2>/dev/null || true
             rm -f $dir/snapping_network_enriched*.fgb 2>/dev/null || true
+            rm -f $dir/snapping_converted_bikelanes*.fgb 2>/dev/null || true
             rm -f $dir/aggregated_rvn_final*.gpkg 2>/dev/null || true
             rm -f $dir/aggregated_rvn_final*.fgb 2>/dev/null || true
         fi
@@ -173,8 +176,8 @@ if [[ -n "$CLEAN_CACHE" ]]; then
 fi
 
 # Verschiebe finale Dateien (falls vorhanden)
-for f in "snapping_network_enriched${SUFFIX}.fgb" \
-                 "snapping_network_enriched${SUFFIX}.geojson" \
+for f in "snapping_converted_bikelanes${SUFFIX}.fgb" \
+                 "snapping_converted_bikelanes${SUFFIX}.geojson" \
                  "aggregated_rvn_final${SUFFIX}.gpkg" \
                  "aggregated_rvn_final${SUFFIX}.fgb" \
                  "aggregated_rvn_final${SUFFIX}.geojson"; do
@@ -260,47 +263,75 @@ else
     echo ""
 fi
 
-# Schritt 3: Finale Aggregation
+# Schritt 3: Schutzstreifen-Konvertierung
 if [[ $START_STEP -le 3 ]]; then
     echo "🧹 Bereinigte temporäre Dateien für Schritt 3..."
-    # Lösche aggregated_rvn_final Dateien (werden in Schritt 3 erstellt)
-    rm -f "${BASE_OUT_DIR}/aggregated_rvn_final${SUFFIX}.gpkg"
-    rm -f "${BASE_OUT_DIR}/aggregated_rvn_final${SUFFIX}.fgb"
-    echo "  - Gelöscht: ${BASE_OUT_DIR}/aggregated_rvn_final${SUFFIX} Dateien"
+    # Lösche snapping_converted_bikelanes Dateien (werden in Schritt 3 erstellt)
+    rm -f "${BASE_OUT_DIR}/snapping_converted_bikelanes${SUFFIX}.fgb"
+    echo "  - Gelöscht: ${BASE_OUT_DIR}/snapping_converted_bikelanes${SUFFIX}.fgb"
     
-    echo "🎯 Schritt 3/4: Finale Aggregation..."
+    echo "🚲 Schritt 3/5: Schutzstreifen-Konvertierung..."
     STEP3_START=$(date +%s)
     if [[ -n "$CLIP_NEUKOELLN" ]]; then
-        ./.venv/bin/python processing/aggregate_final_model.py --clip-neukoelln --input ./output/snapping_network_enriched_neukoelln.fgb
+        ./.venv/bin/python processing/start_bikelane_conversion.py --clip-neukoelln
     elif [[ -n "$VIEW" ]]; then
-        ./.venv/bin/python processing/aggregate_final_model.py --view "$VIEW" --input ./output-bbox/snapping_network_enriched_view.fgb
+        ./.venv/bin/python processing/start_bikelane_conversion.py --view "$VIEW"
     else
-        ./.venv/bin/python processing/aggregate_final_model.py --input ./output/snapping_network_enriched.fgb
+        ./.venv/bin/python processing/start_bikelane_conversion.py
     fi
     if [ $? -ne 0 ]; then
-        echo "❌ Fehler in Schritt 3: aggregate_final_model.py"
+        echo "❌ Fehler in Schritt 3: start_bikelane_conversion.py"
         exit 1
     fi
     show_elapsed_time $STEP3_START "Schritt 3"
     echo "✅ Schritt 3 abgeschlossen."
     echo ""
 else
-    echo "⏭️  Überspringe Schritt 3 (Finale Aggregation)"
+    echo "⏭️  Überspringe Schritt 3 (Schutzstreifen-Konvertierung)"
     echo ""
 fi
 
-# Schritt 4: Qualitätssicherungstests
-# if [[ $START_STEP -le 4 ]]; then
+# Schritt 4: Finale Aggregation
+if [[ $START_STEP -le 4 ]]; then
+    echo "🧹 Bereinigte temporäre Dateien für Schritt 4..."
+    # Lösche aggregated_rvn_final Dateien (werden in Schritt 4 erstellt)
+    rm -f "${BASE_OUT_DIR}/aggregated_rvn_final${SUFFIX}.gpkg"
+    rm -f "${BASE_OUT_DIR}/aggregated_rvn_final${SUFFIX}.fgb"
+    echo "  - Gelöscht: ${BASE_OUT_DIR}/aggregated_rvn_final${SUFFIX} Dateien"
+    
+    echo "🎯 Schritt 4/5: Finale Aggregation..."
+    STEP4_START=$(date +%s)
+    if [[ -n "$CLIP_NEUKOELLN" ]]; then
+        ./.venv/bin/python processing/aggregate_final_model.py --clip-neukoelln --input ./output/snapping_converted_bikelanes_neukoelln.fgb
+    elif [[ -n "$VIEW" ]]; then
+        ./.venv/bin/python processing/aggregate_final_model.py --view "$VIEW" --input ./output-bbox/snapping_converted_bikelanes_view.fgb
+    else
+        ./.venv/bin/python processing/aggregate_final_model.py --input ./output/snapping_converted_bikelanes.fgb
+    fi
+    if [ $? -ne 0 ]; then
+        echo "❌ Fehler in Schritt 4: aggregate_final_model.py"
+        exit 1
+    fi
+    show_elapsed_time $STEP4_START "Schritt 4"
+    echo "✅ Schritt 4 abgeschlossen."
+    echo ""
+else
+    echo "⏭️  Überspringe Schritt 4 (Finale Aggregation)"
+    echo ""
+fi
+
+# Schritt 5: Qualitätssicherungstests
+# if [[ $START_STEP -le 5 ]]; then
 #     if [[ -n "$VIEW" ]]; then
-#         echo "🧪 Schritt 4/4: Überspringe Qualitätssicherungstests bei Viewport-Verarbeitung"
+#         echo "🧪 Schritt 5/5: Überspringe Qualitätssicherungstests bei Viewport-Verarbeitung"
 #         echo "   ℹ️  Tests werden bei --view Parameter nicht ausgeführt (kleine Datenmenge nicht repräsentativ)"
-#         STEP4_START=$(date +%s)
-#         STEP4_DURATION=0
-#         echo "⏱️  Schritt 4 dauerte: ${STEP4_DURATION}s"
-#         echo "✅ Schritt 4 übersprungen."
+#         STEP5_START=$(date +%s)
+#         STEP5_DURATION=0
+#         echo "⏱️  Schritt 5 dauerte: ${STEP5_DURATION}s"
+#         echo "✅ Schritt 5 übersprungen."
 #     else
-#         echo "🧪 Schritt 4/4: Führe Qualitätssicherungstests durch..."
-#         STEP4_START=$(date +%s)
+#         echo "🧪 Schritt 5/5: Führe Qualitätssicherungstests durch..."
+#         STEP5_START=$(date +%s)
         
 #         if [[ "$CLIP_NEUKOELLN" == "--clip-neukoelln" ]]; then
 #             ./.venv/bin/python testing/run_tests.py --clip-neukoelln
@@ -317,12 +348,12 @@ fi
 #             exit 1
 #         fi
         
-#         show_elapsed_time $STEP4_START "Schritt 4"
-#         echo "✅ Schritt 4 abgeschlossen."
+#         show_elapsed_time $STEP5_START "Schritt 5"
+#         echo "✅ Schritt 5 abgeschlossen."
 #     fi
 #     echo ""
 # else
-#     echo "⏭️  Überspringe Schritt 4 (Qualitätssicherungstests)"
+#     echo "⏭️  Überspringe Schritt 5 (Qualitätssicherungstests)"
 #     echo ""
 # fi
 # echo ""
@@ -336,13 +367,13 @@ echo ""
 echo "📁 Ausgabedateien verfügbar in:"
 if [[ -n "$CLIP_NEUKOELLN" ]]; then
     echo "   - output/aggregated_rvn_final_neukoelln.gpkg"
-    echo "   - output/snapping_network_enriched_neukoelln.fgb"
+    echo "   - output/snapping_converted_bikelanes_neukoelln.fgb"
 elif [[ -n "$VIEW" ]]; then
     echo "   - output-bbox/aggregated_rvn_final_view.gpkg"
-    echo "   - output-bbox/snapping_network_enriched_view.fgb"
+    echo "   - output-bbox/snapping_converted_bikelanes_view.fgb"
 else
     echo "   - output/aggregated_rvn_final.gpkg"
-    echo "   - output/snapping_network_enriched.fgb"
+    echo "   - output/snapping_converted_bikelanes.fgb"
 fi
 echo "   - output/matched/ (gematchte OSM-Wege)"
 echo "   - output-last-run/ (gesicherte Dateien vom vorherigen Lauf)"

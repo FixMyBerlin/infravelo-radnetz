@@ -21,6 +21,8 @@ INPUT:
 OUTPUT:
 - output/snapping_network_enriched.fgb (angereicherte Netzwerkdaten)
 (Bei Neukölln-Clipping: snapping_network_enriched_neukoelln.fgb)
+
+HINWEIS: Schutzstreifen-Konvertierung erfolgt jetzt in separatem Schritt (start_bikelane_conversion.py)
 """
 import argparse, sys
 from pathlib import Path
@@ -37,8 +39,7 @@ from shapely.ops import linemerge
 from helpers.progressbar import print_progressbar
 from helpers.globals import DEFAULT_CRS
 from helpers.clipping import clip_to_neukoelln, clip_to_view
-from helpers.convert_schutzstreifen import convert_short_schutzstreifen_to_radfahrstreifen
-from helpers.convert_schutzstreifen_at_bus_stops import convert_schutzstreifen_at_bus_stops_main
+
 from helpers.snapping_analysis import (
     calculate_line_angle,
     angle_difference, 
@@ -382,7 +383,8 @@ def process_segments_batch(segments_batch, osm_gdf, osm_sidx, buffer, candidates
                         category_pattern = priority_details.get('category_pattern', '')
                         street_detail = priority_details.get('street_name_detail', '')
                         
-                        candidates_log.write(f"      → PRIORITÄTEN: dir_compat={dir_compat}, angle_prio={angle_prio:.2f}, dist={distance:.1f}m\n")
+                        dir_compat_val = priority_details.get('direction_compatibility', 'N/A')
+                        candidates_log.write(f"      → PRIORITÄTEN: dir_compat={dir_compat_val}, angle_prio={angle_prio:.2f}, dist={distance:.1f}m\n")
                         candidates_log.write(f"      → TILDA-PRIORITÄTEN:\n")
                         candidates_log.write(f"        • Traffic_Sign({traffic_sign}): {traffic_prio}\n")
                         if category_pattern:
@@ -393,7 +395,8 @@ def process_segments_batch(segments_batch, osm_gdf, osm_sidx, buffer, candidates
                         candidates_log.write(f"        • GESAMT: {tilda_prio}\n")
                     else:
                         # Fallback falls detaillierte Informationen nicht verfügbar sind
-                        candidates_log.write(f"      → PRIORITÄTEN: dir_compat={dir_compat}, angle_prio={angle_prio:.2f}, tilda_prio={tilda_prio}, dist={distance:.1f}m\n")
+                        dir_compat_val = priority_details.get('direction_compatibility', 'N/A') if 'priority_details' in locals() else 'N/A'
+                        candidates_log.write(f"      → PRIORITÄTEN: dir_compat={dir_compat_val}, angle_prio={angle_prio:.2f}, tilda_prio={tilda_prio}, dist={distance:.1f}m\n")
                     
                     candidates_log.write(f"      → DETAILS: angle_diff={angle_diff:.1f}°, verkehrsri={verkehrsri}\n")
                     
@@ -1210,17 +1213,6 @@ def process(net_path, osm_path, out_path, crs, buffer, clip_neukoelln=False, dat
     if len(out_gdf) == 0:
         logging.error("Abbruch: Keine Ausgabesegmente nach Merging entstanden")
         sys.exit(1)
-
-    # ---------- Schutzstreifen-Konvertierung --------------------------------
-    logging.info("Konvertiere kurze Schutzstreifen zu Radfahrstreifen...")
-    out_gdf = convert_short_schutzstreifen_to_radfahrstreifen(out_gdf, length_threshold=50.0, tolerance=0.1)
-    
-    # Konvertiere Schutzstreifen an Bushaltestellen zu Radfahrstreifen
-    logging.info("Konvertiere Schutzstreifen an Bushaltestellen zu Radfahrstreifen...")
-    out_gdf = convert_schutzstreifen_at_bus_stops_main(out_gdf, 
-                                                       bus_stops_path="output/bus_stops_on_rvn.fgb",
-                                                       buffer_distance=20.0, 
-                                                       tolerance=1.0)
 
     # ---------- Finale Datenbereinigung ------------------------------------
     # Entferne Breite-Attribut bei allen Kanten mit Mischverkehr mit motorisiertem Verkehr
