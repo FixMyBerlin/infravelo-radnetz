@@ -18,6 +18,11 @@ import geopandas as gpd
 import os
 from shapely.geometry import Point, MultiLineString
 from .progressbar import print_progressbar
+from .schutzstreifen_conversion_helper import (
+    get_endpoints, 
+    find_adjacent_radfahrstreifen_simple,
+    find_schutzstreifen_adjacent_to_radfahrstreifen
+)
 
 logger = logging.getLogger(__name__)
 
@@ -35,20 +40,7 @@ def load_bus_stops(bus_stops_path="output/bus_stops_on_rvn.fgb"):
         logger.error(f"Fehler beim Laden der Bushaltestellen: {e}")
         return None
 
-def get_endpoints(geometry):
-    """Extrahiere Start- und Endpunkte einer Geometrie."""
-    if isinstance(geometry, MultiLineString):
-        # Bei MultiLineString nehme ersten und letzten Punkt der ersten/letzten Linie
-        coords = []
-        for geom in geometry.geoms:
-            coords.extend(list(geom.coords))
-    else:
-        coords = list(geometry.coords)
-    
-    if len(coords) < 2:
-        return None, None
-    
-    return Point(coords[0]), Point(coords[-1])
+
 
 def find_schutzstreifen_near_bus_stops(gdf, bus_stops_gdf, buffer_distance=20.0):
     """Finde Schutzstreifen in der Nähe von Bushaltestellen."""
@@ -93,74 +85,19 @@ def find_schutzstreifen_near_bus_stops(gdf, bus_stops_gdf, buffer_distance=20.0)
 
 def find_adjacent_radfahrstreifen(schutzstreifen_row, all_ways_gdf, tolerance=1.0):
     """Prüfe ob ein Schutzstreifen an Radfahrstreifen angrenzt."""
-    # Extrahiere Endpunkte des Schutzstreifens
-    start_point, end_point = get_endpoints(schutzstreifen_row.geometry)
-    
-    if not start_point or not end_point:
-        return False
-    
-    # Erstelle Puffer um Endpunkte für räumliche Suche
-    search_buffer_start = start_point.buffer(tolerance * 2)
-    search_buffer_end = end_point.buffer(tolerance * 2)
-    
-    # Verwende räumlichen Index für erste Filterung
-    possible_matches_start = all_ways_gdf[all_ways_gdf.geometry.intersects(search_buffer_start)]
-    possible_matches_end = all_ways_gdf[all_ways_gdf.geometry.intersects(search_buffer_end)]
-    
-    # Kombiniere beide Mengen
-    possible_matches = pd.concat([possible_matches_start, possible_matches_end]).drop_duplicates()
-    
-    # Suche nach angrenzenden Radfahrstreifen
-    for idx, way in possible_matches.iterrows():
-        # Skip den Schutzstreifen selbst
-        if way.get('sfid') == schutzstreifen_row.get('sfid'):
-            continue
-            
-        # Prüfe ob es sich um einen Radfahrstreifen handelt
-        # TODO Soll das so sein?
-        if way['fuehr'] not in ['Radfahrstreifen', 'Geschützter Radfahrstreifen']:
-            continue
-            
-        way_start, way_end = get_endpoints(way.geometry)
-        if not way_start or not way_end:
-            continue
-        
-        # Prüfe Verbindung zu Schutzstreifen-Endpunkten
-        distances = [
-            start_point.distance(way_start),
-            start_point.distance(way_end),
-            end_point.distance(way_start),
-            end_point.distance(way_end)
-        ]
-        min_distance = min(distances)
-        
-        if min_distance <= tolerance:
-            return True
-    
-    return False
+    return find_adjacent_radfahrstreifen_simple(schutzstreifen_row, all_ways_gdf, tolerance)
 
-def find_schutzstreifen_adjacent_to_radfahrstreifen(schutzstreifen_near_stops, all_ways_gdf, tolerance=1.0):
+def find_schutzstreifen_adjacent_to_radfahrstreifen_local(schutzstreifen_near_stops, all_ways_gdf, tolerance=1.0):
     """Finde Schutzstreifen die an Radfahrstreifen angrenzen."""
     logger.info("Prüfe welche Schutzstreifen an Radfahrstreifen angrenzen...")
     
-    adjacent_schutzstreifen = []
-    total = len(schutzstreifen_near_stops)
-    
-    for i, (idx, schutzstreifen) in enumerate(schutzstreifen_near_stops.iterrows()):
-        # Progress anzeigen
-        if i % 50 == 0 or i == total - 1:
-            print_progressbar(i + 1, total, "Prüfe Angrenzung: ")
-        
-        # Debug-Ausgabe für detaillierte Analyse
-        has_adjacent = find_adjacent_radfahrstreifen(schutzstreifen, all_ways_gdf, tolerance)
-        if has_adjacent:
-            logger.debug(f"Schutzstreifen {schutzstreifen.get('sfid', idx)} hat angrenzende Radfahrstreifen")
-            adjacent_schutzstreifen.append(idx)
-    
-    result_gdf = schutzstreifen_near_stops.loc[adjacent_schutzstreifen].copy()
-    logger.info(f"Schutzstreifen an Haltestellen die an Radfahrstreifen angrenzen: {len(result_gdf)}")
-    
-    return result_gdf
+    # Verwende die ausgelagerte Funktion mit Progress-Callback
+    return find_schutzstreifen_adjacent_to_radfahrstreifen(
+        schutzstreifen_near_stops, 
+        all_ways_gdf, 
+        tolerance, 
+        progress_callback=print_progressbar
+    )
 
 
 def convert_schutzstreifen_at_bus_stops_with_gdf(gdf, bus_stops_gdf, 
@@ -201,7 +138,7 @@ def convert_schutzstreifen_at_bus_stops_with_gdf(gdf, bus_stops_gdf,
         return result_gdf
     
     # 3. Schutzstreifen finden, die an Radfahrstreifen angrenzen
-    schutzstreifen_to_convert = find_schutzstreifen_adjacent_to_radfahrstreifen(
+    schutzstreifen_to_convert = find_schutzstreifen_adjacent_to_radfahrstreifen_local(
         schutzstreifen_near_stops, result_gdf, tolerance
     )
     
