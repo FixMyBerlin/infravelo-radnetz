@@ -226,7 +226,7 @@ def convert_short_schutzstreifen_to_radfahrstreifen(gdf, length_threshold=50.0, 
         )
         
         # Prüfe ob Radfahrstreifen unter den angrenzenden Wegen sind
-        adjacent_fuehr = [way['fuehr'] for way in adjacent_ways]
+        adjacent_fuehr = [way['fuehr'] for way in adjacent_ways if way['fuehr'] is not None]
         has_radfahrstreifen = any('Radfahrstreifen' in fuehr for fuehr in adjacent_fuehr)
         
         if has_radfahrstreifen:
@@ -240,7 +240,7 @@ def convert_short_schutzstreifen_to_radfahrstreifen(gdf, length_threshold=50.0, 
             converted_count += len(segment_indices)
             
             # Richtungsinformationen der angrenzenden Radfahrstreifen sammeln
-            adjacent_radfahrstreifen_ri = [way['ri'] for way in adjacent_ways if 'Radfahrstreifen' in way['fuehr']]
+            adjacent_radfahrstreifen_ri = [way['ri'] for way in adjacent_ways if way['fuehr'] is not None and 'Radfahrstreifen' in way['fuehr']]
             
             converted_segments.append({
                 'segment_length': round(total_length, 2),

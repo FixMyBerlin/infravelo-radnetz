@@ -133,11 +133,11 @@ def find_adjacent_ways(geometry, all_ways_gdf, tolerance=0.1, check_direction=Tr
         
         # Suche nach angrenzenden Wegen in der gefilterten Menge
         for idx, way in possible_matches.iterrows():
-            if way['fuehr'] == 'Schutzstreifen':
+            if way['fuehr'] is not None and way['fuehr'] == 'Schutzstreifen':
                 continue  # Skip andere Schutzstreifen
             
             # Optional: Filtere nach bestimmten Führungsformen
-            if filter_fuehr and way['fuehr'] not in filter_fuehr:
+            if filter_fuehr and way['fuehr'] is not None and way['fuehr'] not in filter_fuehr:
                 continue
                 
             way_endpoints = get_all_endpoints(way.geometry)
@@ -154,7 +154,7 @@ def find_adjacent_ways(geometry, all_ways_gdf, tolerance=0.1, check_direction=Tr
                 # Richtungscheck nur wenn gewünscht
                 way_ri = way.get('ri', None) if 'ri' in all_ways_gdf.columns else None
                 
-                if check_direction and 'Radfahrstreifen' in way['fuehr']:
+                if check_direction and way['fuehr'] is not None and 'Radfahrstreifen' in way['fuehr']:
                     if segment_ri is not None and way_ri is not None and segment_ri != way_ri:
                         logger.debug(f"{way['fuehr']} {idx} (ri:{way_ri}) hat andere Richtung als Schutzstreifen (ri:{segment_ri}) - nicht berücksichtigt")
                         continue

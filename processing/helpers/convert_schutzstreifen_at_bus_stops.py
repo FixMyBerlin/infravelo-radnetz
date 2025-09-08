@@ -16,7 +16,6 @@ import logging
 import pandas as pd
 import geopandas as gpd
 import os
-from shapely.geometry import Point, MultiLineString
 from .progressbar import print_progressbar
 from .schutzstreifen_conversion_helper import (
     find_schutzstreifen_adjacent_to_radfahrstreifen
