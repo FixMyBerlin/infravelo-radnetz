@@ -599,6 +599,7 @@ def find_streets_with_one_sided_bikelanes(streets_gdf, output_path):
         'footAndCyclewayShared_adjoining',
         'footwayBicycleYes_adjoining',
         'sharedBusLaneBikeWithBus',
+        'sharedBusLaneBusWithBike',
         'sharedMotorVehicleLane'
     }
     
