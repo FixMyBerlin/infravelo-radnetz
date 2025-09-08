@@ -175,6 +175,8 @@ def determine_fuehrung(row, data_source: str) -> str:
         return "Radfahrstreifen"
     elif category == "sharedBusLaneBikeWithBus":
         return "Radfahrstreifen mit Linienverkehr frei (Z237 mit Z1026-32)"
+    elif category == "sharedBusLaneBusWithBike":
+        return "Bussonderfahrstreifen mit Radverkehr frei (Z245 mit Z1022‐10)"
     elif category == "cyclewayOnHighwayProtected":
         return "Geschützter Radfahrstreifen"
     elif category == "cyclewayOnHighway_advisory":
