@@ -44,7 +44,8 @@ from helpers.snapping_analysis import (
     calculate_line_angle,
     angle_difference, 
     determine_segment_direction,
-    find_best_candidate_for_direction
+    find_best_candidate_for_direction,
+    SnappingPriorities
 )
 
 # -------------------------------------------------------------- Konstanten --
@@ -65,7 +66,7 @@ RVN_ATTRIBUT_ENDE_VP   = "endet_bei_vp"         # Endknoten-ID
 # Attribute an denen die Kanten getrennt werden bzw. verschmolzen werden
 # Diese Attribute müssen in den übersetzten TILDA Daten vorhanden sein
 FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES = ["fuehr", "ofm", "protek", "pflicht", "breite", "farbe", "ri", "verkehrsri", "trennstreifen", "nutz_beschr", "Kommentar"]
-FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES=["data_source", "tilda_id", "tilda_name","tilda_oneway", "tilda_category", "tilda_traffic_sign", "tilda_mapillary", "tilda_mapillary_traffic_sign", "tilda_mapillary_backward", "tilda_mapillary_forward", "prio_traffic", "prio_category", "prio_street", "prio_total", "prio_angle", "prio_distance", "prio_distance_weighted", "prio_total_weighted", "angle_diff", "angle_segment", "angle_tilda"]
+FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES=["data_source", "tilda_id", "tilda_name","tilda_oneway", "tilda_category", "tilda_traffic_sign", "tilda_mapillary", "tilda_mapillary_traffic_sign", "tilda_mapillary_backward", "tilda_mapillary_forward", "prio_traffic_sign", "prio_category", "prio_streetname_equality", "prio_total", "prio_angle", "prio_distance_meter", "prio_distance", "prio_direction_compatibility", "angle_diff", "angle_segment", "angle_tilda"]
 
 # Gewünschte Spaltenreihenfolge für Datenaufbereitung (finale Ausgabe)
 COLUMN_ORDER = [
@@ -98,14 +99,14 @@ COLUMN_ORDER = [
     "tilda_mapillary_backward",
     "tilda_mapillary_forward",
     # Prioritäts-Spalten für die Kandidatenauswahl
-    "prio_traffic",           # Priorität basierend auf Verkehrszeichen
+    "prio_traffic_sign",           # Priorität basierend auf Verkehrszeichen
     "prio_category",          # Priorität basierend auf Kategorie
-    "prio_street",            # Priorität basierend auf Straßennamen-Match
-    "prio_total",             # Gesamtpriorität
+    "prio_streetname_equality",            # Priorität basierend auf Straßennamen-Match
     "prio_angle",             # Priorität basierend auf Winkelausrichtung
-    "prio_distance",          # Entfernung zum Segmentmittelpunkt (in Metern)
-    "prio_distance_weighted", # Gewichtete Entfernungs-Priorität (hyperbolisch)
-    "prio_total_weighted",    # Gewichtete Gesamtpriorität (TILDA + Winkel + Entfernung)
+    "prio_distance_meter",          # Entfernung zum Segmentmittelpunkt (in Metern)
+    "prio_distance", # Gewichtete Entfernungs-Priorität (hyperbolisch)
+    "prio_direction_compatibility", # Priorität für Richtungskompatibilität (Einrichtungs-/Zweirichtungsverkehr)
+    "prio_total",             # Gesamtpriorität
     "angle_diff",             # Winkeldifferenz zwischen Segment und TILDA-Weg (in Grad)
     "angle_segment",          # Winkel des Segments (in Grad)
     "angle_tilda",            # Winkel des TILDA-Wegs (in Grad)
@@ -180,17 +181,18 @@ def set_priority_values(variant, best_osm, segment_angle):
     if best_osm is not None:
         # Übertrage TILDA-Prioritätswerte
         priority_details = best_osm.get('priority_details', {})
-        variant["prio_traffic"] = priority_details.get('traffic_priority', 0)
+        variant["prio_traffic_sign"] = priority_details.get('traffic_priority', 0)
         variant["prio_category"] = priority_details.get('category_priority', 0)
-        variant["prio_street"] = priority_details.get('street_name_priority', 0)
-        variant["prio_total"] = priority_details.get('total_priority', 0)
-        
+        variant["prio_streetname_equality"] = priority_details.get('street_name_priority', 0)
+
         # Übertrage geometrische und räumliche Prioritäten
         variant["prio_angle"] = best_osm.get('angle_priority', 0)
-        variant["prio_distance"] = best_osm.get('dist_to_mid', None)
-        variant["prio_distance_weighted"] = best_osm.get('distance_priority', 0)  # Neue gewichtete Entfernungs-Priorität
-        variant["prio_total_weighted"] = best_osm.get('total_priority_weighted', 0)  # Neue Gesamtpriorität
-        
+        variant["prio_distance_meter"] = best_osm.get('dist_to_mid', None)
+        variant["prio_distance"] = best_osm.get('distance_priority', 0)  # Neue gewichtete Entfernungs-Priorität
+        variant["prio_total"] = best_osm.get('total_priority_weighted', 0)  # Neue Gesamtpriorität
+        # Richtungskompatibilität explizit speichern
+        variant["prio_direction_compatibility"] = best_osm.get('direction_compatibility', 0)
+
         # Berechne und speichere Winkelinformationen
         tilda_geom = best_osm.get('geometry')
         if tilda_geom is not None:
@@ -204,14 +206,14 @@ def set_priority_values(variant, best_osm, segment_angle):
             variant["angle_diff"] = None
     else:
         # Keine OSM-Kandidaten: Alle Prioritätswerte auf Standardwerte setzen
-        variant["prio_traffic"] = 0
+        variant["prio_traffic_sign"] = 0
         variant["prio_category"] = 0
-        variant["prio_street"] = 0
-        variant["prio_total"] = 0
+        variant["prio_streetname_equality"] = 0
         variant["prio_angle"] = 0
-        variant["prio_distance"] = None
-        variant["prio_distance_weighted"] = 0
-        variant["prio_total_weighted"] = 0
+        variant["prio_distance_meter"] = None
+        variant["prio_distance"] = 0
+        variant["prio_total"] = 0
+        variant["prio_direction_compatibility"] = 0
         variant["angle_segment"] = segment_angle
         variant["angle_tilda"] = None
         variant["angle_diff"] = None
@@ -850,11 +852,19 @@ def create_directional_segment_variants_from_matched_tilda_ways(seg_dict: dict, 
         all(cand.get('fuehr') == 'Mischverkehr mit motorisiertem Verkehr' 
             for _, cand in einrichtung_candidates.iterrows())):
         
-        # Nur eine Kante erzeugen basierend auf dem besten Einrichtungsverkehr-Kandidaten
-        best_osm = find_best_candidate_for_direction(einrichtung_candidates, seg_dict, None, segment_angle)
-        if best_osm:
-            variant = seg_dict.copy()
-            variant["ri"] = determine_segment_direction(seg_dict["geometry"], best_osm["geometry"])
+        # BUGFIX: Bestimme erst ri für den besten Kandidaten, um korrekte direction_compatibility zu berechnen
+        # Finde den besten Kandidaten ohne ri-Filter (als wäre es Zweirichtungsverkehr)
+        temp_best = find_best_candidate_for_direction(einrichtung_candidates, seg_dict, None, segment_angle)
+        if temp_best:
+            # Berechne ri basierend auf dem besten Kandidaten
+            calculated_ri = determine_segment_direction(seg_dict["geometry"], temp_best["geometry"])
+            
+            # Jetzt rufe find_best_candidate_for_direction mit dem korrekten ri auf
+            best_osm = find_best_candidate_for_direction(einrichtung_candidates, seg_dict, calculated_ri, segment_angle)
+            
+            if best_osm:
+                variant = seg_dict.copy()
+                variant["ri"] = calculated_ri
             
             # Übertrage alle relevanten Attribute vom besten OSM-Match
             for attr in FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES:

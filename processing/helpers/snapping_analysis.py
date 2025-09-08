@@ -25,9 +25,10 @@ class SnappingPriorities:
     Analyse-Skript (analyze_snapping_candidates.py) verwendet.
     
     Mindestpriorität (MINIMUM_TOTAL_PRIORITY):
-    Kandidaten mit einer TILDA-Gesamtpriorität unter diesem Wert werden komplett
-    ausgeschlossen, auch wenn sie die einzigen verfügbaren Kandidaten sind.
-    Dies verhindert, dass Wege mit sehr schlechter Qualität ausgewählt werden.
+    Kandidaten mit einer Gesamtpriorität (TILDA + geometrische + Richtungskompatibilität)
+    unter diesem Wert werden komplett ausgeschlossen, auch wenn sie die einzigen verfügbaren 
+    Kandidaten sind. Dies verhindert, dass Wege mit sehr schlechter Qualität oder falscher 
+    Richtung ausgewählt werden.
     """
     
     # Verkehrszeichen-Prioritäten (höhere Zahl = höhere Priorität)
@@ -42,9 +43,9 @@ class SnappingPriorities:
         "bicycleRoad*": 17,  # Fahrradstraße
         "cycleway*": 17,  # Radweg
         "footAndCycleway*": 15,  # Fußweg mit Radverkehr
-        "crossing": 12,
-        "sharedBusLaneBikeWithBus": 8,  # Gemeinsame Busspur mit Radverkehr
-        "sharedBusLaneBusWithBike": 8,
+        "crossing": 12, # Kreuzungsweg
+        "sharedBusLaneBikeWithBus": 8,  # Radfahrstreifen mit Busverkehr frei
+        "sharedBusLaneBusWithBike": 8, # Bussonderfahrstreifen mit Radverkehr frei
         "footwayBicycle*": 5,  # Fußweg mit Radverkehr
         "pedestrianAreaBicycleYes": 5,  # Fußgängerzone mit Radverkehr
         "sharedMotorVehicleLane": 1,  # Niedrigste Priorität
@@ -52,12 +53,12 @@ class SnappingPriorities:
     
     # Straßennamen-Match Prioritäten
     STREET_NAME_MATCH_REWARD = 10     # Belohnung für exakte Straßennamen-Übereinstimmung
-    STREET_NAME_MISMATCH_PENALTY = -20  # Strafe für Straßennamen-Mismatch
+    STREET_NAME_MISMATCH_PENALTY = -100  # Strafe für Straßennamen-Mismatch - Kann nicht korrekt sein, daher 100
     
     # Richtungskompatibilität Prioritäten
     DIRECTION_PERFECT_MATCH = 10     # Einrichtungsverkehr mit passender Richtung
     DIRECTION_BIDIRECTIONAL = 8      # Zweirichtungsverkehr (beide Richtungen möglich)
-    DIRECTION_WRONG_WAY = -10        # Einrichtungsverkehr mit falscher Richtung
+    DIRECTION_WRONG_WAY = -100        # Einrichtungsverkehr mit falscher Richtung
     
     # Winkel-Priorität Konfiguration (kontinuierliche Funktion)
     ANGLE_PARALLEL_REWARD = 10       # Belohnung für parallele Wege (0°, 180°) - maximaler Wert
@@ -355,6 +356,11 @@ def find_best_candidate_for_direction(candidates, seg_dict, ri_value, segment_an
         logging.debug(f"Keine Kandidaten für ri={ri_value}")
         return None
     
+    # Info-Logging bei ri_value=None (normal bei Sonderfällen)
+    if ri_value is None:
+        logging.debug(f"find_best_candidate_for_direction mit ri_value=None aufgerufen - "
+                     f"Suche besten Kandidaten unabhängig von Richtung (Sonderfall-Behandlung)")
+    
     candidates = candidates.copy()
     segment_geom = seg_dict["geometry"]
     element_nr = seg_dict.get("element_nr", "unknown")
@@ -408,7 +414,14 @@ def find_best_candidate_for_direction(candidates, seg_dict, ri_value, segment_an
                          f"Winkel={candidate_angle:.1f}°, segment_direction={segment_direction}, "
                          f"ri_value={ri_value}")
             
-            if segment_direction == ri_value:
+            # Wenn ri_value None ist, behandle es als "beste verfügbare Richtung"
+            if ri_value is None:
+                # Für den Fall, dass wir den besten Kandidaten UNABHÄNGIG von der Richtung suchen
+                # (z.B. bei Sonderfällen wo nur Mischverkehr vorhanden ist)
+                # Vergeben wir die perfekte Bewertung, da die Richtung später richtig gesetzt wird
+                candidates.at[idx, "direction_compatibility"] = SnappingPriorities.DIRECTION_PERFECT_MATCH
+                logging.debug(f"    → ri_value=None (Sonderfall): Vergebe DIRECTION_PERFECT_MATCH={SnappingPriorities.DIRECTION_PERFECT_MATCH}, da Richtung später korrekt gesetzt wird")
+            elif segment_direction == ri_value:
                 # Richtung passt perfekt
                 candidates.at[idx, "direction_compatibility"] = SnappingPriorities.DIRECTION_PERFECT_MATCH
                 logging.debug(f"    → Richtung passt perfekt! direction_compatibility={SnappingPriorities.DIRECTION_PERFECT_MATCH}")
@@ -430,17 +443,17 @@ def find_best_candidate_for_direction(candidates, seg_dict, ri_value, segment_an
         candidates["direction_compatibility"] # Richtungskompatibilität
     )
     
-    # Filtere Kandidaten mit zu niedriger TILDA-Gesamtpriorität aus
-    # Dies ist eine harte untere Grenze für die Wegqualität
+    # Filtere Kandidaten mit zu niedriger Gesamtpriorität aus
+    # Dies ist eine harte untere Grenze für die Wegqualität (inkl. geometrische und Richtungskompatibilität)
     initial_candidate_count = len(candidates)
-    quality_candidates = candidates[candidates["priority"] >= SnappingPriorities.MINIMUM_TOTAL_PRIORITY]
+    quality_candidates = candidates[candidates["total_priority_weighted"] >= SnappingPriorities.MINIMUM_TOTAL_PRIORITY]
     
     if len(quality_candidates) == 0:
-        logging.debug(f"Alle {initial_candidate_count} Kandidaten für ri={ri_value} haben TILDA-Priorität < {SnappingPriorities.MINIMUM_TOTAL_PRIORITY} - KEIN WEG WIRD AUSGEWÄHLT")
+        logging.debug(f"Alle {initial_candidate_count} Kandidaten für ri={ri_value} haben Gesamtpriorität < {SnappingPriorities.MINIMUM_TOTAL_PRIORITY} - KEIN WEG WIRD AUSGEWÄHLT")
         return None
     elif len(quality_candidates) < initial_candidate_count:
         filtered_count = initial_candidate_count - len(quality_candidates)
-        logging.debug(f"Filtere {filtered_count} Kandidaten mit TILDA-Priorität < {SnappingPriorities.MINIMUM_TOTAL_PRIORITY} aus ({len(quality_candidates)} Kandidaten verbleiben)")
+        logging.debug(f"Filtere {filtered_count} Kandidaten mit Gesamtpriorität < {SnappingPriorities.MINIMUM_TOTAL_PRIORITY} aus ({len(quality_candidates)} Kandidaten verbleiben)")
         candidates = quality_candidates
     
     # Sortiere nach gewichteter Gesamtpriorität (TILDA + Winkel + Entfernung)
