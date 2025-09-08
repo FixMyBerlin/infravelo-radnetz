@@ -25,42 +25,6 @@ Die Argumente entsprechen:
 - Optional: `--buffer` für die Puffergröße in Metern (Standard: 20.0)
 - Optional: `--max-angle` für den maximalen Winkelunterschied in Grad (Standard: 35.0)
 
-
-### Current State
-
-- [ ] **Matching**: Get all OSM Ways, which are part of the RVN
-  - [x] Get all bikelanes
-  - [x] Get all streets
-  - [x] Get all other types of ways
-  - [x] Add Extra RVN segments
-  - [x] Merge all differente way types
-  - [x] Enable manual inclusion and exclusion
-  - [ ] Cut off ways which are out of buffer
-- [ ] **Snapping**: Attributes on RVN edges
-  - [x] Snap geometry to RVN edges
-  - [x] Assign OSM Way attributes to RVN edges
-  - [x] Calculate direction of the edges (oneway)
-  - [x] Solve direction based snapping of edges 
-- [ ] **Aggregation**: Aggregate edges
-  - [x] Find way to calculate the length of the edges
-  - [x] Merge edges where length > 50 m, even when attributes changes
-  - [x] Direction based layers
-- [ ] RVN edges on OSM Ways
-- [x] Provide Extract for Neukölln (via script)
-- [x] Provide TXT file of all OSM  Ways, which are part of the RVN
-
-### Next ToDos
-
-- [x] Direction `ri` based spatial search and choice of RVN edges
-- [x] Calculate beginnt_bei_vp and endet_bei_vp, then element_nr
-  - [x] Aggregating by element_nr 
-  - [ ] Fix UNKNOWN issues
-- [x] Dual carriageway oneway problems solve in snapping
-- [ ] Improve difference calculations between streets and bikelanes -> search for one Einrichtungsverkehr way, if so, add Mischverkehr
-- [x] Add script for converting aggregated geopackage to one merged GeoJSON
-- [ ] ~~Merging all three datasets into one file with three layers~~
-
-
 ## Filters
 
 Every filter has its own Python module. **All filters are enabled by default.**
