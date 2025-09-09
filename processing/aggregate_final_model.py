@@ -707,8 +707,14 @@ if __name__ == "__main__":
     ap.add_argument("--no-districts", action="store_true",
                     help="Überspringe Bezirkszuweisung (optional)")
     args = ap.parse_args()
+    
     if args.clip_neukoelln and args.view:
         ap.error('--clip-neukoelln und --view können nicht gemeinsam verwendet werden')
+
+    # Automatische Anpassung des Input-Pfads für Neukölln
+    if args.clip_neukoelln and args.input == "./output/snapping_network_enriched.fgb":
+        args.input = "./output/snapping_network_enriched_neukoelln.fgb"
+        logging.info(f"Automatische Eingabedatei-Anpassung für Neukölln: {args.input}")
 
     # Bei View Standard-Ausgabepfad in output-bbox umlenken
     if args.view and args.output == "./output/aggregated_rvn_final.gpkg":
