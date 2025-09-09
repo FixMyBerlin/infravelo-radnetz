@@ -12,7 +12,7 @@ Analyse-Skript verwendet.
 
 import numpy as np
 import logging
-from shapely.geometry import LineString, MultiLineString
+from shapely.geometry import MultiLineString
 from .traffic_signs import has_traffic_sign
 
 
@@ -164,7 +164,10 @@ def calculate_angle_priority(segment_geom, candidate_geom):
     # Linear interpolieren zwischen PARALLEL_REWARD (beste) und ORTHOGONAL_PENALTY (schlechteste)
     angle_priority = SnappingPriorities.ANGLE_PARALLEL_REWARD + (SnappingPriorities.ANGLE_ORTHOGONAL_PENALTY - SnappingPriorities.ANGLE_PARALLEL_REWARD) * sin_squared
     
-    logging.debug(f"Winkel-Priorität: {angle_diff:.1f}° → sin²={sin_squared:.3f} → {angle_priority:.2f} Punkte (kontinuierlich 10 bis -20)")
+    # Runde auf zwei Nachkommastellen
+    angle_priority = round(angle_priority, 2)
+    
+    logging.debug(f"Winkel-Priorität: {angle_diff:.2f}° → sin²={sin_squared:.2f} → {angle_priority:.2f} Punkte (kontinuierlich 10 bis -20)")
     return angle_priority
 
 
@@ -186,7 +189,10 @@ def calculate_distance_priority(distance):
     distance_priority = (SnappingPriorities.DISTANCE_MAX_PRIORITY / 
                         (1 + distance / SnappingPriorities.DISTANCE_REFERENCE)) * SnappingPriorities.DISTANCE_WEIGHT_FACTOR
     
-    logging.debug(f"Entfernungs-Priorität: {distance:.1f}m → {distance_priority:.2f} Punkte")
+    # Runde auf zwei Nachkommastellen
+    distance_priority = round(distance_priority, 2)
+    
+    logging.debug(f"Entfernungs-Priorität: {distance:.2f}m → {distance_priority:.2f} Punkte")
     return distance_priority
 
 
@@ -395,7 +401,7 @@ def find_best_candidate_for_direction(candidates, seg_dict, ri_value, segment_an
     # Logge Segmentwinkel für Debugging - verwende übergebenen Winkel falls vorhanden
     if segment_angle is None:
         segment_angle = calculate_line_angle(segment_geom)
-    logging.debug(f"Segment element_nr={element_nr}: Winkel={segment_angle:.1f}°")
+    logging.debug(f"Segment element_nr={element_nr}: Winkel={segment_angle:.2f}°")
     
     for idx, candidate in candidates.iterrows():
         candidate_verkehrsri = candidate.get('verkehrsri', '')
@@ -411,7 +417,7 @@ def find_best_candidate_for_direction(candidates, seg_dict, ri_value, segment_an
             segment_direction = determine_segment_direction(segment_geom, candidate.geometry)
             
             logging.debug(f"  Kandidat {candidate_tilda_id}: Einrichtungsverkehr, "
-                         f"Winkel={candidate_angle:.1f}°, segment_direction={segment_direction}, "
+                         f"Winkel={candidate_angle:.2f}°, segment_direction={segment_direction}, "
                          f"ri_value={ri_value}")
             
             # Wenn ri_value None ist, behandle es als "beste verfügbare Richtung"
@@ -433,7 +439,7 @@ def find_best_candidate_for_direction(candidates, seg_dict, ri_value, segment_an
             # Bei Zweirichtungsverkehr: Kann für beide Richtungen verwendet werden
             candidates.at[idx, "direction_compatibility"] = SnappingPriorities.DIRECTION_BIDIRECTIONAL
             logging.debug(f"  Kandidat {candidate_tilda_id}: Zweirichtungsverkehr, "
-                         f"Winkel={candidate_angle:.1f}°, direction_compatibility={SnappingPriorities.DIRECTION_BIDIRECTIONAL}")
+                         f"Winkel={candidate_angle:.2f}°, direction_compatibility={SnappingPriorities.DIRECTION_BIDIRECTIONAL}")
     
     # Berechne Gesamt-Priorität: TILDA-Inhalt + Winkel + Entfernung + Richtungskompatibilität
     candidates["total_priority_weighted"] = (
@@ -441,7 +447,7 @@ def find_best_candidate_for_direction(candidates, seg_dict, ri_value, segment_an
         candidates["angle_priority"] +     # Winkel-Priorität (beinhaltet Richtungsausrichtung)
         candidates["distance_priority"] +  # Entfernungs-Priorität
         candidates["direction_compatibility"] # Richtungskompatibilität
-    )
+    ).round(2)  # Runde auf zwei Nachkommastellen
     
     # Filtere Kandidaten mit zu niedriger Gesamtpriorität aus
     # Dies ist eine harte untere Grenze für die Wegqualität (inkl. geometrische und Richtungskompatibilität)
@@ -471,7 +477,7 @@ def find_best_candidate_for_direction(candidates, seg_dict, ri_value, segment_an
         logging.debug(f"  → Gewichtete_Gesamtpriorität: {best_candidate.get('total_priority_weighted', -1):.2f}")
         logging.debug(f"    ├─ TILDA_Priority: {best_candidate.get('priority', -1)}")
         logging.debug(f"    ├─ Angle_Priority: {best_candidate.get('angle_priority', -1):.2f}")
-        logging.debug(f"    ├─ Distance_Priority: {best_candidate.get('distance_priority', -1):.2f} (bei {best_candidate.get('dist_to_mid', -1):.1f}m)")
+        logging.debug(f"    ├─ Distance_Priority: {best_candidate.get('distance_priority', -1):.2f} (bei {best_candidate.get('dist_to_mid', -1):.2f}m)")
         logging.debug(f"    └─ Direction_Compatibility: {best_candidate.get('direction_compatibility', -1)}")
         
         # Logge auch die anderen Kandidaten zur Nachvollziehbarkeit
@@ -482,7 +488,7 @@ def find_best_candidate_for_direction(candidates, seg_dict, ri_value, segment_an
                 logging.debug(f"{marker} {cand.get('tilda_id', 'unknown')}: "
                              f"total_weighted={cand.get('total_priority_weighted', -1):.2f} "
                              f"(tilda={cand.get('priority', -1)}, angle={cand.get('angle_priority', -1):.2f}, "
-                             f"dist={cand.get('distance_priority', -1):.2f}@{cand.get('dist_to_mid', -1):.1f}m, "
+                             f"dist={cand.get('distance_priority', -1):.2f}@{cand.get('dist_to_mid', -1):.2f}m, "
                              f"dir={cand.get('direction_compatibility', -1)})")
     
     # Wähle den besten Kandidaten und füge detaillierte Prioritätsinformationen hinzu

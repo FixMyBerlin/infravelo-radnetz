@@ -39,7 +39,7 @@ from shapely.ops import linemerge
 from shapely.geometry import LineString, MultiLineString
 from helpers.progressbar import print_progressbar
 from helpers.globals import DEFAULT_CRS
-from helpers.clipping import clip_to_neukoelln, clip_to_view
+from helpers.clipping import clip_to_neukoelln
 
 
 # -------------------------------------------------------------- Konstanten --
