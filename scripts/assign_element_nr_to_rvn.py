@@ -20,13 +20,11 @@ OUTPUT:
 """
 
 import geopandas as gpd
-import pandas as pd
 import logging
 import os
-from shapely.geometry import Point, LineString
-from shapely.ops import linemerge
+from shapely.geometry import Point
 import networkx as nx
-from helpers.globals import DEFAULT_CRS, DEFAULT_OUTPUT_DIR
+from helpers.globals import DEFAULT_CRS
 
 # TODO Some element_nr have UNKOWN or NONE in the ID, this should be fixed
 
