@@ -12,19 +12,23 @@ die entsprechenden IDs zu. Falls kein direkter Knotenpunkt gefunden wird,
 werden Linien in die entsprechende Richtung gemergt und die Suche wiederholt.
 
 INPUT:
-- data/Berlin Radvorrangsnetz.fgb
+- output/rvn/Berlin Radvorrangsnetz_mit_virtuellen-knotenpunkten.fgb
 - output/knotenpunkte/knotenpunkte_mit_id.gpkg
+- data/Virtuelle-Knotenpunkte.gpkg
 
 OUTPUT:
 - output/rvn/Berlin Vorrangnetz_with_element_nr.fgb
 """
 
 import geopandas as gpd
+import pandas as pd
 import logging
 import os
 from shapely.geometry import Point
 import networkx as nx
-from helpers.globals import DEFAULT_CRS
+
+# Konfiguration
+DEFAULT_CRS = 25833  # EPSG:25833 (ETRS89 / UTM zone 33N) - aus helpers.globals
 
 # TODO Some element_nr have UNKOWN or NONE in the ID, this should be fixed
 
@@ -32,16 +36,17 @@ from helpers.globals import DEFAULT_CRS
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
-def load_data(radvorrangsnetz_path, knotenpunkte_path):
+def load_data(radvorrangsnetz_path, knotenpunkte_path, virtuelle_knotenpunkte_path):
     """
-    Lädt das Radvorrangsnetz und die Knotenpunkte.
+    Lädt das Radvorrangsnetz und alle Knotenpunkte (normale + virtuelle).
     
     Args:
         radvorrangsnetz_path (str): Pfad zum Radvorrangsnetz
         knotenpunkte_path (str): Pfad zu den Knotenpunkten mit IDs
+        virtuelle_knotenpunkte_path (str): Pfad zu den virtuellen Knotenpunkten
         
     Returns:
-        tuple: (rvn_gdf, nodes_gdf) GeoDataFrames
+        tuple: (rvn_gdf, combined_nodes_gdf) GeoDataFrames
     """
     logging.info(f"Lade Radvorrangsnetz von {radvorrangsnetz_path}")
     rvn_gdf = gpd.read_file(radvorrangsnetz_path)
@@ -49,7 +54,10 @@ def load_data(radvorrangsnetz_path, knotenpunkte_path):
     logging.info(f"Lade Knotenpunkte von {knotenpunkte_path}")
     nodes_gdf = gpd.read_file(knotenpunkte_path)
     
-    # Sicherstellen, dass beide Datensätze das gleiche CRS haben
+    logging.info(f"Lade virtuelle Knotenpunkte von {virtuelle_knotenpunkte_path}")
+    virtual_nodes_gdf = gpd.read_file(virtuelle_knotenpunkte_path)
+    
+    # Sicherstellen, dass alle Datensätze das gleiche CRS haben
     target_crs = f'EPSG:{DEFAULT_CRS}'
     if rvn_gdf.crs != target_crs:
         logging.info(f"Projiziere Radvorrangsnetz auf {target_crs}")
@@ -59,10 +67,30 @@ def load_data(radvorrangsnetz_path, knotenpunkte_path):
         logging.info(f"Projiziere Knotenpunkte auf {target_crs}")
         nodes_gdf = nodes_gdf.to_crs(target_crs)
     
-    logging.info(f"Radvorrangsnetz geladen: {len(rvn_gdf)} Segmente")
-    logging.info(f"Knotenpunkte geladen: {len(nodes_gdf)} Punkte")
+    if virtual_nodes_gdf.crs != target_crs:
+        logging.info(f"Projiziere virtuelle Knotenpunkte auf {target_crs}")
+        virtual_nodes_gdf = virtual_nodes_gdf.to_crs(target_crs)
     
-    return rvn_gdf, nodes_gdf
+    # Kombiniere normale und virtuelle Knotenpunkte
+    # Normalisiere Spaltennamen (verschiedene Bindestriche)
+    if 'Knotenpunkt-ID' in virtual_nodes_gdf.columns:
+        virtual_nodes_gdf = virtual_nodes_gdf.rename(columns={'Knotenpunkt-ID': 'Knotenpunkt‐ID'})
+        logging.info(f"Spaltennamen der virtuellen Knotenpunkte normalisiert")
+    
+    # Stelle sicher, dass beide die gleichen Spalten haben (zumindest geometry und Knotenpunkt‐ID)
+    essential_columns = ['geometry', 'Knotenpunkt‐ID']
+    nodes_subset = nodes_gdf[essential_columns].copy()
+    virtual_subset = virtual_nodes_gdf[essential_columns].copy()
+    
+    combined_nodes_gdf = pd.concat([nodes_subset, virtual_subset], ignore_index=True)
+    combined_nodes_gdf = gpd.GeoDataFrame(combined_nodes_gdf, crs=target_crs)
+    
+    logging.info(f"Radvorrangsnetz geladen: {len(rvn_gdf)} Segmente")
+    logging.info(f"Normale Knotenpunkte: {len(nodes_gdf)} Punkte")
+    logging.info(f"Virtuelle Knotenpunkte: {len(virtual_nodes_gdf)} Punkte")
+    logging.info(f"Kombinierte Knotenpunkte: {len(combined_nodes_gdf)} Punkte")
+    
+    return rvn_gdf, combined_nodes_gdf
 
 
 def find_node_at_point(point, nodes_gdf, tolerance=1.0):
@@ -309,19 +337,20 @@ def create_element_numbers_for_rvn():
     Hauptfunktion zur Erstellung der Element-Nummern für das Radvorrangsnetz.
     """
     # Dateipfade definieren
-    radvorrangsnetz_path = 'data/Berlin Radvorrangsnetz.fgb'
+    radvorrangsnetz_path = 'output/rvn/Berlin Radvorrangsnetz_mit_virtuellen-knotenpunkten.fgb'
     knotenpunkte_path = 'output/knotenpunkte/knotenpunkte_mit_id.gpkg'
+    virtuelle_knotenpunkte_path = 'data/Virtuelle-Knotenpunkte.gpkg'
     output_path = 'output/rvn/Berlin Vorrangnetz_with_element_nr.fgb'
     
     # Stelle sicher, dass das Ausgabeverzeichnis existiert
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     
     try:
-        # Lade Daten
-        rvn_gdf, nodes_gdf = load_data(radvorrangsnetz_path, knotenpunkte_path)
+        # Lade Daten (inkl. virtuelle Knotenpunkte)
+        rvn_gdf, combined_nodes_gdf = load_data(radvorrangsnetz_path, knotenpunkte_path, virtuelle_knotenpunkte_path)
         
-        # Weise Element-Nummern zu
-        enriched_rvn = assign_element_numbers(rvn_gdf, nodes_gdf)
+        # Weise Element-Nummern zu (mit kombinierten Knotenpunkten)
+        enriched_rvn = assign_element_numbers(rvn_gdf, combined_nodes_gdf)
         
         # Speichere Ergebnis
         logging.info(f"Speichere anreichertes Radvorrangsnetz nach {output_path}")

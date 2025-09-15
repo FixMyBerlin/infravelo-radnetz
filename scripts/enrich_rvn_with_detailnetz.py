@@ -26,10 +26,9 @@ processing_path = Path(__file__).parent.parent / "processing"
 sys.path.append(str(processing_path))
 
 try:
-    from helpers.globals import DEFAULT_CRS, DEFAULT_OUTPUT_DIR
+    from helpers.globals import DEFAULT_CRS
 except ImportError:
     DEFAULT_CRS = 25833
-    DEFAULT_OUTPUT_DIR = "output/"
 
 # Konfiguration: Auszuschließende element_nr
 EXCLUDED_ELEMENT_NRS = [
