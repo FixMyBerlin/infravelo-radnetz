@@ -31,3 +31,4 @@ The result is an enriched street network where each segment carries the relevant
 - When testing the scripts, make sure to execute the scripts with the neukoelln cli parameter, so the execution is faster.
 - Be aware, that there are always MultiLineString geometry objects, not just LineString.
 - Remove cached files, before running python scripts.
+- Be aware, that there are existing two directions for every edge in snapping and aggregated geodata!
