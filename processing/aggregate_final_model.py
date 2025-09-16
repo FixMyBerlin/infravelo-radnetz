@@ -677,7 +677,7 @@ def process(input_path, output_path, crs, clip_neukoelln=False, data_dir="./data
             ri_1_gdf.to_file(p_gpkg, layer="gegenrichtung", driver="GPKG", mode='a')
             logging.info(f"✔  {len(ri_1_gdf)} Kanten Gegenrichtung (ri=1) → {p_gpkg}:gegenrichtung")
         
-        print(f"✔  {len(result_gdf)} finale Kanten → {p_gpkg} (3 Layer: hinrichtung, gegenrichtung, alle_richtungen)")
+        print(f"✔  {len(result_gdf)} finale Kanten → {p_gpkg} (2 Layer: hinrichtung, gegenrichtung)")
         
         # Statistiken ausgeben
         ri_counts = result_gdf['ri'].value_counts()
@@ -696,7 +696,7 @@ if __name__ == "__main__":
     ap.add_argument("--input", default="./output/snapping_network_enriched.fgb", 
                     help="Angereicherte Netzwerkdaten (Pfad[:Layer]) - Default: ./output/snapping_network_enriched.fgb")
     ap.add_argument("--output", default="./output/aggregated_rvn_final.gpkg", 
-                    help="Finale aggregierte Daten (Pfad[:Layer]) - Default: ./output/aggregated_rvn_final.fgb. Bei ri-Attribut wird GPKG mit 3 Layern erstellt: hinrichtung (ri=0), gegenrichtung (ri=1), alle_richtungen")
+                    help="Finale aggregierte Daten (Pfad[:Layer]) - Default: ./output/aggregated_rvn_final.fgb. Bei ri-Attribut wird GPKG mit 3 Layern erstellt: hinrichtung (ri=0), gegenrichtung (ri=1)")
     ap.add_argument("--crs", type=int, default=DEFAULT_CRS,
                     help=f"Ziel-EPSG (default {DEFAULT_CRS})")
     ap.add_argument("--clip-neukoelln", action="store_true",

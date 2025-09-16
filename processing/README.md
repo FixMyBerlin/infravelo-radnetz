@@ -77,16 +77,11 @@ Nach erfolgreicher Verarbeitung finden Sie die finalen Datensätze hier:
 - **`output/aggregated_rvn_final.gpkg`** - Finale aggregierte Netzwerkdaten mit 3 Layern:
   - `hinrichtung` - Kanten mit ri=0 
   - `gegenrichtung` - Kanten mit ri=1
-  - `alle_richtungen` - Alle Kanten zusammen
 - **`output/snapping_converted_bikelanes.fgb`** - Angereicherte Netzwerkdaten nach Schutzstreifen-Konvertierung
 
 ### Neukölln-Modus (`--clip-neukoelln`):
 - **`output/aggregated_rvn_final_neukoelln.gpkg`**
 - **`output/snapping_converted_bikelanes_neukoelln.fgb`**
-
-### Viewport-Modus (`--view z/lat/lon`):
-- **`output-bbox/aggregated_rvn_final_view.gpkg`**
-- **`output-bbox/snapping_converted_bikelanes_view.fgb`**
 
 ### Zusätzliche Dateien:
 - **`output/matched/`** - Gematchte OSM-Wege und Zwischendateien
