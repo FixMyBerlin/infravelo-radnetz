@@ -87,26 +87,12 @@ def process_bikelane_conversion(input_path, output_path, clip_neukoelln=False, d
         gdf = clip_to_view(gdf, view)
         logging.info(f"Nach Viewport-Zuschnitt: {len(gdf)} Kanten")
     
-    # ---------- Schutzstreifen-Konvertierung 1: Kurze Schutzstreifen -------
-    logging.info("Konvertiere kurze Schutzstreifen zu Radfahrstreifen...")
+    # ---------- Schutzstreifen-Konvertierung 1: An Bushaltestellen ---------
+    logging.info("Konvertiere Schutzstreifen an Bushaltestellen zu Radfahrstreifen...")
     
     # Zähle Schutzstreifen vor der Konvertierung
     schutzstreifen_before = len(gdf[gdf['fuehr'] == 'Schutzstreifen'])
-    logging.info(f"Anzahl Schutzstreifen vor Konvertierung kurzer Segmente: {schutzstreifen_before}")
-    
-    gdf = convert_short_schutzstreifen_to_radfahrstreifen(
-        gdf, 
-        length_threshold=50.0, 
-        tolerance=0.1
-    )
-    
-    # Zähle Schutzstreifen nach der ersten Konvertierung
-    schutzstreifen_after_short = len(gdf[gdf['fuehr'] == 'Schutzstreifen'])
-    converted_short = schutzstreifen_before - schutzstreifen_after_short
-    logging.info(f"Kurze Schutzstreifen konvertiert: {converted_short}")
-    
-    # ---------- Schutzstreifen-Konvertierung 2: An Bushaltestellen ---------
-    logging.info("Konvertiere Schutzstreifen an Bushaltestellen zu Radfahrstreifen...")
+    logging.info(f"Anzahl Schutzstreifen vor Konvertierung: {schutzstreifen_before}")
     
     # Lade Bushaltestellen-Datei
     bus_stops_gdf = load_bus_stops_from_path("output/bus_stops_on_rvn.fgb")
@@ -122,12 +108,26 @@ def process_bikelane_conversion(input_path, output_path, clip_neukoelln=False, d
         tolerance=1.0,
     )
     
+    # Zähle Schutzstreifen nach der ersten Konvertierung
+    schutzstreifen_after_bus_stops = len(gdf[gdf['fuehr'] == 'Schutzstreifen'])
+    converted_bus_stops = schutzstreifen_before - schutzstreifen_after_bus_stops
+    logging.info(f"Schutzstreifen an Bushaltestellen konvertiert: {converted_bus_stops}")
+    
+    # ---------- Schutzstreifen-Konvertierung 2: Kurze Schutzstreifen -------
+    logging.info("Konvertiere kurze Schutzstreifen zu Radfahrstreifen...")
+    
+    gdf = convert_short_schutzstreifen_to_radfahrstreifen(
+        gdf, 
+        length_threshold=50.0, 
+        tolerance=0.1
+    )
+    
     # Zähle Schutzstreifen nach der zweiten Konvertierung
     schutzstreifen_final = len(gdf[gdf['fuehr'] == 'Schutzstreifen'])
-    converted_bus_stops = schutzstreifen_after_short - schutzstreifen_final
+    converted_short = schutzstreifen_after_bus_stops - schutzstreifen_final
     total_converted = schutzstreifen_before - schutzstreifen_final
+    logging.info(f"Kurze Schutzstreifen konvertiert: {converted_short}")
     
-    logging.info(f"Schutzstreifen an Bushaltestellen konvertiert: {converted_bus_stops}")
     logging.info(f"Gesamt konvertierte Schutzstreifen: {total_converted}")
     logging.info(f"Verbleibende Schutzstreifen: {schutzstreifen_final}")
     
@@ -147,8 +147,8 @@ def process_bikelane_conversion(input_path, output_path, clip_neukoelln=False, d
     logging.info("=" * 60)
     logging.info("ZUSAMMENFASSUNG SCHUTZSTREIFEN-KONVERTIERUNG:")
     logging.info(f"  Schutzstreifen vor Konvertierung: {schutzstreifen_before}")
-    logging.info(f"  Kurze Schutzstreifen konvertiert: {converted_short}")
     logging.info(f"  An Bushaltestellen konvertiert: {converted_bus_stops}")
+    logging.info(f"  Kurze Schutzstreifen konvertiert: {converted_short}")
     logging.info(f"  Gesamt konvertiert: {total_converted}")
     logging.info(f"  Verbleibende Schutzstreifen: {schutzstreifen_final}")
     logging.info("=" * 60)
