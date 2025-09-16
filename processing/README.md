@@ -1,47 +1,108 @@
-# Processing Script
+# Verarbeitungsskripte
 
-**`main.py`** ist der Startpunkt des Verarbeitungsprozesses. Es wählt alle OSM-Wege aus, die sich in `BUFFER_METERS` Entfernung zum Radvorrangsnetz befinden.
+Das Processing-System führt eine vollständige Verarbeitung der TILDA-Rohdaten bis hin zu den finalen aggregierten Radvorrangnetz-Daten durch.
 
-Das Skript erstellt Zwischendateien für die Geodaten. Dies ermöglicht es, die Geschwindigkeit des Skripts bei Wiederholungen zu verbessern. Dies kann jedoch auch zu **Caching-Problemen** führen. Seien Sie sich dessen bewusst und löschen Sie gerne den `output`-Ordner, wenn Sie Probleme haben.
+Das System erstellt Zwischendateien für die Geodaten, um die Geschwindigkeit bei Wiederholungen zu verbessern. Dies kann jedoch auch zu **Caching-Problemen** führen. Bei Problemen löschen Sie den `output`-Ordner oder verwenden Sie `--clean-cache`.
 
 Siehe [REQUIREMENTS.md](./REQUIREMENTS.md) für Geodaten-Anforderungen.
 
 *Getestet mit Python 3.13.3.*
 
-## Processing Scripts & Steps
+## Vollständige Verarbeitungskette
 
-### Snapping Script
+### 1. TILDA-Daten vorbereiten
 
-Empfohlener Start über das Wrapper-Skript:
+Zuerst müssen die TILDA-Rohdaten prozessiert werden:
 
-```sh
-python ./processing/start_snapping.py \
-  --net ./output/vorrangnetz_details_combined_rvn.fgb \
-  --osm ./output/matched/matched_tilda_ways.fgb \
-  --out ./output/snapping_network_enriched.fgb
+```bash
+./scripts/process_tilda_data.sh
 ```
 
-Die Argumente entsprechen:
-- Optional: `--buffer` für die Puffergröße in Metern (Standard: 20.0)
-- Optional: `--max-angle` für den maximalen Winkelunterschied in Grad (Standard: 35.0)
+Dieser Schritt:
+- Schneidet die TILDA-Rohdaten aus `data-raw-tilda/` auf Berlin zu
+- Übersetzt TILDA-Attribute zu RVN-Attributen
+- Erstellt drei bereinigte Datensätze in `data/` und `output/TILDA-translated/`
 
-## Filters
+**Eingabedateien (data-raw-tilda/):**
+- `bikelanes.fgb` → `TILDA Radwege Berlin.fgb` → `TILDA Bikelanes Translated.fgb`
+- `roads.fgb` → `TILDA Straßen Berlin.fgb` → `TILDA Streets Translated.fgb`
+- `roadsPathClasses.fgb` → `TILDA Wege Berlin.fgb` → `TILDA Paths Translated.fgb`
 
-Every filter has its own Python module. **All filters are enabled by default.**
+### 2. Vollständige Verarbeitung durchführen
 
-### Orthogonal Filter
+Nach der TILDA-Datenvorbereitung wird die Hauptverarbeitung gestartet:
 
-The `orthogonal_filter.py` is a processing step, which additionally:
-* Selects short OSM Ways which are less length than `short_way_threshold`.
-* Calculates a vector of the Radvorrangsnetz edges in `buffer_meters` distance.
-* Throws out segments which are in greater difference than `angle_diff_threshold`.
+```bash
+./processing/execute_processing.sh
+```
 
-These ways are usually crossings, which are not parallel to the whished Radvorrangsnetz.
+**Optionen:**
+- `--clip-neukoelln` - Beschränkt Verarbeitung auf Bezirk Neukölln
+- `--view z/lat/lon` - Viewport-Zuschnitt (WGS84, z.B. 18/52.488306/13.425140)
+- `--start-step <1-5>` - Startet ab bestimmtem Verarbeitungsschritt
+- `--clean-cache` - Vollständige Cache-Bereinigung vor Verarbeitung
 
-### Manual OSM Inclusion & Exclusions
+### Verarbeitungsschritte im Detail
 
-Manual interventions use the files `data/exclude_ways.txt` and `data/include_ways.txt` (one OSM way id per line) and exclude or include the OSM way into the dataset. This step is enabled by default and can be skipped with `--skip-manual-interventions`.
+#### Schritt 1: OSM-Matching (`start_matching.py`)
+- Ordnet TILDA-übersetzte Attribute dem Berliner Radvorrangsnetz zu
+- Führt räumliches Matching durch und erstellt bereinigte Datensätze
+- **Ausgabe**: `output/matched/matched_tilda_ways.fgb`
 
-### Difference
+#### Schritt 2: Snapping und Attribut-Übernahme (`start_snapping.py`) 
+- Überträgt TILDA-Attribute auf ein topologisches Richtungs-Straßennetz
+- Bei fehlenden TILDA-Daten wird `fuehr="Keine Radinfrastruktur vorhanden"` gesetzt
+- Berechnet Segmentlängen in Metern
+- **Ausgabe**: `output/snapping_network_enriched.fgb`
 
-By default, the script calculates the difference between two datasets (usually used for determinating all streets, where no bikelanes has been detected in OSM). You can skip this step with `--skip-difference-streets-bikelanes`.
+#### Schritt 3: Schutzstreifen-Konvertierung (`start_bikelane_conversion.py`)
+- Konvertiert kurze Schutzstreifen (< 50m) zu Radfahrstreifen
+- Konvertiert Schutzstreifen an Bushaltestellen zu Radfahrstreifen
+- **Ausgabe**: `output/snapping_converted_bikelanes.fgb`
+
+#### Schritt 4: Finale Aggregation (`aggregate_final_model.py`)
+- Aggregiert Netzwerkdaten nach `element_nr` und Fahrtrichtung (`ri`)
+- Weist Bezirksnummern zu
+- Erstellt finale GeoPackage-Dateien mit separaten Layern
+- **Ausgabe**: `output/aggregated_rvn_final.gpkg`
+
+#### Schritt 5: Qualitätssicherungstests
+- Führt automatisierte Validierungen durch
+
+## Finale Ausgabedateien
+
+Nach erfolgreicher Verarbeitung finden Sie die finalen Datensätze hier:
+
+### Standard-Modus (ganz Berlin):
+- **`output/aggregated_rvn_final.gpkg`** - Finale aggregierte Netzwerkdaten mit 3 Layern:
+  - `hinrichtung` - Kanten mit ri=0 
+  - `gegenrichtung` - Kanten mit ri=1
+  - `alle_richtungen` - Alle Kanten zusammen
+- **`output/snapping_converted_bikelanes.fgb`** - Angereicherte Netzwerkdaten nach Schutzstreifen-Konvertierung
+
+### Neukölln-Modus (`--clip-neukoelln`):
+- **`output/aggregated_rvn_final_neukoelln.gpkg`**
+- **`output/snapping_converted_bikelanes_neukoelln.fgb`**
+
+### Viewport-Modus (`--view z/lat/lon`):
+- **`output-bbox/aggregated_rvn_final_view.gpkg`**
+- **`output-bbox/snapping_converted_bikelanes_view.fgb`**
+
+### Zusätzliche Dateien:
+- **`output/matched/`** - Gematchte OSM-Wege und Zwischendateien
+- **`output-last-run/`** - Gesicherte finale Dateien vom vorherigen Lauf
+
+## Filter und Verarbeitungslogik
+
+### Orthogonaler Filter
+Der `orthogonal_filter.py` führt zusätzliche Verarbeitungsschritte durch:
+- Selektiert kurze OSM-Wege unter einem Schwellenwert
+- Berechnet Vektoren der Radvorrangsnetz-Kanten in Puffer-Entfernung
+- Verwirft Segmente mit zu großem Winkelunterschied
+- Betrifft hauptsächlich Kreuzungen, die nicht parallel zum gewünschten Radvorrangsnetz verlaufen
+
+### Manuelle OSM Ein- und Ausschlüsse
+Manuelle Eingriffe verwenden die Dateien `data/exclude_ways.txt` und `data/include_ways.txt` (eine OSM-Weg-ID pro Zeile) zum Ausschließen oder Einschließen von OSM-Wegen. Dieser Schritt ist standardmäßig aktiviert und kann mit `--skip-manual-interventions` übersprungen werden.
+
+### Differenz-Berechnung  
+Das System berechnet standardmäßig die Differenz zwischen zwei Datensätzen (normalerweise verwendet zur Bestimmung aller Straßen, wo keine Radwege in OSM erkannt wurden). Dieser Schritt kann mit `--skip-difference-streets-bikelanes` übersprungen werden.
