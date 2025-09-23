@@ -40,15 +40,15 @@ class SnappingPriorities:
     
     # Kategorie-Prioritäten (höhere Zahl = höhere Priorität)
     CATEGORY_PRIORITIES = {
-        "bicycleRoad*": 17,  # Fahrradstraße
-        "cycleway*": 17,  # Radweg
-        "footAndCycleway*": 15,  # Fußweg mit Radverkehr
-        "crossing": 12, # Kreuzungsweg
-        "sharedBusLaneBikeWithBus": 8,  # Radfahrstreifen mit Busverkehr frei
-        "sharedBusLaneBusWithBike": 8, # Bussonderfahrstreifen mit Radverkehr frei
-        "footwayBicycle*": 5,  # Fußweg mit Radverkehr
+        "bicycleRoad*":             17,  # Fahrradstraße
+        "cycleway*":                17,  # Radweg
+        "footAndCycleway*":         15,  # Fußweg mit Radverkehr
+        "crossing":                 15, # Kreuzungsweg
+        "sharedBusLaneBikeWithBus": 12,  # Radfahrstreifen mit Busverkehr frei
+        "sharedBusLaneBusWithBike": 12, # Bussonderfahrstreifen mit Radverkehr frei
+        "footwayBicycle*":          10,  # Fußweg mit Radverkehr
         "pedestrianAreaBicycleYes": 5,  # Fußgängerzone mit Radverkehr
-        "sharedMotorVehicleLane": 1,  # Niedrigste Priorität
+        "sharedMotorVehicleLane":   1,  # Niedrigste Priorität
     }
     
     # Straßennamen-Match Prioritäten
