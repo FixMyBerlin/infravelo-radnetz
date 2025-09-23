@@ -3,6 +3,7 @@ import { clsx } from 'clsx'
 import { formatDistanceToNow, fromUnixTime } from 'date-fns'
 import { useState } from 'react'
 import type { MapGeoJSONFeature } from 'react-map-gl/maplibre'
+import { MapillaryPreview } from './MapillaryPreview'
 import { OsmTagsLoader } from './OsmTagsLoader'
 
 const longOsmType = {
@@ -192,6 +193,9 @@ export const Inspector = ({ inspectorFeatures, activeLayerConfigs }: Props) => {
                   {feature.properties.osm_id && feature.properties.osm_type && (
                     <OsmTagsLoader feature={feature} />
                   )}
+
+                  {/* Mapillary Preview */}
+                  <MapillaryPreview feature={feature} />
                 </section>
               )
             })}

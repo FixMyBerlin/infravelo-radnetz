@@ -358,6 +358,8 @@ const App = () => {
                 'roads-interaction',
                 'roadsPathClasses-interaction',
                 'bikelanes-interaction',
+                'mapillary-point-click-target',
+                'mapillary-fmc-point-click-target',
               ]}
               cursor={cursorStyle}
               onMoveEnd={handleMoveEnd}

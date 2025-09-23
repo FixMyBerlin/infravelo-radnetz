@@ -1,6 +1,7 @@
 import { parseAsArrayOf, parseAsString, useQueryState } from 'nuqs'
 import { Fragment } from 'react'
 import { Layer, Source } from 'react-map-gl/maplibre'
+import { MapillaryAllLayers, MapillaryFMCLayers } from './MapillaryLayers'
 
 const CONTEXT_DEFAULTS: readonly string[] = []
 
@@ -48,6 +49,26 @@ export const ContextLayerControls = () => {
               onChange={() => toggle('ortsteile')}
             />
             Ortsteil-Grenzen
+          </label>
+        </li>
+        <li>
+          <label className="flex w-full items-center gap-2">
+            <input
+              type="checkbox"
+              checked={contextLayers.includes('mapillary')}
+              onChange={() => toggle('mapillary')}
+            />
+            Mapillary (Alles)
+          </label>
+        </li>
+        <li>
+          <label className="flex w-full items-center gap-2">
+            <input
+              type="checkbox"
+              checked={contextLayers.includes('mapillary_fmc')}
+              onChange={() => toggle('mapillary_fmc')}
+            />
+            Mapillary FMC Befahrung
           </label>
         </li>
       </ul>
@@ -159,6 +180,12 @@ export const ContextMapLayers = () => {
           />
         </Fragment>
       )}
+
+      {/* Mapillary (Alles) */}
+      {contextLayers.includes('mapillary') && <MapillaryAllLayers />}
+
+      {/* Mapillary FMC Befahrung */}
+      {contextLayers.includes('mapillary_fmc') && <MapillaryFMCLayers />}
 
       {/* Bezirke */}
       {contextLayers.includes('bezirke') && (
