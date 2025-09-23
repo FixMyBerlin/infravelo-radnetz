@@ -640,22 +640,22 @@ def find_streets_with_one_sided_bikelanes(streets_gdf, output_path):
         return None
     
     # Füge detaillierte Markierungen hinzu
-    one_sided_streets['has_one_sided_bikelane'] = True
-    one_sided_streets['one_sided_bikelane_side'] = 'unknown'
-    one_sided_streets['separate_infrastructure_type'] = 'unknown'
-    one_sided_streets['mixed_traffic_side'] = 'unknown'
+    one_sided_streets['tilda_has_one_sided_bikelane'] = True
+    one_sided_streets['tilda_one_sided_bikelane_side'] = 'unknown'
+    one_sided_streets['tilda_separate_infrastructure_type'] = 'unknown'
+    one_sided_streets['tilda_mixed_traffic_side'] = 'unknown'
     
     # Kategorisiere Links-separate Geometrien
     left_mask = condition_left_separate
-    one_sided_streets.loc[left_mask, 'one_sided_bikelane_side'] = 'left_separate'
-    one_sided_streets.loc[left_mask, 'separate_infrastructure_type'] = one_sided_streets.loc[left_mask, 'tilda_bikelane_left']
-    one_sided_streets.loc[left_mask, 'mixed_traffic_side'] = 'right'
+    one_sided_streets.loc[left_mask, 'tilda_one_sided_bikelane_side'] = 'left_separate'
+    one_sided_streets.loc[left_mask, 'tilda_separate_infrastructure_type'] = one_sided_streets.loc[left_mask, 'tilda_bikelane_left']
+    one_sided_streets.loc[left_mask, 'tilda_mixed_traffic_side'] = 'right'
     
     # Kategorisiere Rechts-separate Geometrien  
     right_mask = condition_right_separate
-    one_sided_streets.loc[right_mask, 'one_sided_bikelane_side'] = 'right_separate'
-    one_sided_streets.loc[right_mask, 'separate_infrastructure_type'] = one_sided_streets.loc[right_mask, 'tilda_bikelane_right']
-    one_sided_streets.loc[right_mask, 'mixed_traffic_side'] = 'left'
+    one_sided_streets.loc[right_mask, 'tilda_one_sided_bikelane_side'] = 'right_separate'
+    one_sided_streets.loc[right_mask, 'tilda_separate_infrastructure_type'] = one_sided_streets.loc[right_mask, 'tilda_bikelane_right']
+    one_sided_streets.loc[right_mask, 'tilda_mixed_traffic_side'] = 'left'
     
     # Entferne doppelte Spaltennamen
     one_sided_streets = one_sided_streets.loc[:, ~one_sided_streets.columns.duplicated()]
@@ -668,14 +668,14 @@ def find_streets_with_one_sided_bikelanes(streets_gdf, output_path):
     print(f"Datei gespeichert: {output_path}")
     
     # Zeige detaillierte Statistiken
-    left_separate_count = len(one_sided_streets[one_sided_streets['one_sided_bikelane_side'] == 'left_separate'])
-    right_separate_count = len(one_sided_streets[one_sided_streets['one_sided_bikelane_side'] == 'right_separate'])
+    left_separate_count = len(one_sided_streets[one_sided_streets['tilda_one_sided_bikelane_side'] == 'left_separate'])
+    right_separate_count = len(one_sided_streets[one_sided_streets['tilda_one_sided_bikelane_side'] == 'right_separate'])
     print(f"  - Links separate Infrastruktur: {left_separate_count}")
     print(f"  - Rechts separate Infrastruktur: {right_separate_count}")
     
     # Zeige Verteilung der Infrastruktur-Typen
     print(f"\\nTypen der separaten Infrastruktur:")
-    infra_types = one_sided_streets['separate_infrastructure_type'].value_counts()
+    infra_types = one_sided_streets['tilda_separate_infrastructure_type'].value_counts()
     for infra_type, count in infra_types.items():
         print(f"  - {infra_type}: {count}")
     
@@ -702,8 +702,8 @@ def combine_streets_with_one_sided_bikelanes(streets_without_bikelanes, one_side
     if streets_without_bikelanes is not None:
         streets_copy = streets_without_bikelanes.copy()
         streets_copy['street_type'] = 'no_bikelanes'
-        if 'has_one_sided_bikelane' not in streets_copy.columns:
-            streets_copy['has_one_sided_bikelane'] = False
+        if 'tilda_has_one_sided_bikelane' not in streets_copy.columns:
+            streets_copy['tilda_has_one_sided_bikelane'] = False
         combined_gdfs.append(streets_copy)
         print(f"Straßen ohne Radwege: {len(streets_copy)}")
     
