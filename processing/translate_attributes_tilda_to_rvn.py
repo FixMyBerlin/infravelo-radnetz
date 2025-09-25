@@ -444,6 +444,8 @@ def determine_kommentar(row) -> str:
         except (ValueError, TypeError, OSError) as e:
             logging.warning(f"Fehler beim Formatieren des updated_at Datums: {updated_at}, Fehler: {e}")
             return "Derzeit Baustelle (Stand unbekannt)"
+    elif lifecycle == "temporary":
+        return "Temporäre Markierungen zum Erhebungszeitpunkt"
     
     return None
 
