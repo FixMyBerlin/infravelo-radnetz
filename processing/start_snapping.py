@@ -364,29 +364,37 @@ def process_segments_batch(segments_batch, osm_gdf, osm_sidx, buffer, candidates
                 
                 if best_candidate:
                     best_tilda_id = best_candidate.get('tilda_id', 'unknown')
-                    distance = best_candidate.get('d', -1)
-                    angle_diff = best_candidate.get('angle_diff', -1)
-                    angle_prio = best_candidate.get('angle_priority', -1)
-                    tilda_prio = best_candidate.get('priority', -1)
                     verkehrsri = best_candidate.get('verkehrsri', 'unknown')
                     
-                    # Extrahiere detaillierte Prioritätsinformationen falls verfügbar
+                    # Neue Prioritätswerte aus snapping_analysis.py
+                    total_priority = best_candidate.get('total_priority_weighted', -1)
+                    tilda_prio = best_candidate.get('priority', -1)
+                    angle_prio = best_candidate.get('angle_priority', -1)
+                    distance_prio = best_candidate.get('distance_priority', -1)
+                    direction_compat = best_candidate.get('direction_compatibility', 0)
+                    distance_meter = best_candidate.get('dist_to_mid', -1)
+                    angle_diff = best_candidate.get('angle_diff', -1)
+                    
+                    # Extrahiere detaillierte TILDA-Prioritätsinformationen falls verfügbar
                     priority_details = best_candidate.get('priority_details', {})
                     
                     candidates_log.write(f"    ri={ri_value} ({ri_name}): {best_tilda_id}\n")
+                    candidates_log.write(f"      → GESAMT-PRIORITÄT: {total_priority:.2f}\n")
+                    candidates_log.write(f"        ├─ TILDA-Priorität: {tilda_prio}\n")
+                    candidates_log.write(f"        ├─ Winkel-Priorität: {angle_prio:.2f}\n")
+                    candidates_log.write(f"        ├─ Distanz-Priorität: {distance_prio:.2f} (bei {distance_meter:.1f}m)\n")
+                    candidates_log.write(f"        └─ Richtungskompatibilität: {direction_compat}\n")
                     
-                    # Detaillierte TILDA-Prioritäten einzeln aufführen
+                    # Detaillierte TILDA-Prioritäten einzeln aufführen (falls verfügbar)
                     if priority_details:
                         traffic_prio = priority_details.get('traffic_priority', 0)
                         category_prio = priority_details.get('category_priority', 0)
                         street_prio = priority_details.get('street_name_priority', 0)
-                        traffic_sign = priority_details.get('traffic_sign', 'None')
+                        traffic_sign = priority_details.get('traffic_sign', 'none')
                         category = priority_details.get('category', 'None')
                         category_pattern = priority_details.get('category_pattern', '')
                         street_detail = priority_details.get('street_name_detail', '')
                         
-                        dir_compat_val = priority_details.get('direction_compatibility', 'N/A')
-                        candidates_log.write(f"      → PRIORITÄTEN: dir_compat={dir_compat_val}, angle_prio={angle_prio:.2f}, dist={distance:.1f}m\n")
                         candidates_log.write(f"      → TILDA-PRIORITÄTEN:\n")
                         candidates_log.write(f"        • Traffic_Sign({traffic_sign}): {traffic_prio}\n")
                         if category_pattern:
@@ -395,10 +403,6 @@ def process_segments_batch(segments_batch, osm_gdf, osm_sidx, buffer, candidates
                             candidates_log.write(f"        • Category({category}): {category_prio}\n")
                         candidates_log.write(f"        • StreetName({street_detail}): {street_prio}\n")
                         candidates_log.write(f"        • GESAMT: {tilda_prio}\n")
-                    else:
-                        # Fallback falls detaillierte Informationen nicht verfügbar sind
-                        dir_compat_val = priority_details.get('direction_compatibility', 'N/A') if 'priority_details' in locals() else 'N/A'
-                        candidates_log.write(f"      → PRIORITÄTEN: dir_compat={dir_compat_val}, angle_prio={angle_prio:.2f}, tilda_prio={tilda_prio}, dist={distance:.1f}m\n")
                     
                     candidates_log.write(f"      → DETAILS: angle_diff={angle_diff:.1f}°, verkehrsri={verkehrsri}\n")
                     

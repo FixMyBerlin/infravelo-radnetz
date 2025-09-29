@@ -6,8 +6,8 @@ analyze_snapping_candidates.py
 Analysiert TILDA-Kandidaten für eine spezifische SFID und zeigt alle
 gefundenen Kandidaten mit detaillierten Prioritätsinformationen an.
 
-Dieses Skript hilft bei der Analyse, warum bestimmte TILDA-Kandidaten
-ausgewählt oder nicht ausgewählt wurden.
+Verwendet dieselbe Methodik wie start_snapping.py und snapping_analysis.py
+für exakte Nachvollziehbarkeit der Kandidatenauswahl.
 
 INPUT:
 - output/snapping_network_enriched.fgb (angereicherte Netzwerkdaten)
@@ -31,7 +31,7 @@ from datetime import datetime
 processing_dir = os.path.join(os.path.dirname(__file__), '..', 'processing')
 sys.path.insert(0, processing_dir)
 
-# Importiere gemeinsame Snapping-Funktionen
+# Importiere gemeinsame Snapping-Funktionen - verwende dieselben wie start_snapping.py
 from helpers.globals import DEFAULT_CRS
 from helpers.snapping_analysis import (
     SnappingPriorities,
@@ -44,354 +44,322 @@ from helpers.snapping_analysis import (
     find_best_candidate_for_direction
 )
 
-# Konstanten
-CONFIG_BUFFER_DEFAULT = 25
 
-
-def analyze_snapping_candidates_for_sfid(sfid, network_path, tilda_path, output_dir="./output/analysis", 
-                                       buffer=CONFIG_BUFFER_DEFAULT, crs=DEFAULT_CRS):
+def analyze_candidates_for_sfid(sfid, network_gdf, tilda_gdf, buffer_distance=25):
     """
-    Analysiert alle TILDA-Kandidaten für eine spezifische SFID.
+    Analysiert alle TILDA-Kandidaten für eine spezifische SFID unter Verwendung 
+    der aktuellen Snapping-Methodik aus snapping_analysis.py.
     
     Args:
-        sfid: Die zu analysierende SFID
-        network_path: Pfad zur angereicherten Netzwerkdatei
-        tilda_path: Pfad zu den TILDA-übersetzten Daten
-        output_dir: Ausgabeverzeichnis für die Analyse
-        buffer: Puffergröße für die Kandidatensuche
-        crs: Koordinatensystem
-    """
-    
-    # Lade Daten
-    logging.info(f"Lade angereicherte Netzwerkdaten aus {network_path}...")
-    network_gdf = gpd.read_file(network_path).to_crs(crs)
-    
-    logging.info(f"Lade TILDA-übersetzte Daten aus {tilda_path}...")
-    tilda_gdf = gpd.read_file(tilda_path).to_crs(crs)
-    
-    # Finde das Segment mit der angegebenen SFID
-    segment_rows = network_gdf[network_gdf['sfid'] == sfid]
-    if len(segment_rows) == 0:
-        logging.error(f"Keine Segmente mit SFID {sfid} gefunden!")
-        return None
+        sfid (int): SFID des zu analysierenden Segments
+        network_gdf (GeoDataFrame): Netzwerkdaten
+        tilda_gdf (GeoDataFrame): TILDA-Daten
+        buffer_distance (float): Pufferentfernung in Metern
         
-    if len(segment_rows) > 1:
-        logging.warning(f"Mehrere Segmente mit SFID {sfid} gefunden ({len(segment_rows)}). Verwende das erste.")
+    Returns:
+        dict: Analyseergebnisse mit Kandidateninformationen
+    """
+    # Finde das entsprechende Segment im Netzwerk
+    segment = network_gdf[network_gdf['sfid'] == sfid]
+    if segment.empty:
+        logging.error(f"SFID {sfid} nicht im Netzwerk gefunden!")
+        return None
     
-    segment = segment_rows.iloc[0]
-    segment_geom = segment.geometry
+    segment = segment.iloc[0]
+    logging.info(f"Analysiere SFID {sfid}: {segment.get('strassenname', 'Unbekannt')} ({segment.get('strklasse', 'N/A')})")
     
-    logging.info(f"Analysiere Segment SFID {sfid}:")
-    logging.info(f"  Element-Nr: {segment.get('element_nr', 'N/A')}")
-    logging.info(f"  Straßenname: {segment.get('strassenname', 'N/A')}")
-    logging.info(f"  Länge: {segment.get('Länge', 'N/A')} m")
-    logging.info(f"  Aktueller fuehr-Wert: {segment.get('fuehr', 'N/A')}")
+    # Bestimme Segment-Richtung
+    segment_direction = calculate_line_angle(segment.geometry)
+    logging.info(f"Segment-Richtung: {segment_direction:.2f}°")
     
-    # Erstelle räumlichen Index für TILDA-Daten
-    tilda_sidx = tilda_gdf.sindex
+    buffer_geom = segment.geometry.buffer(buffer_distance)
     
     # Finde alle TILDA-Kandidaten im Buffer
-    buffer_geom = segment_geom.buffer(buffer, cap_style='flat')
-    cand_idx = list(tilda_sidx.intersection(buffer_geom.bounds))
+    candidates = tilda_gdf[tilda_gdf.geometry.intersects(buffer_geom)].copy()
     
-    if not cand_idx:
-        logging.warning(f"Keine TILDA-Kandidaten im Buffer von {buffer}m gefunden!")
-        return None
-    
-    # Filtere Kandidaten nach tatsächlicher Entfernung
-    candidates = tilda_gdf.iloc[cand_idx].copy()
-    candidates["distance"] = candidates.geometry.distance(segment_geom)
-    candidates = candidates[candidates["distance"] <= buffer]
-    
-    if len(candidates) == 0:
-        logging.warning(f"Keine TILDA-Kandidaten nach Entfernungsfilter im Buffer von {buffer}m!")
-        return None
+    if candidates.empty:
+        logging.warning(f"Keine TILDA-Kandidaten im {buffer_distance}m Buffer für SFID {sfid} gefunden!")
+        return {"segment": segment, "candidates": [], "selected": None}
     
     logging.info(f"Gefundene TILDA-Kandidaten im Buffer: {len(candidates)}")
     
-    # Berechne Segment-Winkel
-    segment_angle = calculate_line_angle(segment_geom)
-    logging.info(f"Segment-Winkel: {segment_angle:.1f}°")
+    candidate_list = []
     
-    # Erstelle Segment-Dictionary für Prioritätsberechnung
+    # Erstelle seg_dict wie in start_snapping.py
     seg_dict = {
-        'element_nr': segment.get('element_nr'),
-        'strassenname': segment.get('strassenname'),
-        'geometry': segment_geom,
-        'beginnt_bei_vp': segment.get('beginnt_bei_vp'),
-        'endet_bei_vp': segment.get('endet_bei_vp')
+        'sfid': segment['sfid'],
+        'strassenname': segment.get('strassenname', ''),
+        'geometry': segment.geometry,
+        'ri': segment.get('ri', 0)
     }
     
-    # Analysiere alle Kandidaten
-    candidate_analysis = []
-    
+    # Analysiere jeden Kandidaten - ähnlich wie in start_snapping.py
     for idx, candidate in candidates.iterrows():
-        analysis = analyze_single_candidate(candidate, seg_dict, segment_angle, buffer)
-        candidate_analysis.append(analysis)
+        # Berechne OSM-Priorität
+        osm_priority_result = calculate_osm_priority_detailed(candidate)
+        if isinstance(osm_priority_result, tuple):
+            osm_priority = osm_priority_result[0]  # Nimm den ersten Wert des Tupels
+        else:
+            osm_priority = osm_priority_result
+        
+        # Berechne Distanz
+        distance = segment.geometry.distance(candidate.geometry)
+        distance_priority = calculate_distance_priority(distance)
+        
+        # Berechne Winkel-Priorität
+        candidate_direction = calculate_line_angle(candidate.geometry)
+        angle_diff = angle_difference(segment_direction, candidate_direction)
+        angle_priority = calculate_angle_priority(segment.geometry, candidate.geometry)
+        
+        # Berechne Richtungskompatibilität (exakt wie in snapping_analysis.py)
+        candidate_verkehrsri = candidate.get('verkehrsri', '')
+        priorities = SnappingPriorities()
+        
+        if candidate_verkehrsri == 'Einrichtungsverkehr':
+            # Bei Einrichtungsverkehr: Prüfe Richtungsausrichtung
+            segment_direction_ri = determine_segment_direction(segment.geometry, candidate.geometry)
+            
+            # ri_value ist die Richtung des Segments (0=Hinrichtung, 1=Rückrichtung)
+            ri_value = segment.get('ri', 0)
+            
+            if segment_direction_ri == ri_value:
+                # Richtung passt perfekt
+                direction_compatibility = priorities.DIRECTION_PERFECT_MATCH
+            else:
+                # Richtung passt nicht - NEGATIVE Priorität für gegenläufige Wege
+                direction_compatibility = priorities.DIRECTION_WRONG_WAY
+        else:
+            # Bei Zweirichtungsverkehr: Kann für beide Richtungen verwendet werden
+            direction_compatibility = priorities.DIRECTION_BIDIRECTIONAL
+        
+        # Berechne gewichtete Gesamtpriorität (exakt wie in snapping_analysis.py)
+        total_priority_weighted = (
+            osm_priority +                  # TILDA-Priorität (Inhalt)
+            angle_priority +                # Winkel-Priorität (beinhaltet Richtungsausrichtung)  
+            distance_priority +             # Entfernungs-Priorität
+            direction_compatibility         # Richtungskompatibilität
+        )
+        
+        candidate_info = {
+            'osmid': candidate.get('tilda_osm_id', 'N/A'),
+            'TILDA_id': candidate.get('tilda_id', 'N/A'),
+            'fuehr': candidate.get('fuehr', 'N/A'),
+            'breite': candidate.get('breite', 'N/A'),
+            'tilda_width': candidate.get('tilda_width', 'N/A'),
+            'tilda_surface': candidate.get('tilda_surface', 'N/A'),
+            'tilda_surface_color': candidate.get('tilda_surface_color', 'N/A'),
+            'farbe': candidate.get('farbe', 'N/A'),
+            'tilda_oneway': candidate.get('tilda_oneway', 'N/A'),
+            'tilda_category': candidate.get('tilda_category', 'N/A'),
+            'tilda_traffic_sign': candidate.get('tilda_traffic_sign', 'N/A'),
+            'geometry_type': str(type(candidate.geometry).__name__),
+            'candidate_direction': candidate_direction,
+            'distance': distance,
+            'angle_diff': angle_diff,
+            'osm_priority': osm_priority,
+            'angle_priority': angle_priority,
+            'distance_priority': distance_priority,
+            'direction_compatibility': direction_compatibility,
+            'total_priority_weighted': total_priority_weighted,
+            'is_above_threshold': total_priority_weighted >= priorities.MINIMUM_TOTAL_PRIORITY
+        }
+        
+        candidate_list.append(candidate_info)
     
-    # Sortiere Kandidaten nach Gesamtpriorität (absteigend)
-    candidate_analysis.sort(key=lambda x: x['total_priority'], reverse=True)
+    # Sortiere Kandidaten nach Gesamtpriorität (höchste zuerst)
+    candidate_list.sort(key=lambda x: x['total_priority_weighted'], reverse=True)
     
-    # Finde beste Kandidaten für beide Richtungen
-    best_ri0 = find_best_candidate_for_direction(candidates, seg_dict, 0, segment_angle)
-    best_ri1 = find_best_candidate_for_direction(candidates, seg_dict, 1, segment_angle)
+    # Bestimme den besten Kandidaten - verwende dieselbe Funktion wie start_snapping.py
+    ri_value = segment.get('ri', 0)  # Verwende die korrekte ri aus dem Segment
+    best_candidate = find_best_candidate_for_direction(
+        candidates, 
+        seg_dict, 
+        ri_value,  # Korrekte ri statt None
+        segment_direction
+    )
     
-    # Schreibe Analyse in Textdatei
-    os.makedirs(output_dir, exist_ok=True)
-    output_file = os.path.join(output_dir, f"sfid_{sfid}_kandidaten_analyse.txt")
-    
-    with open(output_file, 'w', encoding='utf-8') as f:
-        write_candidate_analysis(f, sfid, segment, seg_dict, segment_angle, 
-                               candidate_analysis, best_ri0, best_ri1, buffer)
-    
-    logging.info(f"Analyse gespeichert: {output_file}")
-    return output_file
-
-
-def analyze_single_candidate(candidate, seg_dict, segment_angle, buffer):
-    """
-    Analysiert einen einzelnen TILDA-Kandidaten und berechnet alle Prioritäten.
-    """
-    candidate_geom = candidate.geometry
-    candidate_angle = calculate_line_angle(candidate_geom)
-    
-    # Berechne detaillierte Prioritäten
-    total_priority, priority_details = calculate_osm_priority_detailed(candidate, seg_dict)
-    
-    # Berechne geometrische Prioritäten
-    angle_priority = calculate_angle_priority(seg_dict["geometry"], candidate_geom)
-    angle_diff = angle_difference(segment_angle, candidate_angle)
-    
-    # Berechne Entfernung zum Segmentmittelpunkt
-    segment_mid = seg_dict["geometry"].interpolate(0.5, normalized=True)
-    dist_to_mid = candidate_geom.distance(segment_mid)
-    distance_priority = calculate_distance_priority(dist_to_mid)
-    
-    # Berechne Richtungskompatibilität für beide Richtungen
-    ri0_direction = determine_segment_direction(seg_dict["geometry"], candidate_geom)
-    ri1_direction = 1 - ri0_direction
-    
-    verkehrsri = candidate.get('verkehrsri', '')
-    
-    # Richtungskompatibilität berechnen
-    if verkehrsri == 'Einrichtungsverkehr':
-        ri0_compatibility = SnappingPriorities.DIRECTION_PERFECT_MATCH if ri0_direction == 0 else SnappingPriorities.DIRECTION_WRONG_WAY
-        ri1_compatibility = SnappingPriorities.DIRECTION_PERFECT_MATCH if ri1_direction == 1 else SnappingPriorities.DIRECTION_WRONG_WAY
-    else:
-        ri0_compatibility = SnappingPriorities.DIRECTION_BIDIRECTIONAL  # Zweirichtungsverkehr
-        ri1_compatibility = SnappingPriorities.DIRECTION_BIDIRECTIONAL
+    selected_candidate = None
+    if best_candidate is not None:
+        selected_osmid = best_candidate.get('osmid', None)
+        selected_candidate = next(
+            (c for c in candidate_list if c['osmid'] == selected_osmid), 
+            None
+        )
     
     return {
-        'tilda_id': candidate.get('tilda_id', 'N/A'),
-        'tilda_name': candidate.get('tilda_name', 'N/A'),
-        'tilda_category': candidate.get('tilda_category', 'N/A'),
-        'tilda_traffic_sign': candidate.get('tilda_traffic_sign', 'N/A'),
-        'verkehrsri': verkehrsri,
-        'fuehr': candidate.get('fuehr', 'N/A'),
-        'ofm': candidate.get('ofm', 'N/A'),
-        'protek': candidate.get('protek', 'N/A'),
-        'breite': candidate.get('breite', 'N/A'),
-        'farbe': candidate.get('farbe', 'N/A'),
-        'distance': candidate.get('distance', 0),
-        'dist_to_mid': dist_to_mid,
-        'candidate_angle': candidate_angle,
-        'angle_diff': angle_diff,
-        'angle_priority': angle_priority,
-        'distance_priority': distance_priority,
-        'total_priority': total_priority,
-        'priority_details': priority_details,
-        'ri0_direction': ri0_direction,
-        'ri1_direction': ri1_direction,
-        'ri0_compatibility': ri0_compatibility,
-        'ri1_compatibility': ri1_compatibility
+        "segment": segment,
+        "segment_direction": segment_direction,
+        "candidates": candidate_list,
+        "selected": selected_candidate,
+        "total_candidates": len(candidate_list),
+        "valid_candidates": len([c for c in candidate_list if c['is_above_threshold']])
     }
 
 
-def write_candidate_analysis(f, sfid, segment, seg_dict, segment_angle, 
-                           candidate_analysis, best_ri0, best_ri1, buffer):
+def write_analysis_report(analysis_result, output_path):
     """
-    Schreibt die detaillierte Kandidatenanalyse in eine Textdatei.
+    Schreibt einen detaillierten Analysebericht in eine Textdatei.
+    
+    Args:
+        analysis_result (dict): Analyseergebnisse von analyze_candidates_for_sfid
+        output_path (str): Pfad zur Ausgabedatei
     """
-    f.write("=" * 80 + "\n")
-    f.write(f"TILDA-KANDIDATEN ANALYSE FÜR SFID {sfid}\n")
-    f.write("=" * 80 + "\n")
-    f.write(f"Erstellt am: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+    if analysis_result is None:
+        return
     
-    # Segment-Informationen
-    f.write("SEGMENT-INFORMATIONEN:\n")
-    f.write("-" * 40 + "\n")
-    f.write(f"SFID:           {sfid}\n")
-    f.write(f"Element-Nr:     {segment.get('element_nr', 'N/A')}\n")
-    f.write(f"Straßenname:    {segment.get('strassenname', 'N/A')}\n")
-    f.write(f"Länge:          {segment.get('Länge', 'N/A')} m\n")
-    f.write(f"Winkel:         {segment_angle:.1f}°\n")
-    f.write(f"Aktueller fuehr: {segment.get('fuehr', 'N/A')}\n")
-    f.write(f"ri:             {segment.get('ri', 'N/A')}\n")
-    f.write(f"Buffer:         {buffer} m\n")
-    f.write("\n")
+    segment = analysis_result["segment"]
+    candidates = analysis_result["candidates"]
+    selected = analysis_result["selected"]
     
-    # Zusammenfassung der gefundenen Kandidaten
-    f.write("KANDIDATEN-ÜBERSICHT:\n")
-    f.write("-" * 40 + "\n")
-    f.write(f"Anzahl gefundene Kandidaten: {len(candidate_analysis)}\n")
-    
-    if best_ri0:
-        f.write(f"Bester Kandidat ri=0:        {best_ri0.get('tilda_id', 'N/A')}\n")
-    else:
-        f.write("Bester Kandidat ri=0:        Keiner gefunden\n")
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write("="*80 + "\n")
+        f.write(f"SNAPPING-KANDIDATEN ANALYSE FÜR SFID {segment['sfid']}\n")
+        f.write(f"Erstellt am: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        f.write("="*80 + "\n\n")
         
-    if best_ri1:
-        f.write(f"Bester Kandidat ri=1:        {best_ri1.get('tilda_id', 'N/A')}\n")
-    else:
-        f.write("Bester Kandidat ri=1:        Keiner gefunden\n")
-    
-    f.write("\n")
-    
-    # Detaillierte Kandidatenanalyse
-    f.write("DETAILLIERTE KANDIDATEN-ANALYSE:\n")
-    f.write("=" * 80 + "\n")
-    
-    for i, analysis in enumerate(candidate_analysis, 1):
-        f.write(f"KANDIDAT {i}: {analysis['tilda_id']}\n")
-        f.write("-" * 50 + "\n")
-        
-        # Grundinformationen
-        f.write("Grunddaten:\n")
-        f.write(f"  TILDA-ID:         {analysis['tilda_id']}\n")
-        f.write(f"  Name:             {analysis['tilda_name']}\n")
-        f.write(f"  Kategorie:        {analysis['tilda_category']}\n")
-        f.write(f"  Verkehrszeichen:  {analysis['tilda_traffic_sign']}\n")
-        f.write(f"  Verkehrsrichtung: {analysis['verkehrsri']}\n")
-        
-        # Attribute
-        f.write("\nTILDA-Attribute:\n")
-        f.write(f"  fuehr:    {analysis['fuehr']}\n")
-        f.write(f"  ofm:      {analysis['ofm']}\n")
-        f.write(f"  protek:   {analysis['protek']}\n")
-        f.write(f"  breite:   {analysis['breite']}\n")
-        f.write(f"  farbe:    {analysis['farbe']}\n")
-        
-        # Geometrische Daten
-        f.write("\nGeometrische Daten:\n")
-        f.write(f"  Entfernung:       {analysis['distance']:.2f} m\n")
-        f.write(f"  Entf. zu Mitte:   {analysis['dist_to_mid']:.2f} m\n")
-        f.write(f"  Kandidat-Winkel:  {analysis['candidate_angle']:.1f}°\n")
-        f.write(f"  Winkel-Diff:      {analysis['angle_diff']:.1f}°\n")
-        
-        # Richtungsanalyse
-        f.write("\nRichtungsanalyse:\n")
-        f.write(f"  ri=0 Richtung:    {analysis['ri0_direction']} ({'passend' if analysis['ri0_direction'] == 0 else 'gegenläufig'})\n")
-        f.write(f"  ri=1 Richtung:    {analysis['ri1_direction']} ({'passend' if analysis['ri1_direction'] == 1 else 'gegenläufig'})\n")
-        f.write(f"  ri=0 Kompatib.:   {analysis['ri0_compatibility']:+d} Punkte\n")
-        f.write(f"  ri=1 Kompatib.:   {analysis['ri1_compatibility']:+d} Punkte\n")
-        
-        # Prioritäts-Breakdown
-        details = analysis['priority_details']
-        f.write("\nPrioritäts-Breakdown:\n")
-        f.write(f"  Traffic Sign:     {details['traffic_priority']:+d} Punkte ({details['traffic_sign']})\n")
-        if details['traffic_sign_matched']:
-            f.write(f"    → Erkannt:      {details['traffic_sign_matched']}\n")
-        f.write(f"  Kategorie:        {details['category_priority']:+d} Punkte ({details['category']})\n")
-        if details['category_pattern']:
-            f.write(f"    → Pattern:      {details['category_pattern']}\n")
-        f.write(f"  Straßenname:      {details['street_name_priority']:+d} Punkte ({details['street_name_detail']})\n")
-        f.write(f"  Winkel:           {analysis['angle_priority']:+.2f} Punkte\n")
-        f.write(f"  Entfernung:       {analysis['distance_priority']:+.2f} Punkte\n")
-        f.write(f"  GESAMT PRIORITÄT: {analysis['total_priority']:+d} Punkte\n")
-        
-        # Bewertung
-        f.write("\nBewertung:\n")
-        if analysis['total_priority'] > 10:
-            f.write("  → HOCH: Sehr guter Kandidat\n")
-        elif analysis['total_priority'] > 5:
-            f.write("  → MITTEL: Guter Kandidat\n")
-        elif analysis['total_priority'] > 0:
-            f.write("  → NIEDRIG: Durchschnittlicher Kandidat\n")
-        else:
-            f.write("  → SCHLECHT: Ungeeigneter Kandidat\n")
-        
-        # Prüfe ob dieser Kandidat als bester ausgewählt wurde
-        is_best_ri0 = best_ri0 and best_ri0.get('tilda_id') == analysis['tilda_id']
-        is_best_ri1 = best_ri1 and best_ri1.get('tilda_id') == analysis['tilda_id']
-        
-        if is_best_ri0 or is_best_ri1:
-            directions = []
-            if is_best_ri0:
-                directions.append("ri=0")
-            if is_best_ri1:
-                directions.append("ri=1")
-            f.write(f"  *** AUSGEWÄHLT für {', '.join(directions)} ***\n")
-        
+        # Segment-Informationen
+        f.write("SEGMENT-INFORMATIONEN:\n")
+        f.write("-"*40 + "\n")
+        f.write(f"SFID: {segment['sfid']}\n")
+        f.write(f"Straßenname: {segment.get('strassenname', 'N/A')}\n")
+        f.write(f"Straßenklasse: {segment.get('strklasse', 'N/A')}\n")
+        f.write(f"Segment-Richtung: {analysis_result['segment_direction']:.2f}°\n")
+        f.write(f"Geometrie-Typ: {type(segment.geometry).__name__}\n")
+        f.write(f"Aktuelle fuehr: {segment.get('fuehr', 'N/A')}\n")
+        f.write(f"Aktuelle breite: {segment.get('breite', 'N/A')}\n")
+        f.write(f"Aktuelle belag: {segment.get('belag', 'N/A')}\n")
+        f.write(f"Aktuelle farbe: {segment.get('farbe', 'N/A')}\n")
         f.write("\n")
-    
-    # Zusammenfassung
-    f.write("ZUSAMMENFASSUNG:\n")
-    f.write("=" * 50 + "\n")
-    if len(candidate_analysis) == 0:
-        f.write("Keine Kandidaten gefunden.\n")
-    else:
-        best_candidate = candidate_analysis[0]
-        f.write(f"Bester Gesamtkandidat: {best_candidate['tilda_id']} ({best_candidate['total_priority']:+d} Punkte)\n")
-        f.write(f"Schlechtester Kandidat: {candidate_analysis[-1]['tilda_id']} ({candidate_analysis[-1]['total_priority']:+d} Punkte)\n")
         
-        # Statistiken
-        priorities = [c['total_priority'] for c in candidate_analysis]
-        f.write(f"\nPrioritäts-Statistiken:\n")
-        f.write(f"  Durchschnitt: {np.mean(priorities):.1f} Punkte\n")
-        f.write(f"  Median:       {np.median(priorities):.1f} Punkte\n")
-        f.write(f"  Bereich:      {min(priorities)} bis {max(priorities)} Punkte\n")
+        # Zusammenfassung
+        f.write("KANDIDATEN-ZUSAMMENFASSUNG:\n")
+        f.write("-"*40 + "\n")
+        f.write(f"Gesamt gefundene Kandidaten: {analysis_result['total_candidates']}\n")
+        f.write(f"Kandidaten über Mindest-Priorität: {analysis_result['valid_candidates']}\n")
+        
+        if selected:
+            f.write(f"Ausgewählter Kandidat: OSMID {selected['osmid']} (TILDA_id: {selected['TILDA_id']})\n")
+            f.write(f"Ausgewählte Priorität: {selected['total_priority_weighted']:.2f}\n")
+        else:
+            f.write("Ausgewählter Kandidat: KEINE AUSWAHL\n")
+        f.write("\n")
+        
+        # Schwellenwerte
+        priorities = SnappingPriorities()
+        f.write("SNAPPING-KONFIGURATION:\n")
+        f.write("-"*40 + "\n")
+        f.write(f"Mindest-Gesamtpriorität: {priorities.MINIMUM_TOTAL_PRIORITY}\n")
+        f.write(f"Perfekte Richtung: {priorities.DIRECTION_PERFECT_MATCH}\n")
+        f.write(f"Bidirektionale Richtung: {priorities.DIRECTION_BIDIRECTIONAL}\n")
+        f.write(f"Falsche Richtung: {priorities.DIRECTION_WRONG_WAY}\n")
+        f.write("\n")
+        
+        # Detaillierte Kandidaten-Liste
+        f.write("DETAILLIERTE KANDIDATEN-ANALYSE:\n")
+        f.write("="*80 + "\n")
+        
+        for i, candidate in enumerate(candidates, 1):
+            f.write(f"\nKANDIDAT #{i} {'(AUSGEWÄHLT)' if selected and candidate['osmid'] == selected['osmid'] else ''}\n")
+            f.write("-"*50 + "\n")
+            f.write(f"OSM ID: {candidate['osmid']}\n")
+            f.write(f"TILDA_id: {candidate['TILDA_id']}\n")
+            f.write(f"Führung: {candidate['fuehr']}\n")
+            f.write(f"Breite (RVN): {candidate['breite']}\n")
+            f.write(f"TILDA Breite: {candidate['tilda_width']}\n")
+            f.write(f"TILDA Oberfläche: {candidate['tilda_surface']}\n")
+            f.write(f"TILDA Oberflächenfarbe: {candidate['tilda_surface_color']}\n")
+            f.write(f"Farbe (RVN): {candidate['farbe']}\n")
+            f.write(f"TILDA Einbahnstraße: {candidate['tilda_oneway']}\n")
+            f.write(f"TILDA Kategorie: {candidate['tilda_category']}\n")
+            f.write(f"TILDA Verkehrszeichen: {candidate['tilda_traffic_sign']}\n")
+            f.write(f"Geometrie-Typ: {candidate['geometry_type']}\n")
+            f.write(f"Kandidaten-Richtung: {candidate['candidate_direction']:.2f}°\n")
+            f.write(f"Entfernung: {candidate['distance']:.2f}m\n")
+            f.write(f"Winkel-Unterschied: {candidate['angle_diff']:.2f}°\n")
+            f.write("\n")
+            f.write("PRIORITÄTS-BREAKDOWN:\n")
+            f.write(f"  TILDA-Priorität: {candidate['osm_priority']:.2f}\n")
+            f.write(f"  Winkel-Priorität: {candidate['angle_priority']:.2f}\n")
+            f.write(f"  Distanz-Priorität: {candidate['distance_priority']:.2f}\n")
+            f.write(f"  Richtungskompatibilität: {candidate['direction_compatibility']:.2f}\n")
+            f.write(f"  GESAMT-PRIORITÄT: {candidate['total_priority_weighted']:.2f}\n")
+            f.write(f"  Über Schwellenwert: {'JA' if candidate['is_above_threshold'] else 'NEIN'}\n")
+    
+    logging.info(f"Analysebericht geschrieben nach: {output_path}")
 
 
 def main():
-    """Hauptfunktion für CLI-Nutzung"""
-    parser = argparse.ArgumentParser(description="Analysiere TILDA-Kandidaten für eine spezifische SFID")
-    parser.add_argument("sfid", type=int, help="Die zu analysierende SFID")
-    parser.add_argument("--network", default="./output/snapping_network_enriched.fgb",
-                       help="Pfad zur angereicherten Netzwerkdatei")
-    parser.add_argument("--tilda", default="./output/matched/matched_tilda_ways.fgb", 
-                       help="Pfad zu den TILDA-übersetzten Daten")
-    parser.add_argument("--output-dir", default="./output/analysis",
-                       help="Ausgabeverzeichnis für die Analyse")
-    parser.add_argument("--buffer", type=float, default=CONFIG_BUFFER_DEFAULT,
-                       help=f"Puffergröße für Kandidatensuche (default: {CONFIG_BUFFER_DEFAULT}m)")
-    parser.add_argument("--crs", type=int, default=DEFAULT_CRS,
-                       help=f"Koordinatensystem EPSG-Code (default: {DEFAULT_CRS})")
+    """Hauptfunktion für die Kommandozeilen-Nutzung."""
+    parser = argparse.ArgumentParser(
+        description='Analysiert TILDA-Kandidaten für eine spezifische SFID'
+    )
+    parser.add_argument('sfid', type=int, help='SFID des zu analysierenden Segments')
+    parser.add_argument('--bezirk', default='neukoelln', 
+                       help='Bezirk für die Analyse (default: neukoelln)')
+    parser.add_argument('--buffer', type=float, default=25,
+                       help='Pufferentfernung in Metern (default: 25)')
+    parser.add_argument('--output-dir', 
+                       default='output/analysis',
+                       help='Ausgabeverzeichnis (default: output/analysis)')
     
     args = parser.parse_args()
     
     # Logging konfigurieren
     logging.basicConfig(
         level=logging.INFO,
-        format='%(asctime)s - %(levelname)s: %(message)s',
-        datefmt='%H:%M:%S'
+        format='%(asctime)s - %(levelname)s - %(message)s'
     )
     
-    # Prüfe ob Eingabedateien existieren
-    if not os.path.exists(args.network):
-        logging.error(f"Netzwerkdatei nicht gefunden: {args.network}")
-        sys.exit(1)
-        
-    if not os.path.exists(args.tilda):
-        logging.error(f"TILDA-Datei nicht gefunden: {args.tilda}")
-        sys.exit(1)
+    # Dateipfade konfigurieren
+    script_dir = Path(__file__).parent
+    project_root = script_dir.parent
     
-    # Führe Analyse durch
+    if args.bezirk == 'neukoelln':
+        network_file = project_root / 'output' / 'snapping_network_enriched_neukoelln.fgb'
+        tilda_file = project_root / 'output' / 'matched' / 'matched_tilda_ways.fgb'
+        output_suffix = '_neukoelln'
+    else:
+        network_file = project_root / 'output' / 'snapping_network_enriched.fgb'
+        tilda_file = project_root / 'output' / 'matched' / 'matched_tilda_ways.fgb'
+        output_suffix = ''
+    
+    # Ausgabeverzeichnis erstellen
+    output_dir = project_root / args.output_dir
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
     try:
-        output_file = analyze_snapping_candidates_for_sfid(
-            args.sfid, args.network, args.tilda, args.output_dir, 
-            args.buffer, args.crs
+        # Lade Geodaten
+        logging.info(f"Lade Netzwerkdaten: {network_file}")
+        network_gdf = gpd.read_file(network_file)
+        logging.info(f"Netzwerk geladen: {len(network_gdf)} Segmente")
+        
+        logging.info(f"Lade TILDA-Daten: {tilda_file}")
+        tilda_gdf = gpd.read_file(tilda_file)
+        logging.info(f"TILDA geladen: {len(tilda_gdf)} Features")
+        
+        # Führe Analyse durch
+        analysis_result = analyze_candidates_for_sfid(
+            args.sfid, 
+            network_gdf, 
+            tilda_gdf, 
+            args.buffer
         )
         
-        if output_file:
-            print(f"✔  Analyse abgeschlossen: {output_file}")
-        else:
-            print("✗  Analyse fehlgeschlagen")
-            sys.exit(1)
-            
+        if analysis_result is None:
+            logging.error("Analyse fehlgeschlagen!")
+            return 1
+        
+        # Schreibe Bericht
+        output_file = output_dir / f'snapping_candidates_analysis_SFID_{args.sfid}{output_suffix}.txt'
+        write_analysis_report(analysis_result, output_file)
+        
+        logging.info(f"Analyse abgeschlossen für SFID {args.sfid}")
+        return 0
+        
     except Exception as e:
         logging.error(f"Fehler bei der Analyse: {e}")
-        sys.exit(1)
+        return 1
 
 
 if __name__ == "__main__":
-    main()
+    exit(main())
