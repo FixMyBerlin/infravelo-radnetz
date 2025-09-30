@@ -193,10 +193,11 @@ def assign_node_ids(nodes_path, segments_path, output_path):
 
     # Räumlicher Join, um die Knotenpunkt‐ID den Knotenpunkten zuzuordnen
     # Wir verwenden einen kleinen Puffer, um Ungenauigkeiten bei den Koordinaten zu berücksichtigen
+    # Wichtig: Buffer verwenden, da Verbindungspunkte als MultiPoint-Geometrien vorliegen
     nodes_gdf_buffered = nodes_gdf.copy()
     nodes_gdf_buffered['geometry'] = nodes_gdf.geometry.buffer(0.1) # 10 cm Puffer, anpassbar
 
-    joined_gdf = gpd.sjoin(nodes_gdf, segment_nodes, how="left", predicate="intersects")
+    joined_gdf = gpd.sjoin(nodes_gdf_buffered, segment_nodes, how="left", predicate="intersects")
 
     # Da ein Knotenpunkt mit mehreren Segment-Endpunkten verbunden sein kann,
     # gruppieren wir nach der ursprünglichen Knoten-ID und nehmen die erste gefundene Knotenpunkt‐ID.
