@@ -332,6 +332,104 @@ def explore_direction(G, start_coord, exclude_idx, rvn_gdf, nodes_gdf, processed
     return found_segments, None
 
 
+def analyze_element_nr_quality(enriched_rvn):
+    """
+    Analysiert die Qualität der zugewiesenen element_nr Werte.
+    
+    Prüft auf UNKNOWN oder None Werte in element_nr, beginnt_bei_vp und endet_bei_vp.
+    Gibt detaillierte Statistiken und Beispiele aus.
+    
+    Args:
+        enriched_rvn (GeoDataFrame): Radvorrangsnetz mit zugewiesenen element_nr
+        
+    Returns:
+        dict: Statistiken über problematische element_nr Werte
+    """
+    logging.info("\n" + "="*70)
+    logging.info("QUALITÄTSANALYSE DER ELEMENT_NR")
+    logging.info("="*70)
+    
+    total_segments = len(enriched_rvn)
+    
+    # Prüfe auf None in element_nr
+    element_nr_none = enriched_rvn[enriched_rvn['element_nr'].isna()]
+    
+    # Prüfe auf UNKNOWN in element_nr
+    element_nr_with_unknown = enriched_rvn[
+        enriched_rvn['element_nr'].notna() & 
+        enriched_rvn['element_nr'].str.contains('UNKNOWN', na=False)
+    ]
+    
+    # Prüfe auf None in beginnt_bei_vp
+    beginnt_none = enriched_rvn[enriched_rvn['beginnt_bei_vp'].isna()]
+    
+    # Prüfe auf None in endet_bei_vp
+    endet_none = enriched_rvn[enriched_rvn['endet_bei_vp'].isna()]
+    
+    # Segmente mit beiden VPs als UNKNOWN oder None
+    both_problematic = enriched_rvn[
+        (enriched_rvn['beginnt_bei_vp'].isna() | (enriched_rvn['beginnt_bei_vp'] == 'None')) &
+        (enriched_rvn['endet_bei_vp'].isna() | (enriched_rvn['endet_bei_vp'] == 'None'))
+    ]
+    
+    logging.info(f"\n📊 STATISTIKEN:")
+    logging.info(f"  Gesamte Segmente: {total_segments}")
+    logging.info(f"\n  element_nr ist None: {len(element_nr_none)} ({len(element_nr_none)/total_segments*100:.2f}%)")
+    logging.info(f"  element_nr enthält UNKNOWN: {len(element_nr_with_unknown)} ({len(element_nr_with_unknown)/total_segments*100:.2f}%)")
+    logging.info(f"\n  beginnt_bei_vp ist None: {len(beginnt_none)} ({len(beginnt_none)/total_segments*100:.2f}%)")
+    logging.info(f"  endet_bei_vp ist None: {len(endet_none)} ({len(endet_none)/total_segments*100:.2f}%)")
+    logging.info(f"\n  Beide VPs problematisch: {len(both_problematic)} ({len(both_problematic)/total_segments*100:.2f}%)")
+    
+    # Zeige Beispiele für element_nr mit UNKNOWN
+    if len(element_nr_with_unknown) > 0:
+        logging.info(f"\n⚠️  BEISPIELE FÜR ELEMENT_NR MIT UNKNOWN (erste 10):")
+        for idx, row in element_nr_with_unknown.head(10).iterrows():
+            logging.info(f"  Index {idx}:")
+            logging.info(f"    element_nr: {row['element_nr']}")
+            logging.info(f"    beginnt_bei_vp: {row['beginnt_bei_vp']}")
+            logging.info(f"    endet_bei_vp: {row['endet_bei_vp']}")
+            
+            # Zeige Geometrie-Info
+            geom = row.geometry
+            if hasattr(geom, 'length'):
+                logging.info(f"    Länge: {geom.length:.2f} m")
+    
+    # Zeige Beispiele für element_nr mit None
+    if len(element_nr_none) > 0:
+        logging.info(f"\n⚠️  BEISPIELE FÜR ELEMENT_NR MIT NONE (erste 5):")
+        for idx, row in element_nr_none.head(5).iterrows():
+            logging.info(f"  Index {idx}:")
+            logging.info(f"    element_nr: {row['element_nr']}")
+            logging.info(f"    beginnt_bei_vp: {row['beginnt_bei_vp']}")
+            logging.info(f"    endet_bei_vp: {row['endet_bei_vp']}")
+    
+    # Zeige Beispiele für beide VPs problematisch
+    if len(both_problematic) > 0:
+        logging.info(f"\n⚠️  SEGMENTE MIT BEIDEN VPs PROBLEMATISCH (erste 5):")
+        for idx, row in both_problematic.head(5).iterrows():
+            logging.info(f"  Index {idx}:")
+            logging.info(f"    element_nr: {row['element_nr']}")
+            logging.info(f"    beginnt_bei_vp: {row['beginnt_bei_vp']}")
+            logging.info(f"    endet_bei_vp: {row['endet_bei_vp']}")
+            
+            # Zeige Startpunkt der Geometrie
+            start_point, end_point = get_line_endpoints(row.geometry)
+            logging.info(f"    Start: ({start_point.x:.2f}, {start_point.y:.2f})")
+            logging.info(f"    Ende: ({end_point.x:.2f}, {end_point.y:.2f})")
+    
+    logging.info("\n" + "="*70)
+    
+    # Rückgabe Statistiken
+    return {
+        'total': total_segments,
+        'element_nr_none': len(element_nr_none),
+        'element_nr_unknown': len(element_nr_with_unknown),
+        'beginnt_none': len(beginnt_none),
+        'endet_none': len(endet_none),
+        'both_problematic': len(both_problematic)
+    }
+
+
 def create_element_numbers_for_rvn():
     """
     Hauptfunktion zur Erstellung der Element-Nummern für das Radvorrangsnetz.
@@ -352,8 +450,11 @@ def create_element_numbers_for_rvn():
         # Weise Element-Nummern zu (mit kombinierten Knotenpunkten)
         enriched_rvn = assign_element_numbers(rvn_gdf, combined_nodes_gdf)
         
+        # Qualitätsanalyse durchführen
+        quality_stats = analyze_element_nr_quality(enriched_rvn)
+        
         # Speichere Ergebnis
-        logging.info(f"Speichere anreichertes Radvorrangsnetz nach {output_path}")
+        logging.info(f"\nSpeichere anreichertes Radvorrangsnetz nach {output_path}")
         enriched_rvn.to_file(output_path, driver='FlatGeobuf')
         
         # Statistiken ausgeben
@@ -368,7 +469,7 @@ def create_element_numbers_for_rvn():
         ]) - segments_with_both_vp
         segments_without_vp = total_segments - segments_with_both_vp - segments_with_one_vp
         
-        logging.info(f"Verarbeitung abgeschlossen:")
+        logging.info(f"\nVerarbeitung abgeschlossen:")
         logging.info(f"  Gesamt: {total_segments} Segmente")
         logging.info(f"  Mit beiden VPs: {segments_with_both_vp} Segmente")
         logging.info(f"  Mit einem VP: {segments_with_one_vp} Segmente")

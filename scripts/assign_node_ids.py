@@ -1,6 +1,106 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+assign_node_ids.py
+--------------------------------------------------------------------
+Weist den Verbindungspunkten aus dem Detailnetz Knotenpunkt-IDs und
+Bezirksnummern zu.
+
+Die Knotenpunkt-IDs werden aus den beginnt_bei_vp und endet_bei_vp
+Attributen der Straßenabschnitte extrahiert und den geometrischen
+Verbindungspunkten zugeordnet. Anschließend wird jedem Knotenpunkt
+eine zweistellige Bezirksnummer basierend auf seiner räumlichen Lage
+zugewiesen.
+
+Diese IDs werden später im Radvorrangsnetz verwendet, um Kanten mit
+beginnt_bei_vp und endet_bei_vp zu versehen.
+
+INPUT:
+- data/Verbindungspunkte im RVN.gpkg
+- data/Berlin Straßenabschnitte.gpkg
+- data/Berlin Bezirke.gpkg
+
+OUTPUT:
+- output/knotenpunkte/knotenpunkte_mit_id.gpkg
+- output/knotenpunkte/knotenpunkte_mit_id_und_bezirken.gpkg
+"""
+
 import geopandas as gpd
 import pandas as pd
 from shapely.geometry import Point
+
+
+def remove_duplicate_nodes(nodes_gdf):
+    """
+    Die Ausgangsdaten Verbindungspunkte im RVN.gpkg enthalten
+    teilweise doppelte Knotenpunkte (mehrere Zeilen mit gleicher Geometrie).
+
+    Diese Funktion entfernt vollständig identische Duplikate aus den Knotenpunkten.
+    
+    Zeilen mit gleicher Geometrie UND gleichen Attributen werden entfernt.
+    Zeilen mit gleicher Geometrie aber unterschiedlichen Attributen werden
+    beibehalten und geloggt (z.B. bei unterschiedlichen Verkehrsebenen).
+    
+    Args:
+        nodes_gdf (GeoDataFrame): Knotenpunkte-GeoDataFrame
+        
+    Returns:
+        GeoDataFrame: Bereinigte Knotenpunkte ohne vollständige Duplikate
+    """
+    original_count = len(nodes_gdf)
+    nodes_gdf['geom_wkt'] = nodes_gdf.geometry.to_wkt()
+    
+    # Finde Zeilen mit gleicher Geometrie
+    geom_duplicates = nodes_gdf[nodes_gdf.duplicated(subset=['geom_wkt'], keep=False)]
+    
+    if len(geom_duplicates) > 0:
+        print(f"\nGefunden: {len(geom_duplicates)} Zeilen mit doppelter Geometrie")
+        
+        # Prüfe, welche davon vollständig identisch sind (alle Attribute gleich)
+        attribute_cols = [col for col in nodes_gdf.columns if col not in ['geometry', 'geom_wkt']]
+        
+        # Finde partielle Duplikate (gleiche Geometrie, aber unterschiedliche Attribute)
+        geom_groups = geom_duplicates.groupby('geom_wkt')
+        partial_duplicates = []
+        
+        for geom_wkt, group in geom_groups:
+            if len(group) > 1:
+                # Prüfe ob Attribute unterschiedlich sind
+                unique_attrs = group[attribute_cols].drop_duplicates()
+                if len(unique_attrs) > 1:
+                    partial_duplicates.extend(group.index.tolist())
+        
+        if partial_duplicates:
+            print(f"\n⚠️  WARNUNG: {len(partial_duplicates)} Zeilen haben gleiche Geometrie aber unterschiedliche Attribute!")
+            print("Diese werden NICHT entfernt und bleiben in den Daten.")
+            print("\nBeispiele (erste 3 Gruppen):")
+            
+            shown = 0
+            for geom_wkt, group in geom_groups:
+                if len(group) > 1:
+                    unique_attrs = group[attribute_cols].drop_duplicates()
+                    if len(unique_attrs) > 1 and shown < 3:
+                        print(f"\n  Geometrie-Gruppe mit {len(group)} Zeilen, {len(unique_attrs)} verschiedene Attribut-Kombinationen:")
+                        for idx, row in group.iterrows():
+                            print(f"    Index {idx}: dnkn__sdatenid={row.get('dnkn__sdatenid', 'N/A')}, "
+                                  f"verkehrsebene={row.get('verkehrsebene', 'N/A')}, "
+                                  f"ist_radvorrangnetz={row.get('ist_radvorrangnetz', 'N/A')}")
+                        shown += 1
+        
+        # Entferne nur vollständig identische Duplikate (alle Spalten inkl. Geometrie gleich)
+        nodes_gdf = nodes_gdf.drop_duplicates(subset=attribute_cols + ['geom_wkt'], keep='first')
+        nodes_gdf = nodes_gdf.drop(columns=['geom_wkt'])
+        
+        fully_identical_removed = original_count - len(nodes_gdf)
+        if fully_identical_removed > 0:
+            print(f"\n✓ Entfernt: {fully_identical_removed} vollständig identische Duplikate")
+            print(f"✓ Verbleibende Knotenpunkte: {len(nodes_gdf)}")
+    else:
+        print("Keine Geometrie-Duplikate gefunden")
+        nodes_gdf = nodes_gdf.drop(columns=['geom_wkt'])
+    
+    return nodes_gdf
+
 
 def assign_district_to_nodes(nodes_path, districts_path, output_path):
     """
@@ -47,6 +147,9 @@ def assign_district_to_nodes(nodes_path, districts_path, output_path):
 def assign_node_ids(nodes_path, segments_path, output_path):
     """
     Weist den Knotenpunkt-IDs basierend auf den verbundenen Straßenabschnitten zu.
+    
+    Entfernt zunächst Duplikate aus den Eingangsdaten (mehrere Zeilen mit gleicher
+    Geometrie), da diese zu doppelten Knotenpunkt-IDs führen würden.
 
     Args:
         nodes_path (str): Pfad zur Knotenpunkt-Datei.
@@ -58,7 +161,11 @@ def assign_node_ids(nodes_path, segments_path, output_path):
     # Laden der Geodaten
     print(f"Lade Knotenpunkte von {nodes_path}")
     nodes_gdf = gpd.read_file(nodes_path)
-    print(f"Lade Straßenabschnitte von {segments_path}")
+    
+    # Entferne vollständig identische Duplikate
+    nodes_gdf = remove_duplicate_nodes(nodes_gdf)
+    
+    print(f"\nLade Straßenabschnitte von {segments_path}")
     segments_gdf = gpd.read_file(segments_path)
 
     # Sicherstellen, dass die CRS übereinstimmen
