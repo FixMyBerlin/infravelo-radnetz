@@ -22,7 +22,8 @@ OUTPUT:
 - output/snapping_network_enriched.fgb (angereicherte Netzwerkdaten)
 (Bei Neukölln-Clipping: snapping_network_enriched_neukoelln.fgb)
 
-HINWEIS: Schutzstreifen-Konvertierung erfolgt jetzt in separatem Schritt (start_bikelane_conversion.py)
+BEACHTE: Die attributierten Segmente (rvn-segmented-attributed-osm.fgb) müssen gelöscht werden,
+sofern ein neues Ergebnis erzielt werden soll.
 """
 import argparse, sys
 from pathlib import Path
@@ -463,6 +464,8 @@ def split_network_into_segments(net_gdf, crs, segment_length=CONFIG_SEGMENT_LENG
     Teilt alle Linien im Netz in Segmente auf.
     Gibt ein neues GeoDataFrame mit Segmenten zurück.
     """
+    import time
+    start_time = time.time()
     segmente = []
     total = len(net_gdf)
     for idx, (_, row) in enumerate(net_gdf.iterrows(), 1):
@@ -477,7 +480,7 @@ def split_network_into_segments(net_gdf, crs, segment_length=CONFIG_SEGMENT_LENG
                 seg_row = row.copy()
                 seg_row["geometry"] = seg
                 segmente.append(seg_row)
-        print_progressbar(idx, total, prefix="Segmentiere: ")
+        print_progressbar(idx, total, prefix="Segmentiere: ", start_time=start_time)
     return gpd.GeoDataFrame(segmente, crs=crs)
 
 
@@ -576,6 +579,10 @@ def merge_segments(gdf, id_field, osm_fields):
     
     logging.info(f"Anzahl Gruppen zum Verschmelzen: {total}")
     
+    # Starte Zeitmessung für ETA
+    import time
+    merge_start_time = time.time()
+    
     for idx, (group_key, gruppe) in enumerate(grouped, 1):
         # Extrahiere die Geometrien der aktuellen Gruppe
         geoms = list(gruppe.geometry)
@@ -605,7 +612,7 @@ def merge_segments(gdf, id_field, osm_fields):
         gruppen.append(merged_row)
         
         # Zeige Fortschritt für den Nutzer
-        print_progressbar(idx, total, prefix="Verschmelze: ")
+        print_progressbar(idx, total, prefix="Verschmelze: ", start_time=merge_start_time)
     
     if not gruppen:
         # Fehlerfall: Es wurden keine Gruppen gefunden
@@ -1142,10 +1149,9 @@ def process(net_path, osm_path, out_path, crs, buffer, clip_neukoelln=False, dat
                 if batch_end % CONFIG_PROGRESS_UPDATE_INTERVAL == 0 or batch_end == total:
                     elapsed = time.time() - start_time
                     rate = batch_end / elapsed if elapsed > 0 else 0
-                    eta_minutes = (total - batch_end) / rate / 60 if rate > 0 else 0
                     
                     print_progressbar(batch_end, total, 
-                        prefix=f"Snapping ({rate:.1f}/s, ETA: {eta_minutes:.1f}min): ")
+                        prefix=f"Snapping ({rate:.1f}/s): ", start_time=start_time)
         else:
             # Parallelisierte Verarbeitung für bessere Performance
             logging.info(f"Verwende parallelisierte Verarbeitung mit {CONFIG_CPU_CORES} Kernen")
@@ -1187,7 +1193,7 @@ def process(net_path, osm_path, out_path, crs, buffer, clip_neukoelln=False, dat
                         rate = processed_segments / elapsed if elapsed > 0 else 0
                         
                         print_progressbar(processed_segments, total, 
-                            prefix=f"Snapping ({rate:.1f}/s, parallel): ")
+                            prefix=f"Snapping ({rate:.1f}/s, parallel): ", start_time=start_time)
                     
                     # Finale Statistiken
                     elapsed = time.time() - start_time

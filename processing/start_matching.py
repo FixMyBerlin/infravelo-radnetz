@@ -200,12 +200,16 @@ def find_osm_ways_in_buffer_parallel(osm_gdf, unified_buffer, cache_path, fracti
                 
                 print(f'Verarbeite {len(batches)} Batches parallel...')
                 
+                # Starte Zeitmessung für ETA
+                import time
+                start_time = time.time()
+                
                 # Verwende multiprocessing Pool für parallele Verarbeitung
                 with mp.Pool(processes=CONFIG_CPU_CORES) as pool:
                     batch_results = []
                     for i, result in enumerate(pool.imap(process_geometries_batch_parallel, batches)):
                         batch_results.extend(result)
-                        print_progressbar(i + 1, len(batches), prefix="Buffer-Matching: ", length=40)
+                        print_progressbar(i + 1, len(batches), prefix="Buffer-Matching: ", length=40, start_time=start_time)
                 
                 mask = batch_results
                 
@@ -216,13 +220,18 @@ def find_osm_ways_in_buffer_parallel(osm_gdf, unified_buffer, cache_path, fracti
         else:
             # Fallback auf sequenzielle Verarbeitung
             print('Verwende sequenzielle Verarbeitung...')
+            
+            # Starte Zeitmessung für ETA
+            import time
+            start_time = time.time()
+            
             mask = []
             for idx, geom in enumerate(osm_gdf.geometry):
                 if line_in_buffer_fraction(geom, unified_buffer) >= fraction_threshold:
                     mask.append(True)
                 else:
                     mask.append(False)
-                print_progressbar(idx + 1, total, prefix="Buffer-Matching: ", length=40)
+                print_progressbar(idx + 1, total, prefix="Buffer-Matching: ", length=40, start_time=start_time)
         
         matched_gdf = osm_gdf[mask].copy()
         matched_gdf = matched_gdf.loc[:, ~matched_gdf.columns.duplicated()]
@@ -455,9 +464,11 @@ def combine_multiple_datasets(datasets, output_path):
     
     # Harmonisiere die Spalten für alle GeoDataFrames
     print("Harmonisiere Spalten...")
+    import time
+    start_time = time.time()
     harmonized_gdfs = []
     for i, gdf in enumerate(combined_gdfs):
-        print_progressbar(i + 1, len(combined_gdfs), prefix="Harmonisiere: ", length=50)
+        print_progressbar(i + 1, len(combined_gdfs), prefix="Harmonisiere: ", length=50, start_time=start_time)
         
         # Füge fehlende Spalten hinzu
         for col in all_columns:
