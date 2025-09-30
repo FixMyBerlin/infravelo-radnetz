@@ -30,8 +30,6 @@ import networkx as nx
 # Konfiguration
 DEFAULT_CRS = 25833  # EPSG:25833 (ETRS89 / UTM zone 33N) - aus helpers.globals
 
-# TODO Some element_nr have UNKOWN or NONE in the ID, this should be fixed
-
 # Logging konfigurieren
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -162,7 +160,6 @@ def create_network_graph(rvn_gdf):
     Returns:
         nx.Graph: NetworkX-Graph
     """
-    from shapely.geometry import MultiLineString
     
     G = nx.Graph()
     
@@ -280,6 +277,10 @@ def explore_direction(G, start_coord, exclude_idx, rvn_gdf, nodes_gdf, processed
     """
     Erkundet eine Richtung im Graph bis zu einem Knotenpunkt.
     
+    WICHTIG: Diese Funktion prüft auch bereits verarbeitete Segmente auf Knotenpunkte,
+    fügt sie aber nicht zur Rückgabeliste hinzu. Dadurch können Knotenpunkte gefunden
+    werden, die durch bereits verarbeitete Segmente hindurch liegen.
+    
     Args:
         G (nx.Graph): NetworkX-Graph
         start_coord (tuple): Startkoordinate
@@ -312,8 +313,8 @@ def explore_direction(G, start_coord, exclude_idx, rvn_gdf, nodes_gdf, processed
                 edge_data = G.get_edge_data(current_coord, neighbor_coord)
                 neighbor_idx = edge_data['segment_id']
                 
-                # Überspringe das ursprüngliche Segment und bereits verarbeitete
-                if neighbor_idx == exclude_idx or neighbor_idx in processed_segments:
+                # Überspringe nur das ursprüngliche Segment
+                if neighbor_idx == exclude_idx:
                     continue
                 
                 # Prüfe, ob an dieser Position ein Knotenpunkt ist
@@ -324,9 +325,13 @@ def explore_direction(G, start_coord, exclude_idx, rvn_gdf, nodes_gdf, processed
                     # Knotenpunkt gefunden!
                     return found_segments, node_id
                 
-                # Füge Segment zur Liste hinzu und setze Suche fort
-                if neighbor_idx not in found_segments:
+                # Füge Segment zur Liste hinzu (nur wenn noch nicht verarbeitet)
+                # und setze Suche fort (auch durch bereits verarbeitete Segmente)
+                if neighbor_idx not in processed_segments and neighbor_idx not in found_segments:
                     found_segments.append(neighbor_idx)
+                
+                # Setze Suche fort, auch durch bereits verarbeitete Segmente
+                if neighbor_coord not in visited_coords:
                     queue.append((neighbor_coord, depth + 1))
     
     return found_segments, None
@@ -430,6 +435,120 @@ def analyze_element_nr_quality(enriched_rvn):
     }
 
 
+def check_elem_nr_divergence(enriched_rvn):
+    """
+    Prüft ob die ursprüngliche elem_nr von der berechneten element_nr abweicht.
+    
+    Diese Funktion vergleicht die im Eingangsdatensatz vorhandene elem_nr mit der
+    neu berechneten element_nr und gibt Divergenzen aus.
+    
+    Args:
+        enriched_rvn (GeoDataFrame): Radvorrangsnetz mit berechneter element_nr und
+                                     ursprünglicher elem_nr
+                                     
+    Returns:
+        dict: Statistiken über Divergenzen
+    """
+    logging.info("\n" + "="*70)
+    logging.info("DIVERGENZ-ANALYSE: elem_nr vs. element_nr")
+    logging.info("="*70)
+    
+    total_segments = len(enriched_rvn)
+    
+    # Segmente mit elem_nr vorhanden
+    has_elem_nr = enriched_rvn[enriched_rvn['elem_nr'].notna()].copy()
+    logging.info(f"\nSegmente mit vorhandener elem_nr: {len(has_elem_nr)} von {total_segments}")
+    
+    if len(has_elem_nr) == 0:
+        logging.info("  ℹ️  Keine elem_nr Werte im Datensatz vorhanden.")
+        logging.info("="*70)
+        return {
+            'total': total_segments,
+            'has_elem_nr': 0,
+            'divergent': 0,
+            'identical': 0
+        }
+    
+    # Prüfe auf Divergenzen (nur bei Segmenten mit elem_nr)
+    has_elem_nr['divergent'] = has_elem_nr['elem_nr'] != has_elem_nr['element_nr']
+    divergent_segments = has_elem_nr[has_elem_nr['divergent']]
+    identical_segments = has_elem_nr[~has_elem_nr['divergent']]
+    
+    logging.info(f"\n📊 STATISTIKEN:")
+    logging.info(f"  Identisch (elem_nr == element_nr): {len(identical_segments)} ({len(identical_segments)/len(has_elem_nr)*100:.2f}%)")
+    logging.info(f"  Divergent (elem_nr ≠ element_nr): {len(divergent_segments)} ({len(divergent_segments)/len(has_elem_nr)*100:.2f}%)")
+    
+    # Zeige Beispiele für divergente Fälle
+    if len(divergent_segments) > 0:
+        logging.info(f"\n⚠️  BEISPIELE FÜR DIVERGENTE ELEMENT_NR (erste 20):")
+        for idx, row in divergent_segments.head(20).iterrows():
+            logging.info(f"\n  Index {idx}:")
+            logging.info(f"    Original elem_nr:    {row['elem_nr']}")
+            logging.info(f"    Berechnete element_nr: {row['element_nr']}")
+            logging.info(f"    beginnt_bei_vp: {row['beginnt_bei_vp']}")
+            logging.info(f"    endet_bei_vp: {row['endet_bei_vp']}")
+            
+            # Zeige Geometrie-Info
+            geom = row.geometry
+            if hasattr(geom, 'length'):
+                logging.info(f"    Länge: {geom.length:.2f} m")
+        
+        # Zeige Gesamtlänge der divergenten Segmente
+        total_length = divergent_segments.geometry.length.sum()
+        total_network_length = enriched_rvn.geometry.length.sum()
+        logging.info(f"\n📏 LÄNGEN:")
+        logging.info(f"  Divergente Segmente: {total_length/1000:.2f} km ({total_length/total_network_length*100:.2f}% des Netzes)")
+        logging.info(f"  Gesamtnetz: {total_network_length/1000:.2f} km")
+    
+    logging.info("\n" + "="*70)
+    
+    return {
+        'total': total_segments,
+        'has_elem_nr': len(has_elem_nr),
+        'divergent': len(divergent_segments),
+        'identical': len(identical_segments)
+    }
+
+
+def apply_elem_nr_priority(enriched_rvn):
+    """
+    Übernimmt elem_nr als finale element_nr, falls elem_nr vorhanden ist.
+    
+    Diese Funktion implementiert die Prioritätsregel:
+    - Falls elem_nr existiert: element_nr = elem_nr
+    - Falls elem_nr nicht existiert: element_nr bleibt unverändert (berechneter Wert)
+    
+    Args:
+        enriched_rvn (GeoDataFrame): Radvorrangsnetz mit berechneter element_nr und
+                                     ursprünglicher elem_nr
+                                     
+    Returns:
+        GeoDataFrame: Radvorrangsnetz mit finaler element_nr
+    """
+    logging.info("\n" + "="*70)
+    logging.info("ANWENDUNG DER PRIORITÄTSREGEL: elem_nr → element_nr")
+    logging.info("="*70)
+    
+    result_gdf = enriched_rvn.copy()
+    
+    # Zähle Übernahmen
+    has_elem_nr = result_gdf['elem_nr'].notna()
+    overwrite_count = has_elem_nr.sum()
+    keep_calculated_count = (~has_elem_nr).sum()
+    
+    logging.info(f"\n📝 PRIORITÄTSREGEL:")
+    logging.info(f"  elem_nr vorhanden → wird übernommen: {overwrite_count} Segmente")
+    logging.info(f"  elem_nr fehlt → berechnete element_nr behalten: {keep_calculated_count} Segmente")
+    
+    # Übernehme elem_nr als element_nr wo vorhanden
+    result_gdf.loc[has_elem_nr, 'element_nr'] = result_gdf.loc[has_elem_nr, 'elem_nr']
+    
+    logging.info(f"\n✅ Prioritätsregel angewendet!")
+    logging.info("="*70)
+    
+    return result_gdf
+
+
 def create_element_numbers_for_rvn():
     """
     Hauptfunktion zur Erstellung der Element-Nummern für das Radvorrangsnetz.
@@ -452,6 +571,12 @@ def create_element_numbers_for_rvn():
         
         # Qualitätsanalyse durchführen
         quality_stats = analyze_element_nr_quality(enriched_rvn)
+        
+        # Prüfe Divergenzen zwischen elem_nr und berechneter element_nr
+        divergence_stats = check_elem_nr_divergence(enriched_rvn)
+        
+        # Wende Prioritätsregel an: elem_nr überschreibt berechnete element_nr
+        enriched_rvn = apply_elem_nr_priority(enriched_rvn)
         
         # Speichere Ergebnis
         logging.info(f"\nSpeichere anreichertes Radvorrangsnetz nach {output_path}")
