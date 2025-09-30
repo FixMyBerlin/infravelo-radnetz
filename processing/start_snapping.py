@@ -464,7 +464,6 @@ def split_network_into_segments(net_gdf, crs, segment_length=CONFIG_SEGMENT_LENG
     Teilt alle Linien im Netz in Segmente auf.
     Gibt ein neues GeoDataFrame mit Segmenten zurück.
     """
-    import time
     start_time = time.time()
     segmente = []
     total = len(net_gdf)
@@ -580,7 +579,6 @@ def merge_segments(gdf, id_field, osm_fields):
     logging.info(f"Anzahl Gruppen zum Verschmelzen: {total}")
     
     # Starte Zeitmessung für ETA
-    import time
     merge_start_time = time.time()
     
     for idx, (group_key, gruppe) in enumerate(grouped, 1):

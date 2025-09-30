@@ -38,6 +38,7 @@ import pandas as pd
 import logging
 import argparse
 import os
+import time
 import multiprocessing as mp
 import pickle
 import tempfile
@@ -201,7 +202,6 @@ def find_osm_ways_in_buffer_parallel(osm_gdf, unified_buffer, cache_path, fracti
                 print(f'Verarbeite {len(batches)} Batches parallel...')
                 
                 # Starte Zeitmessung für ETA
-                import time
                 start_time = time.time()
                 
                 # Verwende multiprocessing Pool für parallele Verarbeitung
@@ -222,7 +222,6 @@ def find_osm_ways_in_buffer_parallel(osm_gdf, unified_buffer, cache_path, fracti
             print('Verwende sequenzielle Verarbeitung...')
             
             # Starte Zeitmessung für ETA
-            import time
             start_time = time.time()
             
             mask = []
@@ -464,7 +463,6 @@ def combine_multiple_datasets(datasets, output_path):
     
     # Harmonisiere die Spalten für alle GeoDataFrames
     print("Harmonisiere Spalten...")
-    import time
     start_time = time.time()
     harmonized_gdfs = []
     for i, gdf in enumerate(combined_gdfs):
