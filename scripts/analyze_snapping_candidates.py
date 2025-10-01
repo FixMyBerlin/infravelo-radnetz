@@ -95,8 +95,8 @@ def analyze_candidates_for_sfid(sfid, network_gdf, tilda_gdf, buffer_distance=25
     
     # Analysiere jeden Kandidaten - ähnlich wie in start_snapping.py
     for idx, candidate in candidates.iterrows():
-        # Berechne OSM-Priorität
-        osm_priority_result = calculate_osm_priority_detailed(candidate)
+        # Berechne OSM-Priorität MIT seg_dict für korrekte Straßennamen-Bewertung
+        osm_priority_result = calculate_osm_priority_detailed(candidate, seg_dict)
         if isinstance(osm_priority_result, tuple):
             osm_priority = osm_priority_result[0]  # Nimm den ersten Wert des Tupels
         else:
@@ -140,9 +140,13 @@ def analyze_candidates_for_sfid(sfid, network_gdf, tilda_gdf, buffer_distance=25
             direction_compatibility         # Richtungskompatibilität
         )
         
+        # Hole detaillierte OSM-Priorität mit Breakdown-Informationen
+        osm_priority_details = osm_priority_result[1] if isinstance(osm_priority_result, tuple) and len(osm_priority_result) > 1 else {}
+        
         candidate_info = {
             'osmid': candidate.get('tilda_osm_id', 'N/A'),
             'TILDA_id': candidate.get('tilda_id', 'N/A'),
+            'tilda_name': candidate.get('tilda_name', 'N/A'),
             'fuehr': candidate.get('fuehr', 'N/A'),
             'breite': candidate.get('breite', 'N/A'),
             'tilda_width': candidate.get('tilda_width', 'N/A'),
@@ -157,6 +161,7 @@ def analyze_candidates_for_sfid(sfid, network_gdf, tilda_gdf, buffer_distance=25
             'distance': distance,
             'angle_diff': angle_diff,
             'osm_priority': osm_priority,
+            'osm_priority_details': osm_priority_details,
             'angle_priority': angle_priority,
             'distance_priority': distance_priority,
             'direction_compatibility': direction_compatibility,
@@ -180,9 +185,12 @@ def analyze_candidates_for_sfid(sfid, network_gdf, tilda_gdf, buffer_distance=25
     
     selected_candidate = None
     if best_candidate is not None:
-        selected_osmid = best_candidate.get('osmid', None)
+        # Prüfe sowohl tilda_osm_id als auch tilda_id für das Matching
+        selected_tilda_osm_id = best_candidate.get('tilda_osm_id', None)
+        selected_tilda_id = best_candidate.get('tilda_id', None)
         selected_candidate = next(
-            (c for c in candidate_list if c['osmid'] == selected_osmid), 
+            (c for c in candidate_list 
+             if c['osmid'] == selected_tilda_osm_id or c['TILDA_id'] == selected_tilda_id), 
             None
         )
     
@@ -249,6 +257,8 @@ def write_analysis_report(analysis_result, output_path):
         f.write("SNAPPING-KONFIGURATION:\n")
         f.write("-"*40 + "\n")
         f.write(f"Mindest-Gesamtpriorität: {priorities.MINIMUM_TOTAL_PRIORITY}\n")
+        f.write(f"Straßenname Match Belohnung: {priorities.STREET_NAME_MATCH_REWARD}\n")
+        f.write(f"Straßenname Mismatch Strafe: {priorities.STREET_NAME_MISMATCH_PENALTY}\n")
         f.write(f"Perfekte Richtung: {priorities.DIRECTION_PERFECT_MATCH}\n")
         f.write(f"Bidirektionale Richtung: {priorities.DIRECTION_BIDIRECTIONAL}\n")
         f.write(f"Falsche Richtung: {priorities.DIRECTION_WRONG_WAY}\n")
@@ -263,6 +273,7 @@ def write_analysis_report(analysis_result, output_path):
             f.write("-"*50 + "\n")
             f.write(f"OSM ID: {candidate['osmid']}\n")
             f.write(f"TILDA_id: {candidate['TILDA_id']}\n")
+            f.write(f"TILDA Name: {candidate['tilda_name']}\n")
             f.write(f"Führung: {candidate['fuehr']}\n")
             f.write(f"Breite (RVN): {candidate['breite']}\n")
             f.write(f"TILDA Breite: {candidate['tilda_width']}\n")
@@ -279,6 +290,17 @@ def write_analysis_report(analysis_result, output_path):
             f.write("\n")
             f.write("PRIORITÄTS-BREAKDOWN:\n")
             f.write(f"  TILDA-Priorität: {candidate['osm_priority']:.2f}\n")
+            
+            # Detailliertes Breakdown der TILDA-Priorität anzeigen
+            if 'osm_priority_details' in candidate and candidate['osm_priority_details']:
+                details = candidate['osm_priority_details']
+                f.write(f"    ├─ Verkehrszeichen-Priorität: {details.get('traffic_priority', 0)}\n")
+                f.write(f"    │  (Zeichen: {details.get('traffic_sign', 'None')}, Match: {details.get('traffic_sign_matched', 'None')})\n")
+                f.write(f"    ├─ Kategorie-Priorität: {details.get('category_priority', 0)}\n")
+                f.write(f"    │  (Kategorie: {details.get('category', 'None')}, Pattern: {details.get('category_pattern', 'None')})\n")
+                f.write(f"    └─ Straßenname-Priorität: {details.get('street_name_priority', 0)}\n")
+                f.write(f"       (Detail: {details.get('street_name_detail', 'N/A')})\n")
+            
             f.write(f"  Winkel-Priorität: {candidate['angle_priority']:.2f}\n")
             f.write(f"  Distanz-Priorität: {candidate['distance_priority']:.2f}\n")
             f.write(f"  Richtungskompatibilität: {candidate['direction_compatibility']:.2f}\n")
@@ -306,7 +328,7 @@ def main():
     
     # Logging konfigurieren
     logging.basicConfig(
-        level=logging.INFO,
+        level=logging.DEBUG,  # DEBUG statt INFO für detaillierte Ausgabe
         format='%(asctime)s - %(levelname)s - %(message)s'
     )
     
