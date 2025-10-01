@@ -67,7 +67,7 @@ RVN_ATTRIBUT_ENDE_VP   = "endet_bei_vp"         # Endknoten-ID
 # Attribute an denen die Kanten getrennt werden bzw. verschmolzen werden
 # Diese Attribute müssen in den übersetzten TILDA Daten vorhanden sein
 FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES = ["fuehr", "ofm", "protek", "pflicht", "breite", "farbe", "ri", "verkehrsri", "trennstreifen", "nutz_beschr", "Kommentar"]
-FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES=["data_source", "tilda_id", "tilda_name","tilda_oneway", "tilda_category", "tilda_traffic_sign", "tilda_mapillary", "tilda_mapillary_traffic_sign", "tilda_mapillary_backward", "tilda_mapillary_forward", "prio_traffic_sign", "prio_category", "prio_streetname_equality", "prio_total", "prio_angle", "prio_distance_meter", "prio_distance", "prio_direction_compatibility", "angle_diff", "angle_segment", "angle_tilda"]
+FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES=["data_source", "tilda_id", "tilda_name","tilda_oneway", "tilda_category", "tilda_traffic_sign", "tilda_mapillary", "tilda_mapillary_traffic_sign", "tilda_mapillary_backward", "tilda_mapillary_forward", "prio_traffic_sign", "prio_category", "prio_streetname_equality", "prio_total", "prio_angle", "prio_distance_meter", "prio_distance", "prio_direction_compatibility", "prio_candidates", "angle_diff", "angle_segment", "angle_tilda"]
 
 # Gewünschte Spaltenreihenfolge für Datenaufbereitung (finale Ausgabe)
 COLUMN_ORDER = [
@@ -170,7 +170,78 @@ def calculate_angles_vectorized(geometries):
     return angles
 
 
-def set_priority_values(variant, best_osm, segment_angle):
+def unpack_candidate_result(result):
+    """
+    Entpackt das Ergebnis von find_best_candidate_for_direction.
+    
+    Args:
+        result: Rückgabewert von find_best_candidate_for_direction (Tupel oder einzelner Wert)
+        
+    Returns:
+        tuple: (best_candidate, all_candidates_sorted) - beide können None sein
+    """
+    if isinstance(result, tuple):
+        return result
+    else:
+        # Fallback für alte Version oder None
+        return result, None
+
+
+def extract_candidates_priorities(all_candidates_sorted):
+    """
+    Extrahiert Kandidaten-IDs und Prioritäten aus sortierten Kandidaten.
+    
+    Args:
+        all_candidates_sorted: GeoDataFrame mit sortierten Kandidaten oder None
+        
+    Returns:
+        list: Liste von Tupeln (tilda_id, total_priority_weighted)
+    """
+    candidates_priorities = []
+    if all_candidates_sorted is not None and len(all_candidates_sorted) > 0:
+        for _, cand in all_candidates_sorted.iterrows():
+            tilda_id = cand.get('tilda_id', 'unknown')
+            total_prio = cand.get('total_priority_weighted', 0)
+            candidates_priorities.append((tilda_id, total_prio))
+    return candidates_priorities
+
+
+def get_best_below_threshold(all_candidates_sorted):
+    """
+    Holt den besten Kandidaten auch wenn unter Schwellenwert, für Debugging.
+    
+    Args:
+        all_candidates_sorted: GeoDataFrame mit sortierten Kandidaten oder None
+        
+    Returns:
+        dict oder None: Bester Kandidat als Dictionary
+    """
+    if all_candidates_sorted is not None and len(all_candidates_sorted) > 0:
+        return all_candidates_sorted.iloc[0].to_dict()
+    return None
+
+
+def format_candidates_priorities(candidates_with_priorities):
+    """
+    Formatiert alle Kandidaten mit ihren Prioritäten für das prio_candidates Attribut.
+    
+    Args:
+        candidates_with_priorities: Liste von Tupeln (tilda_id, total_priority_weighted)
+        
+    Returns:
+        str: Formatierter String mit allen Kandidaten, z.B. "(way/123: 48.0, way/456: -54.5)"
+    """
+    if not candidates_with_priorities or len(candidates_with_priorities) == 0:
+        return None
+    
+    # Formatiere jeden Kandidaten als "osm_id: prio"
+    formatted = [f"{tid}: {prio:.1f}" for tid, prio in candidates_with_priorities]
+    
+    # Verbinde alle Kandidaten mit Komma und umschließe mit Klammern
+    return f"({', '.join(formatted)})"
+
+
+def set_priority_values(variant, best_osm, segment_angle, candidates_with_priorities=None):
     """
     Hilfsfunktion: Setzt alle Prioritätswerte in einer Variante basierend auf dem besten OSM-Kandidaten.
     
@@ -178,7 +249,11 @@ def set_priority_values(variant, best_osm, segment_angle):
         variant: Das Segment-Dictionary, in das die Prioritäten geschrieben werden
         best_osm: Der beste OSM-Kandidat mit allen berechneten Prioritäten
         segment_angle: Der Winkel des Segments
+        candidates_with_priorities: Liste von Tupeln (tilda_id, total_priority_weighted) aller Kandidaten
     """
+    # Setze prio_candidates mit allen Kandidaten und ihren Prioritäten
+    variant["prio_candidates"] = format_candidates_priorities(candidates_with_priorities)
+    
     if best_osm is not None:
         # Übertrage TILDA-Prioritätswerte
         priority_details = best_osm.get('priority_details', {})
@@ -361,7 +436,10 @@ def process_segments_batch(segments_batch, osm_gdf, osm_sidx, buffer, candidates
             
             for ri_value in [0, 1]:
                 ri_name = "Hinrichtung" if ri_value == 0 else "Rückrichtung"
-                best_candidate = find_best_candidate_for_direction(cand, seg_dict, ri_value, seg_angle)
+                result = find_best_candidate_for_direction(cand, seg_dict, ri_value, seg_angle)
+                
+                # Entpacke das Tupel mit Hilfsfunktion
+                best_candidate, all_candidates_sorted = unpack_candidate_result(result)
                 
                 if best_candidate:
                     best_tilda_id = best_candidate.get('tilda_id', 'unknown')
@@ -721,7 +799,12 @@ def create_directional_segment_variants_optimized(seg_dict: dict, target_candida
         all(cand.get('fuehr') == 'Mischverkehr mit motorisiertem Verkehr' 
             for _, cand in einrichtung_candidates.iterrows())):
         
-        best_osm = find_best_candidate_for_direction(einrichtung_candidates, seg_dict, None, segment_angle)
+        result = find_best_candidate_for_direction(einrichtung_candidates, seg_dict, None, segment_angle)
+        
+        # Entpacke das Tupel und extrahiere Kandidaten-Prioritäten
+        best_osm, all_candidates_sorted = unpack_candidate_result(result)
+        candidates_priorities = extract_candidates_priorities(all_candidates_sorted)
+        
         if best_osm:
             variant = create_base_variant_optimized(seg_dict, 
                 determine_segment_direction(seg_dict["geometry"], best_osm["geometry"]))
@@ -733,8 +816,8 @@ def create_directional_segment_variants_optimized(seg_dict: dict, target_candida
             for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
                 variant[attr] = best_osm.get(attr)
             
-            # Übertrage Prioritätswerte falls vorhanden
-            set_priority_values(variant, best_osm, segment_angle)
+            # Übertrage Prioritätswerte falls vorhanden (mit Kandidaten-Liste)
+            set_priority_values(variant, best_osm, segment_angle, candidates_priorities)
                 
             variants.append(variant)
     else:
@@ -750,7 +833,11 @@ def create_directional_segment_variants_optimized(seg_dict: dict, target_candida
         
         for ri_value in [0, 1]:
             variant = create_base_variant_optimized(seg_dict, ri_value)
-            best_osm = find_best_candidate_for_direction(candidates_to_use, seg_dict, ri_value, segment_angle)
+            result = find_best_candidate_for_direction(candidates_to_use, seg_dict, ri_value, segment_angle)
+            
+            # Entpacke das Tupel und extrahiere Kandidaten-Prioritäten
+            best_osm, all_candidates_sorted = unpack_candidate_result(result)
+            candidates_priorities = extract_candidates_priorities(all_candidates_sorted)
 
             if best_osm:
                 # Übertrage Attribute ohne redundante Schleifen
@@ -760,9 +847,13 @@ def create_directional_segment_variants_optimized(seg_dict: dict, target_candida
                 for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
                     variant[attr] = best_osm.get(attr)
                 
-                # Übertrage Prioritätswerte falls vorhanden
-                set_priority_values(variant, best_osm, segment_angle)
+                # Übertrage Prioritätswerte falls vorhanden (mit Kandidaten-Liste)
+                set_priority_values(variant, best_osm, segment_angle, candidates_priorities)
             else:
+                # Kein Kandidat über Schwellenwert, aber schreibe trotzdem die Prioritäten des besten Kandidaten
+                # für Debugging-Zwecke (falls Kandidaten vorhanden)
+                best_below_threshold = get_best_below_threshold(all_candidates_sorted)
+                
                 # Setze fehlende Attribute auf None
                 for attr in FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES:
                     if attr not in variant:
@@ -770,8 +861,9 @@ def create_directional_segment_variants_optimized(seg_dict: dict, target_candida
                 for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
                     variant[attr] = None
                 
-                # Setze Prioritätswerte auf 0 da keine Kandidaten gefunden
-                set_priority_values(variant, None, segment_angle)
+                # Setze Prioritätswerte - auch wenn kein Kandidat übernommen wird, 
+                # schreibe die Prioritäten des besten Kandidaten (für Debugging)
+                set_priority_values(variant, best_below_threshold, segment_angle, candidates_priorities)
 
             variants.append(variant)
     
@@ -863,13 +955,19 @@ def create_directional_segment_variants_from_matched_tilda_ways(seg_dict: dict, 
         
         # BUGFIX: Bestimme erst ri für den besten Kandidaten, um korrekte direction_compatibility zu berechnen
         # Finde den besten Kandidaten ohne ri-Filter (als wäre es Zweirichtungsverkehr)
-        temp_best = find_best_candidate_for_direction(einrichtung_candidates, seg_dict, None, segment_angle)
+        result_temp = find_best_candidate_for_direction(einrichtung_candidates, seg_dict, None, segment_angle)
+        temp_best, _ = unpack_candidate_result(result_temp)
+            
         if temp_best:
             # Berechne ri basierend auf dem besten Kandidaten
             calculated_ri = determine_segment_direction(seg_dict["geometry"], temp_best["geometry"])
             
             # Jetzt rufe find_best_candidate_for_direction mit dem korrekten ri auf
-            best_osm = find_best_candidate_for_direction(einrichtung_candidates, seg_dict, calculated_ri, segment_angle)
+            result = find_best_candidate_for_direction(einrichtung_candidates, seg_dict, calculated_ri, segment_angle)
+            
+            # Entpacke das Tupel und extrahiere Kandidaten-Prioritäten
+            best_osm, all_candidates_sorted = unpack_candidate_result(result)
+            candidates_priorities = extract_candidates_priorities(all_candidates_sorted)
             
             if best_osm:
                 variant = seg_dict.copy()
@@ -886,8 +984,8 @@ def create_directional_segment_variants_from_matched_tilda_ways(seg_dict: dict, 
             for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
                 variant[attr] = best_osm.get(attr)
             
-            # Übertrage Prioritätswerte falls vorhanden
-            set_priority_values(variant, best_osm, segment_angle)
+            # Übertrage Prioritätswerte falls vorhanden (mit Kandidaten-Liste)
+            set_priority_values(variant, best_osm, segment_angle, candidates_priorities)
                 
             variants.append(variant)
     else:
@@ -912,7 +1010,11 @@ def create_directional_segment_variants_from_matched_tilda_ways(seg_dict: dict, 
             variant["ri"] = ri_value
 
             # Finde den besten Kandidaten für diese spezifische Richtung
-            best_osm = find_best_candidate_for_direction(candidates_to_use, seg_dict, ri_value, segment_angle)
+            result = find_best_candidate_for_direction(candidates_to_use, seg_dict, ri_value, segment_angle)
+            
+            # Entpacke das Tupel und extrahiere Kandidaten-Prioritäten
+            best_osm, all_candidates_sorted = unpack_candidate_result(result)
+            candidates_priorities = extract_candidates_priorities(all_candidates_sorted)
 
             if best_osm:
                 # Übertrage alle relevanten Attribute vom besten OSM-Match
@@ -926,9 +1028,13 @@ def create_directional_segment_variants_from_matched_tilda_ways(seg_dict: dict, 
                 for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
                     variant[attr] = best_osm.get(attr)
                 
-                # Übertrage Prioritätswerte falls vorhanden
-                set_priority_values(variant, best_osm, segment_angle)
+                # Übertrage Prioritätswerte falls vorhanden (mit Kandidaten-Liste)
+                set_priority_values(variant, best_osm, segment_angle, candidates_priorities)
             else:
+                # Kein Kandidat über Schwellenwert, aber schreibe trotzdem die Prioritäten des besten Kandidaten
+                # für Debugging-Zwecke (falls Kandidaten vorhanden)
+                best_below_threshold = get_best_below_threshold(all_candidates_sorted)
+                
                 # Keine OSM-Daten: Standardwerte setzen
                 for attr in FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES:
                     if attr == 'ri':  # ri wird explizit durch die Schleife gesetzt
@@ -940,8 +1046,9 @@ def create_directional_segment_variants_from_matched_tilda_ways(seg_dict: dict, 
                 for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
                     variant[attr] = None
                 
-                # Setze Prioritätswerte auf 0 da keine Kandidaten gefunden
-                set_priority_values(variant, None, segment_angle)
+                # Setze Prioritätswerte - auch wenn kein Kandidat übernommen wird, 
+                # schreibe die Prioritäten des besten Kandidaten (für Debugging)
+                set_priority_values(variant, best_below_threshold, segment_angle, candidates_priorities)
 
             variants.append(variant)
     

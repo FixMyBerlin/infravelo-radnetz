@@ -449,25 +449,29 @@ def find_best_candidate_for_direction(candidates, seg_dict, ri_value, segment_an
         candidates["direction_compatibility"] # Richtungskompatibilität
     ).round(2)  # Runde auf zwei Nachkommastellen
     
+    # Sortiere ALLE Kandidaten nach gewichteter Gesamtpriorität (TILDA + Winkel + Entfernung)
+    # Die Winkel-Priorität beinhaltet bereits die Richtungsausrichtung
+    all_candidates_sorted = candidates.sort_values(
+        ["total_priority_weighted"], 
+        ascending=[False]
+    )
+    
     # Filtere Kandidaten mit zu niedriger Gesamtpriorität aus
     # Dies ist eine harte untere Grenze für die Wegqualität (inkl. geometrische und Richtungskompatibilität)
     initial_candidate_count = len(candidates)
-    quality_candidates = candidates[candidates["total_priority_weighted"] >= SnappingPriorities.MINIMUM_TOTAL_PRIORITY]
+    quality_candidates = all_candidates_sorted[all_candidates_sorted["total_priority_weighted"] >= SnappingPriorities.MINIMUM_TOTAL_PRIORITY]
     
     if len(quality_candidates) == 0:
         logging.debug(f"Alle {initial_candidate_count} Kandidaten für ri={ri_value} haben Gesamtpriorität < {SnappingPriorities.MINIMUM_TOTAL_PRIORITY} - KEIN WEG WIRD AUSGEWÄHLT")
-        return None
+        # Gib trotzdem alle Kandidaten mit ihren Prioritäten zurück (für Debugging)
+        # aber signalisiere mit None-Result, dass kein Kandidat übernommen wird
+        return None, all_candidates_sorted
     elif len(quality_candidates) < initial_candidate_count:
         filtered_count = initial_candidate_count - len(quality_candidates)
         logging.debug(f"Filtere {filtered_count} Kandidaten mit Gesamtpriorität < {SnappingPriorities.MINIMUM_TOTAL_PRIORITY} aus ({len(quality_candidates)} Kandidaten verbleiben)")
         candidates = quality_candidates
-    
-    # Sortiere nach gewichteter Gesamtpriorität (TILDA + Winkel + Entfernung)
-    # Die Winkel-Priorität beinhaltet bereits die Richtungsausrichtung
-    candidates = candidates.sort_values(
-        ["total_priority_weighted"], 
-        ascending=[False]
-    )
+    else:
+        candidates = quality_candidates
     
     # Logge die Sortierreihenfolge mit detaillierten Prioritäten
     if len(candidates) > 0:
@@ -497,6 +501,6 @@ def find_best_candidate_for_direction(candidates, seg_dict, ri_value, segment_an
         best_idx = candidates.iloc[0].name  # Index des besten Kandidaten
         if best_idx in priority_details:
             best_candidate_dict['priority_details'] = priority_details[best_idx]
-        return best_candidate_dict
+        return best_candidate_dict, all_candidates_sorted
     else:
-        return None
+        return None, all_candidates_sorted
