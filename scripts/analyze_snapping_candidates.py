@@ -294,8 +294,8 @@ def main():
         description='Analysiert TILDA-Kandidaten für eine spezifische SFID'
     )
     parser.add_argument('sfid', type=int, help='SFID des zu analysierenden Segments')
-    parser.add_argument('--bezirk', default='neukoelln', 
-                       help='Bezirk für die Analyse (default: neukoelln)')
+    parser.add_argument('--bezirk', default='', 
+                       help='Bezirk für die Analyse (default: None)')
     parser.add_argument('--buffer', type=float, default=25,
                        help='Pufferentfernung in Metern (default: 25)')
     parser.add_argument('--output-dir', 
