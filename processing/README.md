@@ -18,6 +18,22 @@ Zuerst müssen die TILDA-Rohdaten prozessiert werden:
 ./scripts/process_tilda_data.sh
 ```
 
+### 1b. Bushaltestellen auf RVN filtern (Optional, für Schutzstreifen-Konvertierung)
+
+Um Schutzstreifen an Bushaltestellen zu konvertieren, müssen zunächst die relevanten Bushaltestellen gefiltert werden:
+
+```bash
+python scripts/filter_bus_stops_on_rvn.py
+```
+
+**Eingabe**: `data/OSM-highway=bus_stop.geojson` (Bushaltestellen-Plattformen)  
+**Ausgabe**: `output/bus_stops_on_rvn.fgb` (Haltestellen auf dem RVN mit 15m Puffer)
+
+Dieser Schritt:
+- Lädt OSM-Bushaltestellen (`highway=bus_stop`, Plattformen)
+- Filtert nur Haltestellen im 15m-Puffer des Radvorrangsnetzes
+- Wird von `start_bikelane_conversion.py` für die Seitenprüfung verwendet
+
 Dieser Schritt:
 - Schneidet die TILDA-Rohdaten aus `data-raw-tilda/` auf Berlin zu
 - Übersetzt TILDA-Attribute zu RVN-Attributen
@@ -56,9 +72,28 @@ Nach der TILDA-Datenvorbereitung wird die Hauptverarbeitung gestartet:
 - **Ausgabe**: `output/snapping_network_enriched.fgb`
 
 #### Schritt 3: Schutzstreifen-Konvertierung (`start_bikelane_conversion.py`)
-- Konvertiert kurze Schutzstreifen (< 50m) zu Radfahrstreifen
-- Konvertiert Schutzstreifen an Bushaltestellen zu Radfahrstreifen
-- **Ausgabe**: `output/snapping_converted_bikelanes.fgb`
+**Konvertiert Schutzstreifen zu Radfahrstreifen unter bestimmten Bedingungen:**
+
+1. **Kurze Schutzstreifen** (< 50m):
+   - Werden zu Radfahrstreifen konvertiert, wenn sie an Radfahrstreifen **derselben Richtung** angrenzen
+   - Berücksichtigt zusammenhängende Segmente
+
+2. **Schutzstreifen an Bushaltestellen**:
+   - Werden zu Radfahrstreifen konvertiert, wenn:
+     - Sie im 20m Umkreis einer Bushaltestelle liegen UND
+     - Sie an Radfahrstreifen **derselben Richtung** angrenzen UND
+     - Die Bushaltestelle auf der **rechten Seite** (Fahrtrichtung) liegt
+   - Berücksichtigt Rechtsverkehr in Deutschland
+   - Benötigt vorheriges Ausführen von `scripts/filter_bus_stops_on_rvn.py`
+
+**Wichtige Prüfungen:**
+- Richtungscheck: Nur Radfahrstreifen mit gleichem `ri`-Attribut werden berücksichtigt
+- Seitenprüfung: Bei Haltestellen wird nur die Seite mit Haltestelle konvertiert
+- Filter für `fuehr=None`: Wege ohne Führungsform werden korrekt ausgefiltert
+
+**Ausgabe**: `output/snapping_converted_bikelanes.fgb`
+
+Siehe [CHANGELOG_SCHUTZSTREIFEN_CONVERSION.md](./CHANGELOG_SCHUTZSTREIFEN_CONVERSION.md) für Details.
 
 #### Schritt 4: Finale Aggregation (`aggregate_final_model.py`)
 - Aggregiert Netzwerkdaten nach `element_nr` und Fahrtrichtung (`ri`)

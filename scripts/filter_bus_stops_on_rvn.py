@@ -3,11 +3,14 @@
 """
 filter_bus_stops_on_rvn.py
 --------------------------------------------------------------------
-Filtert Bushaltestellen aus data/Stop-Positions-Bus-OSM.fgb, die sich 
-auf dem Radvorrangsnetz befinden (mit 15m Puffer).
+Filtert Bushaltestellen (highway=bus_stop Plattformen), die sich 
+auf dem Radvorrangsnetz befinden (mit 20m Puffer).
+
+Diese Haltestellen befinden sich auf der Plattform (nicht stop_position),
+was für die Seitenbestimmung bei der Schutzstreifen-Konvertierung wichtig ist.
 
 INPUT:
-- data/Stop-Positions-Bus-OSM.fgb (Bushaltestellen aus OSM)
+- data/OSM-highway=bus_stop.geojson (Bushaltestellen-Plattformen aus OSM)
 - output/matching/vorrangnetz_buffered_15m_round.fgb (gepuffertes RVN)
 
 OUTPUT:
@@ -23,10 +26,11 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 def filter_bus_stops_on_rvn():
     """
-    Hauptfunktion: Filtert Bushaltestellen, die sich auf dem Radvorrangsnetz befinden.
+    Hauptfunktion: Filtert Bushaltestellen-Plattformen (highway=bus_stop), 
+    die sich auf dem Radvorrangsnetz befinden.
     """
     # Pfade definieren
-    bus_stops_path = "data/Stop-Positions-Bus-OSM.fgb"
+    bus_stops_path = "data/OSM-highway=bus_stop.geojson"
     rvn_buffered_path = "output/matching/vorrangnetz_buffered_15m_round.fgb"
     output_path = "output/bus_stops_on_rvn.fgb"
     
@@ -41,15 +45,19 @@ def filter_bus_stops_on_rvn():
         return False
     
     try:
-        # 1. Bushaltestellen laden
-        logging.info(f"Lade Bushaltestellen aus {bus_stops_path}")
+        # 1. Bushaltestellen-Plattformen laden (highway=bus_stop)
+        logging.info(f"Lade Bushaltestellen-Plattformen aus {bus_stops_path}")
         bus_stops_gdf = gpd.read_file(bus_stops_path)
-        logging.info(f"Bushaltestellen geladen: {len(bus_stops_gdf)} Punkte")
+        logging.info(f"Bushaltestellen-Plattformen geladen: {len(bus_stops_gdf)} Punkte")
         
         # Informationen über die geladenen Daten
         logging.info(f"CRS der Bushaltestellen: {bus_stops_gdf.crs}")
-        if hasattr(bus_stops_gdf, 'columns'):
-            logging.info(f"Verfügbare Spalten: {list(bus_stops_gdf.columns)}")
+        
+        # Filtere nur highway=bus_stop (sollte bereits so sein, aber zur Sicherheit)
+        if 'highway' in bus_stops_gdf.columns:
+            bus_stop_count = len(bus_stops_gdf[bus_stops_gdf['highway'] == 'bus_stop'])
+            logging.info(f"Davon highway=bus_stop: {bus_stop_count}")
+            bus_stops_gdf = bus_stops_gdf[bus_stops_gdf['highway'] == 'bus_stop'].copy()
         
         # 2. Gepuffertes Radvorrangsnetz laden
         logging.info(f"Lade gepuffertes Radvorrangsnetz aus {rvn_buffered_path}")
@@ -101,7 +109,7 @@ def filter_bus_stops_on_rvn():
         # 9. Statistiken ausgeben
         logging.info("=" * 60)
         logging.info("ZUSAMMENFASSUNG:")
-        logging.info(f"Eingabe Bushaltestellen: {len(bus_stops_gdf)}")
+        logging.info(f"Eingabe Bushaltestellen-Plattformen (highway=bus_stop): {len(bus_stops_gdf)}")
         logging.info(f"Bushaltestellen auf RVN (15m Puffer): {len(bus_stops_on_rvn)}")
         logging.info(f"Anteil auf RVN: {len(bus_stops_on_rvn)/len(bus_stops_gdf)*100:.1f}%")
         logging.info(f"Ausgabedatei: {output_path}")

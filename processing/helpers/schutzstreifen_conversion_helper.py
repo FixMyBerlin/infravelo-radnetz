@@ -133,12 +133,15 @@ def find_adjacent_ways(geometry, all_ways_gdf, tolerance=0.1, check_direction=Tr
         
         # Suche nach angrenzenden Wegen in der gefilterten Menge
         for idx, way in possible_matches.iterrows():
+            # Skip Schutzstreifen
             if way['fuehr'] is not None and way['fuehr'] == 'Schutzstreifen':
-                continue  # Skip andere Schutzstreifen
+                continue
             
             # Optional: Filtere nach bestimmten Führungsformen
-            if filter_fuehr and way['fuehr'] is not None and way['fuehr'] not in filter_fuehr:
-                continue
+            # Wenn filter_fuehr gesetzt ist, akzeptiere NUR Wege die in dieser Liste sind
+            if filter_fuehr:
+                if way['fuehr'] is None or way['fuehr'] not in filter_fuehr:
+                    continue
                 
             way_endpoints = get_all_endpoints(way.geometry)
             if not way_endpoints:
@@ -203,7 +206,8 @@ def find_schutzstreifen_adjacent_to_radfahrstreifen(schutzstreifen_near_stops, a
     Finde Schutzstreifen die an Radfahrstreifen angrenzen.
     
     Diese Funktion iteriert über eine Liste von Schutzstreifen und prüft für jeden,
-    ob er an Radfahrstreifen angrenzt. Richtung wird dabei NICHT berücksichtigt.
+    ob er an Radfahrstreifen angrenzt. Berücksichtigt dabei die Fahrtrichtung (ri-Attribut):
+    Nur Radfahrstreifen mit derselben Richtung werden als angrenzend betrachtet.
     
     Args:
         schutzstreifen_near_stops: GeoDataFrame mit zu prüfenden Schutzstreifen
@@ -222,8 +226,8 @@ def find_schutzstreifen_adjacent_to_radfahrstreifen(schutzstreifen_near_stops, a
         if progress_callback and (i % 50 == 0 or i == total - 1):
             progress_callback(i + 1, total, "Prüfe Angrenzung: ")
         
-        # Prüfe Angrenzung an Radfahrstreifen (ohne Richtungscheck)
-        has_adjacent = find_adjacent_radfahrstreifen(schutzstreifen, all_ways_gdf, tolerance, check_direction=False)
+        # Prüfe Angrenzung an Radfahrstreifen (mit Richtungscheck)
+        has_adjacent = find_adjacent_radfahrstreifen(schutzstreifen, all_ways_gdf, tolerance, check_direction=True)
         if has_adjacent:
             logger.debug(f"Schutzstreifen {schutzstreifen.get('sfid', idx)} hat angrenzende Radfahrstreifen")
             adjacent_schutzstreifen.append(idx)

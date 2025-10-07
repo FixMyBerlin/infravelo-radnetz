@@ -7,7 +7,11 @@ Funktionen für die Konvertierung von Schutzstreifen zu Radfahrstreifen an Busha
 
 Diese Funktionen konvertieren Schutzstreifen, die:
 1. Im 20m Umkreis von Bushaltestellen liegen UND 
-2. An Radfahrstreifen angrenzen
+2. An Radfahrstreifen angrenzen UND
+3. Die Bushaltestelle auf der RECHTEN Seite (Fahrtrichtung) haben
+
+Berücksichtigt Rechtsverkehr in Deutschland: Bushaltestellen befinden sich
+rechts der Fahrtrichtung. Konvertierung erfolgt nur auf der Seite mit Haltestelle.
 
 Neue Führungsform: "Radfahrstreifen (OSM:Schutzstreifen an Haltestelle)"
 """
@@ -20,6 +24,7 @@ from .progressbar import print_progressbar
 from .schutzstreifen_conversion_helper import (
     find_schutzstreifen_adjacent_to_radfahrstreifen
 )
+from .bus_stop_side_detection import filter_bus_stops_by_side
 
 logger = logging.getLogger(__name__)
 
@@ -100,6 +105,9 @@ def convert_schutzstreifen_at_bus_stops_with_gdf(all_ways_gdf, bus_stops_gdf,
     """
     Konvertiere Schutzstreifen an Bushaltestellen mit direktem GeoDataFrame.
     
+    Berücksichtigt die Fahrtrichtung und konvertiert nur Schutzstreifen,
+    bei denen die Bushaltestelle auf der rechten Seite liegt (Rechtsverkehr).
+    
     Args:
         all_ways_gdf: GeoDataFrame mit allen Wegen
         bus_stops_gdf: GeoDataFrame mit Bushaltestellen 
@@ -109,7 +117,7 @@ def convert_schutzstreifen_at_bus_stops_with_gdf(all_ways_gdf, bus_stops_gdf,
     Returns:
         GeoDataFrame: Aktualisierte Wege-Daten
     """
-    logger.info("=== Schutzstreifen-Konvertierung an Bushaltestellen ===")
+    logger.info("=== Schutzstreifen-Konvertierung an Bushaltestellen (mit Seitenprüfung) ===")
     
     if bus_stops_gdf.empty:
         logger.warning("Keine Bus-Haltestellen verfügbar - keine Konvertierung möglich")
@@ -127,26 +135,71 @@ def convert_schutzstreifen_at_bus_stops_with_gdf(all_ways_gdf, bus_stops_gdf,
         return result_gdf
     
     # 2. Prüfe welche Schutzstreifen an Radfahrstreifen angrenzen
-    logger.info("Prüfe Angrenzung an Radfahrstreifen...")
-    schutzstreifen_to_convert = find_schutzstreifen_adjacent_to_radfahrstreifen_local(
+    logger.info("Prüfe Angrenzung an Radfahrstreifen (mit Richtungscheck)...")
+    schutzstreifen_adjacent = find_schutzstreifen_adjacent_to_radfahrstreifen_local(
         schutzstreifen_near_stops, result_gdf, tolerance
     )
     
-    if schutzstreifen_to_convert.empty:
+    if schutzstreifen_adjacent.empty:
         logger.info("Keine Schutzstreifen an Bushaltestellen grenzen an Radfahrstreifen an")
         return result_gdf
     
-    # 3. Konvertiere die identifizierten Schutzstreifen
-    logger.info(f"Konvertiere {len(schutzstreifen_to_convert)} Schutzstreifen an Bushaltestellen")
+    logger.info(f"Schutzstreifen die an Radfahrstreifen angrenzen: {len(schutzstreifen_adjacent)}")
+    
+    # 3. NEU: Prüfe für jeden Schutzstreifen, ob Haltestelle auf der richtigen Seite ist
+    logger.info("Prüfe Seitenpositionierung der Bushaltestellen (Rechtsverkehr)...")
+    
+    schutzstreifen_to_convert = []
+    side_stats = {'ri_0_right': 0, 'ri_0_wrong': 0, 'ri_1_right': 0, 'ri_1_wrong': 0}
+    
+    for idx, schutzstreifen in schutzstreifen_adjacent.iterrows():
+        # Filtere Bushaltestellen die auf der rechten Seite dieses Schutzstreifens liegen
+        stops_on_right_side = filter_bus_stops_by_side(
+            schutzstreifen, 
+            bus_stops_gdf, 
+            buffer_distance
+        )
+        
+        ri = schutzstreifen.get('ri', None)
+        sfid = schutzstreifen.get('sfid', idx)
+        
+        # Konvertiere nur wenn Haltestelle auf der richtigen Seite ist
+        if len(stops_on_right_side) > 0:
+            schutzstreifen_to_convert.append(idx)
+            if ri == 0:
+                side_stats['ri_0_right'] += 1
+            elif ri == 1:
+                side_stats['ri_1_right'] += 1
+            logger.debug(f"✓ sfid={sfid} (ri={ri}): {len(stops_on_right_side)} Haltestelle(n) auf rechter Seite → wird konvertiert")
+        else:
+            if ri == 0:
+                side_stats['ri_0_wrong'] += 1
+            elif ri == 1:
+                side_stats['ri_1_wrong'] += 1
+            logger.debug(f"✗ sfid={sfid} (ri={ri}): Keine Haltestelle auf rechter Seite → wird NICHT konvertiert")
+    
+    # Statistiken loggen
+    logger.info(f"Seitenprüfung abgeschlossen:")
+    logger.info(f"  - ri=0 (HIN): {side_stats['ri_0_right']} auf rechter Seite, {side_stats['ri_0_wrong']} auf falscher Seite")
+    logger.info(f"  - ri=1 (RÜCK): {side_stats['ri_1_right']} auf rechter Seite, {side_stats['ri_1_wrong']} auf falscher Seite")
+    logger.info(f"  - Gesamt zur Konvertierung: {len(schutzstreifen_to_convert)}")
+    
+    if len(schutzstreifen_to_convert) == 0:
+        logger.info("Keine Schutzstreifen mit Bushaltestellen auf der richtigen Seite gefunden")
+        return result_gdf
+    
+    # 4. Konvertiere die identifizierten Schutzstreifen
+    logger.info(f"Konvertiere {len(schutzstreifen_to_convert)} Schutzstreifen an Bushaltestellen...")
     
     converted_count = 0
-    for idx, row in schutzstreifen_to_convert.iterrows():
+    for idx in schutzstreifen_to_convert:
         old_fuehr = result_gdf.loc[idx, 'fuehr']
         result_gdf.loc[idx, 'fuehr'] = 'Radfahrstreifen (OSM:Schutzstreifen an Haltestelle)'
         converted_count += 1
         
-        sfid = row.get('sfid', idx)
-        logger.debug(f"Konvertiert: sfid={sfid}, {old_fuehr} → {result_gdf.loc[idx, 'fuehr']}")
+        sfid = result_gdf.loc[idx, 'sfid'] if 'sfid' in result_gdf.columns else idx
+        ri = result_gdf.loc[idx, 'ri'] if 'ri' in result_gdf.columns else '?'
+        logger.debug(f"Konvertiert: sfid={sfid} (ri={ri}), {old_fuehr} → {result_gdf.loc[idx, 'fuehr']}")
     
     logger.info(f"✅ {converted_count} Schutzstreifen an Bushaltestellen erfolgreich konvertiert")
     return result_gdf
