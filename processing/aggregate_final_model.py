@@ -22,7 +22,7 @@ Aggregationsregeln:
   Nutzungsbeschränkung (physische Sperre > Schadensschild > keine)
 
 INPUT:
-- output/snapping_network_enriched.fgb (angereicherte Netzwerkdaten mit element_nr und ri)
+- output/snapping_converted_bikelanes.fgb (konvertierte Radverkehrsanlagen mit element_nr und ri)
 - data/Berlin Bezirke.gpkg (Berliner Bezirksgrenzen für Bezirkszuweisung)
 
 OUTPUT:
@@ -417,6 +417,57 @@ def aggregate_network(gdf):
     return result_gdf
 
 
+def normalize_radfahrstreifen_types(gdf):
+    """
+    Vereinheitlicht alle Varianten von Radfahrstreifen zu einem einzigen Typ "Radfahrstreifen".
+    
+    Konvertiert folgende Typen:
+    - "Radfahrstreifen (OSM:Schutzstreifen an Haltestelle)" → "Radfahrstreifen"
+    - "Radfahrstreifen (OSM:Kurzer Schutzstreifen)" → "Radfahrstreifen"
+    - "Radfahrstreifen" bleibt unverändert
+    
+    Args:
+        gdf: GeoDataFrame mit aggregierten Kanten
+        
+    Returns:
+        GeoDataFrame mit vereinheitlichten Radfahrstreifen-Typen
+    """
+    if 'fuehr' not in gdf.columns:
+        logging.warning("Spalte 'fuehr' nicht gefunden - überspringe Normalisierung der Radfahrstreifen-Typen")
+        return gdf
+    
+    # Arbeite mit einer Kopie
+    gdf = gdf.copy()
+    
+    # Definiere die zu normalisierenden Radfahrstreifen-Varianten
+    radfahrstreifen_variants = [
+        "Radfahrstreifen (OSM:Schutzstreifen an Haltestelle)",
+        "Radfahrstreifen (OSM:Kurzer Schutzstreifen)"
+    ]
+    
+    # Zähle Vorkommen vor der Konvertierung
+    variant_counts = {}
+    for variant in radfahrstreifen_variants:
+        count = (gdf['fuehr'] == variant).sum()
+        if count > 0:
+            variant_counts[variant] = count
+    
+    # Konvertiere alle Varianten zu "Radfahrstreifen"
+    if variant_counts:
+        logging.info("Vereinheitliche Radfahrstreifen-Typen zu 'Radfahrstreifen':")
+        for variant, count in variant_counts.items():
+            logging.info(f"  - {count}× '{variant}' → 'Radfahrstreifen'")
+            gdf.loc[gdf['fuehr'] == variant, 'fuehr'] = 'Radfahrstreifen'
+        
+        # Zähle Gesamtzahl der Radfahrstreifen nach Normalisierung
+        total_radfahrstreifen = (gdf['fuehr'] == 'Radfahrstreifen').sum()
+        logging.info(f"Gesamt nach Normalisierung: {total_radfahrstreifen}× 'Radfahrstreifen'")
+    else:
+        logging.info("Keine Radfahrstreifen-Varianten zur Normalisierung gefunden")
+    
+    return gdf
+
+
 def assign_district_to_edges(edges_gdf, districts_path, crs):
     """
     Weist den Kanten Bezirksnummern basierend auf dem größten räumlichen Anteil zu.
@@ -592,6 +643,10 @@ def process(input_path, output_path, crs, clip_neukoelln=False, data_dir="./data
     
     logging.info(f"Eingangsdaten: {len(gdf)} Segmente geladen")
     
+    # ---------- Radfahrstreifen-Typen vereinheitlichen ---------------------
+    logging.info("Vereinheitliche Radfahrstreifen-Typen vor Aggregation...")
+    gdf = normalize_radfahrstreifen_types(gdf)
+    
     # Optional: Auf Gebiet zuschneiden
     if clip_neukoelln:
         logging.info("Schneide Daten auf Neukölln zu")
@@ -693,8 +748,8 @@ def process(input_path, output_path, crs, clip_neukoelln=False, data_dir="./data
 if __name__ == "__main__":
     # Kommandozeilenargumente parsen
     ap = argparse.ArgumentParser(description="Finale Aggregation des angereicherten Radvorrangsnetz")
-    ap.add_argument("--input", default="./output/snapping_network_enriched.fgb", 
-                    help="Angereicherte Netzwerkdaten (Pfad[:Layer]) - Default: ./output/snapping_network_enriched.fgb")
+    ap.add_argument("--input", default="./output/snapping_converted_bikelanes.fgb", 
+                    help="Konvertierte Radverkehrsanlagen (Pfad[:Layer]) - Default: ./output/snapping_converted_bikelanes.fgb")
     ap.add_argument("--output", default="./output/aggregated_rvn_final.gpkg", 
                     help="Finale aggregierte Daten (Pfad[:Layer]) - Default: ./output/aggregated_rvn_final.fgb. Bei ri-Attribut wird GPKG mit 3 Layern erstellt: hinrichtung (ri=0), gegenrichtung (ri=1)")
     ap.add_argument("--crs", type=int, default=DEFAULT_CRS,
@@ -712,8 +767,8 @@ if __name__ == "__main__":
         ap.error('--clip-neukoelln und --view können nicht gemeinsam verwendet werden')
 
     # Automatische Anpassung des Input-Pfads für Neukölln
-    if args.clip_neukoelln and args.input == "./output/snapping_network_enriched.fgb":
-        args.input = "./output/snapping_network_enriched_neukoelln.fgb"
+    if args.clip_neukoelln and args.input == "./output/snapping_converted_bikelanes.fgb":
+        args.input = "./output/snapping_converted_bikelanes_neukoelln.fgb"
         logging.info(f"Automatische Eingabedatei-Anpassung für Neukölln: {args.input}")
 
     # Bei View Standard-Ausgabepfad in output-bbox umlenken
