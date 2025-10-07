@@ -17,6 +17,7 @@ export const BikelaneBufferMarkingLayer = ({ sourceLayer }: Props) => {
         'line-opacity': getBufferMarkingOpacity,
         'line-width': 4,
       }}
+      beforeId="static-layers-start"
     />
   )
 }

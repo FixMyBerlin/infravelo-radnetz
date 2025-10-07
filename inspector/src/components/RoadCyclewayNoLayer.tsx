@@ -36,6 +36,7 @@ export const RoadCyclewayNoLayer = ({ sourceLayer }: Props) => {
           'line-width': 3,
         }}
         source-layer={sourceLayer}
+        beforeId="static-layers-start"
       />
     </Fragment>
   )

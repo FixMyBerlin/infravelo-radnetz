@@ -19,6 +19,7 @@ export const RoadPathUpdateSourceLayer = ({ sourceLayer }: Props) => {
           'line-width': 4,
         }}
         source-layer={sourceLayer}
+        beforeId="static-layers-start"
       />
     </Fragment>
   )

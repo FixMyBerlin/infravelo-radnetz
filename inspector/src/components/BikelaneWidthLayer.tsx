@@ -17,6 +17,7 @@ export const BikelaneWidthLayer = ({ sourceLayer }: Props) => {
         'line-opacity': getWidthOpacity,
         'line-width': 4,
       }}
+      beforeId="static-layers-start"
     />
   )
 }

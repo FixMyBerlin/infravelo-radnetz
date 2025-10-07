@@ -20,6 +20,7 @@ export const RoadUpdateSourceLayer = ({ sourceLayer }: Props) => {
         }}
         filter={['has', 'updated_by']}
         source-layer={sourceLayer}
+        beforeId="static-layers-start"
       />
     </Fragment>
   )

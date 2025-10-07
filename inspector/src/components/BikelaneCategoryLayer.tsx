@@ -17,6 +17,7 @@ export const BikelaneCategoryLayer = ({ sourceLayer }: Props) => {
         'line-opacity': getCategoryOpacity,
         'line-width': 4,
       }}
+      beforeId="static-layers-start"
     />
   )
 }
