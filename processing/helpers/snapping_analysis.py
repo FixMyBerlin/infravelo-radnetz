@@ -52,8 +52,8 @@ class SnappingPriorities:
     }
     
     # Straßennamen-Match Prioritäten
-    STREET_NAME_MATCH_REWARD = 10     # Belohnung für exakte Straßennamen-Übereinstimmung
-    STREET_NAME_MISMATCH_PENALTY = -100  # Strafe für Straßennamen-Mismatch - Kann nicht korrekt sein, daher 100
+    STREET_NAME_MATCH_REWARD = 50     # Belohnung für exakte Straßennamen-Übereinstimmung
+    STREET_NAME_MISMATCH_PENALTY = -30  # Strafe für Straßennamen-Mismatch - Kann nicht korrekt sein, daher 100
     
     # Richtungskompatibilität Prioritäten
     DIRECTION_PERFECT_MATCH = 10     # Einrichtungsverkehr mit passender Richtung
@@ -61,8 +61,8 @@ class SnappingPriorities:
     DIRECTION_WRONG_WAY = -100        # Einrichtungsverkehr mit falscher Richtung
     
     # Winkel-Priorität Konfiguration (kontinuierliche Funktion)
-    ANGLE_PARALLEL_REWARD = 10       # Belohnung für parallele Wege (0°, 180°) - maximaler Wert
-    ANGLE_ORTHOGONAL_PENALTY = -20   # Strafe für orthogonale Wege (90°) - minimaler Wert der kontinuierlichen Funktion
+    ANGLE_PARALLEL_REWARD = 20       # Belohnung für parallele Wege (0°, 180°) - maximaler Wert
+    ANGLE_ORTHOGONAL_PENALTY = -40   # Strafe für orthogonale Wege (90°) - minimaler Wert der kontinuierlichen Funktion
     
     # Entfernungs-Priorität Konfiguration
     DISTANCE_MAX_PRIORITY = 15       # Maximale Priorität bei Entfernung 0m
@@ -137,37 +137,49 @@ def angle_difference(angle1, angle2):
 def calculate_angle_priority(segment_geom, candidate_geom):
     """
     Berechnet die Winkel-Priorität basierend auf der Ausrichtung zwischen Segment und Kandidat.
-    Verwendung einer kontinuierlichen Sinusfunktion für weiche Übergänge.
+    Verwendung einer progressiven quadratischen Funktion mit Nullpunkt bei 45°.
+    
+    Bewertung:
+    - 0° (parallel): +20 Punkte (ANGLE_PARALLEL_REWARD)
+    - 45° (diagonal): 0 Punkte (Nullpunkt)
+    - 50°: ca. -2 Punkte
+    - 80°: ca. -45 Punkte
+    - 90° (orthogonal): -40 Punkte (ANGLE_ORTHOGONAL_PENALTY)
     
     Args:
         segment_geom: Geometrie des Netzwerksegments
         candidate_geom: Geometrie des Kandidaten
         
     Returns:
-        float: Winkel-Priorität (-20 bis +10)
+        float: Winkel-Priorität (-40 bis +20)
     """
     segment_angle = calculate_line_angle(segment_geom)
     candidate_angle = calculate_line_angle(candidate_geom)
     
     angle_diff = angle_difference(segment_angle, candidate_angle)
     
-    # Verwende sin²(angle_diff/2) für kontinuierliche Übergang
-    # 0° → sin²(0) = 0 → beste Priorität (+10)
-    # 90° → sin²(45°) ≈ 0.5 
-    # 180° → sin²(90°) = 1 → etwas schlechtere Priorität als 0°
-    # Normalisiere auf 0-90° für sin² Berechnung
+    # Normalisiere auf 0-90° (wir betrachten nur den kleinsten Winkel)
     normalized_angle = min(angle_diff, 180 - angle_diff)
     
-    # sin² von halbem Winkel für weicheren Übergang
-    sin_squared = np.sin(np.radians(normalized_angle / 2)) ** 2
+    # Berechne progressive Priorität mit Nullpunkt bei 45°
+    # Für 0° bis 45°: Linear von PARALLEL_REWARD bis 0
+    # Für 45° bis 90°: Quadratisch von 0 bis ORTHOGONAL_PENALTY
     
-    # Linear interpolieren zwischen PARALLEL_REWARD (beste) und ORTHOGONAL_PENALTY (schlechteste)
-    angle_priority = SnappingPriorities.ANGLE_PARALLEL_REWARD + (SnappingPriorities.ANGLE_ORTHOGONAL_PENALTY - SnappingPriorities.ANGLE_PARALLEL_REWARD) * sin_squared
+    if normalized_angle <= 45:
+        # Bereich 0° - 45°: Linear abfallend von +20 bis 0
+        # Bei 0° → +20, bei 45° → 0
+        angle_priority = SnappingPriorities.ANGLE_PARALLEL_REWARD * (1 - normalized_angle / 45)
+    else:
+        # Bereich 45° - 90°: Quadratisch abfallend von 0 bis -40
+        # Normalisiere auf 0-1 Bereich für den 45°-90° Abschnitt
+        t = (normalized_angle - 45) / 45  # 0 bei 45°, 1 bei 90°
+        # Quadratische Progression: t² macht den Abfall stärker bei größeren Winkeln
+        angle_priority = SnappingPriorities.ANGLE_ORTHOGONAL_PENALTY * (t ** 2)
     
     # Runde auf zwei Nachkommastellen
     angle_priority = round(angle_priority, 2)
     
-    logging.debug(f"Winkel-Priorität: {angle_diff:.2f}° → sin²={sin_squared:.2f} → {angle_priority:.2f} Punkte (kontinuierlich 10 bis -20)")
+    logging.debug(f"Winkel-Priorität: {angle_diff:.2f}° → normalized={normalized_angle:.2f}° → {angle_priority:.2f} Punkte (progressiv: 0°=+20, 45°=0, 90°=-40)")
     return angle_priority
 
 
