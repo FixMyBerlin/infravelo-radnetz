@@ -15,4 +15,5 @@ We use manual maintained lists of OpenStreetMap way ids, which **modify** the fi
 
 `exclude_ways.txt` contains a list of OSM way ids in every line, which should be **removed** from the final dataset.
 `include_ways.txt` contains a list of OSM way ids in every line, which should be **added** to the final dataset.
+`opposite_edge_overwrite_element_nr.txt` contains a list of element_nr in every line, where the opposite direction (ri=1) should be **removed** from the final dataset. This is useful when the snapping process incorrectly assigns infrastructure to both directions, but only the forward direction (ri=0) actually exists.
 

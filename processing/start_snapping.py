@@ -17,6 +17,7 @@ start_snapping.py
 INPUT:
 - output/rvn/vorrangnetz_details_combined_rvn.fgb (Straßennetz)
 - output/matched/matched_tilda_ways.fgb (TILDA-übersetzte Daten)
+- data/opposite_edge_overwrite_element_nr.txt (Optional: Liste von element_nr für manuelles Entfernen der Rückrichtung)
 
 OUTPUT:
 - output/snapping_network_enriched.fgb (angereicherte Netzwerkdaten)
@@ -58,6 +59,9 @@ CONFIG_CPU_CORES = mp.cpu_count() - 2  # Anzahl CPU-Kerne für Parallelisierung 
 
 # Neukölln Grenzendatei
 INPUT_NEUKOELLN_BOUNDARY_FILE = "Bezirk Neukölln Grenze.fgb"
+
+# Datei mit element_nr für manuelles Überschreiben der Rückrichtung (ri=1)
+OPPOSITE_EDGE_OVERWRITE_FILE = "opposite_edge_overwrite_element_nr.txt"
 
 # Feldnamen für das Netz
 RVN_ATTRIBUT_ELEMENT_NR = "element_nr"           # Kanten-ID
@@ -610,6 +614,112 @@ def normalize_merge_attributes_batch(df, fields):
             normalized[f"{field}_normalized"] = pd.Series(["NULL"] * len(df), index=df.index)
     
     return pd.DataFrame(normalized, index=df.index)
+
+
+def load_opposite_edge_overwrite_list(data_dir):
+    """
+    Lädt die Liste der element_nr, für die die Rückrichtung (ri=1) entfernt werden soll.
+    
+    Args:
+        data_dir: Verzeichnis mit der Datei opposite_edge_overwrite_element_nr.txt
+    
+    Returns:
+        set: Menge der element_nr (als Strings), für die ri=1 entfernt werden soll
+    """
+    file_path = Path(data_dir) / OPPOSITE_EDGE_OVERWRITE_FILE
+    
+    if not file_path.exists():
+        logging.info(f"Keine Opposite-Edge-Overwrite-Liste gefunden: {file_path}")
+        return set()
+    
+    element_nrs = set()
+    
+    with open(file_path, 'r', encoding='utf-8') as f:
+        for line_num, line in enumerate(f, 1):
+            # Entferne Whitespace und Kommentare
+            line = line.strip()
+            
+            # Überspringe leere Zeilen und Kommentare
+            if not line or line.startswith('#'):
+                continue
+            
+            # Füge element_nr als String hinzu (keine Integer-Konvertierung)
+            element_nrs.add(line)
+            logging.debug(f"  Zeile {line_num}: '{line}' hinzugefügt")
+    
+    if element_nrs:
+        logging.info(f"✔  Opposite-Edge-Overwrite-Liste geladen: {len(element_nrs)} element_nr(s) aus {file_path}")
+    else:
+        logging.info(f"Opposite-Edge-Overwrite-Liste ist leer: {file_path}")
+    
+    return element_nrs
+
+
+def apply_opposite_edge_overwrite(gdf, opposite_edge_element_nrs):
+    """
+    Entfernt die Rückrichtung (ri=1) für die angegebenen element_nr.
+    Gibt Warnungen aus, wenn ri=0 verkehrsri="Zweirichtungsverkehr" hat.
+    
+    Args:
+        gdf: GeoDataFrame mit den Kanten
+        opposite_edge_element_nrs: Set von element_nr, für die ri=1 entfernt werden soll
+    
+    Returns:
+        GeoDataFrame: Gefiltertes GeoDataFrame ohne die entfernten ri=1 Kanten
+    """
+    if not opposite_edge_element_nrs:
+        logging.info("Keine Opposite-Edge-Overwrites zu verarbeiten")
+        return gdf
+    
+    logging.info(f"Verarbeite Opposite-Edge-Overwrites für {len(opposite_edge_element_nrs)} element_nr(s)...")
+    
+    # Zähler für Statistiken
+    removed_count = 0
+    warning_count = 0
+    not_found_count = 0
+    
+    # Prüfe jede element_nr
+    for element_nr in opposite_edge_element_nrs:
+        # Finde alle Kanten mit dieser element_nr
+        matching_edges = gdf[gdf['element_nr'] == element_nr]
+        
+        if len(matching_edges) == 0:
+            logging.warning(f"  element_nr={element_nr}: NICHT GEFUNDEN in Daten")
+            not_found_count += 1
+            continue
+        
+        # Prüfe ri=0 Kante auf Zweirichtungsverkehr
+        ri0_edges = matching_edges[matching_edges['ri'] == 0]
+        if len(ri0_edges) > 0:
+            for _, edge in ri0_edges.iterrows():
+                verkehrsri = edge.get('verkehrsri', None)
+                if verkehrsri == 'Zweirichtungsverkehr':
+                    logging.warning(
+                        f"  ⚠️  element_nr={element_nr} (ri=0): Verkehrsrichtung ist 'Zweirichtungsverkehr' "
+                        f"- BITTE MANUELL PRÜFEN ob Rückrichtung wirklich entfernt werden soll!"
+                    )
+                    warning_count += 1
+        
+        # Entferne ri=1 Kanten
+        ri1_edges = matching_edges[matching_edges['ri'] == 1]
+        if len(ri1_edges) > 0:
+            logging.info(f"  element_nr={element_nr}: Entferne {len(ri1_edges)} ri=1 Kante(n)")
+            removed_count += len(ri1_edges)
+    
+    # Filtere das GeoDataFrame
+    original_count = len(gdf)
+    mask = ~((gdf['element_nr'].isin(opposite_edge_element_nrs)) & (gdf['ri'] == 1))
+    gdf_filtered = gdf[mask].copy()
+    
+    logging.info(
+        f"✔  Opposite-Edge-Overwrite abgeschlossen: "
+        f"{removed_count} ri=1 Kante(n) entfernt, "
+        f"{warning_count} Warnung(en), "
+        f"{not_found_count} nicht gefunden"
+    )
+    logging.info(f"   Kanten vorher: {original_count}, nachher: {len(gdf_filtered)}")
+    
+    return gdf_filtered
 
 
 def normalize_merge_attribute(value):
@@ -1327,6 +1437,13 @@ def process(net_path, osm_path, out_path, crs, buffer, clip_neukoelln=False, dat
         net_segmented.to_file(seg_attr_path, driver="FlatGeobuf")
         logging.info(f"✔  Attributierte Segmente gespeichert als {seg_attr_path}")
 
+    # ---------- Opposite-Edge-Overwrite anwenden ----------------------------
+    logging.info("Lade Opposite-Edge-Overwrite-Liste...")
+    opposite_edge_element_nrs = load_opposite_edge_overwrite_list(data_dir)
+    
+    if opposite_edge_element_nrs:
+        net_segmented = apply_opposite_edge_overwrite(net_segmented, opposite_edge_element_nrs)
+    
     # ---------- Segmente verschmelzen ---------------------------------------
     logging.info("Fasse Segmente mit gleicher element_nr und TILDA-Attributen zusammen ...")
     
