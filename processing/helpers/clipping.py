@@ -16,30 +16,40 @@ from pyproj import Transformer
 from pyproj import Transformer
 
 
-def clip_to_neukoelln(gdf: gpd.GeoDataFrame, data_dir: str, crs: str, boundary_file: str = "Bezirk Neukölln Grenze.fgb") -> gpd.GeoDataFrame:
+def clip_to_region(gdf: gpd.GeoDataFrame, data_dir: str, crs: str, region: str) -> gpd.GeoDataFrame:
     """
-    Schneidet die Geodaten auf die Grenzen von Neukölln zu.
+    Schneidet die Geodaten auf eine bestimmte Region zu.
     
     Args:
         gdf: GeoDataFrame mit den zu zuschneidenden Daten
         data_dir: Verzeichnis mit den Eingabedateien
         crs: Ziel-Koordinatensystem
-        boundary_file: Name der Grenzendatei (default: "Bezirk Neukölln Grenze.fgb")
+        region: Name der Region ('neukoelln', 'norden', 'sueden')
     
     Returns:
         Zugeschnittenes GeoDataFrame
     """
+    # Mapping von Region zu Dateiname
+    region_files = {
+        'neukoelln': 'Bezirk Neukölln Grenze.fgb',
+        'norden': 'Berlin_Gebiet_Norden.gpkg',
+        'sueden': 'Berlin_Gebiet_Süden.gpkg'
+    }
     
-    # Pfad zur Neukölln-Grenzendatei
+    if region not in region_files:
+        logging.error(f"Unbekannte Region: {region}. Erlaubt sind: {', '.join(region_files.keys())}")
+        return gdf
+    
+    boundary_file = region_files[region]
     boundary_path = os.path.join(data_dir, boundary_file)
     
     if not os.path.exists(boundary_path):
-        logging.warning(f"Neukölln-Grenzendatei nicht gefunden: {boundary_path}")
+        logging.warning(f"Grenzendatei für {region} nicht gefunden: {boundary_path}")
         logging.warning("Überspringe Clipping - verwende vollständige Daten")
         return gdf
     
     try:
-        logging.info(f"Lade Neukölln-Grenzen: {boundary_path}")
+        logging.info(f"Lade Grenzen für {region}: {boundary_path}")
         clip_polygons = gpd.read_file(boundary_path)
         
         # Koordinatensystem vereinheitlichen
@@ -48,7 +58,7 @@ def clip_to_neukoelln(gdf: gpd.GeoDataFrame, data_dir: str, crs: str, boundary_f
             gdf = gdf.to_crs(clip_polygons.crs)
         
         # Fasse alle Polygone zu einer einzigen Geometrie zusammen
-        logging.info("Schneide Daten auf Neukölln zu")
+        logging.info(f"Schneide Daten auf {region} zu")
         clip_boundary = clip_polygons.unary_union
         
         # Führe den Zuschnitt durch

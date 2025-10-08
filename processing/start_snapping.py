@@ -40,7 +40,7 @@ from shapely.geometry import LineString, MultiLineString, Point
 from shapely.ops import linemerge
 from helpers.progressbar import print_progressbar
 from helpers.globals import DEFAULT_CRS
-from helpers.clipping import clip_to_neukoelln, clip_to_view
+from helpers.clipping import clip_to_region, clip_to_view
 
 from helpers.snapping_analysis import (
     calculate_line_angle,
@@ -1211,7 +1211,7 @@ def reorder_columns_for_output(gdf):
 
 
 # ------------------------------------------------------------- Hauptablauf --
-def process(net_path, osm_path, out_path, crs, buffer, clip_neukoelln=False, data_dir="./data", log_candidates=False, view=None):
+def process(net_path, osm_path, out_path, crs, buffer, data_dir="./data", log_candidates=False, view=None, clip_region=None):
     """
     Hauptfunktion: Segmentiert das Netz, führt das Snapping durch und verschmilzt die Segmente wieder.
     net_path: Pfad zum Netz (mit Layer)
@@ -1219,8 +1219,9 @@ def process(net_path, osm_path, out_path, crs, buffer, clip_neukoelln=False, dat
     out_path: Ausgabepfad (mit Layer)
     crs: Ziel-Koordinatensystem (EPSG)
     buffer: Puffergröße für Matching
-    clip_neukoelln: Ob auf Neukölln zugeschnitten werden soll
     data_dir: Verzeichnis mit den Eingabedateien
+    view: Viewport Zuschnitt ('zoom/lat/lon')
+    clip_region: Regionaler Zuschnitt ('neukoelln', 'norden', 'sueden')
     """
     # ---------- Daten laden -------------------------------------------------
     # Logging konfigurieren mit detaillierteren Informationen
@@ -1241,12 +1242,13 @@ def process(net_path, osm_path, out_path, crs, buffer, clip_neukoelln=False, dat
     logging.info(f"Netzwerk: {len(net)} Features geladen")
     logging.info(f"TILDA-übersetzte Daten: {len(osm)} Features geladen")
     
-    # Räumliche Filter: Entweder Neukölln oder View (nicht beides erlaubt – wird vorher geprüft)
-    if clip_neukoelln:
-        logging.info("Schneide Netzwerk auf Neukölln zu")
-        net = clip_to_neukoelln(net, data_dir, crs)
-        logging.info("Schneide TILDA-übersetzte Daten auf Neukölln zu")
-        osm = clip_to_neukoelln(osm, data_dir, crs)
+    # Räumliche Filter: Entweder Region oder View (nicht beides erlaubt – wird vorher geprüft)
+    if clip_region:
+        from helpers.clipping import clip_to_region
+        logging.info(f"Schneide Netzwerk auf Region {clip_region} zu")
+        net = clip_to_region(net, data_dir, crs, clip_region)
+        logging.info(f"Schneide TILDA-übersetzte Daten auf Region {clip_region} zu")
+        osm = clip_to_region(osm, data_dir, crs, clip_region)
     elif view:
         logging.info(f"Schneide Daten auf Viewport {view} (WGS84, Standard 1920x1080) zu")
         net = clip_to_view(net, view, crs)
@@ -1270,12 +1272,12 @@ def process(net_path, osm_path, out_path, crs, buffer, clip_neukoelln=False, dat
     
     # Stelle sicher, dass das segmentierte Detailnetz und das Ausgabeverzeichnis existiert
     # Zielverzeichnis je nach Modus
-    if view and not clip_neukoelln:
+    if view and not clip_region:
         base_output_dir = "./output-bbox"
     else:
         base_output_dir = "./output"
 
-    filename_suffix = "_neukoelln" if clip_neukoelln else ("_view" if view else "")
+    filename_suffix = f"_{clip_region}" if clip_region else ("_view" if view else "")
     seg_path = f"{base_output_dir}/snapping/rvn-segmented{filename_suffix}.fgb"
     os.makedirs(os.path.dirname(seg_path), exist_ok=True)
     
@@ -1480,16 +1482,16 @@ def process(net_path, osm_path, out_path, crs, buffer, clip_neukoelln=False, dat
     # Stelle sicher, dass das Ausgabeverzeichnis existiert
     os.makedirs(os.path.dirname(p), exist_ok=True)
     
-    # Füge Suffix für Neukölln-Dateien hinzu
-    if clip_neukoelln:
+    # Füge Suffix für regionale Dateien hinzu
+    if clip_region:
         # Extrahiere Dateiname und Erweiterung
         p_parts = p.split('.')
         if len(p_parts) > 1:
             p_base = '.'.join(p_parts[:-1])
             p_ext = p_parts[-1]
-            p = f"{p_base}_neukoelln.{p_ext}"
+            p = f"{p_base}_{clip_region}.{p_ext}"
         else:
-            p = f"{p}_neukoelln"
+            p = f"{p}_{clip_region}"
     
     # Lösche existierende Ausgabedatei NACH dem Suffix-Handling, um Write-Access-Fehler zu vermeiden
     Path(p).unlink(missing_ok=True)
@@ -1512,11 +1514,11 @@ if __name__ == "__main__":
                     help=f"Ziel-EPSG (default {DEFAULT_CRS})")
     ap.add_argument("--buffer", type=float, default=CONFIG_BUFFER_DEFAULT,
                     help=f"Matching-Puffer in m (default {CONFIG_BUFFER_DEFAULT})")
-    ap.add_argument("--clip-neukoelln", action="store_true",
-                    help="Schneide Daten auf Neukölln zu (optional)")
+    ap.add_argument("--clip", type=str, choices=['neukoelln', 'norden', 'sueden'],
+                    help="Regionaler Zuschnitt: 'neukoelln', 'norden' oder 'sueden'. Nicht mit --view kombinierbar.")
     ap.add_argument("--data-dir", default="./data", 
                     help="Pfad zum Datenverzeichnis (default: ./data)")
-    ap.add_argument("--view", type=str, help="Viewport Zuschnitt 'zoom/lat/lon' (WGS84, z.B. 18/52.488306/13.425140). Nicht zusammen mit --clip-neukoelln verwenden.")
+    ap.add_argument("--view", type=str, help="Viewport Zuschnitt 'zoom/lat/lon' (WGS84, z.B. 18/52.488306/13.425140). Nicht zusammen mit --clip verwenden.")
     ap.add_argument("--log-candidates", action="store_true",
                     help="Erstelle detaillierte Kandidaten-Log-Datei für Debugging (optional)")
     ap.add_argument("--cpu-cores", type=int, default=CONFIG_CPU_CORES,
@@ -1524,8 +1526,8 @@ if __name__ == "__main__":
     args = ap.parse_args()
 
     # Konfliktprüfung
-    if args.clip_neukoelln and args.view:
-        logging.error("--clip-neukoelln und --view können nicht gemeinsam verwendet werden")
+    if args.clip and args.view:
+        logging.error("--clip und --view können nicht gemeinsam verwendet werden")
         sys.exit(1)
 
     # Bei View Standard-Eingabepfad in output-bbox umlenken falls unverändert
@@ -1544,5 +1546,5 @@ if __name__ == "__main__":
     CONFIG_CPU_CORES = cpu_cores
     
     # Hauptfunktion aufrufen
-    process(args.net, args.osm, args.out, args.crs, args.buffer, args.clip_neukoelln, args.data_dir, args.log_candidates, args.view)
+    process(args.net, args.osm, args.out, args.crs, args.buffer, args.data_dir, args.log_candidates, args.view, args.clip)
 

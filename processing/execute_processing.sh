@@ -16,10 +16,10 @@
 # - Temporäre Dateien werden vor dem entsprechenden Verarbeitungsschritt gelöscht
 # - Zwischendateien bleiben zwischen Schritten erhalten (für --start-step Funktionalität)
 #
-# Verwendung: ./execute_processing.sh [--clip-neukoelln | --view z/lat/lon] [--start-step <1-5>] [--clean-cache]
+# Verwendung: ./execute_processing.sh [--clip <region> | --view z/lat/lon] [--start-step <1-5>] [--clean-cache]
 # 
 # Argumente:
-#   --clip-neukoelln    Beschränkt die Verarbeitung auf den Bezirk Neukölln
+#   --clip <region>     Regionaler Zuschnitt: neukoelln, norden oder sueden
 #   --view z/lat/lon     Viewport Zuschnitt (WGS84, z.B. 18/52.488306/13.425140) – schreibt nach output-bbox
 #   --start-step <1-5>  Startet die Verarbeitung ab dem angegebenen Schritt
 #                       1: OSM-Wege Matching
@@ -72,7 +72,7 @@ show_total_time() {
 }
 
 # CLI-Argumente verarbeiten
-CLIP_NEUKOELLN=""
+CLIP_REGION=""
 START_STEP=1
 VIEW=""
 CLEAN_CACHE=""
@@ -80,9 +80,9 @@ CLEAN_CACHE=""
 # Verarbeite alle Argumente
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --clip-neukoelln)
-            CLIP_NEUKOELLN="--clip-neukoelln"
-            shift
+        --clip)
+            CLIP_REGION="$2"
+            shift 2
             ;;
         --start-step)
             START_STEP="$2"
@@ -98,7 +98,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         *)
             echo "❌ Unbekanntes Argument: $1"
-            echo "Verwendung: $0 [--clip-neukoelln] [--view z/lat/lon] [--start-step <1-5>] [--clean-cache]"
+            echo "Verwendung: $0 [--clip neukoelln|norden|sueden] [--view z/lat/lon] [--start-step <1-5>] [--clean-cache]"
             exit 1
             ;;
     esac
@@ -110,12 +110,20 @@ if [[ ! "$START_STEP" =~ ^[1-5]$ ]]; then
     exit 1
 fi
 
-if [[ -n "$CLIP_NEUKOELLN" && -n "$VIEW" ]]; then
-    echo "❌ --clip-neukoelln und --view dürfen nicht kombiniert werden"
+# Validiere CLIP_REGION
+if [[ -n "$CLIP_REGION" ]]; then
+    if [[ ! "$CLIP_REGION" =~ ^(neukoelln|norden|sueden)$ ]]; then
+        echo "❌ Ungültige Region: $CLIP_REGION. Erlaubt sind: neukoelln, norden, sueden"
+        exit 1
+    fi
+fi
+
+if [[ -n "$CLIP_REGION" && -n "$VIEW" ]]; then
+    echo "❌ --clip und --view dürfen nicht kombiniert werden"
     exit 1
 fi
-if [[ -n "$CLIP_NEUKOELLN" ]]; then
-    echo "🌍 Verarbeitung wird auf Neukölln beschränkt."
+if [[ -n "$CLIP_REGION" ]]; then
+    echo "🌍 Verarbeitung wird auf Region $CLIP_REGION beschränkt."
 elif [[ -n "$VIEW" ]]; then
     echo "🌍 Verarbeitung mit Viewport $VIEW (output-bbox)"
 else
@@ -139,8 +147,8 @@ fi
 
 # Sichere finale Ausgabedateien von vorherigem Lauf in output-last-run
 echo "💾 Sichere finale Dateien von vorherigem Lauf..."
-if [[ -n "$CLIP_NEUKOELLN" ]]; then
-    SUFFIX="_neukoelln"
+if [[ -n "$CLIP_REGION" ]]; then
+    SUFFIX="_${CLIP_REGION}"
 elif [[ -n "$VIEW" ]]; then
     SUFFIX="_view"
 else
@@ -148,7 +156,7 @@ else
 fi
 
 BASE_OUT_DIR="output"
-if [[ -n "$VIEW" && -z "$CLIP_NEUKOELLN" ]]; then
+if [[ -n "$VIEW" && -z "$CLIP_REGION" ]]; then
     BASE_OUT_DIR="output-bbox"
 fi
 mkdir -p "$BASE_OUT_DIR"
@@ -210,8 +218,8 @@ if [[ $START_STEP -le 1 ]]; then
     
     echo "🔍 Schritt 1/4: OSM-Wege mit Radvorrangsnetz matchen..."
     STEP1_START=$(date +%s)
-    if [[ -n "$CLIP_NEUKOELLN" ]]; then
-        ./.venv/bin/python processing/start_matching.py --clip-neukoelln
+    if [[ -n "$CLIP_REGION" ]]; then
+        ./.venv/bin/python processing/start_matching.py --clip "$CLIP_REGION"
     elif [[ -n "$VIEW" ]]; then
         ./.venv/bin/python processing/start_matching.py --view "$VIEW"
     else
@@ -244,8 +252,8 @@ if [[ $START_STEP -le 2 ]]; then
     
     echo "📍 Schritt 2/4: Snapping und Attribut-Übernahme..."
     STEP2_START=$(date +%s)
-    if [[ -n "$CLIP_NEUKOELLN" ]]; then
-        ./.venv/bin/python processing/start_snapping.py --clip-neukoelln
+    if [[ -n "$CLIP_REGION" ]]; then
+        ./.venv/bin/python processing/start_snapping.py --clip "$CLIP_REGION"
     elif [[ -n "$VIEW" ]]; then
         ./.venv/bin/python processing/start_snapping.py --view "$VIEW"
     else
@@ -272,8 +280,8 @@ if [[ $START_STEP -le 3 ]]; then
     
     echo "🚲 Schritt 3/5: Schutzstreifen-Konvertierung..."
     STEP3_START=$(date +%s)
-    if [[ -n "$CLIP_NEUKOELLN" ]]; then
-        ./.venv/bin/python processing/start_bikelane_conversion.py --clip-neukoelln
+    if [[ -n "$CLIP_REGION" ]]; then
+        ./.venv/bin/python processing/start_bikelane_conversion.py --clip "$CLIP_REGION"
     elif [[ -n "$VIEW" ]]; then
         ./.venv/bin/python processing/start_bikelane_conversion.py --view "$VIEW"
     else
@@ -365,9 +373,9 @@ show_total_time $SCRIPT_START_TIME
 
 echo ""
 echo "📁 Ausgabedateien verfügbar in:"
-if [[ -n "$CLIP_NEUKOELLN" ]]; then
-    echo "   - output/aggregated_rvn_final_neukoelln.gpkg"
-    echo "   - output/snapping_converted_bikelanes_neukoelln.fgb"
+if [[ -n "$CLIP_REGION" ]]; then
+    echo "   - output/aggregated_rvn_final_${CLIP_REGION}.gpkg"
+    echo "   - output/snapping_converted_bikelanes_${CLIP_REGION}.fgb"
 elif [[ -n "$VIEW" ]]; then
     echo "   - output-bbox/aggregated_rvn_final_view.gpkg"
     echo "   - output-bbox/snapping_converted_bikelanes_view.fgb"

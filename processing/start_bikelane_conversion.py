@@ -161,26 +161,26 @@ if __name__ == "__main__":
                     help="Eingabedatei (Pfad) - Default: ./output/snapping_network_enriched.fgb")
     ap.add_argument("--output", default="./output/snapping_converted_bikelanes.fgb", 
                     help="Ausgabedatei (Pfad) - Default: ./output/snapping_converted_bikelanes.fgb")
-    ap.add_argument("--clip-neukoelln", action="store_true",
-                    help="Schneide Daten auf Neukölln zu (optional)")
+    ap.add_argument("--clip", type=str, choices=['neukoelln', 'norden', 'sueden'],
+                    help="Regionaler Zuschnitt: 'neukoelln', 'norden' oder 'sueden'. Nicht mit --view kombinierbar.")
     ap.add_argument("--data-dir", default="./data", 
                     help="Pfad zum Datenverzeichnis (default: ./data)")
     ap.add_argument("--view", type=str, 
-                    help="Viewport Zuschnitt 'zoom/lat/lon' (WGS84, z.B. 18/52.488306/13.425140). Nicht zusammen mit --clip-neukoelln verwenden.")
+                    help="Viewport Zuschnitt 'zoom/lat/lon' (WGS84, z.B. 18/52.488306/13.425140). Nicht zusammen mit --clip verwenden.")
     args = ap.parse_args()
 
     # Konfliktprüfung
-    if args.clip_neukoelln and args.view:
-        print("❌ --clip-neukoelln und --view dürfen nicht kombiniert werden")
+    if args.clip and args.view:
+        print("❌ --clip und --view dürfen nicht kombiniert werden")
         sys.exit(1)
 
     # Anpassung der Pfade für verschiedene Modi
-    if args.clip_neukoelln:
-        # Für Neukölln: Standardpfade mit _neukoelln Suffix anpassen
+    if args.clip:
+        # Für regionale Clipping: Standardpfade mit _{region} Suffix anpassen
         if args.input == "./output/snapping_network_enriched.fgb":
-            args.input = "./output/snapping_network_enriched_neukoelln.fgb"
+            args.input = f"./output/snapping_network_enriched_{args.clip}.fgb"
         if args.output == "./output/snapping_converted_bikelanes.fgb":
-            args.output = "./output/snapping_converted_bikelanes_neukoelln.fgb"
+            args.output = f"./output/snapping_converted_bikelanes_{args.clip}.fgb"
     elif args.view:
         # Für View: Pfade nach output-bbox umleiten
         if args.input == "./output/snapping_network_enriched.fgb":

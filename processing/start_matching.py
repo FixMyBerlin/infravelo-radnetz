@@ -29,7 +29,8 @@ OUTPUT:
 
 VERWENDUNG:
 - Standardmodus: python start_matching.py (verwendet ganz Berlin)
-- Neukölln-Modus: python start_matching.py --clip-neukoelln (verwendet Neukölln-Dateien)
+- Regionaler Zuschnitt: python start_matching.py --clip neukoelln|norden|sueden
+- Viewport Zuschnitt: python start_matching.py --view 18/52.488306/13.425140
 - Alle Straßen verwenden: python start_matching.py --use-all-streets-in-buffer (verwendet alle Straßen im Buffer anstatt nur die ohne Radwege)
 """
 
@@ -371,8 +372,8 @@ def parse_arguments():
     parser.add_argument('--skip-difference-streets-bikelanes', action='store_true', help='Skip difference: only streets without bikelanes')
     parser.add_argument('--skip-difference-paths-streets-bikelanes', action='store_true', help='Skip difference: only paths without streets and bikelanes')
     parser.add_argument('--use-all-streets-in-buffer', action='store_true', help='Verwende alle Straßen im Buffer anstatt nur Straßen ohne Radwege für das finale Dataset')
-    parser.add_argument('--clip-neukoelln', action='store_true', help='Verwende Neukölln-spezifische Eingabedateien')
-    parser.add_argument('--view', type=str, help="Viewport Zuschnitt 'zoom/lat/lon' (WGS84, z.B. 18/52.488306/13.425140). Nicht mit --clip-neukoelln kombinierbar.")
+    parser.add_argument('--clip', type=str, choices=['neukoelln', 'norden', 'sueden'], help="Regionaler Zuschnitt: 'neukoelln', 'norden' oder 'sueden'. Nicht mit --view kombinierbar.")
+    parser.add_argument('--view', type=str, help="Viewport Zuschnitt 'zoom/lat/lon' (WGS84, z.B. 18/52.488306/13.425140). Nicht mit --clip kombinierbar.")
     # Parallelisierungs-Optionen
     parser.add_argument('--disable-multiprocessing', action='store_true', help='Deaktiviert die parallele Verarbeitung beim Buffer-Matching')
     parser.add_argument('--cpu-cores', type=int, default=CONFIG_CPU_CORES,
@@ -380,8 +381,9 @@ def parse_arguments():
     parser.add_argument('--batch-size', type=int, default=CONFIG_BATCH_SIZE,
                         help=f'Größe der Batches für parallele Verarbeitung (default: {CONFIG_BATCH_SIZE})')
     args = parser.parse_args()
-    if args.clip_neukoelln and args.view:
-        parser.error('--clip-neukoelln und --view dürfen nicht gemeinsam verwendet werden')
+    
+    if args.clip and args.view:
+        parser.error('--clip und --view dürfen nicht gemeinsam verwendet werden')
     return args
 
 
@@ -402,6 +404,15 @@ def process_data_source(osm_fgb_path, output_prefix, vorrangnetz_gdf, unified_bu
         print(f"OSM {output_prefix}: {osm_gdf_before_clip} → {len(osm_gdf)} Features nach Clipping")
         if osm_gdf.empty:
             print(f"⚠️  OSM {output_prefix} nach Viewport-Clipping leer - erstelle leeres Ergebnis")
+            return osm_gdf  # Return empty GeoDataFrame
+    elif args.clip:
+        from helpers.clipping import clip_to_region
+        print(f"Schneide OSM {output_prefix} auf Region {args.clip} zu (Performance-Optimierung)")
+        osm_gdf_before_clip = len(osm_gdf)
+        osm_gdf = clip_to_region(osm_gdf, './data', TARGET_CRS, args.clip)
+        print(f"OSM {output_prefix}: {osm_gdf_before_clip} → {len(osm_gdf)} Features nach Clipping")
+        if osm_gdf.empty:
+            print(f"⚠️  OSM {output_prefix} nach Regional-Clipping leer - erstelle leeres Ergebnis")
             return osm_gdf  # Return empty GeoDataFrame
     
     # Schritt 1c: Entferne category == cyclewayLink (soll nicht gematcht werden)
@@ -778,13 +789,17 @@ def main():
     else:
         print("Parallelisierung deaktiviert (sequenzielle Verarbeitung)")
     
-    # Konfiguriere Datenquellen basierend auf Neukölln-Parameter
-    DATA_SOURCES = get_data_sources_config(use_neukoelln=args.clip_neukoelln)
-    base_output_dir = './output-bbox' if (args.view and not args.clip_neukoelln) else './output'
+    # Konfiguriere Datenquellen basierend auf Region-Parameter
+    # Nur Neukölln verwendet spezielle Eingabedateien
+    use_neukoelln_files = (args.clip == 'neukoelln')
+    DATA_SOURCES = get_data_sources_config(use_neukoelln=use_neukoelln_files)
+    base_output_dir = './output-bbox' if (args.view and not args.clip) else './output'
     os.makedirs(base_output_dir, exist_ok=True)
     
-    if args.clip_neukoelln:
-        print("--- Verwende Neukölln-spezifische Eingabedateien ---")
+    if args.clip:
+        print(f"--- Regionaler Zuschnitt: {args.clip} ---")
+    elif args.view:
+        print(f"--- Viewport Zuschnitt: {args.view} ---")
     else:
         print("--- Verwende Standard-Eingabedateien (ganz Berlin) ---")
     
@@ -795,6 +810,12 @@ def main():
         vorrangnetz_gdf = clip_to_view(vorrangnetz_gdf, args.view, TARGET_CRS)
         if vorrangnetz_gdf.empty:
             raise SystemExit("Abbruch: Vorrangnetz nach Viewport-Clipping leer")
+    elif args.clip:
+        from helpers.clipping import clip_to_region
+        print(f"Schneide Vorrangnetz auf Region {args.clip}")
+        vorrangnetz_gdf = clip_to_region(vorrangnetz_gdf, './data', TARGET_CRS, args.clip)
+        if vorrangnetz_gdf.empty:
+            raise SystemExit(f"Abbruch: Vorrangnetz nach Regional-Clipping ({args.clip}) leer")
 
     # Dictionary zum Sammeln aller verarbeiteten Datensätze
     processed_datasets = {}
