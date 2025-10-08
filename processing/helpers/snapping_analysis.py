@@ -12,7 +12,8 @@ Analyse-Skript verwendet.
 
 import numpy as np
 import logging
-from shapely.geometry import MultiLineString
+from shapely.geometry import MultiLineString, Point, LineString
+from shapely.ops import nearest_points
 from .traffic_signs import has_traffic_sign
 
 
@@ -33,9 +34,9 @@ class SnappingPriorities:
     
     # Verkehrszeichen-Prioritäten (höhere Zahl = höhere Priorität)
     TRAFFIC_SIGN_PRIORITIES = {
-        "237": 3,  # Radweg
-        "240": 3,  # Gemeinsamer Geh- und Radweg
-        "241": 3,  # Getrennter Rad- und Gehweg
+        "237": 5,  # Radweg
+        "240": 5,  # Gemeinsamer Geh- und Radweg
+        "241": 5,  # Getrennter Rad- und Gehweg
     }
     
     # Kategorie-Prioritäten (höhere Zahl = höhere Priorität)
@@ -52,7 +53,7 @@ class SnappingPriorities:
     }
     
     # Straßennamen-Match Prioritäten
-    STREET_NAME_MATCH_REWARD = 50     # Belohnung für exakte Straßennamen-Übereinstimmung
+    STREET_NAME_MATCH_REWARD = 40     # Belohnung für exakte Straßennamen-Übereinstimmung
     STREET_NAME_MISMATCH_PENALTY = -30  # Strafe für Straßennamen-Mismatch - Kann nicht korrekt sein, daher 100
     
     # Richtungskompatibilität Prioritäten
@@ -73,11 +74,192 @@ class SnappingPriorities:
     MINIMUM_TOTAL_PRIORITY = -10     # Kandidaten mit Gesamtpriorität unter diesem Wert werden komplett ausgeschlossen
 
 
-def calculate_line_angle(geom):
+def is_closed_ring(geom, tolerance=0.01):
+    """
+    Prüft ob eine Geometrie ein geschlossener Ring ist (z.B. Kreisverkehr).
+    
+    Args:
+        geom: LineString oder MultiLineString
+        tolerance: Toleranz in Metern für den Vergleich von Start- und Endpunkt
+        
+    Returns:
+        bool: True wenn es ein geschlossener Ring ist
+    """
+    try:
+        if isinstance(geom, MultiLineString):
+            # Bei MultiLineString: Prüfe erste und letzte Koordinate
+            first_line = geom.geoms[0]
+            last_line = geom.geoms[-1]
+            first_coords = list(first_line.coords)
+            last_coords = list(last_line.coords)
+            
+            if len(first_coords) >= 1 and len(last_coords) >= 1:
+                p1 = first_coords[0]
+                p2 = last_coords[-1]
+            else:
+                return False
+        elif hasattr(geom, 'coords'):
+            coords = list(geom.coords)
+            if len(coords) >= 2:
+                p1, p2 = coords[0], coords[-1]
+            else:
+                return False
+        else:
+            return False
+        
+        # Prüfe Distanz zwischen Start und Ende
+        dx = abs(p2[0] - p1[0])
+        dy = abs(p2[1] - p1[1])
+        distance = np.sqrt(dx**2 + dy**2)
+        
+        return distance < tolerance
+    except Exception as e:
+        logging.debug(f"Fehler bei Ring-Erkennung: {e}")
+        return False
+
+
+def calculate_tangent_angle_at_nearest_point(ring_geom, reference_point):
+    """
+    Berechnet den Tangenten-Winkel an dem Punkt auf dem Ring,
+    der dem Referenzpunkt am nächsten ist.
+    
+    Wird verwendet für Kreisverkehre und andere geschlossene Ringe.
+    
+    Args:
+        ring_geom: Geometrie des Rings (LineString oder MultiLineString)
+        reference_point: Punkt (Shapely Point oder Tuple), zu dem die Nähe berechnet wird
+        
+    Returns:
+        float: Winkel der Tangente in Grad (0-360°)
+    """
+    try:
+        # Konvertiere reference_point zu Shapely Point falls nötig
+        if not isinstance(reference_point, Point):
+            if hasattr(reference_point, '__iter__') and len(reference_point) == 2:
+                reference_point = Point(reference_point)
+            else:
+                logging.warning("Ungültiger Referenzpunkt für Tangentenberechnung")
+                return 0.0
+        
+        # Extrahiere alle Koordinaten vom Ring
+        if isinstance(ring_geom, MultiLineString):
+            # Sammle alle Koordinaten aus allen Teilen
+            all_coords = []
+            for line in ring_geom.geoms:
+                all_coords.extend(list(line.coords))
+        elif hasattr(ring_geom, 'coords'):
+            all_coords = list(ring_geom.coords)
+        else:
+            return 0.0
+        
+        if len(all_coords) < 3:
+            logging.warning("Ring hat zu wenige Koordinaten für Tangentenberechnung")
+            return 0.0
+        
+        # Finde den nächsten Punkt auf dem Ring
+        min_distance = float('inf')
+        nearest_idx = 0
+        
+        for i, coord in enumerate(all_coords):
+            point = Point(coord)
+            dist = reference_point.distance(point)
+            if dist < min_distance:
+                min_distance = dist
+                nearest_idx = i
+        
+        # Berechne Tangente: Verwende Punkte vor und nach dem nächsten Punkt
+        # Für glattere Tangente: Nutze etwas weiter entfernte Punkte wenn möglich
+        offset = min(5, len(all_coords) // 10)  # 5 Punkte oder 10% der Ringgröße
+        offset = max(1, offset)  # Mindestens 1
+        
+        # Indizes mit Wrap-Around (Ring ist zyklisch)
+        prev_idx = (nearest_idx - offset) % len(all_coords)
+        next_idx = (nearest_idx + offset) % len(all_coords)
+        
+        prev_point = all_coords[prev_idx]
+        next_point = all_coords[next_idx]
+        
+        # Berechne Winkel zwischen vorherigem und nächstem Punkt (Tangente)
+        dx = next_point[0] - prev_point[0]
+        dy = next_point[1] - prev_point[1]
+        
+        angle_rad = np.arctan2(dy, dx)
+        angle_deg = np.degrees(angle_rad)
+        if angle_deg < 0:
+            angle_deg += 360
+        
+        logging.debug(f"Ring-Tangente: nächster Punkt idx={nearest_idx}, "
+                     f"Tangente zwischen idx {prev_idx} und {next_idx}, Winkel={angle_deg:.2f}°")
+        
+        return angle_deg
+        
+    except Exception as e:
+        logging.warning(f"Fehler bei Tangentenberechnung für Ring: {e}")
+        return 0.0
+
+
+def calculate_line_angle(geom, reference_geom=None):
     """
     Berechnet den Winkel einer Linie in Grad (0-360°).
-    Behandelt MultiLineString korrekt.
+    Behandelt MultiLineString und geschlossene Ringe (Kreisverkehre) korrekt.
+    
+    Args:
+        geom: Geometrie (LineString oder MultiLineString)
+        reference_geom: Optional - Referenzgeometrie für Kreisverkehre.
+                       Bei geschlossenen Ringen wird die Tangente am nächsten Punkt berechnet.
+    
+    Returns:
+        float: Winkel in Grad (0-360°)
     """
+    # Prüfe ob es ein geschlossener Ring ist (z.B. Kreisverkehr)
+    if is_closed_ring(geom):
+        logging.debug("Geschlossener Ring erkannt (z.B. Kreisverkehr)")
+        
+        if reference_geom is not None:
+            # Berechne Tangente am nächsten Punkt zum Referenz-Segment
+            if isinstance(reference_geom, (LineString, MultiLineString)):
+                # Nutze Mittelpunkt des Referenz-Segments
+                reference_point = reference_geom.interpolate(0.5, normalized=True)
+            elif isinstance(reference_geom, Point):
+                reference_point = reference_geom
+            else:
+                # Fallback: Nutze Zentroid
+                try:
+                    reference_point = reference_geom.centroid
+                except:
+                    reference_point = None
+            
+            if reference_point is not None:
+                angle = calculate_tangent_angle_at_nearest_point(geom, reference_point)
+                logging.debug(f"Ring-Winkel mit Referenz: {angle:.2f}°")
+                return angle
+        
+        # Fallback: Nutze Mittelpunkt des Rings als Referenz
+        try:
+            ring_centroid = geom.centroid
+            # Finde einen Punkt auf dem Ring und berechne Tangente dort
+            if isinstance(geom, MultiLineString):
+                first_line = geom.geoms[0]
+                if len(list(first_line.coords)) > 0:
+                    reference_point = Point(list(first_line.coords)[len(list(first_line.coords))//2])
+                else:
+                    reference_point = ring_centroid
+            else:
+                coords = list(geom.coords)
+                if len(coords) > 0:
+                    reference_point = Point(coords[len(coords)//2])
+                else:
+                    reference_point = ring_centroid
+            
+            angle = calculate_tangent_angle_at_nearest_point(geom, reference_point)
+            logging.debug(f"Ring-Winkel ohne Referenz (Mittelpunkt): {angle:.2f}°")
+            return angle
+        except Exception as e:
+            logging.warning(f"Fehler bei Ring-Fallback-Berechnung: {e}")
+            # Letzter Fallback: 0°
+            return 0.0
+    
+    # Normale Linien: Standard-Berechnung (Start -> Ende)
     if isinstance(geom, MultiLineString):
         # Bei MultiLineString den ersten Punkt der ersten Linie und 
         # den letzten Punkt der letzten Linie verwenden
@@ -154,7 +336,8 @@ def calculate_angle_priority(segment_geom, candidate_geom):
         float: Winkel-Priorität (-40 bis +20)
     """
     segment_angle = calculate_line_angle(segment_geom)
-    candidate_angle = calculate_line_angle(candidate_geom)
+    # Bei Kreisverkehren: Übergebe Segment als Referenz für Tangentenberechnung
+    candidate_angle = calculate_line_angle(candidate_geom, reference_geom=segment_geom)
     
     angle_diff = angle_difference(segment_angle, candidate_angle)
     
@@ -213,6 +396,8 @@ def determine_segment_direction(segment_geom, osm_geom) -> int:
     Bestimmt die Richtung (ri) eines Segments basierend auf der Ausrichtung
     zwischen dem Segment und dem passenden OSM-Weg.
     
+    Bei Kreisverkehren wird die Tangente am nächsten Punkt verwendet.
+    
     Args:
         segment_geom: Geometrie des Netzwerksegments
         osm_geom: Geometrie des OSM-Wegs
@@ -221,7 +406,8 @@ def determine_segment_direction(segment_geom, osm_geom) -> int:
         int: 0 für Hinrichtung (gleiche Richtung), 1 für Rückrichtung (entgegengesetzte Richtung)
     """
     segment_angle = calculate_line_angle(segment_geom)
-    osm_angle = calculate_line_angle(osm_geom)
+    # Bei Kreisverkehren: Übergebe Segment als Referenz für Tangentenberechnung
+    osm_angle = calculate_line_angle(osm_geom, reference_geom=segment_geom)
     
     angle_diff = angle_difference(segment_angle, osm_angle)
     

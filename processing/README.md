@@ -71,6 +71,25 @@ Nach der TILDA-Datenvorbereitung wird die Hauptverarbeitung gestartet:
 - Berechnet Segmentlängen in Metern
 - **Ausgabe**: `output/snapping_network_enriched.fgb`
 
+**Besonderheit: Kreisverkehre und geschlossene Ringe**
+
+Das Snapping-System behandelt Kreisverkehre und andere geschlossene Ringe (Startpunkt == Endpunkt) speziell:
+
+- **Problem**: Bei geschlossenen Ringen ist die Standard-Winkelberechnung (Start → Ende) undefiniert, da dx=0 und dy=0
+- **Lösung**: Bei Kreisverkehren wird die Tangente am nächsten Punkt zum Segment berechnet
+- **Funktionsweise**:
+  1. Das System erkennt automatisch geschlossene Ringe (Distanz Start-Ende < 1cm)
+  2. Es findet den nächsten Punkt auf dem Ring zum jeweiligen Netzwerk-Segment
+  3. Die Tangente wird durch den Winkel zwischen vorherigem und nächstem Punkt berechnet
+  4. Dies ermöglicht eine korrekte Richtungsbestimmung (ri=0 oder ri=1)
+
+- **Implementierung**: `helpers/snapping_analysis.py`
+  - `is_closed_ring()` - Erkennung geschlossener Ringe
+  - `calculate_tangent_angle_at_nearest_point()` - Tangentenberechnung
+  - `calculate_line_angle(geom, reference_geom=None)` - Erweiterte Winkelberechnung
+
+Diese Verbesserung verhindert falsche Zuordnungen bei Kreisverkehren und stellt sicher, dass die `direction_compatibility`-Prüfung korrekt funktioniert.
+
 #### Schritt 3: Schutzstreifen-Konvertierung (`start_bikelane_conversion.py`)
 **Konvertiert Schutzstreifen zu Radfahrstreifen unter bestimmten Bedingungen:**
 
