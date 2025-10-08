@@ -1,5 +1,6 @@
 *.fgb
 *.geojson
+*.geojson.gz
 *.gpq
 *.gpkg
 *.txt
