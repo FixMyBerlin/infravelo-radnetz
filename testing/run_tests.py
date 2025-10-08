@@ -47,9 +47,9 @@ class TestResult:
 class GeoDataTester:
     """Hauptklasse für die Geodaten-Tests"""
     
-    def __init__(self, clip_neukoelln: bool = False):
-        self.clip_neukoelln = clip_neukoelln
-        self.suffix = "_neukoelln" if clip_neukoelln else ""
+    def __init__(self, clip_region: str = None):
+        self.clip_region = clip_region
+        self.suffix = f"_{clip_region}" if clip_region else ""
         self.results: List[TestResult] = []
         
         # Dateipfade definieren
@@ -376,8 +376,8 @@ class GeoDataTester:
         """Führt alle Tests durch und gibt True zurück wenn alle erfolgreich waren"""
         logger.info("🚀 Starte Qualitätssicherungstests...")
         
-        if self.clip_neukoelln:
-            logger.info("🌍 Teste Neukölln-Daten")
+        if self.clip_region:
+            logger.info(f"🌍 Teste {self.clip_region}-Daten")
         else:
             logger.info("🌍 Teste Berlin-weite Daten")
         
@@ -479,9 +479,10 @@ def main():
         description="Qualitätssicherungstests für infraVelo Radnetz Verarbeitungsergebnisse"
     )
     parser.add_argument(
-        '--clip-neukoelln',
-        action='store_true',
-        help='Teste die Neukölln-beschränkten Ergebnisse'
+        '--clip',
+        type=str,
+        choices=['neukoelln', 'norden', 'sueden'],
+        help='Teste die regional beschränkten Ergebnisse'
     )
     
     args = parser.parse_args()
@@ -492,7 +493,7 @@ def main():
     os.chdir(project_root)
     
     # Führe Tests durch
-    tester = GeoDataTester(clip_neukoelln=args.clip_neukoelln)
+    tester = GeoDataTester(clip_region=args.clip)
     success = tester.run_all_tests()
     
     # Exit Code setzen

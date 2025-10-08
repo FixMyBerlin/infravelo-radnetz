@@ -577,7 +577,7 @@ def translate_tilda_attributes(gdf: gpd.GeoDataFrame, data_source: str) -> gpd.G
     return result_gdf
 
 
-def process_file(input_file: str, data_source: str, output_dir: str, crs: str, clip_neukoelln: bool = False, data_dir: str = "./data") -> None:
+def process_file(input_file: str, data_source: str, output_dir: str, crs: str, clip_region: str = None, data_dir: str = "./data") -> None:
     """
     Verarbeitet eine einzelne TILDA-Datei.
     
@@ -586,7 +586,7 @@ def process_file(input_file: str, data_source: str, output_dir: str, crs: str, c
         data_source: Art der Daten ("bikelanes", "streets", "paths")
         output_dir: Ausgabeverzeichnis
         crs: Ziel-Koordinatensystem
-        clip_neukoelln: Ob auf Neukölln zugeschnitten werden soll
+        clip_region: Regionale Beschränkung ('neukoelln', 'norden', 'sueden')
         data_dir: Verzeichnis mit den Eingabedateien
     """
     logging.info(f"Verarbeite {input_file} als {data_source}")
@@ -595,9 +595,10 @@ def process_file(input_file: str, data_source: str, output_dir: str, crs: str, c
     gdf = gpd.read_file(input_file).to_crs(crs)
     logging.info(f"Geladen: {len(gdf)} Features")
     
-    # Optional: Auf Neukölln zuschneiden
-    if clip_neukoelln:
-        gdf = clip_to_neukoelln(gdf, data_dir, crs)
+    # Optional: Auf Region zuschneiden
+    if clip_region:
+        from helpers.clipping import clip_to_region
+        gdf = clip_to_region(gdf, data_dir, crs, clip_region)
     
     # Übersetze Attribute
     translated_gdf = translate_tilda_attributes(gdf, data_source)
@@ -608,7 +609,7 @@ def process_file(input_file: str, data_source: str, output_dir: str, crs: str, c
     translated_gdf = translated_gdf[sorted_cols]
 
     # Speichere Ergebnis
-    filename_suffix = " Neukoelln" if clip_neukoelln else ""
+    filename_suffix = f" {clip_region.capitalize()}" if clip_region else ""
     output_file = os.path.join(output_dir, f"TILDA {data_source.title()}{filename_suffix} Translated.fgb")
     os.makedirs(output_dir, exist_ok=True)
     
@@ -688,14 +689,14 @@ def main():
                        help=f"Ausgabeverzeichnis (default: {OUTPUT_DIR})")
     parser.add_argument("--crs", type=int, default=DEFAULT_CRS,
                        help=f"Ziel-EPSG (default: {DEFAULT_CRS})")
-    parser.add_argument("--clip-neukoelln", action="store_true",
-                       help="Schneide Daten auf Neukölln zu (optional)")
+    parser.add_argument("--clip", type=str, choices=['neukoelln', 'norden', 'sueden'],
+                       help="Regionaler Zuschnitt: 'neukoelln', 'norden' oder 'sueden'")
     
     args = parser.parse_args()
     
     logging.info("Starte TILDA-zu-RVN Attributübersetzung")
-    if args.clip_neukoelln:
-        logging.info("Clipping auf Neukölln aktiviert")
+    if args.clip:
+        logging.info(f"Clipping auf {args.clip} aktiviert")
     
     # Verarbeite alle Eingabedateien
     for data_source, filename in INPUT_FILES.items():
@@ -706,7 +707,7 @@ def main():
             continue
         
         try:
-            process_file(input_path, data_source, args.output_dir, args.crs, args.clip_neukoelln, args.data_dir)
+            process_file(input_path, data_source, args.output_dir, args.crs, args.clip, args.data_dir)
         except Exception as e:
             logging.error(f"Fehler beim Verarbeiten von {input_path}: {e}")
             continue

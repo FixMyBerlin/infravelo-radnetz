@@ -309,8 +309,8 @@ if [[ $START_STEP -le 4 ]]; then
     
     echo "🎯 Schritt 4/5: Finale Aggregation..."
     STEP4_START=$(date +%s)
-    if [[ -n "$CLIP_NEUKOELLN" ]]; then
-        ./.venv/bin/python processing/aggregate_final_model.py --clip-neukoelln --input ./output/snapping_converted_bikelanes_neukoelln.fgb
+    if [[ -n "$CLIP_REGION" ]]; then
+        ./.venv/bin/python processing/aggregate_final_model.py --clip "$CLIP_REGION" --input "./output/snapping_converted_bikelanes_${CLIP_REGION}.fgb"
     elif [[ -n "$VIEW" ]]; then
         ./.venv/bin/python processing/aggregate_final_model.py --view "$VIEW" --input ./output-bbox/snapping_converted_bikelanes_view.fgb
     else
@@ -341,8 +341,8 @@ fi
 #         echo "🧪 Schritt 5/5: Führe Qualitätssicherungstests durch..."
 #         STEP5_START=$(date +%s)
         
-#         if [[ "$CLIP_NEUKOELLN" == "--clip-neukoelln" ]]; then
-#             ./.venv/bin/python testing/run_tests.py --clip-neukoelln
+#         if [[ -n "$CLIP_REGION" ]]; then
+#             ./.venv/bin/python testing/run_tests.py --clip "$CLIP_REGION"
 #         else
 #             ./.venv/bin/python testing/run_tests.py
 #         fi
@@ -389,4 +389,4 @@ echo ""
 echo "🔍 Für QA-Zwecke:"
 echo "   - Verwende den Inspector: cd inspector && npm run dev"
 echo "   - Oder öffne das QGIS Projekt: QGIS QA Processing.qgz"
-echo "   - Führe manuelle Tests durch: python testing/run_tests.py [--clip-neukoelln]"
+echo "   - Führe manuelle Tests durch: python testing/run_tests.py [--clip neukoelln|norden|sueden]"

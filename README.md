@@ -32,10 +32,10 @@ source .venv/bin/activate
 pip install -r processing/requirements.txt
 
 # The process needs to be executed in this order
-./.venv/bin/python processing/translate_attributes_tilda_to_rvn.py --clip-neukoelln
-./.venv/bin/python processing/start_matching.py --clip-neukoelln
-./.venv/bin/python processing/start_snapping.py --clip-neukoelln
-./.venv/bin/python processing/aggregate_final_model.py --input ./output/snapping_network_enriched_neukoelln.fgb
+./.venv/bin/python processing/translate_attributes_tilda_to_rvn.py --clip neukoelln
+./.venv/bin/python processing/start_matching.py --clip neukoelln
+./.venv/bin/python processing/start_snapping.py --clip neukoelln
+./.venv/bin/python processing/aggregate_final_model.py --clip neukoelln --input ./output/snapping_network_enriched_neukoelln.fgb
 
 # To clip new TILDA bikelanes data, execute, then move to data folder
 ./.venv/bin/python ./scripts/clip_tilda_data.py --input ./bikelanes.fgb --clip-features ./data/"Berlin Bezirke.gpkg" --output "./TILDA Radwege Berlin.fgb"
@@ -43,7 +43,7 @@ pip install -r processing/requirements.txt
 
 ```sh
 # Short way to execute processing:
-# --clip-neukoelln Clips all data to Neukölln district
+# --clip <region>  Clips all data to a specific region (neukoelln, norden, sueden)
 ./processing/execute_processing.sh
 
 # Don't forget to make it executable before.

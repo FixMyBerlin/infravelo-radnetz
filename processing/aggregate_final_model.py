@@ -614,7 +614,7 @@ def reorder_aggregated_columns(gdf):
 
 
 # ------------------------------------------------------------- Hauptablauf --
-def process(input_path, output_path, crs, clip_neukoelln=False, data_dir="./data", assign_districts=True, view=None):
+def process(input_path, output_path, crs, clip_region=None, data_dir="./data", assign_districts=True, view=None):
     """
     Hauptfunktion: Lädt angereicherte Netzwerkdaten und führt finale Aggregation durch.
     
@@ -622,9 +622,10 @@ def process(input_path, output_path, crs, clip_neukoelln=False, data_dir="./data
         input_path: Pfad zu angereicherten Netzwerkdaten
         output_path: Pfad für finale aggregierte Daten  
         crs: Ziel-Koordinatensystem (EPSG)
-        clip_neukoelln: Ob auf Neukölln zugeschnitten werden soll
+        clip_region: Regionale Beschränkung ('neukoelln', 'norden', 'sueden')
         data_dir: Verzeichnis mit den Eingabedateien
         assign_districts: Ob Bezirksnummern zugewiesen werden sollen
+        view: Viewport Zuschnitt
     """
     # Logging konfigurieren
     logging.basicConfig(
@@ -648,10 +649,11 @@ def process(input_path, output_path, crs, clip_neukoelln=False, data_dir="./data
     gdf = normalize_radfahrstreifen_types(gdf)
     
     # Optional: Auf Gebiet zuschneiden
-    if clip_neukoelln:
-        logging.info("Schneide Daten auf Neukölln zu")
-        gdf = clip_to_neukoelln(gdf, data_dir, crs)
-        logging.info(f"Nach Neukölln-Clipping: {len(gdf)} Segmente")
+    if clip_region:
+        from helpers.clipping import clip_to_region
+        logging.info(f"Schneide Daten auf Region {clip_region} zu")
+        gdf = clip_to_region(gdf, data_dir, crs, clip_region)
+        logging.info(f"Nach {clip_region}-Clipping: {len(gdf)} Segmente")
     elif view:
         # Bei View-Modus sind die Daten bereits geclippt
         # Überspringe zusätzliches Clipping um Leer-Resultate zu vermeiden
@@ -699,15 +701,15 @@ def process(input_path, output_path, crs, clip_neukoelln=False, data_dir="./data
     os.makedirs(os.path.dirname(p), exist_ok=True)
     Path(p).unlink(missing_ok=True)
     
-    # Füge Suffix für Neukölln-Dateien hinzu
-    if clip_neukoelln:
+    # Füge Suffix für regionale Dateien hinzu
+    if clip_region:
         p_parts = p.split('.')
         if len(p_parts) > 1:
             p_base = '.'.join(p_parts[:-1])
             p_ext = p_parts[-1]
-            p = f"{p_base}_neukoelln.{p_ext}"
+            p = f"{p_base}_{clip_region}.{p_ext}"
         else:
-            p = f"{p}_neukoelln"
+            p = f"{p}_{clip_region}"
     
     # Nach Richtung filtern und in separate Layer schreiben, falls ri-Attribut vorhanden
     if 'ri' in result_gdf.columns:
@@ -754,26 +756,26 @@ if __name__ == "__main__":
                     help="Finale aggregierte Daten (Pfad[:Layer]) - Default: ./output/aggregated_rvn_final.fgb. Bei ri-Attribut wird GPKG mit 3 Layern erstellt: hinrichtung (ri=0), gegenrichtung (ri=1)")
     ap.add_argument("--crs", type=int, default=DEFAULT_CRS,
                     help=f"Ziel-EPSG (default {DEFAULT_CRS})")
-    ap.add_argument("--clip-neukoelln", action="store_true",
-                    help="Schneide Daten auf Neukölln zu (optional)")
-    ap.add_argument("--view", type=str, help="Viewport Zuschnitt 'zoom/lat/lon' (WGS84). Nicht zusammen mit --clip-neukoelln verwenden.")
+    ap.add_argument("--clip", type=str, choices=['neukoelln', 'norden', 'sueden'],
+                    help="Regionaler Zuschnitt: 'neukoelln', 'norden' oder 'sueden'. Nicht mit --view kombinierbar.")
+    ap.add_argument("--view", type=str, help="Viewport Zuschnitt 'zoom/lat/lon' (WGS84). Nicht zusammen mit --clip verwenden.")
     ap.add_argument("--data-dir", default="./data", 
                     help="Pfad zum Datenverzeichnis (default: ./data)")
     ap.add_argument("--no-districts", action="store_true",
                     help="Überspringe Bezirkszuweisung (optional)")
     args = ap.parse_args()
     
-    if args.clip_neukoelln and args.view:
-        ap.error('--clip-neukoelln und --view können nicht gemeinsam verwendet werden')
+    if args.clip and args.view:
+        ap.error('--clip und --view können nicht gemeinsam verwendet werden')
 
-    # Automatische Anpassung des Input-Pfads für Neukölln
-    if args.clip_neukoelln and args.input == "./output/snapping_converted_bikelanes.fgb":
-        args.input = "./output/snapping_converted_bikelanes_neukoelln.fgb"
-        logging.info(f"Automatische Eingabedatei-Anpassung für Neukölln: {args.input}")
+    # Automatische Anpassung des Input-Pfads für regionale Clipping
+    if args.clip and args.input == "./output/snapping_converted_bikelanes.fgb":
+        args.input = f"./output/snapping_converted_bikelanes_{args.clip}.fgb"
+        logging.info(f"Automatische Eingabedatei-Anpassung für {args.clip}: {args.input}")
 
     # Bei View Standard-Ausgabepfad in output-bbox umlenken
     if args.view and args.output == "./output/aggregated_rvn_final.gpkg":
         args.output = "./output-bbox/aggregated_rvn_final_view.gpkg"
 
     # Hauptfunktion aufrufen
-    process(args.input, args.output, args.crs, args.clip_neukoelln, args.data_dir, not args.no_districts, args.view)
+    process(args.input, args.output, args.crs, args.clip, args.data_dir, not args.no_districts, args.view)

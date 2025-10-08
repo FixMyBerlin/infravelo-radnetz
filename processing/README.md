@@ -53,7 +53,7 @@ Nach der TILDA-Datenvorbereitung wird die Hauptverarbeitung gestartet:
 ```
 
 **Optionen:**
-- `--clip-neukoelln` - Beschränkt Verarbeitung auf Bezirk Neukölln
+- `--clip <region>` - Regionaler Zuschnitt: neukoelln, norden oder sueden
 - `--view z/lat/lon` - Viewport-Zuschnitt (WGS84, z.B. 18/52.488306/13.425140)
 - `--start-step <1-5>` - Startet ab bestimmtem Verarbeitungsschritt
 - `--clean-cache` - Vollständige Cache-Bereinigung vor Verarbeitung
@@ -133,9 +133,9 @@ Nach erfolgreicher Verarbeitung finden Sie die finalen Datensätze hier:
   - `gegenrichtung` - Kanten mit ri=1
 - **`output/snapping_converted_bikelanes.fgb`** - Angereicherte Netzwerkdaten nach Schutzstreifen-Konvertierung
 
-### Neukölln-Modus (`--clip-neukoelln`):
-- **`output/aggregated_rvn_final_neukoelln.gpkg`**
-- **`output/snapping_converted_bikelanes_neukoelln.fgb`**
+### Regionaler Zuschnitt (`--clip <region>`):
+- **`output/aggregated_rvn_final_{region}.gpkg`** (z.B. neukoelln, norden, sueden)
+- **`output/snapping_converted_bikelanes_{region}.fgb`**
 
 ### Zusätzliche Dateien:
 - **`output/matched/`** - Gematchte OSM-Wege und Zwischendateien

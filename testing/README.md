@@ -14,8 +14,10 @@ Dieses Verzeichnis enthält automatisierte Qualitätssicherungstests.
 # Teste Berlin-weite Ergebnisse
 python testing/test_final_results.py
 
-# Teste Neukölln-Ergebnisse  
-python testing/test_final_results.py --clip-neukoelln
+# Teste regionale Ergebnisse
+python testing/test_final_results.py --clip neukoelln
+python testing/test_final_results.py --clip norden
+python testing/test_final_results.py --clip sueden
 ```
 
 ### Integration in execute_processing.sh
