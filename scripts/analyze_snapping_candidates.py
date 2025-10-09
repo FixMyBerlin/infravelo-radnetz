@@ -176,12 +176,20 @@ def analyze_candidates_for_sfid(sfid, network_gdf, tilda_gdf, buffer_distance=25
     
     # Bestimme den besten Kandidaten - verwende dieselbe Funktion wie start_snapping.py
     ri_value = segment.get('ri', 0)  # Verwende die korrekte ri aus dem Segment
-    best_candidate = find_best_candidate_for_direction(
+    best_candidate_result = find_best_candidate_for_direction(
         candidates, 
         seg_dict, 
         ri_value,  # Korrekte ri statt None
         segment_direction
     )
+    
+    # find_best_candidate_for_direction gibt ein Tupel zurück: (best_candidate, all_candidates_sorted)
+    best_candidate = None
+    if best_candidate_result is not None:
+        if isinstance(best_candidate_result, tuple):
+            best_candidate = best_candidate_result[0]  # Erster Wert ist der beste Kandidat
+        else:
+            best_candidate = best_candidate_result
     
     selected_candidate = None
     if best_candidate is not None:
