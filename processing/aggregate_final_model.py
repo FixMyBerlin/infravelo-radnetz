@@ -239,6 +239,63 @@ def aggregate_by_longest_section(segments_group, attribute):
     return longest_value
 
 
+def aggregate_fuehr_by_longest_section(segments_group):
+    """
+    Aggregiert das 'fuehr'-Attribut (Führungsform) basierend auf dem längsten Abschnitt.
+    Spezielle Logik: "Kreuzungsweg" wird ausgeschlossen und nur gewählt, wenn keine
+    andere Führungsform vorhanden ist.
+    
+    Args:
+        segments_group: DataFrame-Gruppe mit Segmenten einer Kante
+        
+    Returns:
+        String mit der dominanten Führungsform (exkl. Kreuzungsweg wenn möglich)
+    """
+    if 'fuehr' not in segments_group.columns:
+        return None
+    
+    # Gruppiere Segmente nach Führungsform und summiere Längen
+    value_lengths = {}
+    for _, segment in segments_group.iterrows():
+        value = segment['fuehr']
+        length = calculate_segment_length(segment.geometry)
+        
+        if pd.notna(value):
+            if value not in value_lengths:
+                value_lengths[value] = 0
+            value_lengths[value] += length
+    
+    if not value_lengths:
+        return None
+    
+    # Entferne "Kreuzungsweg" aus der Auswahl (falls andere Werte existieren)
+    filtered_lengths = {k: v for k, v in value_lengths.items() if k != "Kreuzungsweg"}
+    
+    # Falls nach Filterung noch Werte vorhanden sind, wähle längsten
+    if filtered_lengths:
+        longest_value = max(filtered_lengths, key=filtered_lengths.get)
+        
+        # Logging, wenn Kreuzungsweg ignoriert wurde
+        if "Kreuzungsweg" in value_lengths:
+            kreuzungsweg_length = value_lengths["Kreuzungsweg"]
+            total_length = sum(value_lengths.values())
+            logging.debug(
+                f"Kreuzungsweg ({kreuzungsweg_length:.1f}m) ignoriert, "
+                f"gewählt: {longest_value} ({filtered_lengths[longest_value]:.1f}m) "
+                f"von insgesamt {total_length:.1f}m"
+            )
+        
+        return longest_value
+    
+    # Fallback: Wenn nur "Kreuzungsweg" vorhanden ist, verwende diesen
+    if "Kreuzungsweg" in value_lengths:
+        logging.debug("Nur Kreuzungsweg vorhanden - wird als Fallback verwendet")
+        return "Kreuzungsweg"
+    
+    # Sollte nie erreicht werden, aber sicherheitshalber
+    return None
+
+
 def aggregate_by_worst_case(segments_group, attribute, aggregation_type):
     """
     Aggregiert ein Attribut basierend auf dem schlechtesten Fall.
@@ -330,9 +387,13 @@ def aggregate_edge_group(edge_group):
             ri = aggregated.get('ri', 'unknown')
             logging.info(f"Signifikante Änderungen in Kante {element_nr} (Richtung: {ri}): {'; '.join(changes)}")
         
-        # Attribute nach "längster Abschnitt" aggregieren
+        # Spezielle Behandlung für 'fuehr' (Führungsform) mit Kreuzungsweg-Ausschluss
+        if 'fuehr' in edge_group.columns:
+            aggregated['fuehr'] = aggregate_fuehr_by_longest_section(edge_group)
+        
+        # Attribute nach "längster Abschnitt" aggregieren (außer 'fuehr', das bereits behandelt wurde)
         for attr in LONGEST_SECTION_ATTRIBUTES:
-            if attr in edge_group.columns:
+            if attr in edge_group.columns and attr != 'fuehr':
                 aggregated[attr] = aggregate_by_longest_section(edge_group, attr)
         
         # Attribute nach "schlechtestem Fall" aggregieren
