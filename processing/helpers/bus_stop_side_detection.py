@@ -126,10 +126,52 @@ def is_point_on_right_side(point_geometry, line_geometry, tolerance=20.0):
         return False
 
 
+def has_bus_stop_on_right_side(geometry, bus_stops_gdf, ri, buffer_distance=20.0):
+    """
+    Prüft ob eine Geometrie Bushaltestellen auf der rechten Seite hat.
+    
+    Wichtig: Bei ri=1 ist die Fahrtrichtung entgegengesetzt zur Geometrie-Richtung,
+    daher invertieren wir die Seitendefinition (was geometrisch links ist, ist
+    fahrtrichtungsmäßig rechts).
+    
+    Args:
+        geometry: LineString (oder MultiLineString bei Gesamtprüfung)
+        bus_stops_gdf: GeoDataFrame mit Bushaltestellen
+        ri: Richtung (0=HIN, 1=RÜCK)
+        buffer_distance: Puffer-Distanz für Haltestellen-Suche
+        
+    Returns:
+        bool: True wenn mindestens eine Haltestelle auf rechter Seite liegt
+    """
+    # Finde Haltestellen im Umkreis
+    buffer = geometry.buffer(buffer_distance)
+    nearby_stops = bus_stops_gdf[bus_stops_gdf.geometry.intersects(buffer)]
+    
+    if len(nearby_stops) == 0:
+        return False
+    
+    # Prüfe ob mindestens eine Haltestelle auf rechter Seite liegt
+    # Bei ri=1: Invertiere das Ergebnis, da Fahrtrichtung entgegengesetzt
+    for _, stop in nearby_stops.iterrows():
+        is_right = is_point_on_right_side(stop.geometry, geometry, buffer_distance)
+        
+        # Bei ri=1 (RÜCK): Was geometrisch links ist, ist fahrtrichtungsmäßig rechts
+        if ri == 1:
+            is_right = not is_right
+        
+        if is_right:
+            return True
+    
+    return False
+
+
 def filter_bus_stops_by_side(schutzstreifen_row, bus_stops_gdf, buffer_distance=20.0):
     """
     Filtert Bushaltestellen die auf der rechten Seite (Fahrtrichtung) 
     eines Schutzstreifens liegen.
+    
+    Bei ri=1 ist die Fahrtrichtung entgegengesetzt zur Geometrie-Richtung,
+    daher invertieren wir die Seitendefinition.
     
     Args:
         schutzstreifen_row: Pandas Series mit Schutzstreifen-Daten (inkl. geometry, ri)
@@ -150,24 +192,16 @@ def filter_bus_stops_by_side(schutzstreifen_row, bus_stops_gdf, buffer_distance=
         if len(nearby_stops) == 0:
             return nearby_stops
         
-        # Für ri=1 (RÜCK): Geometrie umkehren, da Fahrtrichtung entgegengesetzt ist
-        check_geometry = geometry
-        if ri == 1:
-            # Kehre Koordinatenreihenfolge um
-            if isinstance(geometry, MultiLineString):
-                reversed_lines = []
-                for line in geometry.geoms:
-                    coords = list(line.coords)
-                    reversed_lines.append(LineString(coords[::-1]))
-                check_geometry = MultiLineString(reversed_lines)
-            elif isinstance(geometry, LineString):
-                coords = list(geometry.coords)
-                check_geometry = LineString(coords[::-1])
-        
         # Prüfe für jede Haltestelle, ob sie rechts liegt
-        right_side_mask = nearby_stops.geometry.apply(
-            lambda point: is_point_on_right_side(point, check_geometry, buffer_distance)
-        )
+        # Bei ri=1: Invertiere das Ergebnis, da Fahrtrichtung entgegengesetzt
+        def check_side(point):
+            is_right = is_point_on_right_side(point, geometry, buffer_distance)
+            # Bei ri=1 (RÜCK): Was geometrisch links ist, ist fahrtrichtungsmäßig rechts
+            if ri == 1:
+                is_right = not is_right
+            return is_right
+        
+        right_side_mask = nearby_stops.geometry.apply(check_side)
         
         filtered_stops = nearby_stops[right_side_mask].copy()
         
