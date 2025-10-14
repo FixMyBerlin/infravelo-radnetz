@@ -24,12 +24,13 @@ import os
 import logging
 import geopandas as gpd
 from helpers.globals import DEFAULT_CRS
-from helpers.clipping import clip_to_neukoelln, clip_to_view
+from helpers.clipping import clip_to_region, clip_to_view
 from helpers.convert_schutzstreifen import convert_short_schutzstreifen_to_radfahrstreifen
 from helpers.convert_schutzstreifen_at_bus_stops import (
     convert_schutzstreifen_at_bus_stops_with_gdf,
     load_bus_stops as load_bus_stops_from_path,
 )
+from helpers.convert_schutzstreifen_to_mischverkehr import convert_short_schutzstreifen_to_mischverkehr
 
 
 def read_input_file(file_path):
@@ -46,20 +47,21 @@ def read_input_file(file_path):
         sys.exit(1)
 
 
-def process_bikelane_conversion(input_path, output_path, clip_neukoelln=False, data_dir="./data", view=None):
+def process_bikelane_conversion(input_path, output_path, clip_region=None, data_dir="./data", view=None):
     """
     Hauptfunktion: Konvertiert Schutzstreifen zu Radfahrstreifen.
     
     Args:
         input_path: Pfad zur Eingabedatei (snapping_network_enriched.fgb)
         output_path: Pfad zur Ausgabedatei (snapping_converted_bikelanes.fgb)
-        clip_neukoelln: Ob auf Neukölln zugeschnitten werden soll
+        clip_region: Regionaler Zuschnitt ('neukoelln', 'norden', 'sueden')
         data_dir: Verzeichnis mit den Eingabedateien
         view: Viewport-Zuschnitt (z/lat/lon)
     """
     # Logging konfigurieren
+    log_level = logging.DEBUG if clip_region or view else logging.INFO
     logging.basicConfig(
-        level=logging.INFO, 
+        level=log_level, 
         format='%(asctime)s - %(levelname)s: %(message)s',
         datefmt='%H:%M:%S'
     )
@@ -77,22 +79,39 @@ def process_bikelane_conversion(input_path, output_path, clip_neukoelln=False, d
     logging.info(f"Eingabedaten geladen: {len(gdf)} Kanten")
     
     # Räumliche Filter anwenden (falls erforderlich)
-    if clip_neukoelln:
-        logging.info("Schneide Daten auf Neukölln zu...")
-        # clip_to_neukoelln expects (gdf, data_dir, crs, boundary_file=...)
-        gdf = clip_to_neukoelln(gdf, data_dir, f"EPSG:{DEFAULT_CRS}")
-        logging.info(f"Nach Neukölln-Zuschnitt: {len(gdf)} Kanten")
+    if clip_region:
+        logging.info(f"Schneide Daten auf Region {clip_region} zu...")
+        gdf = clip_to_region(gdf, data_dir, f"EPSG:{DEFAULT_CRS}", clip_region)
+        logging.info(f"Nach {clip_region}-Zuschnitt: {len(gdf)} Kanten")
     elif view:
         logging.info(f"Schneide Daten auf Viewport zu: {view}")
         gdf = clip_to_view(gdf, view)
         logging.info(f"Nach Viewport-Zuschnitt: {len(gdf)} Kanten")
     
+    # ---------- Schutzstreifen-Konvertierung 0: Zu Mischverkehr -----------
+    logging.info("Konvertiere kurze Schutzstreifen zwischen Mischverkehr zu Mischverkehr...")
+    
+    # Zähle Schutzstreifen vor allen Konvertierungen
+    schutzstreifen_initial = len(gdf[gdf['fuehr'] == 'Schutzstreifen'])
+    logging.info(f"Anzahl Schutzstreifen vor Konvertierung: {schutzstreifen_initial}")
+    
+    gdf = convert_short_schutzstreifen_to_mischverkehr(
+        gdf,
+        length_threshold=50.0,
+        tolerance=1.0
+    )
+    
+    # Zähle Schutzstreifen nach Mischverkehr-Konvertierung
+    schutzstreifen_after_mischverkehr = len(gdf[gdf['fuehr'] == 'Schutzstreifen'])
+    converted_to_mischverkehr = schutzstreifen_initial - schutzstreifen_after_mischverkehr
+    logging.info(f"Zu Mischverkehr konvertiert: {converted_to_mischverkehr}")
+    
     # ---------- Schutzstreifen-Konvertierung 1: An Bushaltestellen ---------
     logging.info("Konvertiere Schutzstreifen an Bushaltestellen zu Radfahrstreifen...")
     
-    # Zähle Schutzstreifen vor der Konvertierung
-    schutzstreifen_before = len(gdf[gdf['fuehr'] == 'Schutzstreifen'])
-    logging.info(f"Anzahl Schutzstreifen vor Konvertierung: {schutzstreifen_before}")
+    # Zähle Schutzstreifen vor der Radfahrstreifen-Konvertierung
+    schutzstreifen_before = schutzstreifen_after_mischverkehr
+    logging.info(f"Anzahl Schutzstreifen vor Radfahrstreifen-Konvertierung: {schutzstreifen_before}")
     
     # Lade Bushaltestellen-Datei
     bus_stops_gdf = load_bus_stops_from_path("output/bus_stops_on_rvn.fgb")
@@ -146,10 +165,11 @@ def process_bikelane_conversion(input_path, output_path, clip_neukoelln=False, d
     # Zusammenfassung der Konvertierung
     logging.info("=" * 60)
     logging.info("ZUSAMMENFASSUNG SCHUTZSTREIFEN-KONVERTIERUNG:")
-    logging.info(f"  Schutzstreifen vor Konvertierung: {schutzstreifen_before}")
-    logging.info(f"  An Bushaltestellen konvertiert: {converted_bus_stops}")
-    logging.info(f"  Kurze Schutzstreifen konvertiert: {converted_short}")
-    logging.info(f"  Gesamt konvertiert: {total_converted}")
+    logging.info(f"  Schutzstreifen initial: {schutzstreifen_initial}")
+    logging.info(f"  → Zu Mischverkehr konvertiert: {converted_to_mischverkehr}")
+    logging.info(f"  → An Bushaltestellen zu Radfahrstreifen: {converted_bus_stops}")
+    logging.info(f"  → Kurze Schutzstreifen zu Radfahrstreifen: {converted_short}")
+    logging.info(f"  Gesamt konvertiert: {schutzstreifen_initial - schutzstreifen_final}")
     logging.info(f"  Verbleibende Schutzstreifen: {schutzstreifen_final}")
     logging.info("=" * 60)
 
@@ -192,7 +212,7 @@ if __name__ == "__main__":
     process_bikelane_conversion(
         args.input, 
         args.output, 
-        args.clip_neukoelln, 
+        args.clip, 
         args.data_dir, 
         args.view
     )
