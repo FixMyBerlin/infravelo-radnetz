@@ -41,10 +41,10 @@ class SnappingPriorities:
     
     # Kategorie-Prioritäten (höhere Zahl = höhere Priorität)
     CATEGORY_PRIORITIES = {
-        "bicycleRoad*":             17,  # Fahrradstraße
-        "cycleway*":                17,  # Radweg
+        "cycleway*":                18,  # Radweg
+        "bicycleRoad*":             15,  # Fahrradstraße
         "footAndCycleway*":         15,  # Fußweg mit Radverkehr
-        "crossing":                 15, # Kreuzungsweg
+        "crossing":                 13, # Kreuzungsweg
         "sharedBusLaneBikeWithBus": 12,  # Radfahrstreifen mit Busverkehr frei
         "sharedBusLaneBusWithBike": 12, # Bussonderfahrstreifen mit Radverkehr frei
         "footwayBicycle*":          10,  # Fußweg mit Radverkehr
@@ -63,10 +63,10 @@ class SnappingPriorities:
     
     # Winkel-Priorität Konfiguration (kontinuierliche Funktion)
     ANGLE_PARALLEL_REWARD = 20       # Belohnung für parallele Wege (0°, 180°) - maximaler Wert
-    ANGLE_ORTHOGONAL_PENALTY = -40   # Strafe für orthogonale Wege (90°) - minimaler Wert der kontinuierlichen Funktion
+    ANGLE_ORTHOGONAL_PENALTY = -50   # Strafe für orthogonale Wege (90°) - minimaler Wert der kontinuierlichen Funktion
     
     # Entfernungs-Priorität Konfiguration
-    DISTANCE_MAX_PRIORITY = 15       # Maximale Priorität bei Entfernung 0m
+    DISTANCE_MAX_PRIORITY = 20       # Maximale Priorität bei Entfernung 0m
     DISTANCE_REFERENCE = 10.0        # Referenz-Entfernung in Metern (bei dieser Entfernung = halbe Priorität)
     DISTANCE_WEIGHT_FACTOR = 1.0     # Gewichtungsfaktor für Entfernungseinfluss (1.0 = volle Gewichtung)
     

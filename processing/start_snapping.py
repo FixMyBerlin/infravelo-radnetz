@@ -51,7 +51,7 @@ from helpers.snapping_analysis import (
 )
 
 # -------------------------------------------------------------- Konstanten --
-CONFIG_BUFFER_DEFAULT = 25     # Standard-Puffergröße in Metern zum Suchraum
+CONFIG_BUFFER_DEFAULT = 30     # Standard-Puffergröße in Metern zum Suchraum
 CONFIG_SEGMENT_LENGTH = 2.5    # Segmentlänge in Metern für die Netz-Aufteilung
 CONFIG_PROGRESS_UPDATE_INTERVAL = 100  # Fortschritt alle N Segmente aktualisieren
 CONFIG_BATCH_SIZE = 750        # Anzahl Segmente pro Batch für bessere Performance
