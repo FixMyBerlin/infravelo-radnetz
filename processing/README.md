@@ -69,6 +69,7 @@ Nach der TILDA-Datenvorbereitung wird die Hauptverarbeitung gestartet:
 - Überträgt TILDA-Attribute auf ein topologisches Richtungs-Straßennetz
 - Bei fehlenden TILDA-Daten wird `fuehr="Keine Radinfrastruktur vorhanden"` gesetzt
 - Berechnet Segmentlängen in Metern
+- Weist Bezirksnummern zu (basierend auf größtem räumlichen Anteil)
 - **Ausgabe**: `output/snapping_network_enriched.fgb`
 
 **Besonderheit: Kreisverkehre und geschlossene Ringe**

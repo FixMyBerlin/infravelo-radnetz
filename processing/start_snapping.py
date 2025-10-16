@@ -12,11 +12,13 @@ start_snapping.py
 – Verwendet übersetzte TILDA-Attribute: fuehr, ofm, protek, pflicht, breite, farbe
 – Bei fehlenden TILDA-Daten wird fuehr="Keine Radinfrastruktur vorhanden" gesetzt
 – Berechnet die Länge jedes Segments in Metern (gerundet, ohne Nachkommastellen)
+– Weist Bezirksnummern zu (basierend auf größtem räumlichen Anteil)
 – Enthält Datenaufbereitung: Spaltenordnung für finale Ausgabe
 
 INPUT:
 - output/rvn/vorrangnetz_details_combined_rvn.fgb (Straßennetz)
 - output/matched/matched_tilda_ways.fgb (TILDA-übersetzte Daten)
+- data/Berlin Bezirke.gpkg (Berliner Bezirksgrenzen für Bezirkszuweisung)
 - data/opposite_edge_overwrite_element_nr.txt (Optional: Liste von element_nr für manuelles Entfernen der Rückrichtung)
 
 OUTPUT:
@@ -41,6 +43,7 @@ from shapely.ops import linemerge
 from helpers.progressbar import print_progressbar
 from helpers.globals import DEFAULT_CRS
 from helpers.clipping import clip_to_region, clip_to_view
+from helpers.district_assignment import assign_district_to_edges
 
 from helpers.snapping_analysis import (
     calculate_line_angle,
@@ -1470,6 +1473,14 @@ def process(net_path, osm_path, out_path, crs, buffer, data_dir="./data", log_ca
     logging.info("Füge SFID-Spalte (Snapping FID) hinzu...")
     out_gdf['sfid'] = range(1, len(out_gdf) + 1)
     logging.info(f"SFID-Spalte hinzugefügt: {len(out_gdf)} Kanten nummeriert")
+    
+    # ---------- Bezirkszuweisung durchführen -------------------------------
+    districts_path = os.path.join(data_dir, "Berlin Bezirke.gpkg")
+    if os.path.exists(districts_path):
+        logging.info("Starte Bezirkszuweisung...")
+        out_gdf = assign_district_to_edges(out_gdf, districts_path, crs)
+    else:
+        logging.warning(f"Bezirksdatei nicht gefunden: {districts_path}. Überspringe Bezirkszuweisung.")
     
     # ---------- Datenaufbereitung: Spaltenordnung --------------------------
     logging.info("Bereite Daten für Ausgabe vor: Ordne Spalten...")
