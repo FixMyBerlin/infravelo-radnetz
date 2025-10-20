@@ -5,7 +5,7 @@ import type { LayerLegend } from './types'
 export const WIDTH_COMPLETE = '#32CD32' // green - width and source present
 export const WIDTH_MISSING = '#FF0000' // red - width missing
 export const WIDTH_MISSING_LOW_PRIORITY = '#FFE4E1' // very light red - width missing but not priority
-export const WIDTH_SOURCE_MISSING = '#8B0000' // dark red - width present but source missing
+export const WIDTH_SOURCE_MISSING = '#914ec7ff' // dark red - width present but source missing
 
 export const getWidthOpacity: DataDrivenPropertyValueSpecification<number> = 0.8
 
