@@ -1,21 +1,11 @@
-import { parseAsArrayOf, parseAsString, useQueryState } from 'nuqs'
 import { Fragment } from 'react'
 import { Layer, Source } from 'react-map-gl/maplibre'
 import { MapillaryAllLayers, MapillaryFMCLayers } from './MapillaryLayers'
-
-const CONTEXT_DEFAULTS: readonly string[] = []
+import { OsmUpdateContextControls } from './OsmUpdateContextControls'
+import { OsmUpdateContextLayers } from './OsmUpdateContextLayers'
 
 export const ContextLayerControls = () => {
-  const [contextLayers, setContextLayers] = useQueryState(
-    'context_layer',
-    parseAsArrayOf(parseAsString).withDefault([...CONTEXT_DEFAULTS]),
-  )
-
-  const toggle = (key: string) => {
-    setContextLayers((prev) =>
-      prev.includes(key) ? prev.filter((v) => v !== key) : [...prev, key],
-    )
-  }
+  const { contextLayers, toggle } = useContextLayers()
 
   return (
     <section className="mt-6">
@@ -77,10 +67,7 @@ export const ContextLayerControls = () => {
 }
 
 export const ContextMapLayers = () => {
-  const [contextLayers] = useQueryState(
-    'context_layer',
-    parseAsArrayOf(parseAsString).withDefault([...CONTEXT_DEFAULTS]),
-  )
+  const { contextLayers } = useContextLayers()
 
   return (
     <Fragment>
