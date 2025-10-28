@@ -12,7 +12,7 @@ export const LayerLegends = ({ activeCategories, legends }: Props) => {
       {activeCategories.map((category) => {
         const legend = legends[category]
         if (!legend) return null
-        return <Legend key={category} legend={legend} />
+        return <Legend key={category} legend={legend} layerId={category} />
       })}
     </div>
   )
