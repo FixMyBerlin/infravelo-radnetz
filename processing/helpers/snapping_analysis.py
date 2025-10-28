@@ -41,24 +41,24 @@ class SnappingPriorities:
     
     # Kategorie-Prioritäten (höhere Zahl = höhere Priorität)
     CATEGORY_PRIORITIES = {
-        "cycleway*":                18,  # Radweg
+        "cycleway*":                30,  # Radweg
+        "footAndCycleway*":         25,  # Fußweg mit Radverkehr
+        "footwayBicycle*":          17,  # Fußweg mit Radverkehr
         "bicycleRoad*":             15,  # Fahrradstraße
-        "footAndCycleway*":         15,  # Fußweg mit Radverkehr
         "crossing":                 13, # Kreuzungsweg
         "sharedBusLaneBikeWithBus": 12,  # Radfahrstreifen mit Busverkehr frei
         "sharedBusLaneBusWithBike": 12, # Bussonderfahrstreifen mit Radverkehr frei
-        "footwayBicycle*":          10,  # Fußweg mit Radverkehr
         "pedestrianAreaBicycleYes": 5,  # Fußgängerzone mit Radverkehr
         "sharedMotorVehicleLane":   1,  # Niedrigste Priorität
     }
     
     # Straßennamen-Match Prioritäten
-    STREET_NAME_MATCH_REWARD = 40     # Belohnung für exakte Straßennamen-Übereinstimmung
+    STREET_NAME_MATCH_REWARD = 30     # Belohnung für exakte Straßennamen-Übereinstimmung
     STREET_NAME_MISMATCH_PENALTY = -30  # Strafe für Straßennamen-Mismatch - Kann nicht korrekt sein, daher 100
     
     # Richtungskompatibilität Prioritäten
-    DIRECTION_PERFECT_MATCH = 10     # Einrichtungsverkehr mit passender Richtung
-    DIRECTION_BIDIRECTIONAL = 8      # Zweirichtungsverkehr (beide Richtungen möglich)
+    DIRECTION_PERFECT_MATCH = 15      # Einrichtungsverkehr mit passender Richtung
+    DIRECTION_BIDIRECTIONAL = 10      # Zweirichtungsverkehr (beide Richtungen möglich)
     DIRECTION_WRONG_WAY = -100        # Einrichtungsverkehr mit falscher Richtung
     
     # Winkel-Priorität Konfiguration (kontinuierliche Funktion)
@@ -66,8 +66,8 @@ class SnappingPriorities:
     ANGLE_ORTHOGONAL_PENALTY = -50   # Strafe für orthogonale Wege (90°) - minimaler Wert der kontinuierlichen Funktion
     
     # Entfernungs-Priorität Konfiguration
-    DISTANCE_MAX_PRIORITY = 20       # Maximale Priorität bei Entfernung 0m
-    DISTANCE_REFERENCE = 10.0        # Referenz-Entfernung in Metern (bei dieser Entfernung = halbe Priorität)
+    DISTANCE_MAX_PRIORITY = 15       # Maximale Priorität bei Entfernung 0m
+    DISTANCE_REFERENCE = 10          # Referenz-Entfernung in Metern (bei dieser Entfernung = halbe Priorität)
     DISTANCE_WEIGHT_FACTOR = 1.0     # Gewichtungsfaktor für Entfernungseinfluss (1.0 = volle Gewichtung)
     
     # Mindestpriorität für Kandidatenauswahl
