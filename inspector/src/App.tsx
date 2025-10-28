@@ -1,6 +1,6 @@
 import { Square3Stack3DIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import maplibregl, { type MapSourceDataEvent } from 'maplibre-gl'
+import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { parseAsArrayOf, parseAsString, useQueryState } from 'nuqs'
 import { Protocol } from 'pmtiles'
@@ -79,7 +79,6 @@ const App = () => {
   )
   // Context layers are handled in ContextLayers components
   const [layers, setLayers] = useState<CategoryArray>([])
-  const [sourceLayerMap, setSourceLayerMap] = useState<Record<string, string>>({})
   const [mapLoaded, setMapLoaded] = useState(false)
   const [showLayerPanel, setShowLayerPanel] = useState(true)
 
@@ -135,19 +134,6 @@ const App = () => {
     )
   }
 
-  const handleSourcesLoaded = (event: MapSourceDataEvent) => {
-    // Get the layerId
-    // @ts-expect-error this is fine
-    let layerId = event?.style?.sourceCaches?.[event.sourceId]?._source?.vectorLayerIds?.[0]
-    // Special treatment for function
-    layerId = layerId || event.sourceId.replace('atlas_generalized_', '')
-
-    setSourceLayerMap((prev) => {
-      prev[event.sourceId] = layerId
-      return prev
-    })
-  }
-
   const handleMoveEnd = (event: ViewStateChangeEvent) => {
     const { latitude, longitude, zoom } = event.viewState
     void setMapParam({ zoom, lat: latitude, lng: longitude }, { history: 'replace' })
@@ -162,7 +148,7 @@ const App = () => {
   const handleMapClick = ({ features, target: map }: MapLayerMouseEvent) => {
     inspectorFeatures.forEach((feature) => {
       map.setFeatureState(
-        { source: feature.source, sourceLayer: sourceLayerMap[feature.source], id: feature.id },
+        { source: feature.source, sourceLayer: feature.source, id: feature.id },
         { selected: false },
       )
     })
@@ -172,7 +158,7 @@ const App = () => {
 
       features.forEach((feature) => {
         map.setFeatureState(
-          { source: feature.source, sourceLayer: sourceLayerMap[feature.source], id: feature.id },
+          { source: feature.source, sourceLayer: feature.source, id: feature.id },
           { selected: true },
         )
       })
@@ -188,7 +174,7 @@ const App = () => {
   ) => {
     hoverFeatures.forEach((feature) => {
       map.setFeatureState(
-        { source: feature.source, sourceLayer: sourceLayerMap[feature.source], id: feature.id },
+        { source: feature.source, sourceLayer: feature.source, id: feature.id },
         { hover: false },
       )
     })
@@ -198,7 +184,7 @@ const App = () => {
 
       features.forEach((feature) => {
         map.setFeatureState(
-          { source: feature.source, sourceLayer: sourceLayerMap[feature.source], id: feature.id },
+          { source: feature.source, sourceLayer: feature.source, id: feature.id },
           { hover: true },
         )
       })
@@ -363,7 +349,6 @@ const App = () => {
               onMouseMove={handleMouseMove}
               onMouseLeave={handleMouseLeave}
               onClick={handleMapClick}
-              onSourceData={handleSourcesLoaded}
               onLoad={handleLoad}
               style={{ width: '100%', height: '100%' }}
               // mapStyle="https://basemaps.cartocdn.com/gl/positron-gl-style/style.json"
@@ -397,7 +382,7 @@ const App = () => {
                   {layers
                     .filter((layer) => activeLayers.includes(layer.id))
                     .map((layer) => {
-                      const sourceLayer = sourceLayerMap[layer.source]
+                      const sourceLayer = layer.source
                       if (!sourceLayer) return null
 
                       switch (layer.id) {
@@ -470,7 +455,7 @@ const App = () => {
                   {layers
                     .filter((layer) => activeLayers.includes(layer.id))
                     .map((layer) => {
-                      const sourceLayer = sourceLayerMap[layer.source]
+                      const sourceLayer = layer.source
                       if (!sourceLayer) return null
 
                       // Interaction layer (hover/selected states)
@@ -530,7 +515,7 @@ const App = () => {
                   {layers
                     .filter((layer) => activeLayers.includes(layer.id))
                     .map((layer) => {
-                      const sourceLayer = sourceLayerMap[layer.source]
+                      const sourceLayer = layer.source
                       if (!sourceLayer) return null
 
                       // Create arrow layer for each source that has line layers
