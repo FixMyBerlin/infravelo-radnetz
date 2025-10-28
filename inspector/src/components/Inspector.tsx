@@ -3,21 +3,10 @@ import { clsx } from 'clsx'
 import { formatDistanceToNow, fromUnixTime } from 'date-fns'
 import { useState } from 'react'
 import type { MapGeoJSONFeature } from 'react-map-gl/maplibre'
+import { longOsmType } from '../utils/osmTypes'
 import { MapillaryPreview } from './MapillaryPreview'
 import { OsmTagsLoader } from './OsmTagsLoader'
-
-const longOsmType = {
-  W: 'way',
-  N: 'node',
-  R: 'relation',
-  w: 'way',
-  n: 'node',
-  r: 'relation',
-  // Just so we can use this for both format
-  way: 'way',
-  node: 'node',
-  relation: 'relation',
-}
+import { OsmUpdateNotice } from './OsmUpdateNotice'
 
 type LayerConfig = {
   id: string
@@ -28,9 +17,10 @@ type LayerConfig = {
 type Props = {
   inspectorFeatures: MapGeoJSONFeature[]
   activeLayerConfigs: LayerConfig[]
+  source: 'Production' | 'Staging' | 'Development'
 }
 
-export const Inspector = ({ inspectorFeatures, activeLayerConfigs }: Props) => {
+export const Inspector = ({ inspectorFeatures, activeLayerConfigs, source }: Props) => {
   const [open, setOpen] = useState(true)
 
   if (!open) {
@@ -117,6 +107,10 @@ export const Inspector = ({ inspectorFeatures, activeLayerConfigs }: Props) => {
                       )}
                     </div>
                   </div>
+
+                  {/* OSM Update Notice */}
+                  <OsmUpdateNotice feature={feature} source={source} />
+
                   <ul className="space-y-0.5">
                     {Object.entries(feature.properties)
                       .sort(([keyA], [keyB]) => {

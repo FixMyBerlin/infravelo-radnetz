@@ -620,6 +620,7 @@ const App = () => {
           <Inspector
             inspectorFeatures={inspectorFeatures}
             activeLayerConfigs={layers.filter((layer) => activeLayers.includes(layer.id))}
+            source={source}
           />
         </main>
       </MapProvider>
