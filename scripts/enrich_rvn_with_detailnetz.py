@@ -20,6 +20,7 @@ import logging
 import sys
 import os
 from pathlib import Path
+from shapely.geometry import MultiLineString
 
 # Pfad zur processing-Verzeichnis hinzufügen
 processing_path = Path(__file__).parent.parent / "processing"
@@ -99,7 +100,7 @@ def prepare_datasets(vorrangnetz, detailnetz):
     vorrangnetz_prepared['unique_id'] = vorrangnetz_prepared.index.astype(str) + '_' + vorrangnetz_prepared['element_nr'].astype(str)
     
     # Detailnetz: Relevante Spalten auswählen und eindeutige ID erstellen
-    detailnetz_cols = ['element_nr', 'strassenname', 'strassenklasse', 'beginnt_bei_vp', 'endet_bei_vp', 'geometry']
+    detailnetz_cols = ['element_nr', 'strassenname', 'strassenklasse', 'beginnt_bei_vp', 'endet_bei_vp', 'verkehrsrichtung', 'geometry']
     detailnetz_prepared = detailnetz[detailnetz_cols].copy()
     
     # Erstelle eindeutige ID für Detailnetz
@@ -108,6 +109,9 @@ def prepare_datasets(vorrangnetz, detailnetz):
     # Leere oder None-Werte behandeln
     detailnetz_prepared['strassenname'] = detailnetz_prepared['strassenname'].fillna('')
     detailnetz_prepared['strassenklasse'] = detailnetz_prepared['strassenklasse'].fillna('')
+    
+    # Verkehrsrichtung: None-Werte bleiben None (werden später zu NULL)
+    # Mögliche Werte: B (beide Richtungen), G (Gegenrichtung), R (Richtung)
     
     logger.info(f"Vorrangnetz vorbereitet: {len(vorrangnetz_prepared)} Kanten")
     logger.info(f"Detailnetz vorbereitet: {len(detailnetz_prepared)} Kanten")
@@ -216,6 +220,57 @@ def identify_gaps_in_coverage(vorrangnetz, detailnetz_in_buffer, buffer_meters=5
     return result
 
 
+def reverse_geometry_for_gegenrichtung(detailnetz_in_buffer):
+    """
+    Dreht die Geometrie von Kanten mit verkehrsrichtung='G' (Gegenrichtung) um.
+    Bei Gegenrichtung läuft die Verkehrsrichtung entgegen der Digitalisierungsrichtung
+    der Geometrie, daher muss die Geometrie umgedreht werden.
+    
+    Args:
+        detailnetz_in_buffer (GeoDataFrame): Detailnetz-Kanten im Buffer
+        
+    Returns:
+        GeoDataFrame: Detailnetz mit korrigierter Geometrie für Gegenrichtung
+    """
+    logger.info("Überprüfe und korrigiere Geometrien bei verkehrsrichtung='G'...")
+    
+    result = detailnetz_in_buffer.copy()
+    reversed_count = 0
+    
+    for idx, row in result.iterrows():
+        if row.get('verkehrsrichtung') == 'G':
+            # Geometrie umdrehen (reverse)
+            original_geom = row.geometry
+            
+            # MultiLineString oder LineString behandeln
+            if original_geom.geom_type == 'LineString':
+                reversed_geom = type(original_geom)(list(original_geom.coords)[::-1])
+            elif original_geom.geom_type == 'MultiLineString':
+                reversed_lines = [
+                    type(line)(list(line.coords)[::-1])
+                    for line in original_geom.geoms
+                ]
+                reversed_geom = MultiLineString(reversed_lines)
+            else:
+                logger.warning(f"Unerwarteter Geometrietyp {original_geom.geom_type} bei element_nr {row['element_nr']}")
+                continue
+            
+            result.at[idx, 'geometry'] = reversed_geom
+            reversed_count += 1
+            
+            logger.warning(
+                f"Geometrie umgedreht für element_nr {row['element_nr']} "
+                f"(verkehrsrichtung='G', Kante läuft entgegen Digitalisierungsrichtung)"
+            )
+    
+    if reversed_count > 0:
+        logger.info(f"Insgesamt {reversed_count} Geometrien mit verkehrsrichtung='G' umgedreht")
+    else:
+        logger.info("Keine Kanten mit verkehrsrichtung='G' gefunden")
+    
+    return result
+
+
 def combine_datasets(detailnetz_in_buffer, vorrangnetz_gaps):
     """
     Kombiniert Detailnetz-Kanten und Vorrangnetz-Lücken zu einem finalen Datensatz.
@@ -234,22 +289,23 @@ def combine_datasets(detailnetz_in_buffer, vorrangnetz_gaps):
         vorrangnetz_enhanced = vorrangnetz_gaps.copy()
         vorrangnetz_enhanced['strassenname'] = ''
         vorrangnetz_enhanced['strassenklasse'] = ''
+        vorrangnetz_enhanced['verkehrsrichtung'] = None  # NULL für Vorrangnetz-Kanten
         vorrangnetz_enhanced['edge_source'] = 'rvn'
         
         # Spalten in gleicher Reihenfolge wie Detailnetz
-        target_columns = ['unique_id', 'element_nr', 'strassenname', 'strassenklasse', 'beginnt_bei_vp', 'endet_bei_vp', 'edge_source', 'geometry']
+        target_columns = ['unique_id', 'element_nr', 'strassenname', 'strassenklasse', 'verkehrsrichtung', 'beginnt_bei_vp', 'endet_bei_vp', 'edge_source', 'geometry']
         vorrangnetz_enhanced = vorrangnetz_enhanced[target_columns]
     else:
-        vorrangnetz_enhanced = gpd.GeoDataFrame(columns=['unique_id', 'element_nr', 'strassenname', 'strassenklasse', 'beginnt_bei_vp', 'endet_bei_vp', 'edge_source', 'geometry'])
+        vorrangnetz_enhanced = gpd.GeoDataFrame(columns=['unique_id', 'element_nr', 'strassenname', 'strassenklasse', 'verkehrsrichtung', 'beginnt_bei_vp', 'endet_bei_vp', 'edge_source', 'geometry'])
     
     # Detailnetz-Kanten: Spalten in richtiger Reihenfolge und Quelle hinzufügen
     if len(detailnetz_in_buffer) > 0:
         detailnetz_selected = detailnetz_in_buffer.copy()
         detailnetz_selected['edge_source'] = 'detailnetz'
-        target_columns = ['unique_id', 'element_nr', 'strassenname', 'strassenklasse', 'beginnt_bei_vp', 'endet_bei_vp', 'edge_source', 'geometry']
+        target_columns = ['unique_id', 'element_nr', 'strassenname', 'strassenklasse', 'verkehrsrichtung', 'beginnt_bei_vp', 'endet_bei_vp', 'edge_source', 'geometry']
         detailnetz_selected = detailnetz_selected[target_columns]
     else:
-        detailnetz_selected = gpd.GeoDataFrame(columns=['unique_id', 'element_nr', 'strassenname', 'strassenklasse', 'beginnt_bei_vp', 'endet_bei_vp', 'edge_source', 'geometry'])
+        detailnetz_selected = gpd.GeoDataFrame(columns=['unique_id', 'element_nr', 'strassenname', 'strassenklasse', 'verkehrsrichtung', 'beginnt_bei_vp', 'endet_bei_vp', 'edge_source', 'geometry'])
     
     # Kombinieren
     combined = pd.concat([detailnetz_selected, vorrangnetz_enhanced], ignore_index=True)
@@ -365,19 +421,22 @@ def main():
         # 3. Detailnetz-Kanten im Buffer finden
         detailnetz_in_buffer = find_detailnetz_in_buffer(vorrangnetz_prep, detailnetz_prep, buffer_meters=5)
         
-        # 4. Lücken im Vorrangnetz identifizieren
-        vorrangnetz_gaps = identify_gaps_in_coverage(vorrangnetz_prep, detailnetz_in_buffer, buffer_meters=5)
+        # 4. Geometrien bei verkehrsrichtung='G' umdrehen
+        detailnetz_corrected = reverse_geometry_for_gegenrichtung(detailnetz_in_buffer)
         
-        # 5. Datensätze kombinieren
-        combined_gdf = combine_datasets(detailnetz_in_buffer, vorrangnetz_gaps)
+        # 5. Lücken im Vorrangnetz identifizieren
+        vorrangnetz_gaps = identify_gaps_in_coverage(vorrangnetz_prep, detailnetz_corrected, buffer_meters=5)
         
-        # 6. Duplikate entfernen
+        # 6. Datensätze kombinieren
+        combined_gdf = combine_datasets(detailnetz_corrected, vorrangnetz_gaps)
+        
+        # 7. Duplikate entfernen
         final_gdf = check_for_duplicates(combined_gdf)
         
-        # 7. Ausgeschlossene element_nr entfernen
+        # 8. Ausgeschlossene element_nr entfernen
         final_gdf = filter_excluded_elements(final_gdf)
         
-        # 8. Ergebnis speichern
+        # 9. Ergebnis speichern
         output_path = "output/rvn/vorrangnetz_details_combined_rvn.fgb"
         save_result(final_gdf, output_path)
         
