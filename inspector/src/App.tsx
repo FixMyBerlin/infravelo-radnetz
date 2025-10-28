@@ -363,7 +363,7 @@ const App = () => {
               <BackgroundLayer />
 
               {/* Context sources and layers */}
-              <ContextMapLayers />
+              <ContextMapLayers activeLayers={activeLayers} />
 
               {/* Group sources by unique source names to avoid duplicate sources */}
               {Array.from(new Set(layers.map((l) => l.source))).map((sourceId) => (

@@ -1,5 +1,6 @@
 import { Fragment } from 'react'
 import { Layer, Source } from 'react-map-gl/maplibre'
+import { useContextLayers } from '../hooks/useContextLayers'
 import { MapillaryAllLayers, MapillaryFMCLayers } from './MapillaryLayers'
 import { OsmUpdateContextControls } from './OsmUpdateContextControls'
 import { OsmUpdateContextLayers } from './OsmUpdateContextLayers'
@@ -61,12 +62,13 @@ export const ContextLayerControls = () => {
             Mapillary FMC Befahrung
           </label>
         </li>
+        <OsmUpdateContextControls />
       </ul>
     </section>
   )
 }
 
-export const ContextMapLayers = () => {
+export const ContextMapLayers = ({ activeLayers }: { activeLayers: string[] }) => {
   const { contextLayers } = useContextLayers()
 
   return (
@@ -227,6 +229,9 @@ export const ContextMapLayers = () => {
 
       {/* Mapillary FMC Befahrung */}
       {contextLayers.includes('mapillary_fmc') && <MapillaryFMCLayers />}
+
+      {/* OSM Update Status Context Layer */}
+      <OsmUpdateContextLayers activeLayers={activeLayers} />
     </Fragment>
   )
 }
