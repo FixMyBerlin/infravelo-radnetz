@@ -45,7 +45,7 @@ from helpers.globals import DEFAULT_CRS
 from helpers.clipping import clip_to_region, clip_to_view
 from helpers.district_assignment import assign_district_to_edges
 
-from helpers.snapping_analysis import (
+from processing.helpers.snapping_calculations import (
     calculate_line_angle,
     angle_difference, 
     determine_segment_direction,
@@ -381,6 +381,52 @@ def process_segments_batch_parallel(batch_data):
         cand["angle_diff"] = angle_diffs
 
         # Erzeuge Segment-Varianten basierend auf TILDA-Daten (optimiert)
+        # Wenn trotz vorhandener Kandidaten KEIN Kandidat die Mindest-Schwelle erreicht,
+        # versuche einmalig, den Buffer zu verdoppeln und suche erneut nach Ausreißern.
+        # Das ist modular inlined hier (kleiner Helfer wäre Overhead bei Parallel-Load).
+        try:
+            # Prüfe kurz ob mindestens ein Kandidat die Mindest-Schwelle erfüllt
+            best0, _ = find_best_candidate_for_direction(cand, seg_dict, 0, seg_angle)
+            best1, _ = find_best_candidate_for_direction(cand, seg_dict, 1, seg_angle)
+            need_retry = (best0 is None and best1 is None)
+        except Exception:
+            need_retry = False
+
+        if need_retry:
+            # Doublen des Buffers einmalig
+            buffer2 = buffer * 2
+            logging.warning(f"Kein Kandidat über Schwelle für segment element_nr={seg_dict.get('element_nr','unknown')} gefunden. Versuche nochmal mit verdoppeltem Buffer={buffer2}m")
+            # candidates_log falls vorhanden informieren
+            if batch_data and len(batch_data) >= 4:
+                # batch_data may not include candidates_log in parallel mode; ignore
+                pass
+
+            buffer_geom2 = g.buffer(buffer2, cap_style='flat')
+            cand_idx2 = list(osm_sidx.intersection(buffer_geom2.bounds))
+            if cand_idx2:
+                cand2 = osm_gdf.iloc[cand_idx2].copy()
+                cand2["d"] = cand2.geometry.distance(g)
+                cand2 = cand2[cand2["d"] <= buffer2]
+                if not cand2.empty:
+                    cand_angles2 = calculate_angles_vectorized(cand2.geometry)
+                    cand2["angle"] = cand_angles2
+                    angle_diffs2 = np.array([angle_difference(a, seg_angle) for a in cand_angles2])
+                    cand2["angle_diff"] = angle_diffs2
+
+                    # Prüfe ob jetzt ein Kandidat die Mindest-Schwelle überschreitet
+                    best0b, _ = find_best_candidate_for_direction(cand2, seg_dict, 0, seg_angle)
+                    best1b, _ = find_best_candidate_for_direction(cand2, seg_dict, 1, seg_angle)
+                    accepted = False
+                    for best in (best0b, best1b):
+                        if best is not None and best.get('total_priority_weighted', -999) >= SnappingPriorities.MINIMUM_TOTAL_PRIORITY:
+                            accepted = True
+                            break
+                    if accepted:
+                        # Verwende die erweiterte Kandidatenmenge
+                        cand = cand2
+                        # Optionally write to a small progress log in parallel mode
+                        logging.info(f"Gefundenes Ausreißer-Kandidat mit erweitertem Buffer für element_nr={seg_dict.get('element_nr','unknown')}")
+
         variants = create_directional_segment_variants_optimized(seg_dict, cand, cand)
         batch_results.extend(variants)
     
