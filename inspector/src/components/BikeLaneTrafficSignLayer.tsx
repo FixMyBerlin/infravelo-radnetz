@@ -1,5 +1,6 @@
 import { Fragment } from 'react'
 import { Layer } from 'react-map-gl/maplibre'
+import { useLayerFilter } from '../hooks/useLayerFilter'
 import { getTrafficSignOpacity, getTrafficSignStyle } from './shared/trafficSignStyle'
 
 type Props = {
@@ -7,6 +8,8 @@ type Props = {
 }
 
 export const BikeLaneTrafficSignLayer = ({ sourceLayer }: Props) => {
+  const filter = useLayerFilter('bikelanesTrafficSign')
+
   return (
     <Fragment>
       <Layer
@@ -19,6 +22,7 @@ export const BikeLaneTrafficSignLayer = ({ sourceLayer }: Props) => {
           'line-width': 3,
         }}
         source-layer={sourceLayer}
+        {...(filter && { filter })}
         beforeId="static-layers-start"
       />
     </Fragment>

@@ -27,9 +27,45 @@ export const getSurfaceSettColor: DataDrivenPropertyValueSpecification<string> =
 
 export const getSurfaceSettLegend = (): LayerLegend => ({
   items: [
-    { color: SETT_COLOR, label: '[TODO] Pflaster (allgemein)' },
-    { color: SPECIFIC_SETT_COLOR, label: 'Spezifisches Pflaster (Mosaik, klein, groß)' },
-    { color: NO_SURFACE_COLOR, label: 'Keine Oberfläche' },
-    { color: OTHER_COLOR, label: 'Andere Oberfläche' },
+    {
+      color: SETT_COLOR,
+      label: '[TODO] Pflaster (allgemein)',
+      filterExpression: [
+        'all',
+        ['has', 'surface'],
+        ['==', ['get', 'surface'], 'sett'],
+      ],
+    },
+    {
+      color: SPECIFIC_SETT_COLOR,
+      label: 'Spezifisches Pflaster (Mosaik, klein, groß)',
+      filterExpression: [
+        'in',
+        ['get', 'surface'],
+        ['literal', ['mosaic_sett', 'small_sett', 'large_sett']],
+      ],
+    },
+    {
+      color: NO_SURFACE_COLOR,
+      label: 'Keine Oberfläche',
+      filterExpression: ['!', ['has', 'surface']],
+    },
+    {
+      color: OTHER_COLOR,
+      label: 'Andere Oberfläche',
+      filterExpression: [
+        'all',
+        ['has', 'surface'],
+        ['!=', ['get', 'surface'], 'sett'],
+        [
+          '!',
+          [
+            'in',
+            ['get', 'surface'],
+            ['literal', ['mosaic_sett', 'small_sett', 'large_sett']],
+          ],
+        ],
+      ],
+    },
   ],
 })

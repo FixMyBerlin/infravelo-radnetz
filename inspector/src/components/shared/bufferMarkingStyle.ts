@@ -177,18 +177,137 @@ export const getBufferMarkingStyle: DataDrivenPropertyValueSpecification<string>
 
 export const getBufferMarkingLegend = (): LayerLegend => ({
   items: [
-    { color: GREEN_COLOR, label: 'Korrekt konfiguriert' },
     {
-      color: RED_COLOR,
-      label: 'Schutzstreifen: Fehler - Buffer fehlt da marking oder traffic_mode vorhanden',
+      color: GREEN_COLOR,
+      label: 'Korrekt konfiguriert',
+      filterExpression: [
+        'any',
+        // Green cases for cyclewayOnHighway_advisory
+        [
+          'all',
+          ['==', ['get', 'category'], 'cyclewayOnHighway_advisory'],
+          ['==', ['get', 'traffic_mode_right'], 'parking'],
+          ['has', 'buffer_right'],
+        ],
+        [
+          'all',
+          ['==', ['get', 'category'], 'cyclewayOnHighway_advisory'],
+          ['==', ['get', 'buffer_left'], 0],
+          ['==', ['get', 'buffer_right'], 0],
+        ],
+        // Green cases for bicycleRoad categories
+        [
+          'all',
+          [
+            'any',
+            ['==', ['get', 'category'], 'bicycleRoad'],
+            ['==', ['get', 'category'], 'bicycleRoad_vehicleDestination'],
+          ],
+          ['has', 'marking_left'],
+          ['has', 'marking_right'],
+        ],
+        [
+          'all',
+          [
+            'any',
+            ['==', ['get', 'category'], 'bicycleRoad'],
+            ['==', ['get', 'category'], 'bicycleRoad_vehicleDestination'],
+          ],
+          ['has', 'buffer_left'],
+          ['has', 'buffer_right'],
+        ],
+      ],
     },
     {
       color: RED_COLOR,
-      label:
-        'Fahrradstraßen: Fehler - Mindestens "marking" muss es geben; Immber "buffer" wenn marking!=no oder wenn traffic_mode=parking',
+      label: 'Fehler - Buffer oder Marking fehlt',
+      filterExpression: [
+        'any',
+        // Red cases for bicycleRoad
+        [
+          'all',
+          [
+            'any',
+            ['==', ['get', 'category'], 'bicycleRoad'],
+            ['==', ['get', 'category'], 'bicycleRoad_vehicleDestination'],
+          ],
+          ['!', ['has', 'marking_left']],
+          ['!', ['has', 'marking_right']],
+        ],
+        [
+          'all',
+          [
+            'any',
+            ['==', ['get', 'category'], 'bicycleRoad'],
+            ['==', ['get', 'category'], 'bicycleRoad_vehicleDestination'],
+          ],
+          ['has', 'marking_left'],
+          ['has', 'marking_right'],
+          ['!', ['has', 'buffer_left']],
+          ['!', ['has', 'buffer_right']],
+        ],
+        [
+          'all',
+          [
+            'any',
+            ['==', ['get', 'category'], 'bicycleRoad'],
+            ['==', ['get', 'category'], 'bicycleRoad_vehicleDestination'],
+          ],
+          ['==', ['get', 'traffic_mode_left'], 'parking'],
+          ['!', ['has', 'buffer_left']],
+        ],
+        [
+          'all',
+          [
+            'any',
+            ['==', ['get', 'category'], 'bicycleRoad'],
+            ['==', ['get', 'category'], 'bicycleRoad_vehicleDestination'],
+          ],
+          ['==', ['get', 'traffic_mode_right'], 'parking'],
+          ['!', ['has', 'buffer_right']],
+        ],
+        // Red cases for cyclewayOnHighway_advisory
+        [
+          'all',
+          ['==', ['get', 'category'], 'cyclewayOnHighway_advisory'],
+          ['has', 'marking_right'],
+          ['!', ['has', 'buffer_right']],
+        ],
+        [
+          'all',
+          ['==', ['get', 'category'], 'cyclewayOnHighway_advisory'],
+          ['==', ['get', 'traffic_mode_right'], 'parking'],
+          ['!', ['has', 'buffer_right']],
+        ],
+      ],
     },
-    { color: DARK_RED_COLOR, label: 'Zu prüfen: Werte "left" vermutlich falsch' },
-    { color: PINK_COLOR, label: 'Unklar – Buffer fehlt vielleicht' },
-    { color: GRAY_COLOR, label: 'Buffer wahrscheinlich nicht relevant' },
+    {
+      color: DARK_RED_COLOR,
+      label: 'Zu prüfen: Werte "left" vermutlich falsch',
+      filterExpression: [
+        'all',
+        ['==', ['get', 'category'], 'cyclewayOnHighway_advisory'],
+        [
+          'any',
+          ['all', ['has', 'buffer_left'], ['!=', ['get', 'buffer_left'], 0]],
+          ['==', ['get', 'traffic_mode_left'], 'parking'],
+        ],
+      ],
+    },
+    {
+      color: PINK_COLOR,
+      label: 'Unklar – Buffer fehlt vielleicht',
+      filterExpression: [
+        'any',
+        ['==', ['get', 'category'], 'cyclewayOnHighway_advisory'],
+        ['==', ['get', 'category'], 'bicycleRoad'],
+        ['==', ['get', 'category'], 'bicycleRoad_vehicleDestination'],
+      ],
+    },
+    {
+      color: GRAY_COLOR,
+      label: 'Buffer wahrscheinlich nicht relevant',
+      // Everything else - no specific filter needed, this is the default
+    },
   ],
 })

@@ -76,9 +76,124 @@ export const getTrafficSignStyle: DataDrivenPropertyValueSpecification<string> =
 
 export const getTrafficSignLegend = (): LayerLegend => ({
   items: [
-    { color: TRAFFIC_SIGN_NONE, label: 'Kein Verkehrszeichen (explizit)' },
-    { color: TRAFFIC_SIGN_PRESENT, label: 'Verkehrszeichen angegeben' },
-    { color: TRAFFIC_SIGN_DAMAGE, label: 'Verkehrszeichen angegeben mit Hinweis Schäden' },
-    { color: TRAFFIC_SIGN_MISSING, label: '[TODO] Verkehrszeichen fehlt' },
+    {
+      color: TRAFFIC_SIGN_NONE,
+      label: 'Kein Verkehrszeichen (explizit)',
+      filterExpression: [
+        'any',
+        ['all', ['has', 'traffic_sign'], ['==', ['get', 'traffic_sign'], 'none']],
+        [
+          'all',
+          ['has', 'traffic_sign:forward'],
+          ['==', ['get', 'traffic_sign:forward'], 'none'],
+          ['has', 'traffic_sign:backward'],
+          ['==', ['get', 'traffic_sign:backward'], 'none'],
+        ],
+      ],
+    },
+    {
+      color: TRAFFIC_SIGN_PRESENT,
+      label: 'Verkehrszeichen angegeben',
+      filterExpression: [
+        'all',
+        // Has at least one traffic sign
+        [
+          'any',
+          ['all', ['has', 'traffic_sign'], ['!=', ['get', 'traffic_sign'], 'none']],
+          ['all', ['has', 'traffic_sign:forward'], ['!=', ['get', 'traffic_sign:forward'], 'none']],
+          ['all', ['has', 'traffic_sign:backward'], ['!=', ['get', 'traffic_sign:backward'], 'none']],
+        ],
+        // But no damage indicators
+        [
+          '!',
+          [
+            'any',
+            [
+              'all',
+              ['has', 'traffic_sign'],
+              [
+                'any',
+                ['in', 'schäden', ['get', 'traffic_sign']],
+                ['in', 'Schäden', ['get', 'traffic_sign']],
+                ['in', 'schaeden', ['get', 'traffic_sign']],
+                ['in', 'Schaeden', ['get', 'traffic_sign']],
+              ],
+            ],
+            [
+              'all',
+              ['has', 'traffic_sign:forward'],
+              [
+                'any',
+                ['in', 'schäden', ['get', 'traffic_sign:forward']],
+                ['in', 'Schäden', ['get', 'traffic_sign:forward']],
+                ['in', 'schaeden', ['get', 'traffic_sign:forward']],
+                ['in', 'Schaeden', ['get', 'traffic_sign:forward']],
+              ],
+            ],
+            [
+              'all',
+              ['has', 'traffic_sign:backward'],
+              [
+                'any',
+                ['in', 'schäden', ['get', 'traffic_sign:backward']],
+                ['in', 'Schäden', ['get', 'traffic_sign:backward']],
+                ['in', 'schaeden', ['get', 'traffic_sign:backward']],
+                ['in', 'Schaeden', ['get', 'traffic_sign:backward']],
+              ],
+            ],
+          ],
+        ],
+      ],
+    },
+    {
+      color: TRAFFIC_SIGN_DAMAGE,
+      label: 'Verkehrszeichen angegeben mit Hinweis Schäden',
+      filterExpression: [
+        'any',
+        [
+          'all',
+          ['has', 'traffic_sign'],
+          [
+            'any',
+            ['in', 'schäden', ['get', 'traffic_sign']],
+            ['in', 'Schäden', ['get', 'traffic_sign']],
+            ['in', 'schaeden', ['get', 'traffic_sign']],
+            ['in', 'Schaeden', ['get', 'traffic_sign']],
+          ],
+        ],
+        [
+          'all',
+          ['has', 'traffic_sign:forward'],
+          [
+            'any',
+            ['in', 'schäden', ['get', 'traffic_sign:forward']],
+            ['in', 'Schäden', ['get', 'traffic_sign:forward']],
+            ['in', 'schaeden', ['get', 'traffic_sign:forward']],
+            ['in', 'Schaeden', ['get', 'traffic_sign:forward']],
+          ],
+        ],
+        [
+          'all',
+          ['has', 'traffic_sign:backward'],
+          [
+            'any',
+            ['in', 'schäden', ['get', 'traffic_sign:backward']],
+            ['in', 'Schäden', ['get', 'traffic_sign:backward']],
+            ['in', 'schaeden', ['get', 'traffic_sign:backward']],
+            ['in', 'Schaeden', ['get', 'traffic_sign:backward']],
+          ],
+        ],
+      ],
+    },
+    {
+      color: TRAFFIC_SIGN_MISSING,
+      label: '[TODO] Verkehrszeichen fehlt',
+      filterExpression: [
+        'all',
+        ['!', ['has', 'traffic_sign']],
+        ['!', ['has', 'traffic_sign:forward']],
+        ['!', ['has', 'traffic_sign:backward']],
+      ],
+    },
   ],
 })

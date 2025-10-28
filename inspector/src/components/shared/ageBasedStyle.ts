@@ -29,7 +29,15 @@ export const getAgeOpacity: DataDrivenPropertyValueSpecification<number> = [
 
 export const getAgeLegend = (): LayerLegend => ({
   items: [
-    { color: FRESH_COLOR, label: `Nach ${CUTOFF_DATE.split('-').join('.')} aktualisiert` },
-    { color: OLD_COLOR, label: `Vor ${CUTOFF_DATE.split('-').join('.')} aktualisiert` },
+    {
+      color: FRESH_COLOR,
+      label: `Nach ${CUTOFF_DATE.split('-').join('.')} aktualisiert`,
+      filterExpression: ['>=', ['get', 'updated_at'], CUTOFF_TIMESTAMP],
+    },
+    {
+      color: OLD_COLOR,
+      label: `Vor ${CUTOFF_DATE.split('-').join('.')} aktualisiert`,
+      filterExpression: ['<', ['get', 'updated_at'], CUTOFF_TIMESTAMP],
+    },
   ],
 })

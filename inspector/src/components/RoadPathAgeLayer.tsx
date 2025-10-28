@@ -1,4 +1,5 @@
 import { Layer } from 'react-map-gl/maplibre'
+import { useLayerFilter } from '../hooks/useLayerFilter'
 import { getAgeColor, getAgeOpacity } from './shared/ageBasedStyle'
 
 type Props = {
@@ -6,6 +7,8 @@ type Props = {
 }
 
 export const RoadPathAgeLayer = ({ sourceLayer }: Props) => {
+  const filter = useLayerFilter('roadsPathAge')
+
   return (
     <Layer
       id="roadsPath-age-line"
@@ -17,6 +20,7 @@ export const RoadPathAgeLayer = ({ sourceLayer }: Props) => {
         'line-width': 3,
       }}
       source-layer={sourceLayer}
+      {...(filter && { filter })}
       beforeId="static-layers-start"
     />
   )

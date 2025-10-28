@@ -24,11 +24,28 @@ export const getUpdateSourceStyle: DataDrivenPropertyValueSpecification<string> 
 
 export const getUpdateSourceLegend = (): LayerLegend => ({
   items: [
-    { color: FMC_UPDATED, label: 'Zuletzt vom FMC Account bearbeitet' },
-    { color: OTHER_RECENT_UPDATE, label: 'Von einem anderen Account nach Projektstart bearbeitet' },
+    {
+      color: FMC_UPDATED,
+      label: 'Zuletzt vom FMC Account bearbeitet',
+      filterExpression: ['in', 'fmc_', ['get', 'updated_by']],
+    },
+    {
+      color: OTHER_RECENT_UPDATE,
+      label: 'Von einem anderen Account nach Projektstart bearbeitet',
+      filterExpression: [
+        'all',
+        ['!', ['in', 'fmc_', ['get', 'updated_by']]],
+        ['>=', ['get', 'updated_at'], CUTOFF_TIMESTAMP],
+      ],
+    },
     {
       color: OTHER_OLD_UPDATE,
       label: 'Von einem anderen Account bearbeitet und seit Projektstart noch nicht',
+      filterExpression: [
+        'all',
+        ['!', ['in', 'fmc_', ['get', 'updated_by']]],
+        ['<', ['get', 'updated_at'], CUTOFF_TIMESTAMP],
+      ],
     },
   ],
 })

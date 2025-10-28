@@ -1,4 +1,5 @@
 import { Layer } from 'react-map-gl/maplibre'
+import { useLayerFilter } from '../hooks/useLayerFilter'
 import { getOnewayOpacity, getRoadOnewayColor } from './shared/onewayBasedStyle'
 
 type Props = {
@@ -6,6 +7,8 @@ type Props = {
 }
 
 export const RoadOnewayLayer = ({ sourceLayer }: Props) => {
+  const filter = useLayerFilter('roadsOneway')
+
   return (
     <Layer
       id="roads-oneway-line"
@@ -17,6 +20,7 @@ export const RoadOnewayLayer = ({ sourceLayer }: Props) => {
         'line-width': 3,
       }}
       source-layer={sourceLayer}
+      {...(filter && { filter })}
       beforeId="static-layers-start"
     />
   )

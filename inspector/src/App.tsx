@@ -313,6 +313,7 @@ const App = () => {
                               LAYER_LEGENDS[layer.id as keyof typeof LAYER_LEGENDS] && (
                                 <Legend
                                   legend={LAYER_LEGENDS[layer.id as keyof typeof LAYER_LEGENDS]}
+                                  layerId={layer.id}
                                 />
                               )}
                           </li>

@@ -72,9 +72,62 @@ export const getRoadOnewayColor: DataDrivenPropertyValueSpecification<string> = 
 
 export const getBikeLaneOnewayLegend = (): LayerLegend => ({
   items: [
-    { color: BLUE, label: 'Einbahnstraße (explizit oder implizit)' },
-    { color: BRIGHT_GREEN, label: 'Keine Einbahnstraße (explizit oder nur für Autos)' },
-    { color: ONEWAY_MISSING_COLOR, label: '[TODO] Keine oder fehlerhafte Angabe' },
+    {
+      color: BLUE,
+      label: 'Einbahnstraße (explizit oder implizit)',
+      filterExpression: [
+        'any',
+        [
+          'all',
+          ['has', 'oneway'],
+          ['==', ['get', 'oneway'], 'implicit_yes'],
+          [
+            'any',
+            ['==', ['get', 'category'], 'cyclewayOnHighway_advisory'],
+            ['==', ['get', 'category'], 'cyclewayOnHighway_exclusive'],
+            ['==', ['get', 'category'], 'cyclewayOnHighwayProtected'],
+            ['==', ['get', 'category'], 'footAndCyclewayShared_adjoining'],
+          ],
+        ],
+        ['all', ['has', 'oneway'], ['==', ['get', 'oneway'], 'yes']],
+      ],
+    },
+    {
+      color: BRIGHT_GREEN,
+      label: 'Keine Einbahnstraße (explizit oder nur für Autos)',
+      filterExpression: [
+        'any',
+        [
+          'all',
+          ['has', 'oneway'],
+          ['==', ['get', 'oneway'], 'assumed_no'],
+          [
+            'any',
+            ['==', ['get', 'category'], 'bicycleRoad_vehicleDestination'],
+            ['==', ['get', 'category'], 'pedestrianAreaBicycleYes'],
+          ],
+        ],
+        ['all', ['has', 'oneway'], ['==', ['get', 'oneway'], 'no']],
+        ['all', ['has', 'oneway'], ['==', ['get', 'oneway'], 'car_not_bike']],
+      ],
+    },
+    {
+      color: ONEWAY_MISSING_COLOR,
+      label: '[TODO] Keine oder fehlerhafte Angabe',
+      filterExpression: [
+        'any',
+        ['!', ['has', 'oneway']],
+        [
+          'all',
+          ['has', 'oneway'],
+          ['!=', ['get', 'oneway'], 'yes'],
+          ['!=', ['get', 'oneway'], 'no'],
+          ['!=', ['get', 'oneway'], 'car_not_bike'],
+          ['!=', ['get', 'oneway'], 'implicit_yes'],
+          ['!=', ['get', 'oneway'], 'assumed_no'],
+        ],
+      ],
+    },
   ],
 })
 
@@ -83,16 +136,41 @@ export const getRoadOnewayLegend = (): LayerLegend => ({
     {
       color: DARK_GREEN,
       label: 'Explizite Angabe Einbahnstraße (Auto) und oneway:bicycle',
+      filterExpression: [
+        'all',
+        ['has', 'oneway'],
+        ['==', ['get', 'oneway'], 'yes'],
+        ['has', 'oneway_bicycle'],
+      ],
     },
     {
       color: BLUE,
       label: 'Straße "dual_carriageway" daher kein oneway:bicycle erwartet',
+      filterExpression: [
+        'all',
+        ['has', 'oneway'],
+        ['==', ['get', 'oneway'], 'yes_dual_carriageway'],
+      ],
     },
     {
       color: ONEWAY_MISSING_COLOR,
       label:
         '[TODO] Explizite Angabe Einbahnstraße (Auto) aber Angabe zu bicycle:oneway=yes|no oder dual_carriageway=yes fehlt',
+      filterExpression: [
+        'all',
+        ['has', 'oneway'],
+        ['==', ['get', 'oneway'], 'yes'],
+        ['!', ['has', 'oneway_bicycle']],
+      ],
     },
-    { color: ONEWAY_NEUTRAL_COLOR, label: 'Keine Einbahnstraße' },
+    {
+      color: ONEWAY_NEUTRAL_COLOR,
+      label: 'Keine Einbahnstraße',
+      filterExpression: [
+        'any',
+        ['!', ['has', 'oneway']],
+        ['!=', ['get', 'oneway'], 'yes'],
+      ],
+    },
   ],
 })

@@ -1,5 +1,6 @@
 import { Fragment } from 'react'
 import { Layer } from 'react-map-gl/maplibre'
+import { useLayerFilter } from '../hooks/useLayerFilter'
 import { getMapillaryOpacity, getMapillaryStyle } from './shared/mapillaryStyle'
 
 type Props = {
@@ -7,6 +8,8 @@ type Props = {
 }
 
 export const BikeLaneMapillaryLayer = ({ sourceLayer }: Props) => {
+  const filter = useLayerFilter('bikelanesMapillary')
+
   return (
     <Fragment>
       <Layer
@@ -19,6 +22,7 @@ export const BikeLaneMapillaryLayer = ({ sourceLayer }: Props) => {
           'line-width': 3,
         }}
         source-layer={sourceLayer}
+        {...(filter && { filter })}
         beforeId="static-layers-start"
       />
     </Fragment>

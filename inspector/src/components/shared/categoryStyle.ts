@@ -26,8 +26,29 @@ export const getCategoryStyle: DataDrivenPropertyValueSpecification<string> = [
 
 export const getCategoryLegend = (): LayerLegend => ({
   items: [
-    { color: CLARIFICATION_NEEDED_COLOR, label: 'Führung gar nicht erkannt' },
-    { color: IMPRECISE_CATEGORY_COLOR, label: 'Führung ungenau' },
-    { color: DEFAULT_COLOR, label: 'Alle anderen Kategorien' },
+    {
+      color: CLARIFICATION_NEEDED_COLOR,
+      label: 'Führung gar nicht erkannt',
+      filterExpression: ['==', ['get', 'category'], 'needsClarification'],
+    },
+    {
+      color: IMPRECISE_CATEGORY_COLOR,
+      label: 'Führung ungenau',
+      filterExpression: [
+        'any',
+        ['in', '_advisoryOrExclusive', ['get', 'category']],
+        ['in', '_adjoiningOrIsolated', ['get', 'category']],
+      ],
+    },
+    {
+      color: DEFAULT_COLOR,
+      label: 'Alle anderen Kategorien',
+      filterExpression: [
+        'all',
+        ['!=', ['get', 'category'], 'needsClarification'],
+        ['!', ['in', '_advisoryOrExclusive', ['get', 'category']]],
+        ['!', ['in', '_adjoiningOrIsolated', ['get', 'category']]],
+      ],
+    },
   ],
 })

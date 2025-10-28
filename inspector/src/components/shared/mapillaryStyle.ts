@@ -32,8 +32,49 @@ export const getMapillaryStyle: DataDrivenPropertyValueSpecification<string> = [
 
 export const getMapillaryLegend = (): LayerLegend => ({
   items: [
-    { color: MAPILLARY_MISSING, label: 'Keine Mapillary Referenz' },
-    { color: MAPILLARY_PRESENT, label: 'Mapillary vorhanden (Weg oder Verkehrszeichen)' },
-    { color: MAPILLARY_BOTH_PRESENT, label: 'Mapillary für Weg und Verkehrszeichen vorhanden' },
+    {
+      color: MAPILLARY_MISSING,
+      label: 'Keine Mapillary Referenz',
+      filterExpression: [
+        'all',
+        ['!', ['has', 'mapillary']],
+        ['!', ['has', 'mapillary_forward']],
+        ['!', ['has', 'mapillary_backward']],
+        ['!', ['has', 'mapillary_traffic_sign']],
+      ],
+    },
+    {
+      color: MAPILLARY_PRESENT,
+      label: 'Mapillary vorhanden (Weg oder Verkehrszeichen)',
+      filterExpression: [
+        'all',
+        // At least one mapillary reference exists
+        [
+          'any',
+          ['has', 'mapillary'],
+          ['has', 'mapillary_forward'],
+          ['has', 'mapillary_backward'],
+          ['has', 'mapillary_traffic_sign'],
+        ],
+        // But NOT both types present
+        [
+          '!',
+          [
+            'all',
+            ['any', ['has', 'mapillary'], ['has', 'mapillary_forward'], ['has', 'mapillary_backward']],
+            ['has', 'mapillary_traffic_sign'],
+          ],
+        ],
+      ],
+    },
+    {
+      color: MAPILLARY_BOTH_PRESENT,
+      label: 'Mapillary für Weg und Verkehrszeichen vorhanden',
+      filterExpression: [
+        'all',
+        ['any', ['has', 'mapillary'], ['has', 'mapillary_forward'], ['has', 'mapillary_backward']],
+        ['has', 'mapillary_traffic_sign'],
+      ],
+    },
   ],
 })

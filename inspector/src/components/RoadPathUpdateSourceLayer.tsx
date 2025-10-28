@@ -1,5 +1,6 @@
 import { Fragment } from 'react'
 import { Layer } from 'react-map-gl/maplibre'
+import { useLayerFilter } from '../hooks/useLayerFilter'
 import { getUpdateSourceOpacity, getUpdateSourceStyle } from './shared/updateSourceStyle'
 
 type Props = {
@@ -7,6 +8,8 @@ type Props = {
 }
 
 export const RoadPathUpdateSourceLayer = ({ sourceLayer }: Props) => {
+  const filter = useLayerFilter('roadsPathsUpdateSource')
+
   return (
     <Fragment>
       <Layer
@@ -19,6 +22,7 @@ export const RoadPathUpdateSourceLayer = ({ sourceLayer }: Props) => {
           'line-width': 4,
         }}
         source-layer={sourceLayer}
+        {...(filter && { filter })}
         beforeId="static-layers-start"
       />
     </Fragment>
