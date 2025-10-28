@@ -187,9 +187,15 @@ def assign_element_numbers(rvn_gdf, nodes_gdf):
     Weist jedem Segment im Radvorrangsnetz eine element_nr zu.
     Optimierte Version, die den Graph nur einmal erstellt.
     
+    WICHTIG: Virtuelle Knotenpunkte (IDs beginnen mit "V") werden speziell behandelt:
+    - Segmente MIT virtuellen Knotenpunkten: Jedes Segment bekommt seine eigenen,
+      korrekten beginnt_bei_vp und endet_bei_vp Werte (keine Propagierung)
+    - Segmente OHNE virtuelle Knotenpunkte: Verbundene Segmente können gemeinsame
+      element_nr bekommen (alte Logik für zusammenhängende Abschnitte)
+    
     Args:
         rvn_gdf (GeoDataFrame): Radvorrangsnetz
-        nodes_gdf (GeoDataFrame): Knotenpunkte mit IDs
+        nodes_gdf (GeoDataFrame): Knotenpunkte mit IDs (inkl. virtueller Knotenpunkte)
         
     Returns:
         GeoDataFrame: Anreichertes Radvorrangsnetz mit element_nr
@@ -210,6 +216,7 @@ def assign_element_numbers(rvn_gdf, nodes_gdf):
     
     processed_segments = set()
     element_counter = 1
+    segments_with_virtual_nodes = 0  # Zähler für Segmente mit virtuellen Knotenpunkten
     
     for idx in range(len(result_gdf)):
         if idx in processed_segments:
@@ -260,15 +267,46 @@ def assign_element_numbers(rvn_gdf, nodes_gdf):
             element_nr = f"UNKNOWN_UNKNOWN_{element_counter:03d}.01"
             element_counter += 1
         
-        # Weise Werte allen verbundenen Segmenten zu
-        for segment_idx in set(connected_segments):
-            if segment_idx < len(result_gdf):
-                result_gdf.loc[segment_idx, 'beginnt_bei_vp'] = beginnt_bei_vp
-                result_gdf.loc[segment_idx, 'endet_bei_vp'] = endet_bei_vp
-                result_gdf.loc[segment_idx, 'element_nr'] = element_nr
-                processed_segments.add(segment_idx)
+        # Prüfe ob virtuelle Knotenpunkte (IDs beginnen mit "V") beteiligt sind
+        has_virtual_node = False
+        if beginnt_bei_vp and str(beginnt_bei_vp).startswith('V'):
+            has_virtual_node = True
+        if endet_bei_vp and str(endet_bei_vp).startswith('V'):
+            has_virtual_node = True
+        
+        # Wenn virtuelle Knotenpunkte beteiligt sind: Weise Werte NUR dem aktuellen Segment zu
+        # Sonst: Weise Werte allen verbundenen Segmenten zu (alte Logik)
+        if has_virtual_node:
+            # Nur das aktuelle Segment bekommt die Werte (keine Propagierung)
+            result_gdf.loc[idx, 'beginnt_bei_vp'] = beginnt_bei_vp
+            result_gdf.loc[idx, 'endet_bei_vp'] = endet_bei_vp
+            result_gdf.loc[idx, 'element_nr'] = element_nr
+            processed_segments.add(idx)
+            segments_with_virtual_nodes += 1
+            logging.debug(f"Segment {idx}: Virtueller Knotenpunkt erkannt - keine Propagierung an verbundene Segmente")
+        else:
+            # Alte Logik: Weise Werte allen verbundenen Segmenten zu
+            for segment_idx in set(connected_segments):
+                if segment_idx < len(result_gdf):
+                    result_gdf.loc[segment_idx, 'beginnt_bei_vp'] = beginnt_bei_vp
+                    result_gdf.loc[segment_idx, 'endet_bei_vp'] = endet_bei_vp
+                    result_gdf.loc[segment_idx, 'element_nr'] = element_nr
+                    processed_segments.add(segment_idx)
+    
+    # Zähle nachträglich alle Segmente mit virtuellen Knotenpunkten
+    segments_with_v_in_beginnt = result_gdf[result_gdf['beginnt_bei_vp'].notna() & result_gdf['beginnt_bei_vp'].astype(str).str.startswith('V')]
+    segments_with_v_in_endet = result_gdf[result_gdf['endet_bei_vp'].notna() & result_gdf['endet_bei_vp'].astype(str).str.startswith('V')]
+    segments_with_any_v = result_gdf[
+        (result_gdf['beginnt_bei_vp'].notna() & result_gdf['beginnt_bei_vp'].astype(str).str.startswith('V')) |
+        (result_gdf['endet_bei_vp'].notna() & result_gdf['endet_bei_vp'].astype(str).str.startswith('V'))
+    ]
     
     logging.info(f"Element-Nummern zugewiesen. {len(processed_segments)} Segmente verarbeitet.")
+    logging.info(f"  Davon {segments_with_virtual_nodes} Segmente mit virtuellen Knotenpunkten (keine Propagierung)")
+    logging.info(f"\n📊 VIRTUELLE KNOTENPUNKTE STATISTIK:")
+    logging.info(f"  Segmente mit V in beginnt_bei_vp: {len(segments_with_v_in_beginnt)}")
+    logging.info(f"  Segmente mit V in endet_bei_vp: {len(segments_with_v_in_endet)}")
+    logging.info(f"  Segmente mit mind. einem V: {len(segments_with_any_v)} ({len(segments_with_any_v)/len(result_gdf)*100:.2f}%)")
     
     return result_gdf
 
