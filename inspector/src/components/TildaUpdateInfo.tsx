@@ -1,11 +1,9 @@
 import { formatDistanceToNow } from 'date-fns'
+import { useSource } from '../hooks/useSource'
 import { useTildaUpdateInfo } from '../hooks/useTildaUpdateInfo'
 
-type Props = {
-  source: 'Production' | 'Staging' | 'Development'
-}
-
-export const TildaUpdateInfo = ({ source }: Props) => {
+export const TildaUpdateInfo = () => {
+  const { source } = useSource()
   const { data, isLoading, error } = useTildaUpdateInfo(source)
 
   if (isLoading) {

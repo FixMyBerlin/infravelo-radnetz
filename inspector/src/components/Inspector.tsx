@@ -3,6 +3,7 @@ import { clsx } from 'clsx'
 import { formatDistanceToNow, fromUnixTime } from 'date-fns'
 import { useState } from 'react'
 import type { MapGeoJSONFeature } from 'react-map-gl/maplibre'
+import { useSource } from '../hooks/useSource'
 import { longOsmType } from '../utils/osmTypes'
 import { MapillaryPreview } from './MapillaryPreview'
 import { OsmTagsLoader } from './OsmTagsLoader'
@@ -17,11 +18,11 @@ type LayerConfig = {
 type Props = {
   inspectorFeatures: MapGeoJSONFeature[]
   activeLayerConfigs: LayerConfig[]
-  source: 'Production' | 'Staging' | 'Development'
 }
 
-export const Inspector = ({ inspectorFeatures, activeLayerConfigs, source }: Props) => {
+export const Inspector = ({ inspectorFeatures, activeLayerConfigs }: Props) => {
   const [open, setOpen] = useState(true)
+  const { source } = useSource()
 
   if (!open) {
     return (

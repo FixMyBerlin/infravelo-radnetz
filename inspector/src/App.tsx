@@ -2,7 +2,7 @@ import { Square3Stack3DIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import maplibregl, { type MapSourceDataEvent } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { parseAsArrayOf, parseAsString, parseAsStringLiteral, useQueryState } from 'nuqs'
+import { parseAsArrayOf, parseAsString, useQueryState } from 'nuqs'
 import { Protocol } from 'pmtiles'
 import { Fragment, useEffect, useState } from 'react'
 import Map, {
@@ -50,6 +50,7 @@ import {
 import { LAYER_LEGENDS } from './components/shared/legends'
 import { TildaUpdateInfo } from './components/TildaUpdateInfo'
 import { useMapParam } from './components/useMapParam/useMapParam'
+import { useSource } from './hooks/useSource'
 
 const TILE_URLS = {
   Production: 'https://tiles.tilda-geo.de',
@@ -70,11 +71,7 @@ type CategoryEntry = (typeof categories)[number]
 type CategoryArray = CategoryEntry[]
 
 const App = () => {
-  const sources = ['Production', 'Staging', 'Development'] as const
-  const [source, setSource] = useQueryState(
-    'source',
-    parseAsStringLiteral(sources).withDefault('Production'),
-  )
+  const { source, setSource } = useSource()
   const { mapParam, setMapParam } = useMapParam()
   const [activeLayers, setActiveLayers] = useQueryState(
     'layers',
@@ -338,7 +335,7 @@ const App = () => {
                   </div>
                 ))}
                 <div className="mt-2">
-                  <TildaUpdateInfo source={source} />
+                  <TildaUpdateInfo />
                 </div>
               </section>
               <ContextLayerControls />
@@ -620,7 +617,6 @@ const App = () => {
           <Inspector
             inspectorFeatures={inspectorFeatures}
             activeLayerConfigs={layers.filter((layer) => activeLayers.includes(layer.id))}
-            source={source}
           />
         </main>
       </MapProvider>
