@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-snapping_analysis.py
+snapping_calculations.py
 --------------------------------------------------------------------
 Gemeinsame Funktionen für Snapping-Algorithmus und Analyse.
 Modularisierte Funktionen aus start_snapping.py für Wiederverwendung.

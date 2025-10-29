@@ -44,8 +44,7 @@ from helpers.progressbar import print_progressbar
 from helpers.globals import DEFAULT_CRS
 from helpers.clipping import clip_to_region, clip_to_view
 from helpers.district_assignment import assign_district_to_edges
-
-from processing.helpers.snapping_calculations import (
+from helpers.snapping_calculations import (
     calculate_line_angle,
     angle_difference, 
     determine_segment_direction,
