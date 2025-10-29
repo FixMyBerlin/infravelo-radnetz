@@ -29,6 +29,7 @@ import networkx as nx
 
 # Konfiguration
 DEFAULT_CRS = 25833  # EPSG:25833 (ETRS89 / UTM zone 33N) - aus helpers.globals
+NODE_SEARCH_TOLERANCE = 3.0  # Suchtoleranz in Metern für Knotenpunkte (muss mit VIRTUAL_NODE_TOLERANCE übereinstimmen)
 
 # Logging konfigurieren
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -91,14 +92,14 @@ def load_data(radvorrangsnetz_path, knotenpunkte_path, virtuelle_knotenpunkte_pa
     return rvn_gdf, combined_nodes_gdf
 
 
-def find_node_at_point(point, nodes_gdf, tolerance=1.0):
+def find_node_at_point(point, nodes_gdf, tolerance=NODE_SEARCH_TOLERANCE):
     """
     Findet den nächstgelegenen Knotenpunkt zu einem gegebenen Punkt.
     
     Args:
         point (Point): Punkt, an dem nach einem Knotenpunkt gesucht wird
         nodes_gdf (GeoDataFrame): GeoDataFrame mit Knotenpunkten
-        tolerance (float): Suchtoleranz in Metern
+        tolerance (float): Suchtoleranz in Metern (default: NODE_SEARCH_TOLERANCE)
         
     Returns:
         str or None: Knotenpunkt-ID falls gefunden, sonst None
@@ -233,28 +234,37 @@ def assign_element_numbers(rvn_gdf, nodes_gdf):
         start_node_id = find_node_at_point(start_point, nodes_gdf)
         end_node_id = find_node_at_point(end_point, nodes_gdf)
         
+        # Prüfe SOFORT, ob virtuelle Knotenpunkte direkt an den Endpunkten sind
+        # Falls ja: explore_direction NICHT aufrufen (keine Propagierung über virtuelle Knotenpunkte hinweg)
+        start_is_virtual = start_node_id and str(start_node_id).startswith('V')
+        end_is_virtual = end_node_id and str(end_node_id).startswith('V')
+        
         # Initialisiere die verbundenen Segmente mit dem aktuellen Segment
         connected_segments = [idx]
         beginnt_bei_vp = start_node_id
         endet_bei_vp = end_node_id
         
         # Wenn am Startpunkt kein Knotenpunkt ist, gehe rückwärts
-        if not start_node_id:
-            start_coord = (start_point.x, start_point.y)
-            backward_segments, backward_node = explore_direction(
-                G, start_coord, idx, rvn_gdf, nodes_gdf, processed_segments
-            )
-            connected_segments.extend(backward_segments)
-            beginnt_bei_vp = backward_node
+        # ABER: Bei virtuellen Knotenpunkten KEINE Propagierung (sie sind echte Grenzen)
+        if not start_is_virtual:
+            if not start_node_id:
+                start_coord = (start_point.x, start_point.y)
+                backward_segments, backward_node = explore_direction(
+                    G, start_coord, idx, rvn_gdf, nodes_gdf, processed_segments
+                )
+                connected_segments.extend(backward_segments)
+                beginnt_bei_vp = backward_node
         
         # Wenn am Endpunkt kein Knotenpunkt ist, gehe vorwärts
-        if not end_node_id:
-            end_coord = (end_point.x, end_point.y)
-            forward_segments, forward_node = explore_direction(
-                G, end_coord, idx, rvn_gdf, nodes_gdf, processed_segments
-            )
-            connected_segments.extend(forward_segments)
-            endet_bei_vp = forward_node
+        # ABER: Bei virtuellen Knotenpunkten KEINE Propagierung (sie sind echte Grenzen)
+        if not end_is_virtual:
+            if not end_node_id:
+                end_coord = (end_point.x, end_point.y)
+                forward_segments, forward_node = explore_direction(
+                    G, end_coord, idx, rvn_gdf, nodes_gdf, processed_segments
+                )
+                connected_segments.extend(forward_segments)
+                endet_bei_vp = forward_node
         
         # Erstelle element_nr
         if beginnt_bei_vp and endet_bei_vp:
@@ -268,30 +278,21 @@ def assign_element_numbers(rvn_gdf, nodes_gdf):
             element_counter += 1
         
         # Prüfe ob virtuelle Knotenpunkte (IDs beginnen mit "V") beteiligt sind
-        has_virtual_node = False
-        if beginnt_bei_vp and str(beginnt_bei_vp).startswith('V'):
-            has_virtual_node = True
-        if endet_bei_vp and str(endet_bei_vp).startswith('V'):
-            has_virtual_node = True
+        has_virtual_node = start_is_virtual or end_is_virtual
         
-        # Wenn virtuelle Knotenpunkte beteiligt sind: Weise Werte NUR dem aktuellen Segment zu
-        # Sonst: Weise Werte allen verbundenen Segmenten zu (alte Logik)
+        # Weise Werte allen verbundenen Segmenten zu
+        # (Bei virtuellen Knotenpunkten ist connected_segments garantiert nur [idx])
+        for segment_idx in set(connected_segments):
+            if segment_idx < len(result_gdf):
+                result_gdf.loc[segment_idx, 'beginnt_bei_vp'] = beginnt_bei_vp
+                result_gdf.loc[segment_idx, 'endet_bei_vp'] = endet_bei_vp
+                result_gdf.loc[segment_idx, 'element_nr'] = element_nr
+                processed_segments.add(segment_idx)
+        
+        # Zähle Segmente mit virtuellen Knotenpunkten
         if has_virtual_node:
-            # Nur das aktuelle Segment bekommt die Werte (keine Propagierung)
-            result_gdf.loc[idx, 'beginnt_bei_vp'] = beginnt_bei_vp
-            result_gdf.loc[idx, 'endet_bei_vp'] = endet_bei_vp
-            result_gdf.loc[idx, 'element_nr'] = element_nr
-            processed_segments.add(idx)
             segments_with_virtual_nodes += 1
             logging.debug(f"Segment {idx}: Virtueller Knotenpunkt erkannt - keine Propagierung an verbundene Segmente")
-        else:
-            # Alte Logik: Weise Werte allen verbundenen Segmenten zu
-            for segment_idx in set(connected_segments):
-                if segment_idx < len(result_gdf):
-                    result_gdf.loc[segment_idx, 'beginnt_bei_vp'] = beginnt_bei_vp
-                    result_gdf.loc[segment_idx, 'endet_bei_vp'] = endet_bei_vp
-                    result_gdf.loc[segment_idx, 'element_nr'] = element_nr
-                    processed_segments.add(segment_idx)
     
     # Zähle nachträglich alle Segmente mit virtuellen Knotenpunkten
     segments_with_v_in_beginnt = result_gdf[result_gdf['beginnt_bei_vp'].notna() & result_gdf['beginnt_bei_vp'].astype(str).str.startswith('V')]
@@ -553,8 +554,13 @@ def apply_elem_nr_priority(enriched_rvn):
     Übernimmt elem_nr als finale element_nr, falls elem_nr vorhanden ist.
     
     Diese Funktion implementiert die Prioritätsregel:
-    - Falls elem_nr existiert: element_nr = elem_nr
+    - Falls elem_nr existiert UND kein virtueller Knotenpunkt vorhanden: element_nr = elem_nr
     - Falls elem_nr nicht existiert: element_nr bleibt unverändert (berechneter Wert)
+    - Falls virtueller Knotenpunkt vorhanden: berechnete element_nr bleibt erhalten
+    
+    WICHTIG: Segmente mit virtuellen Knotenpunkten (erkennbar an "V" in beginnt_bei_vp
+    oder endet_bei_vp) werden von der Prioritätsregel AUSGENOMMEN, da die elem_nr
+    aus der Zeit vor dem Splitting stammt und virtuelle Knotenpunkte nicht berücksichtigt.
     
     Args:
         enriched_rvn (GeoDataFrame): Radvorrangsnetz mit berechneter element_nr und
@@ -569,19 +575,33 @@ def apply_elem_nr_priority(enriched_rvn):
     
     result_gdf = enriched_rvn.copy()
     
-    # Zähle Übernahmen
+    # Identifiziere Segmente mit virtuellen Knotenpunkten
+    has_virtual_start = result_gdf['beginnt_bei_vp'].notna() & result_gdf['beginnt_bei_vp'].astype(str).str.startswith('V')
+    has_virtual_end = result_gdf['endet_bei_vp'].notna() & result_gdf['endet_bei_vp'].astype(str).str.startswith('V')
+    has_virtual_node = has_virtual_start | has_virtual_end
+    
+    # Zähle Segmente
+    virtual_count = has_virtual_node.sum()
     has_elem_nr = result_gdf['elem_nr'].notna()
-    overwrite_count = has_elem_nr.sum()
+    
+    # Prioritätsregel gilt NUR für Segmente OHNE virtuelle Knotenpunkte
+    eligible_for_priority = has_elem_nr & ~has_virtual_node
+    excluded_virtual = has_elem_nr & has_virtual_node
+    
+    overwrite_count = eligible_for_priority.sum()
+    excluded_count = excluded_virtual.sum()
     keep_calculated_count = (~has_elem_nr).sum()
     
     logging.info(f"\n📝 PRIORITÄTSREGEL:")
-    logging.info(f"  elem_nr vorhanden → wird übernommen: {overwrite_count} Segmente")
+    logging.info(f"  elem_nr vorhanden UND kein V-Knoten → wird übernommen: {overwrite_count} Segmente")
+    logging.info(f"  elem_nr vorhanden ABER V-Knoten → AUSGENOMMEN: {excluded_count} Segmente")
     logging.info(f"  elem_nr fehlt → berechnete element_nr behalten: {keep_calculated_count} Segmente")
+    logging.info(f"\n  Gesamt mit virtuellen Knotenpunkten: {virtual_count} Segmente")
     
-    # Übernehme elem_nr als element_nr wo vorhanden
-    result_gdf.loc[has_elem_nr, 'element_nr'] = result_gdf.loc[has_elem_nr, 'elem_nr']
+    # Übernehme elem_nr als element_nr NUR wo vorhanden UND keine virtuellen Knotenpunkte
+    result_gdf.loc[eligible_for_priority, 'element_nr'] = result_gdf.loc[eligible_for_priority, 'elem_nr']
     
-    logging.info(f"\n✅ Prioritätsregel angewendet!")
+    logging.info(f"\n✅ Prioritätsregel angewendet (Segmente mit V-Knoten ausgenommen)!")
     logging.info("="*70)
     
     return result_gdf

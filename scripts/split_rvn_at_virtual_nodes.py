@@ -100,6 +100,8 @@ def find_closest_line_segment(point, line_geom):
 def split_line_at_point(line_geom, point, tolerance=VIRTUAL_NODE_TOLERANCE):
     """
     Teilt eine Linie an der nächstgelegenen Position zu einem Punkt.
+    Wenn der Punkt nahe einem Endpunkt liegt, wird der virtuelle Knotenpunkt
+    exakt auf den Endpunkt projiziert, um sehr kurze Segmente zu vermeiden.
     
     Args:
         line_geom (LineString oder MultiLineString): Zu teilende Linie
@@ -139,31 +141,80 @@ def split_line_at_point(line_geom, point, tolerance=VIRTUAL_NODE_TOLERANCE):
     
     # Projiziere Punkt auf Linie
     projected_distance = line_geom.project(point)
+    line_length = line_geom.length
+    
+    # VERBESSERUNG: Prüfe ob der projizierte Punkt sehr nah an einem Endpunkt liegt
+    # Wenn ja, snap auf den exakten Endpunkt um sehr kurze Segmente zu vermeiden
+    ENDPOINT_SNAP_TOLERANCE = 1.0  # 1 Meter
+    
+    if projected_distance < ENDPOINT_SNAP_TOLERANCE:
+        # Nahe am Startpunkt - snap auf Start
+        logging.debug(f"Virtueller Knotenpunkt liegt {projected_distance:.2f}m vom Startpunkt - snapping auf Startpunkt")
+        return [line_geom]  # Keine Teilung notwendig
+    elif (line_length - projected_distance) < ENDPOINT_SNAP_TOLERANCE:
+        # Nahe am Endpunkt - snap auf Ende
+        logging.debug(f"Virtueller Knotenpunkt liegt {line_length - projected_distance:.2f}m vom Endpunkt - snapping auf Endpunkt")
+        return [line_geom]  # Keine Teilung notwendig
+    
+    # VERBESSERUNG: Erstelle exakte Koordinaten für den Split-Punkt
     projected_point = line_geom.interpolate(projected_distance)
     
-    # Erstelle einen kleinen Puffer um den projizierten Punkt für split
-    split_buffer = projected_point.buffer(0.01)  # 1cm Buffer für numerische Stabilität
+    # Erstelle neue Linie durch Koordinaten-Extraktion und -Aufteilung
+    coords = list(line_geom.coords)
+    
+    # Finde die Position wo der Split-Punkt eingefügt werden soll
+    split_coord = (projected_point.x, projected_point.y)
+    
+    # Baue zwei neue LineStrings: vom Start bis zum Split-Punkt und vom Split-Punkt bis zum Ende
+    accumulated_distance = 0.0
+    split_index = None
+    
+    for i in range(len(coords) - 1):
+        segment_start = coords[i]
+        segment_end = coords[i + 1]
+        segment_line = LineString([segment_start, segment_end])
+        segment_length = segment_line.length
+        
+        if accumulated_distance <= projected_distance <= accumulated_distance + segment_length:
+            split_index = i
+            break
+        accumulated_distance += segment_length
+    
+    if split_index is None:
+        logging.warning("Konnte Split-Index nicht bestimmen - Rückgabe der ursprünglichen Linie")
+        return [line_geom]
     
     try:
-        # Teile Linie mit dem Buffer
-        split_result = split(line_geom, split_buffer)
+        # Erstelle erstes Segment: vom Start bis zum Split-Punkt
+        first_coords = coords[:split_index + 1] + [split_coord]
+        first_segment = LineString(first_coords)
         
-        if hasattr(split_result, 'geoms'):
-            # Erfolgreiche Teilung - sammle alle LineString-Teile
-            segments = []
-            for geom in split_result.geoms:
-                if isinstance(geom, LineString) and geom.length > 0.01:  # Mindestlänge 1cm
-                    segments.append(geom)
-            
-            if len(segments) > 1:
-                logging.debug(f"Linie erfolgreich in {len(segments)} Segmente geteilt")
-                return segments
-            else:
-                logging.debug("Split ergab nur ein Segment - Rückgabe der ursprünglichen Linie")
-                return [line_geom]
+        # Erstelle zweites Segment: vom Split-Punkt bis zum Ende
+        second_coords = [split_coord] + coords[split_index + 1:]
+        second_segment = LineString(second_coords)
+        
+        # Prüfe ob beide Segmente eine sinnvolle Länge haben (mindestens 0.1m)
+        MIN_SEGMENT_LENGTH = 0.1
+        segments = []
+        
+        if first_segment.length >= MIN_SEGMENT_LENGTH:
+            segments.append(first_segment)
         else:
-            # Keine Teilung erfolgt
-            logging.debug("Keine Teilung möglich - Rückgabe der ursprünglichen Linie")
+            logging.debug(f"Erstes Segment zu kurz ({first_segment.length:.3f}m) - wird übersprungen")
+        
+        if second_segment.length >= MIN_SEGMENT_LENGTH:
+            segments.append(second_segment)
+        else:
+            logging.debug(f"Zweites Segment zu kurz ({second_segment.length:.3f}m) - wird übersprungen")
+        
+        if len(segments) == 2:
+            logging.debug(f"Linie erfolgreich in 2 Segmente geteilt ({first_segment.length:.2f}m, {second_segment.length:.2f}m)")
+            return segments
+        elif len(segments) == 1:
+            logging.debug("Split würde zu kurzes Segment erzeugen - ein Segment beibehalten")
+            return segments
+        else:
+            logging.debug("Beide Segmente zu kurz - Rückgabe der ursprünglichen Linie")
             return [line_geom]
             
     except Exception as e:
