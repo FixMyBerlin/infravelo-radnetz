@@ -30,7 +30,6 @@ from helpers.convert_schutzstreifen_at_bus_stops import (
     convert_schutzstreifen_at_bus_stops_with_gdf,
     load_bus_stops as load_bus_stops_from_path,
 )
-from helpers.convert_schutzstreifen_to_mischverkehr import convert_short_schutzstreifen_to_mischverkehr
 
 
 def read_input_file(file_path):
@@ -88,29 +87,15 @@ def process_bikelane_conversion(input_path, output_path, clip_region=None, data_
         gdf = clip_to_view(gdf, view)
         logging.info(f"Nach Viewport-Zuschnitt: {len(gdf)} Kanten")
     
-    # ---------- Schutzstreifen-Konvertierung 0: Zu Mischverkehr -----------
-    logging.info("Konvertiere kurze Schutzstreifen zwischen Mischverkehr zu Mischverkehr...")
-    
     # Zähle Schutzstreifen vor allen Konvertierungen
     schutzstreifen_initial = len(gdf[gdf['fuehr'] == 'Schutzstreifen'])
     logging.info(f"Anzahl Schutzstreifen vor Konvertierung: {schutzstreifen_initial}")
-    
-    gdf = convert_short_schutzstreifen_to_mischverkehr(
-        gdf,
-        length_threshold=50.0,
-        tolerance=1.0
-    )
-    
-    # Zähle Schutzstreifen nach Mischverkehr-Konvertierung
-    schutzstreifen_after_mischverkehr = len(gdf[gdf['fuehr'] == 'Schutzstreifen'])
-    converted_to_mischverkehr = schutzstreifen_initial - schutzstreifen_after_mischverkehr
-    logging.info(f"Zu Mischverkehr konvertiert: {converted_to_mischverkehr}")
     
     # ---------- Schutzstreifen-Konvertierung 1: An Bushaltestellen ---------
     logging.info("Konvertiere Schutzstreifen an Bushaltestellen zu Radfahrstreifen...")
     
     # Zähle Schutzstreifen vor der Radfahrstreifen-Konvertierung
-    schutzstreifen_before = schutzstreifen_after_mischverkehr
+    schutzstreifen_before = schutzstreifen_initial
     logging.info(f"Anzahl Schutzstreifen vor Radfahrstreifen-Konvertierung: {schutzstreifen_before}")
     
     # Lade Bushaltestellen-Datei
@@ -166,7 +151,6 @@ def process_bikelane_conversion(input_path, output_path, clip_region=None, data_
     logging.info("=" * 60)
     logging.info("ZUSAMMENFASSUNG SCHUTZSTREIFEN-KONVERTIERUNG:")
     logging.info(f"  Schutzstreifen initial: {schutzstreifen_initial}")
-    logging.info(f"  → Zu Mischverkehr konvertiert: {converted_to_mischverkehr}")
     logging.info(f"  → An Bushaltestellen zu Radfahrstreifen: {converted_bus_stops}")
     logging.info(f"  → Kurze Schutzstreifen zu Radfahrstreifen: {converted_short}")
     logging.info(f"  Gesamt konvertiert: {schutzstreifen_initial - schutzstreifen_final}")
