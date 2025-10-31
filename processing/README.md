@@ -92,28 +92,41 @@ Das Snapping-System behandelt Kreisverkehre und andere geschlossene Ringe (Start
 Diese Verbesserung verhindert falsche Zuordnungen bei Kreisverkehren und stellt sicher, dass die `direction_compatibility`-Prüfung korrekt funktioniert.
 
 #### Schritt 3: Schutzstreifen-Konvertierung (`start_bikelane_conversion.py`)
-**Konvertiert Schutzstreifen zu Radfahrstreifen unter bestimmten Bedingungen:**
+**Konvertiert Schutzstreifen zu anderen Infrastrukturtypen unter bestimmten Bedingungen:**
 
-1. **Kurze Schutzstreifen** (< 50m):
-   - Werden zu Radfahrstreifen konvertiert, wenn sie an Radfahrstreifen **derselben Richtung** angrenzen
-   - Berücksichtigt zusammenhängende Segmente
-
-2. **Schutzstreifen an Bushaltestellen**:
+1. **Schutzstreifen an Bushaltestellen** → Radfahrstreifen:
    - Werden zu Radfahrstreifen konvertiert, wenn:
      - Sie im 20m Umkreis einer Bushaltestelle liegen UND
      - Sie an Radfahrstreifen **derselben Richtung** angrenzen UND
      - Die Bushaltestelle auf der **rechten Seite** (Fahrtrichtung) liegt
    - Berücksichtigt Rechtsverkehr in Deutschland
    - Benötigt vorheriges Ausführen von `scripts/filter_bus_stops_on_rvn.py`
+   - Neue Führungsform: `"Radfahrstreifen (OSM:Schutzstreifen an Haltestelle)"`
+
+2. **Kurze Schutzstreifen** (< 50m) → Radfahrstreifen:
+   - Werden zu Radfahrstreifen konvertiert, wenn sie an Radfahrstreifen **derselben Richtung** angrenzen
+   - Berücksichtigt zusammenhängende Segmente (mit 0,1m Toleranz)
+   - Neue Führungsform: `"Radfahrstreifen (OSM:Kurzer Schutzstreifen)"`
+
+3. **Kurze Schutzstreifen** (< 50m) → Mischverkehr:
+   - Werden zu Mischverkehr konvertiert, wenn sie an Mischverkehr angrenzen
+   - Berücksichtigt zusammenhängende Segmente derselben Richtung (mit 1,0m Toleranz)
+   - **MIT Richtungscheck:** Nur Mischverkehr mit gleichem `ri`-Attribut wird berücksichtigt
+   - Neue Führungsform: `"Mischverkehr (OSM:Schutzstreifen)"`
 
 **Wichtige Prüfungen:**
-- Richtungscheck: Nur Radfahrstreifen mit gleichem `ri`-Attribut werden berücksichtigt
-- Seitenprüfung: Bei Haltestellen wird nur die Seite mit Haltestelle konvertiert
-- Filter für `fuehr=None`: Wege ohne Führungsform werden korrekt ausgefiltert
+- **Richtungscheck bei allen Konvertierungen:** Nur angrenzende Wege mit gleichem `ri`-Attribut werden berücksichtigt (verhindert fälschliche Konvertierung bei entgegengesetzten Fahrrichtungen)
+- **Seitenprüfung:** Bei Haltestellen wird nur die Seite mit Haltestelle konvertiert
+- **Filter für `fuehr=None`:** Wege ohne Führungsform werden korrekt ausgefiltert
+- **MultiLineString-Handling:** Teile können aufgesplittet werden, wenn nur manche die Kriterien erfüllen
 
 **Ausgabe**: `output/snapping_converted_bikelanes.fgb`
 
-Siehe [CHANGELOG_SCHUTZSTREIFEN_CONVERSION.md](./CHANGELOG_SCHUTZSTREIFEN_CONVERSION.md) für Details.
+**Detaillierte Dokumentation:** Siehe [docs/Schutzstreifen-Konvertierung.md](../docs/Schutzstreifen-Konvertierung.md)
+
+**Hinweis:** Alle konvertierten Varianten werden in der finalen Aggregation normalisiert:
+- `"Radfahrstreifen (OSM:...)"` → `"Radfahrstreifen"`
+- `"Mischverkehr (OSM:Schutzstreifen)"` → `"Mischverkehr mit motorisiertem Verkehr"`
 
 #### Schritt 4: Finale Aggregation (`aggregate_final_model.py`)
 - Aggregiert Netzwerkdaten nach `element_nr` und Fahrtrichtung (`ri`)

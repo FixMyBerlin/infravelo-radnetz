@@ -529,6 +529,48 @@ def normalize_radfahrstreifen_types(gdf):
     return gdf
 
 
+def normalize_mischverkehr_types(gdf):
+    """
+    Vereinheitlicht alle Varianten von Mischverkehr zu einem einzigen Typ.
+    
+    Konvertiert folgende Typen:
+    - "Mischverkehr (OSM:Schutzstreifen)" → "Mischverkehr mit motorisiertem Verkehr"
+    - "Mischverkehr mit motorisiertem Verkehr" bleibt unverändert
+    
+    Args:
+        gdf: GeoDataFrame mit aggregierten Kanten
+        
+    Returns:
+        GeoDataFrame mit vereinheitlichten Mischverkehr-Typen
+    """
+    if 'fuehr' not in gdf.columns:
+        logging.warning("Spalte 'fuehr' nicht gefunden - überspringe Normalisierung der Mischverkehr-Typen")
+        return gdf
+    
+    # Arbeite mit einer Kopie
+    gdf = gdf.copy()
+    
+    # Definiere die zu normalisierenden Mischverkehr-Varianten
+    mischverkehr_variant = "Mischverkehr (OSM:Schutzstreifen)"
+    
+    # Zähle Vorkommen vor der Konvertierung
+    count = (gdf['fuehr'] == mischverkehr_variant).sum()
+    
+    # Konvertiere Variante zu "Mischverkehr mit motorisiertem Verkehr"
+    if count > 0:
+        logging.info("Vereinheitliche Mischverkehr-Typen:")
+        logging.info(f"  - {count}× '{mischverkehr_variant}' → 'Mischverkehr mit motorisiertem Verkehr'")
+        gdf.loc[gdf['fuehr'] == mischverkehr_variant, 'fuehr'] = 'Mischverkehr mit motorisiertem Verkehr'
+        
+        # Zähle Gesamtzahl nach Normalisierung
+        total_mischverkehr = (gdf['fuehr'] == 'Mischverkehr mit motorisiertem Verkehr').sum()
+        logging.info(f"Gesamt nach Normalisierung: {total_mischverkehr}× 'Mischverkehr mit motorisiertem Verkehr'")
+    else:
+        logging.info("Keine Mischverkehr-Varianten zur Normalisierung gefunden")
+    
+    return gdf
+
+
 def add_afid_column(gdf):
     """
     Fügt eine AFID-Spalte (Aggregation FID) mit fortlaufender Nummerierung hinzu.
@@ -620,9 +662,12 @@ def process(input_path, output_path, crs, clip_region=None, data_dir="./data", a
     
     logging.info(f"Eingangsdaten: {len(gdf)} Segmente geladen")
     
-    # ---------- Radfahrstreifen-Typen vereinheitlichen ---------------------
+    # ---------- Führungstypen vereinheitlichen vor Aggregation -------------
     logging.info("Vereinheitliche Radfahrstreifen-Typen vor Aggregation...")
     gdf = normalize_radfahrstreifen_types(gdf)
+    
+    logging.info("Vereinheitliche Mischverkehr-Typen vor Aggregation...")
+    gdf = normalize_mischverkehr_types(gdf)
     
     # Optional: Auf Gebiet zuschneiden
     if clip_region:
