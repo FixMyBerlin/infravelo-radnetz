@@ -15,7 +15,7 @@ export const OsmUpdateNotice = ({ feature, source }: Props) => {
   const { osm_id, osm_type } = feature.properties
 
   let osmType: OsmFeatureType | null = null
-  if (longOsmType[osm_type.toUpperCase() as keyof typeof longOsmType]) {
+  if (osm_type && longOsmType[osm_type.toUpperCase() as keyof typeof longOsmType]) {
     osmType = longOsmType[osm_type.toUpperCase() as keyof typeof longOsmType]
   }
 
@@ -30,6 +30,7 @@ export const OsmUpdateNotice = ({ feature, source }: Props) => {
 
   const { data: tildaData, isLoading: tildaLoading } = useTildaUpdateInfo(source)
 
+  // Early return if osm_id or osm_type are missing (e.g., for Mapillary features)
   if (!osm_id || !osm_type) {
     return null
   }

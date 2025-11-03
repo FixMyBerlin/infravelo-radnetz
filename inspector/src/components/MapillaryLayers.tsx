@@ -127,16 +127,9 @@ export const MapillaryFMCLayers = () => {
         paint={{
           'circle-radius': ['interpolate', ['linear'], ['zoom'], 14, 0.1, 14.5, 3, 15, 3, 17, 5],
           'circle-blur': 0.5,
-          'circle-color': [
-            'step',
-            ['get', 'captured_at'],
-            '#F77E5E',
-            new Date().setFullYear(new Date().getFullYear() - 4),
-            '#FFC01B',
-            new Date().setFullYear(new Date().getFullYear() - 2),
-            '#05CB63',
-          ],
+          'circle-color': '#9B59B6', // Lila/Purple color for FMC Befahrung
         }}
+        beforeId="static-layers-start"
       />
       <Layer
         id="mapillary-fmc-line"
@@ -153,15 +146,7 @@ export const MapillaryFMCLayers = () => {
           ],
         ]}
         paint={{
-          'line-color': [
-            'step',
-            ['get', 'captured_at'],
-            '#F77E5E',
-            new Date().setFullYear(new Date().getFullYear() - 4),
-            '#FFC01B',
-            new Date().setFullYear(new Date().getFullYear() - 2),
-            '#05CB63',
-          ],
+          'line-color': '#9B59B6', // Lila/Purple color for FMC Befahrung
           'line-opacity': [
             'interpolate',
             ['linear'],
@@ -169,15 +154,11 @@ export const MapillaryFMCLayers = () => {
             10,
             0.7,
             14,
-            [
-              'case',
-              ['>', ['get', 'captured_at'], new Date().setFullYear(new Date().getFullYear() - 2)],
-              0.9,
-              0.4,
-            ],
+            0.9,
           ],
-          'line-width': ['interpolate', ['linear'], ['zoom'], 8, 1.5, 10, 1.5, 14, 2, 14.6, 1.3],
+          'line-width': ['interpolate', ['linear'], ['zoom'], 8, 2.5, 10, 2.5, 14, 3.5, 14.6, 2.5],
         }}
+        beforeId="static-layers-start"
       />
     </Fragment>
   )

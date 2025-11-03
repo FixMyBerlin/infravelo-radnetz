@@ -116,7 +116,9 @@ export const getBikeLaneOnewayLegend = (): LayerLegend => ({
       label: '[TODO] Keine oder fehlerhafte Angabe',
       filterExpression: [
         'any',
+        // No oneway property at all
         ['!', ['has', 'oneway']],
+        // Has oneway but with invalid value (not yes, no, car_not_bike, implicit_yes, assumed_no)
         [
           'all',
           ['has', 'oneway'],
@@ -125,6 +127,36 @@ export const getBikeLaneOnewayLegend = (): LayerLegend => ({
           ['!=', ['get', 'oneway'], 'car_not_bike'],
           ['!=', ['get', 'oneway'], 'implicit_yes'],
           ['!=', ['get', 'oneway'], 'assumed_no'],
+        ],
+        // Has oneway=implicit_yes but NOT in the allowed categories
+        [
+          'all',
+          ['has', 'oneway'],
+          ['==', ['get', 'oneway'], 'implicit_yes'],
+          [
+            '!',
+            [
+              'any',
+              ['==', ['get', 'category'], 'cyclewayOnHighway_advisory'],
+              ['==', ['get', 'category'], 'cyclewayOnHighway_exclusive'],
+              ['==', ['get', 'category'], 'cyclewayOnHighwayProtected'],
+              ['==', ['get', 'category'], 'footAndCyclewayShared_adjoining'],
+            ],
+          ],
+        ],
+        // Has oneway=assumed_no but NOT in the allowed categories
+        [
+          'all',
+          ['has', 'oneway'],
+          ['==', ['get', 'oneway'], 'assumed_no'],
+          [
+            '!',
+            [
+              'any',
+              ['==', ['get', 'category'], 'bicycleRoad_vehicleDestination'],
+              ['==', ['get', 'category'], 'pedestrianAreaBicycleYes'],
+            ],
+          ],
         ],
       ],
     },
