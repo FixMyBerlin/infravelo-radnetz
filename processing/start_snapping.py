@@ -1535,6 +1535,15 @@ def process(net_path, osm_path, out_path, crs, buffer, data_dir="./data", log_ca
     logging.info("Bereite Daten für Ausgabe vor: Ordne Spalten...")
     out_gdf = reorder_columns_for_output(out_gdf)
 
+    # ---------- Finale Datenbereinigung: fuehr=null beheben ---------------
+    # Wenn kein passender Weg gefunden wurde (prio_total < -10), ist fuehr=null
+    # Diese Wege erhalten die korrekte Zuweisung: "Keine Radinfrastruktur vorhanden"
+    fuehr_null_mask = out_gdf['fuehr'].isna()
+    fuehr_null_count = fuehr_null_mask.sum()
+    if fuehr_null_count > 0:
+        logging.info(f"Setze fuehr='Keine Radinfrastruktur vorhanden' für {fuehr_null_count} Kanten ohne TILDA-Match (prio_total < -10)")
+        out_gdf.loc[fuehr_null_mask, 'fuehr'] = 'Keine Radinfrastruktur vorhanden'
+
     # ---------- Ergebnis speichern ------------------------------------------
     p, *layer = out_path.split(":")
     layer = layer[0] if layer else "edges_enriched"
