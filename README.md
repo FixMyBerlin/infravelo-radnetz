@@ -2,7 +2,7 @@
 
 Dieses Projekt hat zum Ziel, bereits verarbeitete Fahrrad-Geodaten aus [TILDA](https://tilda-geo.de/) (basierend auf OpenStreetMap) in das Berliner [Detailnetz](https://gdi.berlin.de/geonetwork/geonetwork/api/records/cf374cd3-d0b8-3e6a-92c3-75e18dd595a1) zu überführen.
 
-## QA
+## QA Inspector
 Der Inspector dient der Qualitätssicherung (QA).
 
 Starte den Inspector mit:
@@ -12,7 +12,7 @@ cd inspector && npm run dev
 
 Alternativ kannst das QGIS-Projekt `QGIS QA Processing.qgz` verwendet werden, das die verschiedenen Ausgabedateien visualisiert.
 
-## Verarbeitung
+## RVN Prozessierung
 
 Das Verarbeitungsscript nutzt Python und mehrere Bibliotheken.
 
@@ -58,6 +58,17 @@ pip install -r processing/requirements.txt
 - `scripts/` – Hilfs- und Wrapper-Skripte zur Automatisierung der Verarbeitung
 - `testing/` – Testdaten und Testskripte
 - `validation/` – Skripte und Daten zur Validierung der Ergebnisse
+
+## Das Projekt
+
+Dieses Projekt überführt Fahrrad-Infrastrukturdaten aus OpenStreetMap (aufbereitet durch TILDA) in das strukturierte Berliner Detailnetz. Als Datenquellen dienen das Radvorrangsnetz (RVN), die TILDA-Exporte und das Berliner Straßennetz-Detailnetz. Die Verarbeitung erfolgt in mehreren automatisierten Schritten:
+
+1. **TILDA-Datenaufbereitung** (`process_tilda_data.sh`): Übersetzung und Anreicherung der TILDA-Rohdaten mit zusätzlichen Attributen und Kategorisierungen
+2. **Matching** (`start_matching.py`): Zuordnung von OSM-Ways zu Detailnetz-Kanten anhand des Radvorrangsnetzes, wobei jeder OSM-Way eine Detailnetz-Edge-ID erhält.
+3. **Snapping** (`start_snapping.py`): Geometrische Anpassung der OSM-Daten an die Detailnetz-Geometrie, sodass die Fahrrad-Infrastruktur exakt auf den Detailnetz-Kanten liegt.
+4. **Aggregation** (`start_aggregation.py`): Zusammenführung mehrerer OSM-Ways auf einer Detailnetz-Kante zu einem einzigen Feature mit konsolidierten Attributen.
+
+Zusätzliche Skripte verarbeiten Knotenpunkte, Ampeln, Bushaltestellen und weitere Netzwerkelemente, welche in die Datensätze direkt oder indirekt einfließen. Das Wrapper-Skript `execute_processing.sh` führt alle Schritte automatisiert aus und unterstützt optionales Clipping auf bestimmte Regionen (Neukölln, Norden, Süden). Der Web-Inspector ermöglicht die visuelle Qualitätssicherung der Ergebnisse durch interaktive Kartendarstellung und Filterung nach Attributen.
 
 ## Lizenzen
 
