@@ -1,69 +1,66 @@
 # infraVelo Radnetz
 
-This project aims to convert already processed [TILDA](https://tilda-geo.de/) OpenStreetMap bicycle geodata to the [Detailnetz](https://gdi.berlin.de/geonetwork/geonetwork/api/records/cf374cd3-d0b8-3e6a-92c3-75e18dd595a1) of Berlin.
+Dieses Projekt hat zum Ziel, bereits verarbeitete Fahrrad-Geodaten aus [TILDA](https://tilda-geo.de/) (basierend auf OpenStreetMap) in das Berliner [Detailnetz](https://gdi.berlin.de/geonetwork/geonetwork/api/records/cf374cd3-d0b8-3e6a-92c3-75e18dd595a1) zu überführen.
 
 ## QA
-The inspector is useful for QA purposes.
+Der Inspector dient der Qualitätssicherung (QA).
 
-Start by running:
+Starte den Inspector mit:
 ```sh
 cd inspector && npm run dev
 ```
 
-Alternatively, you can use the **QGIS** `QGIS QA Processing.qgz` Project, which displays the different output files.
+Alternativ kannst das QGIS-Projekt `QGIS QA Processing.qgz` verwendet werden, das die verschiedenen Ausgabedateien visualisiert.
 
-## Processing
+## Verarbeitung
 
-*Uses Python and libraries for processing.*
+Das Verarbeitungsscript nutzt Python und mehrere Bibliotheken.
 
-Consider creating a `venv` environment for the script and then install the the dependencies via `requirements.txt`
+Es empfiehlt sich, ein virtuelles Python-Environment (`venv`) anzulegen und die Abhängigkeiten aus `processing/requirements.txt` zu installieren.
 
-After creating the environment, run:
+Nach dem Erstellen des Environments führe folgende Befehle in der Projekt-Root aus:
 ```sh
-# Assumed, you are in the root repo folder
-
-# Create a venv environment, if not existing:
+# Falls noch nicht vorhanden: venv anlegen
 python3 -m venv .venv
 
-# Activate the venv environment, when opening a new shell:
+# In einer neuen Shell das venv aktivieren
 source .venv/bin/activate
 
-# Install packages in venv environment
+# Abhängigkeiten installieren
 pip install -r processing/requirements.txt
 
-# The process needs to be executed in this order
-./.venv/bin/python processing/translate_attributes_tilda_to_rvn.py --clip neukoelln
-./.venv/bin/python processing/start_matching.py --clip neukoelln
-./.venv/bin/python processing/start_snapping.py --clip neukoelln
-./.venv/bin/python processing/aggregate_final_model.py --clip neukoelln --input ./output/snapping_network_enriched_neukoelln.fgb
+# Die Verarbeitungs-Schritte müssen in dieser Reihenfolge ausgeführt werden
+./scripts/process_tilda_data.sh
 
-# To clip new TILDA bikelanes data, execute, then move to data folder
-./.venv/bin/python ./scripts/clip_tilda_data.py --input ./bikelanes.fgb --clip-features ./data/"Berlin Bezirke.gpkg" --output "./TILDA Radwege Berlin.fgb"
+./.venv/bin/python processing/start_matching.py
+./.venv/bin/python processing/start_snapping.py
+./.venv/bin/python processing/aggregate_final_model.py --input ./output/snapping_converted_bikelanes.fgb
 ```
 
 ```sh
-# Short way to execute processing:
-# --clip <region>  Clips all data to a specific region (neukoelln, norden, sueden)
-./processing/execute_processing.sh
+# Kurzvariante zur Ausführung aller Schritte für ein bestimmtes Gebiet:
+# --clip <region>  Clips alle Daten auf eine Region (neukoelln, norden, sueden)
 
-# Don't forget to make it executable before.
+# Vorher ausführbar machen: chmod +x processing/execute_processing.sh
+./scripts/process_tilda_data.sh
+./processing/execute_processing.sh
 ```
 
-The output is saved in `output/`.
+Die erzeugten Ausgabedateien werden im Ordner `output/` abgelegt.
 
-The processing uses two data sources as inputs: [Radvorrangsnetz](https://tilda-geo.de/regionen/berlin?map=9.9/52.518/13.372&config=1swjsz2.5ount0.4qfsxw.2t61&data=radverkehrsnetz--v&v=2), TILDA data and Detailnetz  is working in two steps:
+Die Verarbeitung verwendet zwei Datenquellen als Eingabe: das Radvorrangsnetz (RVN) und die TILDA-Exporte. Die Umwandlung in das Detailnetz erfolgt in zwei Schritten:
 
-1. Use the Radvorrangnetz and OpenStreetMap data to assign the Detailnetz Edge ID to the OSM Ways and the OSM Way IDs to the Detailnetz Edges.
-2. Glue the OSM data to the Detailnetz, creating bicycle edges in Detailnetz.
+1. Mittels Radvorrangsnetz und OpenStreetMap wird jeder OSM-Way einer Detailnetz-Kante zugeordnet (Detailnetz-Edge-ID) und umgekehrt die OSM-Way-IDs den Detailnetz-Kanten zugewiesen.
+2. Die OSM-Daten werden an das Detailnetz "geklebt" und es entstehen Fahrrad-Kanten im Detailnetz.
 
-At the end of the process, the file `matched_osm_ways.fgb` contains all OSM Ways, which are...
-* part of the RVN
-* are part of the bikelanes, roads or roadsPathClasses TILDA export
+Am Ende des Prozesses enthält die Datei `matched_osm_ways.fgb` alle OSM-Ways, die:
+- Teil des Radvorrangsnetzes (RVN) sind
+- in den TILDA-Exporten `bikelanes`, `roads` oder `roadsPathClasses` enthalten sind
 
-# Licenses
+## Lizenzen
 
-The code for the processing tools and the inspector is licensed under the AGPL-3.0 license. See [LICENSE](./LICENSE) for details.
+Der Quellcode der Verarbeitungsskripte und des Inspectors steht unter der AGPL-3.0-Lizenz. Details findest du in der Datei [LICENSE](./LICENSE).
 
-The raw geodata files are licensed as stated in [LIZENZEN.md](./data/LIZENZEN.md) (German) per file.
+Die verwendeten Roh-Geodaten sind pro Datei lizenziert, siehe [data/LIZENZEN.md](./data/LIZENZEN.md) (Deutsch).
 
-The geodata generated by the scripts in this repository is licensed as described in [LIZENZEN.md](./output/LIZENZEN.md) (German). These generated files are not included in the repository but can be reproduced from the raw geodata.
+Die durch die Skripte erzeugten Geodaten sind in [output/LIZENZEN.md](./output/LIZENZEN.md) (Deutsch) beschrieben. Die erzeugten Dateien sind nicht im Repository enthalten, lassen sich aber aus den Rohdaten reproduzieren.

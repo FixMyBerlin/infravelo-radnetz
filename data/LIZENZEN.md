@@ -5,6 +5,25 @@ Angabe der Lizenzen der in diesem Ordner enthaltenen Geodaten und Herkunft der D
 **Lizenztext ODbL:** https://opendatacommons.org/licenses/odbl/1-0/
 **Lizenztext dl-zero-de/2.0:** https://www.govdata.de/dl-de/by-2-0
 
+
+## TILDA Radwege Berlin.fgb
+
+* **Lizenz:** ODbL
+* **Urheber:** © OpenStreetMap; tilda-geo.de
+* Export von https://tilda-geo.de
+
+## TILDA Straßen Berlin.fgb
+
+* **Lizenz:** ODbL
+* **Urheber:** © OpenStreetMap; tilda-geo.de
+* Export von https://tilda-geo.de
+
+## TILDA Wege Berlin.fgb
+
+* **Lizenz:** ODbL
+* **Urheber:** © OpenStreetMap; tilda-geo.de
+* Export von https://tilda-geo.de
+
 ## Berlin Bezirke.gpkg
 
 * **Lizenz:** dl-zero-de/2.0
@@ -28,24 +47,6 @@ Angabe der Lizenzen der in diesem Ordner enthaltenen Geodaten und Herkunft der D
 ## Bezirk Neukölln Grenze.fgb
 
 Gleiche Lizenzangaben, aber Anpasungen: Extrakt aus `Berlin Bezirke.gpkg`
-
-## TILDA Radwege Berlin.fgb
-
-* **Lizenz:** ODbL
-* **Urheber:** © OpenStreetMap; tilda-geo.de
-* Export von https://tilda-geo.de
-
-## TILDA Straßen Berlin.fgb
-
-* **Lizenz:** ODbL
-* **Urheber:** © OpenStreetMap; tilda-geo.de
-* Export von https://tilda-geo.de
-
-## TILDA Wege Berlin.fgb
-
-* **Lizenz:** ODbL
-* **Urheber:** © OpenStreetMap; tilda-geo.de
-* Export von https://tilda-geo.de
 
 ## Verbindungspunkte im RVN.gpkg
 
