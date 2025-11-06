@@ -5,19 +5,23 @@ schutzstreifen_conversion_helper.py
 --------------------------------------------------------------------
 Gemeinsame Funktionen für die Konvertierung von Schutzstreifen zu Radfahrstreifen.
 
-Diese Funktionen werden von convert_schutzstreifen.py verwendet und 
-berücksichtigen dabei immer die Fahrtrichtung (ri-Attribut) für korrekte 
-Konvertierungen.
+Diese Funktionen werden von convert_schutzstreifen.py, convert_schutzstreifen_kreuzungen.py
+und anderen Schutzstreifen-bezogenen Modulen verwendet. Sie berücksichtigen dabei immer 
+die Fahrtrichtung (ri-Attribut) für korrekte Konvertierungen.
 
 Wichtige Funktionen:
 - get_endpoints(): Extrahiert äußere Start- und Endpunkte einer Geometrie
 - get_all_endpoints(): Extrahiert alle Endpunkte (auch interne bei MultiLineString)
 - find_adjacent_ways(): Findet angrenzende Wege mit Richtungsberücksichtigung
+- find_connected_schutzstreifen(): Gruppiert Schutzstreifen zu zusammenhängenden Segmenten
+- calculate_segment_length(): Berechnet die Gesamtlänge eines Segments
+- merge_segment_geometries(): Verbindet Geometrien zu einem zusammenhängenden Segment
 """
 
 import logging
 import pandas as pd
 from shapely.geometry import Point, LineString, MultiLineString
+from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 
@@ -236,3 +240,165 @@ def find_schutzstreifen_adjacent_to_radfahrstreifen(schutzstreifen_near_stops, a
     logger.info(f"Schutzstreifen an Haltestellen die an Radfahrstreifen angrenzen: {len(result_gdf)}")
     
     return result_gdf
+
+
+def find_connected_schutzstreifen(schutzstreifen_gdf, tolerance=0.1):
+    """
+    Finde zusammenhängende Schutzstreifen-Segmente mit optimiertem räumlichem Index und Richtungscheck.
+    
+    Diese Funktion gruppiert Schutzstreifen zu zusammenhängenden Segmenten basierend auf:
+    - Räumlicher Nähe (tolerance)
+    - Gleicher Fahrtrichtung (ri-Attribut)
+    
+    Args:
+        schutzstreifen_gdf: GeoDataFrame mit Schutzstreifen
+        tolerance: Toleranz für räumliche Verbindungen in Metern
+        
+    Returns:
+        list: Liste von Listen mit Indizes zusammenhängender Schutzstreifen
+    """
+    logger.info("Suche zusammenhängende Schutzstreifen-Segmente...")
+    
+    # Erstelle Index für Endpunkte (alle Endpunkte, auch interne bei MultiLineString)
+    endpoints = {}
+    for idx, row in schutzstreifen_gdf.iterrows():
+        all_endpoints = get_all_endpoints(row.geometry)
+        if all_endpoints:
+            endpoints[idx] = {
+                'endpoints': all_endpoints,
+                'geometry': row.geometry,
+                'ri': row.get('ri', None)  # Richtungsattribut hinzufügen
+            }
+    
+    # Optimierte Verbindungssuche
+    connections = defaultdict(set)
+    indices = list(endpoints.keys())
+    
+    logger.debug(f"Verarbeite {len(indices)} Schutzstreifen...")
+    
+    for i, idx1 in enumerate(indices):
+        if i % 500 == 0 and i > 0:  # Progress logging
+            logger.debug(f"Fortschritt: {i}/{len(indices)}")
+            
+        data1 = endpoints[idx1]
+        
+        for j, idx2 in enumerate(indices[i+1:], i+1):
+            data2 = endpoints[idx2]
+            
+            # Prüfe alle Kombinationen von Endpunkten
+            min_distance = float('inf')
+            for endpoint1 in data1['endpoints']:
+                for endpoint2 in data2['endpoints']:
+                    distance = endpoint1.distance(endpoint2)
+                    min_distance = min(min_distance, distance)
+            
+            if min_distance <= tolerance:
+                # Zusätzlich: Prüfe ob beide Schutzstreifen die gleiche Richtung haben
+                ri1 = data1.get('ri')
+                ri2 = data2.get('ri')
+                
+                # Nur verbinden wenn Richtung identisch ist (oder eine der Richtungen unbekannt ist)
+                if ri1 is None or ri2 is None or ri1 == ri2:
+                    connections[idx1].add(idx2)
+                    connections[idx2].add(idx1)
+    
+    # Erstelle zusammenhängende Komponenten (Segmente)
+    visited = set()
+    segments = []
+    
+    for start_idx in endpoints.keys():
+        if start_idx in visited:
+            continue
+            
+        # DFS für zusammenhängende Komponente
+        component = []
+        stack = [start_idx]
+        
+        while stack:
+            current = stack.pop()
+            if current in visited:
+                continue
+                
+            visited.add(current)
+            component.append(current)
+            
+            # Füge alle verbundenen Knoten hinzu
+            for neighbor in connections[current]:
+                if neighbor not in visited:
+                    stack.append(neighbor)
+        
+        segments.append(component)
+    
+    logger.debug(f"Gefundene Segmente: {len(segments)}")
+    return segments
+
+
+def calculate_segment_length(segment_indices, schutzstreifen_gdf):
+    """
+    Berechne Gesamtlänge eines Segments.
+    
+    Args:
+        segment_indices: Liste von Indizes der Segmente
+        schutzstreifen_gdf: GeoDataFrame mit Schutzstreifen
+        
+    Returns:
+        tuple: (total_length, geometries)
+    """
+    total_length = 0
+    geometries = []
+    
+    for idx in segment_indices:
+        geom = schutzstreifen_gdf.loc[idx, 'geometry']
+        geometries.append(geom)
+        total_length += geom.length
+    
+    return total_length, geometries
+
+
+def merge_segment_geometries(geometries):
+    """
+    Versuche Geometrien zu einem zusammenhängenden Segment zu verbinden.
+    
+    Args:
+        geometries: Liste von LineString oder MultiLineString Objekten
+        
+    Returns:
+        LineString oder MultiLineString: Verbundene Geometrie oder None
+    """
+    from shapely.ops import linemerge
+    
+    try:
+        # Normalisiere alle Geometrien zu LineStrings
+        lines = []
+        for geom in geometries:
+            if isinstance(geom, MultiLineString):
+                # MultiLineString zu einzelnen LineStrings aufbrechen
+                for line in geom.geoms:
+                    lines.append(line)
+            elif isinstance(geom, LineString):
+                lines.append(geom)
+            else:
+                continue  # Andere Geometrietypen überspringen
+        
+        if len(lines) == 0:
+            return None
+        elif len(lines) == 1:
+            return lines[0]
+        else:
+            # Versuche LineString-Merger
+            merged = linemerge(lines)
+            return merged
+    except Exception as e:
+        logger.warning(f"Fehler beim Merger von Geometrien: {e}")
+        # Fallback: MultiLineString aus allen verfügbaren LineStrings
+        lines = []
+        for geom in geometries:
+            if isinstance(geom, MultiLineString):
+                lines.extend(list(geom.geoms))
+            elif isinstance(geom, LineString):
+                lines.append(geom)
+        
+        if lines:
+            return MultiLineString(lines)
+        else:
+            return None

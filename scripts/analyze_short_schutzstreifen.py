@@ -32,6 +32,8 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent / 'processing'))
 from helpers.progressbar import print_progressbar
 from helpers.schutzstreifen_conversion_helper import get_endpoints, find_adjacent_ways
+from helpers.schutzstreifen_conversion_helper import calculate_segment_length, merge_segment_geometries
+from helpers.schutzstreifen_conversion_helper import find_connected_schutzstreifen
 
 # Logging konfigurieren
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -151,134 +153,6 @@ def analyze_schutzstreifen_at_bus_stops(schutzstreifen_at_stops, all_ways_gdf):
     
     return results, transitions_counter
 
-def find_connected_schutzstreifen(schutzstreifen_gdf, tolerance=0.1):
-    """Finde zusammenhängende Schutzstreifen-Segmente mit optimiertem räumlichem Index."""
-    logger.info("Suche zusammenhängende Schutzstreifen-Segmente...")
-    
-    # Erstelle Index für Endpunkte
-    endpoints = {}
-    for idx, row in schutzstreifen_gdf.iterrows():
-        start, end = get_endpoints(row.geometry)
-        if start and end:
-            endpoints[idx] = {'start': start, 'end': end, 'geometry': row.geometry}
-    
-    # Optimierte Verbindungssuche
-    connections = defaultdict(set)
-    indices = list(endpoints.keys())
-    
-    logger.info(f"Verarbeite {len(indices)} Schutzstreifen...")
-    
-    for i, idx1 in enumerate(indices):
-        if i % 100 == 0:  # Progress logging
-            logger.info(f"Fortschritt: {i}/{len(indices)}")
-            
-        data1 = endpoints[idx1]
-        
-        # Erstelle Suchpuffer um Endpunkte
-        search_buffer_start = data1['start'].buffer(tolerance * 2)
-        search_buffer_end = data1['end'].buffer(tolerance * 2)
-        
-        for j, idx2 in enumerate(indices[i+1:], i+1):
-            data2 = endpoints[idx2]
-            
-            # Erste räumliche Filterung
-            if not (search_buffer_start.intersects(data2['start']) or 
-                   search_buffer_start.intersects(data2['end']) or
-                   search_buffer_end.intersects(data2['start']) or
-                   search_buffer_end.intersects(data2['end'])):
-                continue
-            
-            # Prüfe exakte Distanzen
-            distances = [
-                data1['start'].distance(data2['start']),
-                data1['start'].distance(data2['end']),
-                data1['end'].distance(data2['start']),
-                data1['end'].distance(data2['end'])
-            ]
-            
-            if min(distances) <= tolerance:
-                connections[idx1].add(idx2)
-                connections[idx2].add(idx1)
-    
-    # Erstelle zusammenhängende Komponenten (Segmente)
-    visited = set()
-    segments = []
-    
-    for start_idx in endpoints.keys():
-        if start_idx in visited:
-            continue
-            
-        # DFS für zusammenhängende Komponente
-        component = []
-        stack = [start_idx]
-        
-        while stack:
-            current = stack.pop()
-            if current in visited:
-                continue
-                
-            visited.add(current)
-            component.append(current)
-            
-            # Füge alle verbundenen Knoten hinzu
-            for neighbor in connections[current]:
-                if neighbor not in visited:
-                    stack.append(neighbor)
-        
-        segments.append(component)
-    
-    logger.info(f"Gefundene Segmente: {len(segments)}")
-    return segments
-
-def calculate_segment_length(segment_indices, schutzstreifen_gdf):
-    """Berechne Gesamtlänge eines Segments."""
-    total_length = 0
-    geometries = []
-    
-    for idx in segment_indices:
-        geom = schutzstreifen_gdf.loc[idx, 'geometry']
-        geometries.append(geom)
-        total_length += geom.length
-    
-    return total_length, geometries
-
-def merge_segment_geometries(geometries):
-    """Versuche Geometrien zu einem zusammenhängenden Segment zu verbinden."""
-    try:
-        # Normalisiere alle Geometrien zu LineStrings
-        lines = []
-        for geom in geometries:
-            if isinstance(geom, MultiLineString):
-                # MultiLineString zu einzelnen LineStrings aufbrechen
-                for line in geom.geoms:
-                    lines.append(line)
-            elif isinstance(geom, LineString):
-                lines.append(geom)
-            else:
-                continue  # Andere Geometrietypen überspringen
-        
-        if len(lines) == 0:
-            return None
-        elif len(lines) == 1:
-            return lines[0]
-        else:
-            # Versuche LineString-Merger
-            merged = linemerge(lines)
-            return merged
-    except Exception as e:
-        logger.warning(f"Fehler beim Merger von Geometrien: {e}")
-        # Fallback: MultiLineString aus allen verfügbaren LineStrings
-        lines = []
-        for geom in geometries:
-            if isinstance(geom, MultiLineString):
-                lines.extend(list(geom.geoms))
-            elif isinstance(geom, LineString):
-                lines.append(geom)
-        
-        if lines:
-            return MultiLineString(lines)
-        else:
-            return None
 
 def analyze_segments(segments, schutzstreifen_gdf, all_ways_gdf):
     """Analysiere alle Segmente und erstelle Ergebnisse."""
