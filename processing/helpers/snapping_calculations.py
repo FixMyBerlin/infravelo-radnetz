@@ -428,19 +428,25 @@ def calculate_angle_priority(segment_geom, candidate_geom):
     Berechnet die Winkel-Priorität basierend auf der Ausrichtung zwischen Segment und Kandidat.
     Verwendung einer progressiven quadratischen Funktion mit Nullpunkt bei 45°.
     
+    Mathematische Funktion:
+    prio_angle(θ) = { 20 · (1 - θ/45)           für 0° ≤ θ ≤ 45°
+                    { -80 · ((θ-45)/45)²        für 45° < θ ≤ 90°
+    
+    wobei θ der normalisierte Winkel im Bereich [0°, 90°] ist.
+    
     Bewertung:
     - 0° (parallel): +20 Punkte (ANGLE_PARALLEL_REWARD)
     - 45° (diagonal): 0 Punkte (Nullpunkt)
     - 50°: ca. -2 Punkte
     - 80°: ca. -45 Punkte
-    - 90° (orthogonal): -40 Punkte (ANGLE_ORTHOGONAL_PENALTY)
+    - 90° (orthogonal): -80 Punkte (ANGLE_ORTHOGONAL_PENALTY)
     
     Args:
         segment_geom: Geometrie des Netzwerksegments
         candidate_geom: Geometrie des Kandidaten
         
     Returns:
-        float: Winkel-Priorität (-40 bis +20)
+        float: Winkel-Priorität (-80 bis +20)
     """
     segment_angle = calculate_line_angle(segment_geom)
     # Bei Kreisverkehren: Übergebe Segment als Referenz für Tangentenberechnung
