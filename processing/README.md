@@ -15,7 +15,7 @@ Siehe [REQUIREMENTS.md](./REQUIREMENTS.md) für Geodaten-Anforderungen.
 Zuerst müssen die TILDA-Rohdaten prozessiert werden:
 
 ```bash
-./scripts/process_tilda_data.sh
+./process_tilda_data.sh
 ```
 
 ### 1b. Bushaltestellen auf RVN filtern (Optional, für Schutzstreifen-Konvertierung)
@@ -49,7 +49,7 @@ Dieser Schritt:
 Nach der TILDA-Datenvorbereitung wird die Hauptverarbeitung gestartet:
 
 ```bash
-./processing/execute_processing.sh
+./execute_processing.sh
 ```
 
 **Optionen:**

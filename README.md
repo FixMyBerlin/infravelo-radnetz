@@ -30,7 +30,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 
 # Die Verarbeitungs-Schritte müssen in dieser Reihenfolge ausgeführt werden
-./scripts/process_tilda_data.sh
+./process_tilda_data.sh
 
 ./.venv/bin/python processing/start_matching.py
 ./.venv/bin/python processing/start_snapping.py
@@ -41,9 +41,9 @@ pip install -r requirements.txt
 # Kurzvariante zur Ausführung aller Schritte für ein bestimmtes Gebiet:
 # --clip <region>  Clips alle Daten auf eine Region (neukoelln, norden, sueden)
 
-# Vorher ausführbar machen: chmod +x processing/execute_processing.sh
-./scripts/process_tilda_data.sh
-./processing/execute_processing.sh
+# Vorher ausführbar machen: chmod +x execute_processing.sh
+./process_tilda_data.sh
+./execute_processing.sh
 ```
 
 ## Projekt-Ordnerstruktur

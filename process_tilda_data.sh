@@ -30,7 +30,7 @@ Ausgabedateien (output/TILDA-translated/):
 - TILDA Paths Translated.fgb
 
 Verwendung:
-    ./scripts/process_tilda_data.sh [--translate-only]
+    ./process_tilda_data.sh [--translate-only]
 
 Argumente:
     --translate-only    Überspringt das Clipping und führt nur die TILDA-Attribut-Übersetzung durch
@@ -66,8 +66,8 @@ done
 
 # Variablen definieren
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-CLIP_SCRIPT="$SCRIPT_DIR/clip_tilda_data.py"
+PROJECT_ROOT="$SCRIPT_DIR"
+CLIP_SCRIPT="$PROJECT_ROOT/scripts/clip_tilda_data.py"
 INPUT_DIR="$PROJECT_ROOT/data-raw-tilda"
 OUTPUT_DIR="$PROJECT_ROOT/data"
 CLIP_FEATURES="$PROJECT_ROOT/data/Berlin Bezirke.gpkg"

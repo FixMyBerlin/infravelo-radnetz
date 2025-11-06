@@ -14,7 +14,7 @@ python scripts/setup.py
 
 ### TILDA-Daten vorbereiten
 ```bash
-./scripts/process_tilda_data.sh
+./process_tilda_data.sh
 ```
 Bereitet die TILDA-Daten für die weitere Verarbeitung vor.
 
@@ -90,7 +90,7 @@ Für die vollständige Verarbeitung sollten die Scripts in dieser Reihenfolge au
 ```bash
 # 1. Setup und Datenvorverarbeitung
 python scripts/setup.py
-./scripts/process_tilda_data.sh
+./process_tilda_data.sh
 python scripts/assign_node_ids.py
 
 # 2. RVN-Grundverarbeitung
@@ -98,8 +98,8 @@ python scripts/split_rvn_at_virtual_nodes.py
 python scripts/assign_element_nr_to_rvn.py
 python scripts/enrich_rvn_with_detailnetz.py
 
-# 3. Hauptverarbeitung (processing/execute_processing.sh)
-./processing/execute_processing.sh
+# 3. Hauptverarbeitung (execute_processing.sh)
+./execute_processing.sh
 
 # 4. Nachgelagerte Analysen (optional)
 python scripts/filter_bus_stops_on_rvn.py

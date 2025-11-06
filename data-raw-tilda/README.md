@@ -20,4 +20,4 @@ This folder should contain only five files:
 
 ## Convert to TILDA * Berlin.fgb
 
-Execute `./scripts/process_tilda_data.sh`
+Execute `./process_tilda_data.sh`

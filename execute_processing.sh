@@ -30,7 +30,7 @@
 #   --clean-cache       Vollständige Bereinigung aller Cache-Dateien vor der Verarbeitung
 # 
 # Voraussetzung: Python venv ist bereits erstellt und requirements.txt wurde installiert
-#               TILDA Daten sind bereits prozessiert (./scripts/process_tilda_data.sh)
+#               TILDA Daten sind bereits prozessiert (./process_tilda_data.sh)
 
 set -e  # Script bei Fehlern beenden
 
@@ -133,7 +133,7 @@ fi
 echo "🚀 Starte infraVelo Radnetz Verarbeitungsprozess ab Schritt $START_STEP..."
 
 # Wechsle ins Hauptverzeichnis des Projekts
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")"
 
 # Prüfe ob .venv existiert
 if [ ! -d ".venv" ]; then
@@ -388,5 +388,5 @@ echo "   - output-last-run/ (gesicherte Dateien vom vorherigen Lauf)"
 echo ""
 echo "🔍 Für QA-Zwecke:"
 echo "   - Verwende den Inspector: cd inspector && npm run dev"
-echo "   - Oder öffne das QGIS Projekt: QGIS QA Processing.qgz"
+echo "   - Oder öffne das QGIS Projekt: QGIS/QGIS QA Processing.qgz"
 echo "   - Führe manuelle Tests durch: python testing/run_tests.py [--clip neukoelln|norden|sueden]"
