@@ -110,7 +110,7 @@ if [ "$TRANSLATE_ONLY" = false ]; then
     echo "🗺️  Clip-Features: $CLIP_FEATURES"
     echo ""
 
-    TRANSLATE_SCRIPT="$PROJECT_ROOT/processing/translate_attributes_tilda_to_rvn.py"
+    TRANSLATE_SCRIPT="$PROJECT_ROOT/scripts/translate_attributes_tilda_to_rvn.py"
     TRANSLATE_OUTPUT_DIR="$PROJECT_ROOT/output/TILDA-translated"
     mkdir -p "$TRANSLATE_OUTPUT_DIR"
 
@@ -171,7 +171,7 @@ else
     
     echo ""
     echo "🔄 Starte TILDA Attribut-Übersetzung..."
-    TRANSLATE_SCRIPT="$PROJECT_ROOT/processing/translate_attributes_tilda_to_rvn.py"
+    TRANSLATE_SCRIPT="$PROJECT_ROOT/scripts/translate_attributes_tilda_to_rvn.py"
     TRANSLATE_OUTPUT_DIR="$PROJECT_ROOT/output/TILDA-translated"
 
     # Prüfe ob das Übersetzungsskript existiert

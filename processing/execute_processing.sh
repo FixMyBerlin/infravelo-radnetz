@@ -310,14 +310,14 @@ if [[ $START_STEP -le 4 ]]; then
     echo "🎯 Schritt 4/5: Finale Aggregation..."
     STEP4_START=$(date +%s)
     if [[ -n "$CLIP_REGION" ]]; then
-        ./.venv/bin/python processing/aggregate_final_model.py --clip "$CLIP_REGION" --input "./output/snapping_converted_bikelanes_${CLIP_REGION}.fgb"
+        ./.venv/bin/python processing/start_aggregation.py --clip "$CLIP_REGION" --input "./output/snapping_converted_bikelanes_${CLIP_REGION}.fgb"
     elif [[ -n "$VIEW" ]]; then
-        ./.venv/bin/python processing/aggregate_final_model.py --view "$VIEW" --input ./output-bbox/snapping_converted_bikelanes_view.fgb
+        ./.venv/bin/python processing/start_aggregation.py --view "$VIEW" --input ./output-bbox/snapping_converted_bikelanes_view.fgb
     else
-        ./.venv/bin/python processing/aggregate_final_model.py --input ./output/snapping_converted_bikelanes.fgb
+        ./.venv/bin/python processing/start_aggregation.py --input ./output/snapping_converted_bikelanes.fgb
     fi
     if [ $? -ne 0 ]; then
-        echo "❌ Fehler in Schritt 4: aggregate_final_model.py"
+        echo "❌ Fehler in Schritt 4: start_aggregation.py"
         exit 1
     fi
     show_elapsed_time $STEP4_START "Schritt 4"

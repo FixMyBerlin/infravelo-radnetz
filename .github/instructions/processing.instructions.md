@@ -8,7 +8,7 @@ Uses Python, geopandas and other libraries for processing geodata and openstreet
 There are three main processes and python scripts:
 1. Matching (processing/start_matching.py)
 2. Snapping (processing/start_snapping.py)
-3. Aggregation (processing/aggregate_final_model.py)
+3. Aggregation (processing/start_aggregation.py)
 
 ## Snapping Algorithm
 

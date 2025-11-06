@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-aggregate_final_model.py
+start_aggregation.py
 --------------------------------------------------------------------
 Aggregiert mehrere Attributausprägungen innerhalb einer Kante auf eine finale Kante.
 Erkennt signifikante Änderungen und führt regelbasierte Aggregation durch.

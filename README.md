@@ -34,7 +34,7 @@ pip install -r processing/requirements.txt
 
 ./.venv/bin/python processing/start_matching.py
 ./.venv/bin/python processing/start_snapping.py
-./.venv/bin/python processing/aggregate_final_model.py --input ./output/snapping_converted_bikelanes.fgb
+./.venv/bin/python processing/start_aggregation.py --input ./output/snapping_converted_bikelanes.fgb
 ```
 
 ```sh

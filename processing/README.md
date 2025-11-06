@@ -128,7 +128,7 @@ Diese Verbesserung verhindert falsche Zuordnungen bei Kreisverkehren und stellt 
 - `"Radfahrstreifen (OSM:...)"` → `"Radfahrstreifen"`
 - `"Mischverkehr (OSM:Schutzstreifen)"` → `"Mischverkehr mit motorisiertem Verkehr"`
 
-#### Schritt 4: Finale Aggregation (`aggregate_final_model.py`)
+#### Schritt 4: Finale Aggregation (`start_aggregation.py`)
 - Aggregiert Netzwerkdaten nach `element_nr` und Fahrtrichtung (`ri`)
 - Weist Bezirksnummern zu
 - Erstellt finale GeoPackage-Dateien mit separaten Layern
