@@ -66,7 +66,8 @@ MAPPING_OFM_SURFACE = {
     "compacted": "Ungebunden",
     "fine_gravel": "Ungebunden",
     "pebblestone": "Ungebunden",
-    "gravel": "Ungebunden"
+    "gravel": "Ungebunden",
+    "wood": "ungebunden"
 }
 
 # Mappings für physische Protektion (PROTEK)
@@ -123,10 +124,10 @@ def determine_verkehrsri(row, data_source: str) -> str:
             return "Einrichtungsverkehr"
         elif not oneway or oneway in ["None", "none"]:
             # Fehlende Werte
-            return "[TODO] Fehlender Wert"
+            return f"[TODO] Fehlender Wert: oneway={oneway}"
         else:
             logging.warning(f"Unbekannter oneway-Wert für bikelanes: {oneway}, osm_id={row.get('osm_id', 'unbekannt')}")
-            return "[TODO] Fehlerhafter Wert"
+            return f"[TODO] Fehlerhafter Wert: oneway={oneway}"
     
     elif data_source in ["streets", "paths"]:
         # Spezifische Regeln für streets und paths
@@ -144,11 +145,11 @@ def determine_verkehrsri(row, data_source: str) -> str:
             return "Zweirichtungsverkehr"
         else:
             logging.warning(f"Unbekannter oneway-Wert für {data_source}: {oneway}, osm_id={row.get('osm_id', 'unbekannt')}")
-            return "[TODO] Fehlerhafter Wert"
+            return f"[TODO] Fehlerhafter Wert: oneway={oneway}"
     
     # Fallback
     logging.warning(f"Unbekannter data_source für verkehrsri: {data_source}")
-    return "[TODO] Fehlerhafter Wert"
+    return f"[TODO] Fehlerhafter Wert: data_source={data_source}"
 
 
 def determine_fuehrung(row, data_source: str) -> str:
@@ -271,7 +272,7 @@ def determine_ofm(row) -> str:
     if surface in MAPPING_OFM_SURFACE:
         return MAPPING_OFM_SURFACE[surface]
     elif surface=="grass_paver" or surface=="wood" or surface=="metal" or surface=="paved":
-        return "[TODO] Nicht zuordenbar"
+        return f"[TODO] Nicht zuordenbar: {surface}"
     elif surface=="none":
         return "[TODO] Oberfläche Fehlt"
     
