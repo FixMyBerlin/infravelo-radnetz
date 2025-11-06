@@ -16,7 +16,7 @@ Alternativ kannst das QGIS-Projekt `QGIS QA Processing.qgz` verwendet werden, da
 
 Das Verarbeitungsscript nutzt Python und mehrere Bibliotheken.
 
-Es empfiehlt sich, ein virtuelles Python-Environment (`venv`) anzulegen und die Abhängigkeiten aus `processing/requirements.txt` zu installieren.
+Es empfiehlt sich, ein virtuelles Python-Environment (`venv`) anzulegen und die Abhängigkeiten aus `requirements.txt` zu installieren.
 
 Nach dem Erstellen des Environments führe folgende Befehle in der Projekt-Root aus:
 ```sh
@@ -27,7 +27,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 
 # Abhängigkeiten installieren
-pip install -r processing/requirements.txt
+pip install -r requirements.txt
 
 # Die Verarbeitungs-Schritte müssen in dieser Reihenfolge ausgeführt werden
 ./scripts/process_tilda_data.sh

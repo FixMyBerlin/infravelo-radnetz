@@ -141,7 +141,7 @@ if [ ! -d ".venv" ]; then
     echo "Bitte erstelle zuerst die virtuelle Umgebung mit:"
     echo "python3 -m venv .venv"
     echo "source .venv/bin/activate"
-    echo "pip install -r processing/requirements.txt"
+    echo "pip install -r requirements.txt"
     exit 1
 fi
 
