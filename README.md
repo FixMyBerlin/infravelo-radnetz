@@ -46,16 +46,18 @@ pip install -r processing/requirements.txt
 ./processing/execute_processing.sh
 ```
 
-Die erzeugten Ausgabedateien werden im Ordner `output/` abgelegt.
+## Projekt-Ordnerstruktur
 
-Die Verarbeitung verwendet zwei Datenquellen als Eingabe: das Radvorrangsnetz (RVN) und die TILDA-Exporte. Die Umwandlung in das Detailnetz erfolgt in zwei Schritten:
-
-1. Mittels Radvorrangsnetz und OpenStreetMap wird jeder OSM-Way einer Detailnetz-Kante zugeordnet (Detailnetz-Edge-ID) und umgekehrt die OSM-Way-IDs den Detailnetz-Kanten zugewiesen.
-2. Die OSM-Daten werden an das Detailnetz "geklebt" und es entstehen Fahrrad-Kanten im Detailnetz.
-
-Am Ende des Prozesses enthält die Datei `matched_osm_ways.fgb` alle OSM-Ways, die:
-- Teil des Radvorrangsnetzes (RVN) sind
-- in den TILDA-Exporten `bikelanes`, `roads` oder `roadsPathClasses` enthalten sind
+- `data/` – Eingangsdaten wie Detailnetz, Radvorrangsnetz und weitere Geodaten
+- `data-raw-tilda/` – Rohdaten aus den TILDA-Exporten (bikelanes, roads, roadsPathClasses)
+- `inspector/` – Code zu Web-basiertes Tool zur Qualitätssicherung der verarbeiteten Daten
+- `output/` – Alle durch die Verarbeitungsskripte erzeugten Ausgabedateien
+- `output-bbox/` – Ausgabedateien beschränkt auf einen bestimmten (`--view`) Bounding-Box-Bereich
+- `output-last-run/` – Backup der Ausgabedateien vom letzten Verarbeitungslauf
+- `processing/` – Zentrale Python-Skripte für Matching, Snapping und Aggregation der Geodaten
+- `scripts/` – Hilfs- und Wrapper-Skripte zur Automatisierung der Verarbeitung
+- `testing/` – Testdaten und Testskripte
+- `validation/` – Skripte und Daten zur Validierung der Ergebnisse
 
 ## Lizenzen
 
