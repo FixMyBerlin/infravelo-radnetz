@@ -9,6 +9,10 @@ gefundenen Kandidaten mit detaillierten Prioritätsinformationen an.
 Verwendet dieselbe Methodik wie start_snapping.py und snapping_analysis.py
 für exakte Nachvollziehbarkeit der Kandidatenauswahl.
 
+**HINWEIS**
+Da die Kanten in kurze Stücke segmentiert werden, kann das Ergebnis der
+Analyse sich von prio_candidates unterscheiden.
+
 INPUT:
 - output/snapping_network_enriched.fgb (angereicherte Netzwerkdaten)
 - output/matched/matched_tilda_ways.fgb (TILDA-übersetzte Daten)
@@ -33,7 +37,7 @@ sys.path.insert(0, processing_dir)
 
 # Importiere gemeinsame Snapping-Funktionen - verwende dieselben wie start_snapping.py
 from helpers.globals import DEFAULT_CRS
-from helpers.snapping_analysis import (
+from helpers.snapping_calculations import (
     SnappingPriorities,
     calculate_line_angle,
     angle_difference, 

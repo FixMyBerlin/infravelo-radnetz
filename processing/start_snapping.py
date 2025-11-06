@@ -270,8 +270,11 @@ def set_priority_values(variant, best_osm, segment_angle, candidates_with_priori
         # Übertrage geometrische und räumliche Prioritäten
         variant["prio_angle"] = best_osm.get('angle_priority', 0)
         variant["prio_distance_meter"] = best_osm.get('dist_to_mid', None)
-        variant["prio_distance"] = best_osm.get('distance_priority', 0)  # Neue gewichtete Entfernungs-Priorität
-        variant["prio_total"] = best_osm.get('total_priority_weighted', 0)  # Neue Gesamtpriorität
+        variant["prio_distance"] = best_osm.get('distance_priority', 0)  # Gewichtete Entfernungs-Priorität
+        variant["prio_overlap"] = best_osm.get('priority_overlap', 0)  # Überlappungs-Priorität (verhindert Overshoot)
+        # Speichere auch den Rohwert (0.0-1.0) aus priority_details falls verfügbar
+        variant["overlap_score"] = priority_details.get('overlap_score', None)
+        variant["prio_total"] = best_osm.get('total_priority_weighted', 0)  # Gesamtpriorität
         # Richtungskompatibilität explizit speichern
         variant["prio_direction_compatibility"] = best_osm.get('direction_compatibility', 0)
 
@@ -835,8 +838,9 @@ def merge_segments(gdf, id_field, osm_fields):
         merged_row = gruppe.iloc[0].copy()
         merged_row["geometry"] = merged
         
-        # Berechne die Länge für das verschmolzene Segment (gerundet, ohne Nachkommastellen)
-        merged_row["Länge"] = int(round(calculate_segment_length(merged)))
+        # Berechne die Länge basierend auf der Anzahl der Segmente (jedes Segment ist CONFIG_SEGMENT_LENGTH Meter lang)
+        # Dies ist effizienter als geometry.length zu berechnen, da die Segmente immer gleich lang sind
+        merged_row["Länge"] = int(round(len(geoms) * CONFIG_SEGMENT_LENGTH))
         
         # Entferne die temporären normalisierten Felder
         for field in normalized_fields:

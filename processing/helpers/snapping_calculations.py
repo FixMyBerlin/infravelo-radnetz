@@ -40,11 +40,12 @@ class SnappingPriorities:
     }
     
     # Kategorie-Prioritäten (höhere Zahl = höhere Priorität)
+    # Geht auch als Prozent in die Distanzberechnung ein.
     CATEGORY_PRIORITIES = {
-        "cycleway*":                30,  # Radweg
-        "footAndCycleway*":         25,  # Fußweg mit Radverkehr
-        "footwayBicycle*":          17,  # Fußweg mit Radverkehr
-        "bicycleRoad*":             15,  # Fahrradstraße
+        "cycleway*":                40,  # Radweg
+        "footAndCycleway*":         35,  # Fußweg mit Radverkehr
+        "footwayBicycle*":          27,  # Fußweg mit Radverkehr
+        "bicycleRoad*":             18,  # Fahrradstraße
         "crossing":                 13, # Kreuzungsweg
         "sharedBusLaneBikeWithBus": 12,  # Radfahrstreifen mit Busverkehr frei
         "sharedBusLaneBusWithBike": 12, # Bussonderfahrstreifen mit Radverkehr frei
@@ -53,8 +54,8 @@ class SnappingPriorities:
     }
     
     # Straßennamen-Match Prioritäten
-    STREET_NAME_MATCH_REWARD = 30     # Belohnung für exakte Straßennamen-Übereinstimmung
-    STREET_NAME_MISMATCH_PENALTY = -30  # Strafe für Straßennamen-Mismatch - Kann nicht korrekt sein, daher 100
+    STREET_NAME_MATCH_REWARD = 20     # Belohnung für exakte Straßennamen-Übereinstimmung
+    STREET_NAME_MISMATCH_PENALTY = -15  # Strafe für Straßennamen-Mismatch (reduziert von -30, da Segmente oft an Straßengrenzen liegen)
     
     # Richtungskompatibilität Prioritäten
     DIRECTION_PERFECT_MATCH = 15      # Einrichtungsverkehr mit passender Richtung
@@ -63,7 +64,7 @@ class SnappingPriorities:
     
     # Winkel-Priorität Konfiguration (kontinuierliche Funktion)
     ANGLE_PARALLEL_REWARD = 20       # Belohnung für parallele Wege (0°, 180°) - maximaler Wert
-    ANGLE_ORTHOGONAL_PENALTY = -50   # Strafe für orthogonale Wege (90°) - minimaler Wert der kontinuierlichen Funktion
+    ANGLE_ORTHOGONAL_PENALTY = -80   # Strafe für orthogonale Wege (90°) - minimaler Wert der kontinuierlichen Funktion
     
     # Entfernungs-Priorität Konfiguration
     DISTANCE_MAX_PRIORITY = 15       # Maximale Priorität bei Entfernung 0m
@@ -72,6 +73,112 @@ class SnappingPriorities:
     
     # Mindestpriorität für Kandidatenauswahl
     MINIMUM_TOTAL_PRIORITY = -10     # Kandidaten mit Gesamtpriorität unter diesem Wert werden komplett ausgeschlossen
+    
+    # Überlappungs-Priorität Konfiguration (geometrische Überlappung)
+    OVERLAP_MAX_PRIORITY = 20        # Maximale Priorität bei 100% Überlappung (Kandidat passt perfekt zum Segment)
+    OVERLAP_MIN_PRIORITY = -20       # Minimale Priorität bei 0% Überlappung (Overshoot: Kandidat ragt komplett am Segment vorbei)
+
+
+def calculate_overlap_score(segment_geom, candidate_geom):
+    """
+    Berechnet die geometrische Überlappung zwischen Segment und Kandidat.
+    
+    Misst, wie viel Prozent des Segments vom Kandidaten "abgedeckt" wird.
+    Dies hilft, "Overshoot"-Probleme zu erkennen, wo ein Kandidat zwar parallel verläuft,
+    aber das Segment nicht wirklich überlappt (z.B. ein langer Radweg, der weit am Segment vorbeiragt).
+    
+    Methode:
+    1. Projiziere beide Geometrien auf die Segment-Achse (Hauptrichtung)
+    2. Berechne die Überlappung der projizierten Intervalle
+    3. Normalisiere auf Segment-Länge
+    
+    Args:
+        segment_geom: Geometrie des Netzwerksegments (LineString oder MultiLineString)
+        candidate_geom: Geometrie des Kandidaten (LineString oder MultiLineString)
+        
+    Returns:
+        float: Überlappungs-Score (0.0 = keine Überlappung, 1.0 = perfekte Überlappung)
+    """
+    try:
+        from shapely.geometry import LineString, MultiLineString
+        
+        # Konvertiere MultiLineString zu LineString falls nötig
+        if isinstance(segment_geom, MultiLineString):
+            segment_coords = []
+            for line in segment_geom.geoms:
+                segment_coords.extend(list(line.coords))
+            segment_line = LineString(segment_coords)
+        else:
+            segment_line = segment_geom
+        
+        if isinstance(candidate_geom, MultiLineString):
+            candidate_coords = []
+            for line in candidate_geom.geoms:
+                candidate_coords.extend(list(line.coords))
+            candidate_line = LineString(candidate_coords)
+        else:
+            candidate_line = candidate_geom
+        
+        # Hole Start- und Endpunkte
+        seg_coords = list(segment_line.coords)
+        cand_coords = list(candidate_line.coords)
+        
+        if len(seg_coords) < 2 or len(cand_coords) < 2:
+            logging.debug("Zu wenige Koordinaten für Überlappungsberechnung")
+            return 0.5  # Neutral
+        
+        seg_start = np.array(seg_coords[0])
+        seg_end = np.array(seg_coords[-1])
+        cand_start = np.array(cand_coords[0])
+        cand_end = np.array(cand_coords[-1])
+        
+        # Berechne Segment-Achse (Hauptrichtung)
+        seg_vector = seg_end - seg_start
+        seg_length = np.linalg.norm(seg_vector)
+        
+        if seg_length < 0.01:  # Sehr kurzes Segment
+            logging.debug("Segment zu kurz für Überlappungsberechnung")
+            return 0.5  # Neutral
+        
+        # Normalisiere Segment-Vektor
+        seg_unit = seg_vector / seg_length
+        
+        # Projiziere alle Punkte auf die Segment-Achse
+        # Projektion von Punkt P auf Segment-Achse: (P - seg_start) · seg_unit
+        seg_start_proj = 0.0  # Start ist bei 0
+        seg_end_proj = seg_length  # Ende ist bei seg_length
+        
+        # Projiziere Kandidaten-Start und -Ende
+        cand_start_proj = np.dot(cand_start - seg_start, seg_unit)
+        cand_end_proj = np.dot(cand_end - seg_start, seg_unit)
+        
+        # Normalisiere: kleinerer Wert zuerst
+        cand_min = min(cand_start_proj, cand_end_proj)
+        cand_max = max(cand_start_proj, cand_end_proj)
+        
+        # Berechne Überlappungs-Intervall
+        overlap_start = max(seg_start_proj, cand_min)
+        overlap_end = min(seg_end_proj, cand_max)
+        
+        # Überlappungs-Länge (kann negativ sein, wenn keine Überlappung)
+        overlap_length = max(0.0, overlap_end - overlap_start)
+        
+        # Normalisiere auf Segment-Länge
+        overlap_score = overlap_length / seg_length
+        
+        # Begrenze auf [0.0, 1.0]
+        overlap_score = max(0.0, min(1.0, overlap_score))
+        
+        logging.debug(f"Überlappungs-Berechnung: seg=[{seg_start_proj:.2f}, {seg_end_proj:.2f}], "
+                     f"cand=[{cand_min:.2f}, {cand_max:.2f}], "
+                     f"overlap=[{overlap_start:.2f}, {overlap_end:.2f}], "
+                     f"overlap_length={overlap_length:.2f}m, score={overlap_score:.2f}")
+        
+        return overlap_score
+        
+    except Exception as e:
+        logging.warning(f"Fehler bei Überlappungsberechnung: {e}")
+        return 0.5  # Neutral bei Fehler
 
 
 def is_closed_ring(geom, tolerance=0.01):
@@ -391,6 +498,38 @@ def calculate_distance_priority(distance):
     return distance_priority
 
 
+def calculate_overlap_priority(segment_geom, candidate_geom):
+    """
+    Berechnet die Überlappungs-Priorität basierend auf der geometrischen Überlappung.
+    
+    Verwendet calculate_overlap_score() um zu messen, wie gut der Kandidat zum Segment passt.
+    Hohe Überlappung = hohe Priorität (der Kandidat "gehört" zum Segment)
+    Niedrige Überlappung = niedrige Priorität (Overshoot: Kandidat ragt am Segment vorbei)
+    
+    Args:
+        segment_geom: Geometrie des Netzwerksegments
+        candidate_geom: Geometrie des Kandidaten
+        
+    Returns:
+        float: Überlappungs-Priorität (OVERLAP_MIN_PRIORITY bis OVERLAP_MAX_PRIORITY)
+    """
+    overlap_score = calculate_overlap_score(segment_geom, candidate_geom)
+    
+    # Lineare Skalierung von overlap_score (0.0-1.0) auf Prioritätsbereich
+    # overlap_score = 0.0 → OVERLAP_MIN_PRIORITY (-20)
+    # overlap_score = 1.0 → OVERLAP_MAX_PRIORITY (+30)
+    overlap_priority = (SnappingPriorities.OVERLAP_MIN_PRIORITY + 
+                       overlap_score * (SnappingPriorities.OVERLAP_MAX_PRIORITY - 
+                                       SnappingPriorities.OVERLAP_MIN_PRIORITY))
+    
+    # Runde auf zwei Nachkommastellen
+    overlap_priority = round(overlap_priority, 2)
+    
+    logging.debug(f"Überlappungs-Priorität: score={overlap_score:.2f} → {overlap_priority:.2f} Punkte "
+                 f"(0%={SnappingPriorities.OVERLAP_MIN_PRIORITY}, 100%={SnappingPriorities.OVERLAP_MAX_PRIORITY})")
+    return overlap_priority
+
+
 def determine_segment_direction(segment_geom, osm_geom) -> int:
     """
     Bestimmt die Richtung (ri) eines Segments basierend auf der Ausrichtung
@@ -479,10 +618,25 @@ def calculate_osm_priority_detailed(row, seg_dict=None) -> tuple:
             else:
                 street_name_priority = SnappingPriorities.STREET_NAME_MISMATCH_PENALTY
                 street_name_detail = f"mismatch('{segment_strassenname}'!='{tilda_name}')"
-        # Wenn nur einer leer ist, als Mismatch werten
+        # Wenn nur einer leer ist: Prüfe ob es Radinfrastruktur ist
         else:
-            street_name_priority = 0
-            street_name_detail = f"einer_leer('{segment_strassenname}'vs'{tilda_name}')"
+            # Prüfe ob Kandidat Radinfrastruktur ist (diese haben oft keinen Namen in OSM)
+            category_str = str(category) if category else ""
+            is_radinfra = (
+                category_str.startswith("cycleway") or 
+                category_str.startswith("footAndCycleway") or
+                category_str.startswith("footwayBicycle") or
+                category_str.startswith("bicycleRoad")
+            )
+            
+            if is_radinfra:
+                # Radinfrastruktur ohne Namen: Neutral bewerten (keine Strafe)
+                street_name_priority = 0
+                street_name_detail = f"radinfra_ohne_name(segment:'{segment_strassenname}',tilda:'{tilda_name}')"
+            else:
+                # Andere Wege ohne Namen: Neutral bewerten (keine Strafe, aber auch keine Belohnung)
+                street_name_priority = 0
+                street_name_detail = f"einer_leer('{segment_strassenname}'vs'{tilda_name}')"
         priority += street_name_priority
     
     # Detailliertes Breakdown zurückgeben
@@ -593,6 +747,16 @@ def find_best_candidate_for_direction(candidates, seg_dict, ri_value, segment_an
     # Berechne Entfernungs-Priorität für alle Kandidaten
     candidates["distance_priority"] = candidates["dist_to_mid"].apply(calculate_distance_priority)
     
+    # Berechne Überlappungs-Priorität für alle Kandidaten
+    candidates["priority_overlap"] = 0.0
+    for idx, candidate in candidates.iterrows():
+        overlap_prio = calculate_overlap_priority(segment_geom, candidate.geometry)
+        candidates.at[idx, "priority_overlap"] = overlap_prio
+        # Füge priority_overlap zu priority_details hinzu
+        if idx in priority_details:
+            priority_details[idx]['priority_overlap'] = overlap_prio
+            priority_details[idx]['overlap_score'] = calculate_overlap_score(segment_geom, candidate.geometry)
+    
     # Berechne Richtungskompatibilität für jeden Kandidaten
     candidates["direction_compatibility"] = 0
     
@@ -639,11 +803,12 @@ def find_best_candidate_for_direction(candidates, seg_dict, ri_value, segment_an
             logging.debug(f"  Kandidat {candidate_tilda_id}: Zweirichtungsverkehr, "
                          f"Winkel={candidate_angle:.2f}°, direction_compatibility={SnappingPriorities.DIRECTION_BIDIRECTIONAL}")
     
-    # Berechne Gesamt-Priorität: TILDA-Inhalt + Winkel + Entfernung + Richtungskompatibilität
+    # Berechne Gesamt-Priorität: TILDA-Inhalt + Winkel + Entfernung + Überlappung + Richtungskompatibilität
     candidates["total_priority_weighted"] = (
         candidates["priority"] +           # TILDA-Priorität (Inhalt)
         candidates["angle_priority"] +     # Winkel-Priorität (beinhaltet Richtungsausrichtung)
         candidates["distance_priority"] +  # Entfernungs-Priorität
+        candidates["priority_overlap"] +   # Überlappungs-Priorität (verhindert Overshoot)
         candidates["direction_compatibility"] # Richtungskompatibilität
     ).round(2)  # Runde auf zwei Nachkommastellen
     
@@ -680,6 +845,7 @@ def find_best_candidate_for_direction(candidates, seg_dict, ri_value, segment_an
         logging.debug(f"    ├─ TILDA_Priority: {best_candidate.get('priority', -1)}")
         logging.debug(f"    ├─ Angle_Priority: {best_candidate.get('angle_priority', -1):.2f}")
         logging.debug(f"    ├─ Distance_Priority: {best_candidate.get('distance_priority', -1):.2f} (bei {best_candidate.get('dist_to_mid', -1):.2f}m)")
+        logging.debug(f"    ├─ Overlap_Priority: {best_candidate.get('priority_overlap', -1):.2f}")
         logging.debug(f"    └─ Direction_Compatibility: {best_candidate.get('direction_compatibility', -1)}")
         
         # Logge auch die anderen Kandidaten zur Nachvollziehbarkeit
@@ -691,6 +857,7 @@ def find_best_candidate_for_direction(candidates, seg_dict, ri_value, segment_an
                              f"total_weighted={cand.get('total_priority_weighted', -1):.2f} "
                              f"(tilda={cand.get('priority', -1)}, angle={cand.get('angle_priority', -1):.2f}, "
                              f"dist={cand.get('distance_priority', -1):.2f}@{cand.get('dist_to_mid', -1):.2f}m, "
+                             f"overlap={cand.get('priority_overlap', -1):.2f}, "
                              f"dir={cand.get('direction_compatibility', -1)})")
     
     # Wähle den besten Kandidaten und füge detaillierte Prioritätsinformationen hinzu
