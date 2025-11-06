@@ -56,7 +56,6 @@ pip install -r requirements.txt
 - `output-last-run/` – Backup der Ausgabedateien vom letzten Verarbeitungslauf
 - `processing/` – Zentrale Python-Skripte für Matching, Snapping und Aggregation der Geodaten
 - `scripts/` – Hilfs- und Wrapper-Skripte zur Automatisierung der Verarbeitung
-- `testing/` – Testdaten und Testskripte
 - `validation/` – Skripte und Daten zur Validierung der Ergebnisse
 
 ## Das Projekt
