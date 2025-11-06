@@ -42,11 +42,11 @@ class SnappingPriorities:
     # Kategorie-Prioritäten (höhere Zahl = höhere Priorität)
     # Geht auch als Prozent in die Distanzberechnung ein.
     CATEGORY_PRIORITIES = {
-        "cycleway*":                40,  # Radweg
+        "cycleway*":                37,  # Radweg
         "footAndCycleway*":         35,  # Fußweg mit Radverkehr
-        "footwayBicycle*":          27,  # Fußweg mit Radverkehr
+        "footwayBicycle*":          32,  # Fußweg mit Radverkehr
+        "crossing":                 25, # Kreuzungsweg
         "bicycleRoad*":             18,  # Fahrradstraße
-        "crossing":                 13, # Kreuzungsweg
         "sharedBusLaneBikeWithBus": 12,  # Radfahrstreifen mit Busverkehr frei
         "sharedBusLaneBusWithBike": 12, # Bussonderfahrstreifen mit Radverkehr frei
         "pedestrianAreaBicycleYes": 5,  # Fußgängerzone mit Radverkehr
@@ -55,7 +55,7 @@ class SnappingPriorities:
     
     # Straßennamen-Match Prioritäten
     STREET_NAME_MATCH_REWARD = 20     # Belohnung für exakte Straßennamen-Übereinstimmung
-    STREET_NAME_MISMATCH_PENALTY = -15  # Strafe für Straßennamen-Mismatch (reduziert von -30, da Segmente oft an Straßengrenzen liegen)
+    STREET_NAME_MISMATCH_PENALTY = -20  # Strafe für Straßennamen-Mismatch (reduziert von -30, da Segmente oft an Straßengrenzen liegen)
     
     # Richtungskompatibilität Prioritäten
     DIRECTION_PERFECT_MATCH = 15      # Einrichtungsverkehr mit passender Richtung
@@ -68,7 +68,7 @@ class SnappingPriorities:
     
     # Entfernungs-Priorität Konfiguration
     DISTANCE_MAX_PRIORITY = 15       # Maximale Priorität bei Entfernung 0m
-    DISTANCE_REFERENCE = 10          # Referenz-Entfernung in Metern (bei dieser Entfernung = halbe Priorität)
+    DISTANCE_REFERENCE = 15          # Referenz-Entfernung in Metern (bei dieser Entfernung = halbe Priorität)
     DISTANCE_WEIGHT_FACTOR = 1.0     # Gewichtungsfaktor für Entfernungseinfluss (1.0 = volle Gewichtung)
     
     # Mindestpriorität für Kandidatenauswahl
