@@ -1,23 +1,23 @@
-# Data Raw TILDA Input
+# Rohdaten TILDA Eingabe
 
-In this folder, you can load the original geodata, downloaded from TILDA.
+Von diesem Ordner werden die originalen Geodaten, die von TILDA heruntergeladen wurden, geladen.
 
-This folder should contain only five files:
+Dieser Ordner sollte nur fünf Dateien enthalten:
 
 * **bikelanes.fgb**
 * **roads.fgb**
 * **roadsPathClasses.fgb**
 
-=> TILDA Original data
+=> TILDA Originaldaten
 
 * README.md
 
-=> This README
+=> Diese README-Datei
 
 * .gitignore
 
-=> Don't store the original data in GitHub.
+=> Speichern Sie die Originaldaten nicht in GitHub.
 
-## Convert to TILDA * Berlin.fgb
+## Konvertieren zu TILDA * Berlin.fgb
 
-Execute `./process_tilda_data.sh`
+Führe `./process_tilda_data.sh` aus.
