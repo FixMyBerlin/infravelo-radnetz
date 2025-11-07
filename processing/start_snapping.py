@@ -1518,13 +1518,15 @@ def process(net_path, osm_path, out_path, crs, buffer, data_dir="./data", log_ca
         logging.info(f"Entferne Breite-Attribut bei {mischverkehr_count} Kanten mit Mischverkehr")
         out_gdf.loc[mischverkehr_mask, 'breite'] = None
 
-    # Setze Breite auf '[TODO] Breite fehlt' für alle Nicht-Mischverkehr-Segmente mit NULL-Breite
+    # Setze Breite auf '[TODO] Breite fehlt' für alle Segmente mit NULL-Breite 
+    # (außer Mischverkehr und "Keine Radinfrastruktur vorhanden")
     nicht_mischverkehr_mask = out_gdf['fuehr'] != 'Mischverkehr mit motorisiertem Verkehr'
+    keine_radinfra_mask = out_gdf['fuehr'] != 'Keine Radinfrastruktur vorhanden'
     breite_null_mask = out_gdf['breite'].isna()
-    combined_mask = nicht_mischverkehr_mask & breite_null_mask
+    combined_mask = nicht_mischverkehr_mask & keine_radinfra_mask & breite_null_mask
     breite_todo_count = combined_mask.sum()
     if breite_todo_count > 0:
-        logging.info(f"Setze breite='[TODO] Breite fehlt' für {breite_todo_count} Kanten ohne Breite (exkl. Mischverkehr)")
+        logging.info(f"Setze breite='[TODO] Breite fehlt' für {breite_todo_count} Kanten ohne Breite (exkl. Mischverkehr und 'Keine Radinfrastruktur')")
         out_gdf.loc[combined_mask, 'breite'] = '[TODO] Breite fehlt'
 
     # ---------- SFID hinzufügen ---------------------------------------------
