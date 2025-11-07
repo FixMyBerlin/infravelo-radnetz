@@ -1,5 +1,7 @@
 # Anforderungen für die Properties
 
+**Hinweis: Dieses Dokument ist nicht zwangsläufig noch aktuell!**
+
 ## Attribute, die von der Kante übertragen werden
 
 Siehe https://docs.google.com/spreadsheets/d/1GjvJZkBGIGyeYdw9z1yKYb7YLZZsugQgkQmAKlVwc_E/edit?gid=0#gid=0

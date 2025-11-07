@@ -1,34 +1,36 @@
-## bikelanes
+## Radinfrastruktur (bikelanes)
 
 - oneway=yes|no
-- width
-  - Vorhandene width Werte prüfen
+- width (Breite)
+  - Vorhandene width-Werte prüfen
   - Runden auf ~10cm
-  - TODO TJO: Regeln für Breite Erfassen eintragen
-- traffic_sign (Fallback "none")
-- surface
+  - TODO TJO: Regeln für Breite erfassen eintragen
+- traffic_sign (Verkehrszeichen, Fallback "none")
+- surface (Oberfläche)
   - https://wiki.openstreetmap.org/wiki/Tag:surface%3Dsett#Size
     - Mosaik: `surface=sett + sett:length=0.05`
     - Kleinsteinpflaster: `surface=sett + sett:length=0.10`
-- surface:colour wenn Farbbeschichtung
+- surface:colour wenn Farbbeschichtung vorhanden
 
-For PBL
-- separation:left|right
+Für geschützte Radfahrstreifen (PBL)
+- separation:left|right (Trennung)
   - https://wiki.openstreetmap.org/wiki/Proposal:Separation#Typical_separation_values
-- traffic_mode:right=parking
-- traffic_mode:right=foot
+- traffic_mode:right=parking (Verkehrsmodus rechts: Parken)
+- traffic_mode:right=foot (Verkehrsmodus rechts: Fußgänger)
 - immer buffer:left|right (ggf. buffer=no)
-- immer marking:left|right
+- immer marking:left|right (Markierung)
 
-## roads
+## Straßen (roads)
 
-- oneway=yes
+- oneway=yes (Einbahnstraße)
   - oneway:bicycle=yes|no setzen
-- surface
-- surface:colour wenn Farbbeschichtung
+- surface (Oberfläche)
+- surface:colour wenn Farbbeschichtung vorhanden
 
 
 ## ERGÄNZEN
 - cycleway:note=Erklärung…
 - `traffic_sign=Straßenschäden`, `traffic_sign=Gehwegschäden`, `traffic_sign=Radwegschäden`
   - UND `source:traffic_sign:mapillary=ID`
+
+```

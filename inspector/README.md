@@ -1,4 +1,6 @@
 # InfraVelo Radvorrangnetz Quickviewer
 
-- Live at https://infravelo-qa.netlify.app/
-- Hosting https://app.netlify.com/projects/infravelo-qa/overview
+- Live unter https://infravelo-qa.netlify.app/
+- Hosting unter https://app.netlify.com/projects/infravelo-qa/overview
+
+```
