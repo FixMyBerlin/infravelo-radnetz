@@ -340,7 +340,14 @@ def determine_protek(row) -> str:
 
 def determine_trennstreifen(row) -> str:
     """
-    Bestimmt das Vorhandensein eines Sicherheitstrennstreifens (nur rechte Seite relevant).
+    Bestimmt das Vorhandensein eines Sicherheitstrennstreifens.
+    
+    Für Fahrradstraßen: Prüft beide Seiten (left/right)
+    - "ja" wenn auf mindestens einer Seite: Parking + (Buffer > 0 ODER Markierung vorhanden)
+    - "nein" wenn Parking vorhanden, aber weder Buffer noch Markierung
+    - "entfällt" wenn kein Parking auf beiden Seiten
+    
+    Für andere Infrastrukturtypen: Nur rechte Seite relevant (siehe unten)
 
     Args:
         row: Datenzeile mit OSM-Attributen
@@ -350,23 +357,42 @@ def determine_trennstreifen(row) -> str:
     """
     category = str(row.get("category", "")).strip().lower()
 
-    # Für Fahrradstraßen beide Seiten prüfen
-    # TODO Überlegen - was ist mit dem Fall nur auf einer Seite parkende Autos?
     if category.startswith("bicycleroad"):
+        has_parking = False
+        has_trennstreifen = False
+        
         for side in ["left", "right"]:
             traffic_mode = str(row.get(f"traffic_mode_{side}", "")).strip().lower()
             markings = str(row.get(f"marking_{side}", "")).strip().lower()
+            buffer_value = row.get(f"buffer_{side}", None)
             is_parking = traffic_mode == "parking"
-            if ("dashed_line" in markings or "solid_line" in markings) and is_parking:
-                return "ja"
-        # Falls kein Sicherheitstrennstreifen auf beiden Seiten
-        if not (str(row.get("traffic_mode_left", "")).strip().lower() == "parking" or
-                str(row.get("traffic_mode_right", "")).strip().lower() == "parking"):
+            
+            if is_parking:
+                has_parking = True
+                
+                # Prüfe ob Buffer vorhanden ist
+                try:
+                    buffer_val = float(buffer_value) if buffer_value is not None and buffer_value != "" else None
+                except (ValueError, TypeError):
+                    buffer_val = None
+                
+                # Trennstreifen wenn Buffer vorhanden ODER Markierung vorhanden
+                has_buffer = buffer_val is not None and buffer_val > 0
+                has_marking = "dashed_line" in markings or "solid_line" in markings
+                
+                if has_buffer or has_marking:
+                    has_trennstreifen = True
+        
+        # Wenn Trennstreifen auf mindestens einer Seite gefunden
+        if has_trennstreifen:
+            return "ja"
+        # Wenn Parking vorhanden aber kein Trennstreifen (weder Buffer noch Markierung)
+        elif has_parking:
             return "nein"
-        return "entfällt"
+        # Kein Parking auf beiden Seiten
+        else:
+            return "entfällt"
 
-    # TODO Dies sollte für Radfahrstreifen und Schutzstreifen gelten ???
-    # Nur rechte Seite prüfen
     traffic_mode_right = str(row.get("traffic_mode_right", "")).strip().lower()
     markings_right = str(row.get("marking_right", "")).strip().lower()
     is_parking_right = traffic_mode_right == "parking"
@@ -382,8 +408,6 @@ def determine_trennstreifen(row) -> str:
     except (ValueError, TypeError):
         buffer_right_val = None
 
-    # Bei markings_right=dashed_line oder solid_line UND parking vorhanden UND buffer_right >= 0.6
-    # TODO Markings should also be checked for "dashed_line" or "solid_line"
     if is_parking_right and buffer_right_val is not None and buffer_right_val >= 0.6:
         return "ja"
 
