@@ -65,6 +65,26 @@ TARGET_CRS = 'EPSG:25833'
 CONFIG_CPU_CORES = mp.cpu_count() - 2  # Anzahl CPU-Kerne für Parallelisierung (alle minus 1)
 CONFIG_BATCH_SIZE = 300  # Größe der Batches für parallele Verarbeitung
 
+# Spaltenreihenfolge für matched_tilda_ways.fgb (wird in combine_multiple_datasets verwendet)
+# RVN-Attribute kommen vor TILDA-Attributen
+MATCHED_COLUMN_ORDER = [
+    # Hauptattribute
+    "fuehr",
+    "verkehrsri",
+    "pflicht",
+    "breite",
+    "ofm",
+    "farbe",
+    "protek",
+    "trennstreifen",
+    "nutz_beschr",
+    "Kommentar",
+    "Länge",
+    # TILDA-Attribute (mit tilda_ Prefix) kommen danach automatisch
+    # data_source kommt danach
+    # geometry kommt ganz am Ende
+]
+
 
 def get_data_sources_config(use_neukoelln=False):
     """
@@ -467,8 +487,25 @@ def combine_multiple_datasets(datasets, output_path):
     for gdf in combined_gdfs:
         all_columns.update(gdf.columns)
     
-    # Sortiere die Spalten für eine konsistente Reihenfolge
-    all_columns = sorted(all_columns)
+    # Sortiere die Spalten basierend auf MATCHED_COLUMN_ORDER (definiert am Anfang der Datei):
+    # 1. RVN-Attribute in der Reihenfolge von MATCHED_COLUMN_ORDER
+    # 2. Andere nicht-tilda Attribute (alphabetisch)
+    # 3. tilda_ Attribute (alphabetisch)
+    # 4. data_source
+    # 5. geometry am Ende
+    def column_sort_key(col):
+        if col == 'geometry':
+            return (4, col)  # geometry ganz am Ende
+        elif col == 'data_source':
+            return (3, col)  # data_source nach tilda_ Attributen
+        elif col.startswith('tilda_'):
+            return (2, col)  # tilda_ Attribute in der Mitte
+        elif col in MATCHED_COLUMN_ORDER:
+            return (0, MATCHED_COLUMN_ORDER.index(col), col)  # RVN-Attribute zuerst, in definierter Reihenfolge
+        else:
+            return (1, col)  # Andere Attribute nach RVN-Attributen, vor tilda_
+    
+    all_columns = sorted(all_columns, key=column_sort_key)
     
     # Harmonisiere die Spalten für alle GeoDataFrames
     print("Harmonisiere Spalten...")
