@@ -45,8 +45,8 @@ class SnappingPriorities:
         "cycleway*":                37,  # Radweg
         "footAndCycleway*":         35,  # Fußweg mit Radverkehr
         "footwayBicycle*":          32,  # Fußweg mit Radverkehr
+        "bicycleRoad*":             30,  # Fahrradstraße
         "crossing":                 25, # Kreuzungsweg
-        "bicycleRoad*":             18,  # Fahrradstraße
         "sharedBusLaneBikeWithBus": 12,  # Radfahrstreifen mit Busverkehr frei
         "sharedBusLaneBusWithBike": 12, # Bussonderfahrstreifen mit Radverkehr frei
         "pedestrianAreaBicycleYes": 5,  # Fußgängerzone mit Radverkehr
@@ -64,7 +64,7 @@ class SnappingPriorities:
     
     # Winkel-Priorität Konfiguration (kontinuierliche Funktion)
     ANGLE_PARALLEL_REWARD = 20       # Belohnung für parallele Wege (0°, 180°) - maximaler Wert
-    ANGLE_ORTHOGONAL_PENALTY = -80   # Strafe für orthogonale Wege (90°) - minimaler Wert der kontinuierlichen Funktion
+    ANGLE_ORTHOGONAL_PENALTY = -100   # Strafe für orthogonale Wege (90°) - minimaler Wert der kontinuierlichen Funktion
     
     # Entfernungs-Priorität Konfiguration
     DISTANCE_MAX_PRIORITY = 15       # Maximale Priorität bei Entfernung 0m
@@ -75,8 +75,8 @@ class SnappingPriorities:
     MINIMUM_TOTAL_PRIORITY = -10     # Kandidaten mit Gesamtpriorität unter diesem Wert werden komplett ausgeschlossen
     
     # Überlappungs-Priorität Konfiguration (geometrische Überlappung)
-    OVERLAP_MAX_PRIORITY = 20        # Maximale Priorität bei 100% Überlappung (Kandidat passt perfekt zum Segment)
-    OVERLAP_MIN_PRIORITY = -20       # Minimale Priorität bei 0% Überlappung (Overshoot: Kandidat ragt komplett am Segment vorbei)
+    OVERLAP_MAX_PRIORITY = 10        # Maximale Priorität bei 100% Überlappung (Kandidat passt perfekt zum Segment)
+    OVERLAP_MIN_PRIORITY = -10       # Minimale Priorität bei 0% Überlappung (Overshoot: Kandidat ragt komplett am Segment vorbei)
 
 
 def calculate_overlap_score(segment_geom, candidate_geom):
@@ -512,6 +512,15 @@ def calculate_overlap_priority(segment_geom, candidate_geom):
     Hohe Überlappung = hohe Priorität (der Kandidat "gehört" zum Segment)
     Niedrige Überlappung = niedrige Priorität (Overshoot: Kandidat ragt am Segment vorbei)
     
+    Mathematische Funktion (lineare Skalierung):
+    overlap_priority = OVERLAP_MIN_PRIORITY + overlap_score × (OVERLAP_MAX_PRIORITY - OVERLAP_MIN_PRIORITY)
+    overlap_priority = -20 + overlap_score × 40
+    
+    Bewertung:
+    - 0% Überlappung (score=0.0): -20 Punkte (kompletter Overshoot)
+    - 50% Überlappung (score=0.5): 0 Punkte (neutral)  
+    - 100% Überlappung (score=1.0): +20 Punkte (perfekte Abdeckung)
+    
     Args:
         segment_geom: Geometrie des Netzwerksegments
         candidate_geom: Geometrie des Kandidaten
@@ -522,8 +531,8 @@ def calculate_overlap_priority(segment_geom, candidate_geom):
     overlap_score = calculate_overlap_score(segment_geom, candidate_geom)
     
     # Lineare Skalierung von overlap_score (0.0-1.0) auf Prioritätsbereich
-    # overlap_score = 0.0 → OVERLAP_MIN_PRIORITY (-20)
-    # overlap_score = 1.0 → OVERLAP_MAX_PRIORITY (+30)
+    # overlap_score = 0.0 → OVERLAP_MIN_PRIORITY
+    # overlap_score = 1.0 → OVERLAP_MAX_PRIORITY
     overlap_priority = (SnappingPriorities.OVERLAP_MIN_PRIORITY + 
                        overlap_score * (SnappingPriorities.OVERLAP_MAX_PRIORITY - 
                                        SnappingPriorities.OVERLAP_MIN_PRIORITY))
