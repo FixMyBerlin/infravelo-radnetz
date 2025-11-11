@@ -4,6 +4,11 @@ Angabe der Lizenzen der in diesem Ordner durch die Prozessierung erstellten Geod
 
 **Lizenztext ODbL:** https://opendatacommons.org/licenses/odbl/1-0/
 
+Offizielle Referenzen:
+* https://osmfoundation.org/wiki/Licence/Attribution_Guidelines
+* https://osmfoundation.org/wiki/Licence/Community_Guidelines
+* https://osmfoundation.org/wiki/Licence/Licence_and_Legal_FAQ
+
 ## matched_*.fgb + matching/osm_*.fgb Dateien
 
 * **Lizenz:** ODbL
