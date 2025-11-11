@@ -42,8 +42,12 @@ pip install -r requirements.txt
 # --clip <region>  Clips alle Daten auf eine Region (neukoelln, norden, sueden)
 
 # Vorher ausführbar machen: chmod +x execute_processing.sh
+# TILDA Daten müssen in ./data-raw-tilda liegen
 ./process_tilda_data.sh
 ./execute_processing.sh
+
+# Beides hintereinander
+./process_tilda_data.sh && ./execute_processing.sh
 ```
 
 ## Projekt-Ordnerstruktur
@@ -63,7 +67,7 @@ pip install -r requirements.txt
 Dieses Projekt überführt Fahrrad-Infrastrukturdaten aus OpenStreetMap (aufbereitet durch TILDA) in das strukturierte Berliner Detailnetz. Als Datenquellen dienen das Radvorrangsnetz (RVN), die TILDA-Exporte und das Berliner Straßennetz-Detailnetz. Die Verarbeitung erfolgt in mehreren automatisierten Schritten:
 
 1. **TILDA-Datenaufbereitung** (`process_tilda_data.sh`): Übersetzung und Anreicherung der TILDA-Rohdaten mit zusätzlichen Attributen und Kategorisierungen
-2. **Matching** (`start_matching.py`): Zuordnung von OSM-Ways zu Detailnetz-Kanten anhand des Radvorrangsnetzes, wobei jeder OSM-Way eine Detailnetz-Edge-ID erhält.
+2. **Matching** (`start_matching.py`): Auswahl von OSM-Ways entlang von des Radvorrangsnetzes. Außerdem Anwendung von manuellen Einschlüssen und Ausschlüssen von Wege über OSM-ID.
 3. **Snapping** (`start_snapping.py`): Geometrische Anpassung der OSM-Daten an die Detailnetz-Geometrie, sodass die Fahrrad-Infrastruktur exakt auf den Detailnetz-Kanten liegt.
 4. **Aggregation** (`start_aggregation.py`): Zusammenführung mehrerer OSM-Ways auf einer Detailnetz-Kante zu einem einzigen Feature mit konsolidierten Attributen.
 

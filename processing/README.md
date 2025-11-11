@@ -70,26 +70,21 @@ Nach der TILDA-Datenvorbereitung wird die Hauptverarbeitung gestartet:
 - Bei fehlenden TILDA-Daten wird `fuehr="Keine Radinfrastruktur vorhanden"` gesetzt
 - Berechnet Segmentlängen in Metern
 - Weist Bezirksnummern zu (basierend auf größtem räumlichen Anteil)
-- **Ausgabe**: `output/snapping_network_enriched.fgb`
+
+**Ausgabe**: `output/snapping_network_enriched.fgb` und `output/snapping_converted_bikelanes.fgb`.
 
 **Besonderheit: Kreisverkehre und geschlossene Ringe**
 
 Das Snapping-System behandelt Kreisverkehre und andere geschlossene Ringe (Startpunkt == Endpunkt) speziell:
 
-- **Problem**: Bei geschlossenen Ringen ist die Standard-Winkelberechnung (Start → Ende) undefiniert, da dx=0 und dy=0
-- **Lösung**: Bei Kreisverkehren wird die Tangente am nächsten Punkt zum Segment berechnet
+- **Problem**: Bei geschlossenen Ringen ist die Standard-Winkelberechnung (Start → Ende) undefiniert, da dx=0 und dy=0. Das führt zu falschen Zuordnungen.
+- **Lösung**: Bei Kreisverkehren wird die Tangente am nächsten Punkt zum Segment berechnet.
 - **Funktionsweise**:
   1. Das System erkennt automatisch geschlossene Ringe (Distanz Start-Ende < 1cm)
   2. Es findet den nächsten Punkt auf dem Ring zum jeweiligen Netzwerk-Segment
   3. Die Tangente wird durch den Winkel zwischen vorherigem und nächstem Punkt berechnet
   4. Dies ermöglicht eine korrekte Richtungsbestimmung (ri=0 oder ri=1)
 
-- **Implementierung**: `helpers/snapping_analysis.py`
-  - `is_closed_ring()` - Erkennung geschlossener Ringe
-  - `calculate_tangent_angle_at_nearest_point()` - Tangentenberechnung
-  - `calculate_line_angle(geom, reference_geom=None)` - Erweiterte Winkelberechnung
-
-Diese Verbesserung verhindert falsche Zuordnungen bei Kreisverkehren und stellt sicher, dass die `direction_compatibility`-Prüfung korrekt funktioniert.
 
 #### Schritt 3: Schutzstreifen-Konvertierung (`start_bikelane_conversion.py`)
 **Konvertiert Schutzstreifen zu anderen Infrastrukturtypen unter bestimmten Bedingungen:**
@@ -111,7 +106,6 @@ Diese Verbesserung verhindert falsche Zuordnungen bei Kreisverkehren und stellt 
 3. **Kurze Schutzstreifen** (< 50m) → Mischverkehr:
    - Werden zu Mischverkehr konvertiert, wenn sie an Mischverkehr angrenzen
    - Berücksichtigt zusammenhängende Segmente derselben Richtung (mit 1,0m Toleranz)
-   - **MIT Richtungscheck:** Nur Mischverkehr mit gleichem `ri`-Attribut wird berücksichtigt
    - Neue Führungsform: `"Mischverkehr (OSM:Schutzstreifen)"`
 
 **Wichtige Prüfungen:**
@@ -121,8 +115,6 @@ Diese Verbesserung verhindert falsche Zuordnungen bei Kreisverkehren und stellt 
 - **MultiLineString-Handling:** Teile können aufgesplittet werden, wenn nur manche die Kriterien erfüllen
 
 **Ausgabe**: `output/snapping_converted_bikelanes.fgb`
-
-**Detaillierte Dokumentation:** Siehe [docs/Schutzstreifen-Konvertierung.md](../docs/Schutzstreifen-Konvertierung.md)
 
 **Hinweis:** Alle konvertierten Varianten werden in der finalen Aggregation normalisiert:
 - `"Radfahrstreifen (OSM:...)"` → `"Radfahrstreifen"`
@@ -135,17 +127,19 @@ Diese Verbesserung verhindert falsche Zuordnungen bei Kreisverkehren und stellt 
 - **Ausgabe**: `output/aggregated_rvn_final.gpkg`
 
 #### Schritt 5: Qualitätssicherungstests
-- Führt automatisierte Validierungen durch
+
+Optionale, automatisierte Validierungen.
 
 ## Finale Ausgabedateien
 
-Nach erfolgreicher Verarbeitung finden Sie die finalen Datensätze hier:
+Nach erfolgreicher Verarbeitung finden sich die finalen Datensätze hier:
 
 ### Standard-Modus (ganz Berlin):
+- **`output/snapping_network_enriched.fgb`** - Gesnappte Wege vor Schutzstreifen-Konvertierung
+- **`output/snapping_converted_bikelanes.fgb`** - Angereicherte Netzwerkdaten nach Schutzstreifen-Konvertierung
 - **`output/aggregated_rvn_final.gpkg`** - Finale aggregierte Netzwerkdaten mit 3 Layern:
   - `hinrichtung` - Kanten mit ri=0 
   - `gegenrichtung` - Kanten mit ri=1
-- **`output/snapping_converted_bikelanes.fgb`** - Angereicherte Netzwerkdaten nach Schutzstreifen-Konvertierung
 
 ### Regionaler Zuschnitt (`--clip <region>`):
 - **`output/aggregated_rvn_final_{region}.gpkg`** (z.B. neukoelln, norden, sueden)
