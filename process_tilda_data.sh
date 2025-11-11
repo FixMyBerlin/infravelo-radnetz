@@ -82,6 +82,9 @@ if [ ! -d ".venv" ]; then
     exit 1
 fi
 
+# Setze PYTHONPATH damit die helper Module gefunden werden
+export PYTHONPATH="$PROJECT_ROOT/processing:$PYTHONPATH"
+
 # Prüfe ob das clip_tilda_data.py Skript existiert
 if [ ! -f "$CLIP_SCRIPT" ]; then
     echo "❌ Fehler: clip_tilda_data.py wurde nicht gefunden: $CLIP_SCRIPT"
