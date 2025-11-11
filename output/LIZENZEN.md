@@ -9,39 +9,39 @@ Offizielle Referenzen:
 * https://osmfoundation.org/wiki/Licence/Community_Guidelines
 * https://osmfoundation.org/wiki/Licence/Licence_and_Legal_FAQ
 
-## matched_*.fgb + matching/osm_*.fgb Dateien
+## matched_\*.fgb + matching/osm_\*.fgb Dateien
 
 * **Lizenz:** ODbL
 * **Urheber:** © OpenStreetMap
 
-## osm_*.fgb Dateien
+## osm_\*.fgb Dateien
 
 * **Lizenz:** ODbL
 * **Urheber:** © OpenStreetMap
 
-## traffic_signals/*.gpkg + bus_stops_on_rvn.fgb Dateien
+## traffic_signals/\*.gpkg + bus_stops_on_rvn.fgb Dateien
 
 * **Lizenz:** ODbL
 * **Urheber:** © OpenStreetMap
 
 
-## TILDA*.fgb Dateien
+## TILDA\*.fgb Dateien
 
 * **Lizenz:** ODbL
 * **Urheber:** © OpenStreetMap; tilda-geo.de
 
-## knotenpunkte/*.gpkg Dateien
+## knotenpunkte/\*.gpkg Dateien
 
 * **Lizenz:** TODO
 * **Urheber:** © Senatsverwaltung für Mobilität, Verkehr, Klimaschutz und Umwelt Berlin, FixMyCity
 * **Anpassung:** Filterung der Objekte sowie Hinzufügen, Verändern und Entfernen von Attributen
 
-## aggregated_rvn_final*.gpkg + snapping_*.fgb + snapping/*.fgb Dateien
+## aggregated_rvn_final\*.gpkg + snapping_\*.fgb + snapping/\*.fgb Dateien
 
 * **Lizenz:** ODbL
 * **Urheber:** © OpenStreetMap; tilda-geo.de; Senatsverwaltung für Mobilität, Verkehr, Klimaschutz und Umwelt Berlin
 
-## rvn/*.fgb Dateien
+## rvn/\*.fgb Dateien
 
 * **Lizenz:** TODO
 * **Urheber:** © Senatsverwaltung für Mobilität, Verkehr, Klimaschutz und Umwelt Berlin, FixMyCity
