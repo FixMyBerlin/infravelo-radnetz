@@ -256,6 +256,7 @@ def determine_pflicht(row, data_source: str) -> bool:
 def determine_ofm(row) -> str:
     """
     Bestimmt das Oberflächenmaterial basierend auf surface-Attribut.
+    Alle nicht zugeordneten Surface-Werte werden als "Sonstige" kategorisiert.
     
     Args:
         row: Datenzeile mit OSM-Attributen
@@ -271,14 +272,10 @@ def determine_ofm(row) -> str:
     # Prüfe Mappings
     if surface in MAPPING_OFM_SURFACE:
         return MAPPING_OFM_SURFACE[surface]
-    elif surface=="grass_paver" or surface=="wood" or surface=="metal" or surface=="paved":
-        return f"[TODO] Nicht zuordenbar: {surface}"
-    elif surface=="none":
-        return "[TODO] Oberfläche Fehlt"
     
-    # Logge unbekannte surface-Werte
-    logging.warning(f"Unbekannter surface-Wert: {surface}")
-    return "NICHT-GEFUNDEN"
+    # Alle anderen surface-Werte werden als "Sonstige" kategorisiert
+    logging.info(f"Surface-Wert '{surface}' wird als 'Sonstige' kategorisiert")
+    return "Sonstige"
 
 
 def determine_farbe(row) -> bool:
