@@ -2,8 +2,8 @@
 
 Angabe der Lizenzen der in diesem Ordner enthaltenen Geodaten und Herkunft der Datensätze.
 
-**Lizenztext ODbL:** https://opendatacommons.org/licenses/odbl/1-0/
-**Lizenztext dl-zero-de/2.0:** https://www.govdata.de/dl-de/by-2-0
+* **Lizenztext ODbL:** https://opendatacommons.org/licenses/odbl/1-0/
+* **Lizenztext dl-zero-de/2.0:** https://www.govdata.de/dl-de/by-2-0
 
 
 ## TILDA Radwege Berlin.fgb
