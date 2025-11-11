@@ -588,14 +588,6 @@ def lines_from_geom(g):
     raise TypeError(f"Geometry {g.geom_type} nicht unterstützt")
 
 
-# TODO Why is this not used anymore?
-def is_left(line: LineString, p: Point) -> bool:
-    """Prüft, ob ein Punkt links der Linie liegt (für Richtungsprüfung)."""
-    a_x, a_y = line.coords[0]
-    b_x, b_y = line.coords[-1]
-    return ((b_x - a_x) * (p.y - a_y) - (b_y - a_y) * (p.x - a_x)) > 0
-
-
 def split_network_into_segments(net_gdf, crs, segment_length=CONFIG_SEGMENT_LENGTH):
     """
     Teilt alle Linien im Netz in Segmente auf.

@@ -67,7 +67,6 @@ MAPPING_OFM_SURFACE = {
     "fine_gravel": "Ungebunden",
     "pebblestone": "Ungebunden",
     "gravel": "Ungebunden",
-    "wood": "ungebunden"
 }
 
 # Mappings für physische Protektion (PROTEK)

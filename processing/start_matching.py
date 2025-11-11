@@ -47,7 +47,7 @@ from matching.difference import get_or_create_difference_fgb
 from helpers.progressbar import print_progressbar
 from helpers.buffer_utils import create_unified_buffer
 from helpers.clipping import clip_to_view
-#from export_geojson import export_all_geojson
+from helpers.globals import DEFAULT_CRS
 
 # --------------------------------------------------------- Konfiguration --
 # Standard-Dateipfade (ohne Neukölln-Suffix)
@@ -58,8 +58,8 @@ BUFFER_BIKELANES_METERS = 28  # Buffer-Radius in Metern für Radwege
 BUFFER_STREETS_METERS = 15    # Buffer-Radius in Metern für Straßen
 BUFFER_PATHS_METERS = 15      # Buffer-Radius in Metern für Wege
 
-# TODO Use globals.py
-TARGET_CRS = 'EPSG:25833'
+# Verwende CRS aus globals.py
+TARGET_CRS = f'EPSG:{DEFAULT_CRS}'
 
 # Konfiguration für Parallelisierung
 CONFIG_CPU_CORES = mp.cpu_count() - 2  # Anzahl CPU-Kerne für Parallelisierung (alle minus 1)
@@ -751,10 +751,6 @@ def main():
     else:
         print("Warnung: Keine Daten zum Kombinieren verfügbar.")
 
-    # TODO Disabled export geojson for now
-    # PMTiles-Export am Ende
-    # print('Exportiere alle .fgb als .geojson ...')
-    # export_all_geojson()
 
 if __name__ == '__main__':
     main()
