@@ -51,6 +51,7 @@ from helpers.snapping_calculations import (
     find_best_candidate_for_direction,
     SnappingPriorities
 )
+from matching.manual_interventions import get_override_ways, load_override_geopackage, find_spatial_override
 
 # -------------------------------------------------------------- Konstanten --
 CONFIG_BUFFER_DEFAULT = 30     # Standard-Puffergröße in Metern zum Suchraum
@@ -336,12 +337,12 @@ def process_segments_batch_parallel(batch_data):
     Jeder Worker-Prozess lädt die OSM-Daten aus einer temporären Pickle-Datei.
     
     Args:
-        batch_data: Tuple mit (segments_batch, osm_temp_path, buffer, batch_start_idx)
+        batch_data: Tuple mit (segments_batch, osm_temp_path, buffer, batch_start_idx, override_config, override_gdf)
     
     Returns:
         List[dict]: Liste der verarbeiteten Segment-Varianten
     """
-    segments_batch, osm_temp_path, buffer, batch_start_idx = batch_data
+    segments_batch, osm_temp_path, buffer, batch_start_idx, override_config, override_gdf = batch_data
     
     # Lade OSM-Daten aus temporärer Pickle-Datei
     with open(osm_temp_path, 'rb') as f:
@@ -360,7 +361,7 @@ def process_segments_batch_parallel(batch_data):
         
         if not cand_idx:
             # Keine TILDA-Kandidaten gefunden
-            variants = create_directional_segment_variants_optimized(seg_dict, None)
+            variants = create_directional_segment_variants_optimized(seg_dict, None, None, override_config, override_gdf)
             batch_results.extend(variants)
             continue
             
@@ -373,7 +374,7 @@ def process_segments_batch_parallel(batch_data):
         
         if cand.empty:
             # Keine TILDA-Kandidaten im Buffer
-            variants = create_directional_segment_variants_optimized(seg_dict, None)
+            variants = create_directional_segment_variants_optimized(seg_dict, None, None, override_config, override_gdf)
             batch_results.extend(variants)
             continue
 
@@ -433,16 +434,26 @@ def process_segments_batch_parallel(batch_data):
                         # Optionally write to a small progress log in parallel mode
                         logging.info(f"Gefundenes Ausreißer-Kandidat mit erweitertem Buffer für element_nr={seg_dict.get('element_nr','unknown')}")
 
-        variants = create_directional_segment_variants_optimized(seg_dict, cand, cand)
+        variants = create_directional_segment_variants_optimized(seg_dict, cand, cand, override_config, override_gdf)
         batch_results.extend(variants)
     
     return batch_results
 
 
-def process_segments_batch(segments_batch, osm_gdf, osm_sidx, buffer, candidates_log=None, batch_start_idx=0):
+def process_segments_batch(segments_batch, osm_gdf, osm_sidx, buffer, candidates_log=None, batch_start_idx=0, override_config=None, override_gdf=None):
     """
     Verarbeitet eine Batch von Segmenten gleichzeitig.
     Reduziert Overhead durch Batch-Operationen.
+    
+    Args:
+        segments_batch: Liste von Segment-Dictionaries
+        osm_gdf: GeoDataFrame mit TILDA-Daten
+        osm_sidx: Räumlicher Index für osm_gdf
+        buffer: Puffergröße in Metern
+        candidates_log: Optional - File-Handle für Kandidaten-Logging
+        batch_start_idx: Start-Index dieser Batch
+        override_config: Dictionary mit Override-Konfiguration
+        override_gdf: GeoDataFrame mit räumlichen Override-Einträgen
     """
     batch_results = []
     
@@ -552,7 +563,7 @@ def process_segments_batch(segments_batch, osm_gdf, osm_sidx, buffer, candidates
                         candidates_log.write(f"      → VERFÜGBARE: {all_tilda_ids}\n")
 
         # Erzeuge Segment-Varianten basierend auf TILDA-Daten (optimiert)
-        variants = create_directional_segment_variants_optimized(seg_dict, cand, cand)
+        variants = create_directional_segment_variants_optimized(seg_dict, cand, cand, override_config, override_gdf)
         batch_results.extend(variants)
         
         # Logge ausgewählte Kandidaten
@@ -912,11 +923,165 @@ def debug_merge_attributes(gdf, id_field, osm_fields, sample_element_nr=None):
             logging.info(f"  Kombination {idx}: {dict(row)}")
 
 
-def create_directional_segment_variants_optimized(seg_dict: dict, target_candidates, original_candidates=None) -> list[dict]:
+def apply_override_configuration(variants, override_config, target_candidates, seg_dict, segment_angle, override_gdf=None):
+    """
+    Wendet Override-Konfiguration auf Segment-Varianten an.
+    
+    Unterstützt zwei Quellen:
+    1. override_config: Textdatei-basiert mit (element_nr, ri) als Schlüssel
+    2. override_gdf: GeoPackage-basiert mit räumlichem Matching
+    
+    Zwei Modi:
+    1. force_match: Erzwingt einen bestimmten TILDA-Weg mit höchster Priorität (+1000)
+    2. attribute override: Überschreibt spezifische Attribute nach dem Snapping
+    
+    Args:
+        variants: Liste von Segment-Varianten (vor Override)
+        override_config: Dictionary mit Override-Konfiguration {(element_nr, ri): {...}}
+        target_candidates: GeoDataFrame mit TILDA-Kandidaten
+        seg_dict: Dictionary mit Segment-Informationen
+        segment_angle: Winkel des Segments
+        override_gdf: Optional - GeoDataFrame mit räumlichen Override-Einträgen
+    
+    Returns:
+        list: Liste von Segment-Varianten (nach Override)
+    """
+    element_nr = seg_dict.get('element_nr')
+    segment_geometry = seg_dict.get('geometry')
+    
+    # Prüfe räumliche Overrides (GeoPackage) falls vorhanden
+    spatial_override = None
+    if override_gdf is not None and segment_geometry is not None:
+        spatial_override = find_spatial_override(segment_geometry, override_gdf)
+        if spatial_override:
+            logging.debug(
+                f"Räumlicher Override gefunden für element_nr={element_nr}: "
+                f"Überlappung={spatial_override['overlap_ratio']:.2%}"
+            )
+    
+    if not element_nr and not spatial_override:
+        return variants
+    
+    # Verarbeite jede Variante
+    modified_variants = []
+    for variant in variants:
+        ri = variant.get('ri')
+        
+        # Prüfe zuerst räumlichen Override (hat Vorrang)
+        active_override = None
+        override_source = None
+        
+        if spatial_override:
+            active_override = spatial_override
+            override_source = "spatial"
+        
+        # Falls kein räumlicher Override, prüfe textbasierten Override
+        if not active_override and override_config:
+            override_key = (str(element_nr), ri)
+            if override_key in override_config:
+                # Konvertiere textbasierten Override in einheitliches Format
+                text_override = override_config[override_key]
+                active_override = {
+                    'tilda_id': text_override['tilda_id'],
+                    'force_match': text_override['force_match'],
+                    'attributes': text_override['attributes'],
+                    'override_reason': None
+                }
+                override_source = "text"
+        
+        # Wenn kein Override vorhanden, Variante unverändert übernehmen
+        if not active_override:
+            modified_variants.append(variant)
+            continue
+        
+        # Extrahiere Override-Informationen
+        override_tilda_id = active_override.get('tilda_id')
+        force_match = active_override.get('force_match', False)
+        override_attributes = active_override.get('attributes', {})
+        override_reason = active_override.get('override_reason')
+        
+        # Modus 1: Force Match - Erzwinge bestimmten TILDA-Weg
+        if force_match:
+            if target_candidates is None or len(target_candidates) == 0:
+                logging.warning(
+                    f"Override FORCE_MATCH für element_nr={element_nr}, ri={ri}: "
+                    f"Keine TILDA-Kandidaten verfügbar für {override_tilda_id}"
+                )
+                modified_variants.append(variant)
+                continue
+            
+            # Suche den spezifischen TILDA-Kandidaten
+            matching_candidate = target_candidates[
+                target_candidates['tilda_id'] == override_tilda_id
+            ]
+            
+            if len(matching_candidate) == 0:
+                logging.warning(
+                    f"Override FORCE_MATCH für element_nr={element_nr}, ri={ri}: "
+                    f"TILDA-Weg {override_tilda_id} nicht in Kandidaten gefunden"
+                )
+                modified_variants.append(variant)
+                continue
+            
+            # Verwende den ersten Match (sollte nur einer sein)
+            forced_candidate = matching_candidate.iloc[0]
+            
+            # Überschreibe Variante mit erzwungenem Kandidaten
+            for attr in FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES:
+                if attr != 'ri' and attr in forced_candidate:
+                    variant[attr] = forced_candidate.get(attr)
+            
+            for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
+                variant[attr] = forced_candidate.get(attr)
+            
+            # Setze Prioritätswerte mit +1000 Bonus
+            set_priority_values(variant, forced_candidate.to_dict(), segment_angle)
+            if 'prio_total' in variant:
+                variant['prio_total'] = variant.get('prio_total', 0) + 1000
+            
+            reason_text = f" ({override_reason})" if override_reason else ""
+            logging.info(
+                f"✔  Override [{override_source}] FORCE_MATCH angewendet: element_nr={element_nr}, ri={ri}, "
+                f"tilda_id={override_tilda_id}{reason_text}"
+            )
+        
+        # Modus 2: Attribute Override - Überschreibe nur spezifische Attribute
+        if override_attributes:
+            for attr_name, attr_value in override_attributes.items():
+                # Validiere dass Attribut in den erlaubten Spalten ist
+                if attr_name not in FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES:
+                    logging.warning(
+                        f"Override-Attribut '{attr_name}' nicht in FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES - "
+                        f"überspringe für element_nr={element_nr}, ri={ri}"
+                    )
+                    continue
+                
+                old_value = variant.get(attr_name)
+                variant[attr_name] = attr_value
+                
+                reason_text = f" ({override_reason})" if override_reason else ""
+                logging.info(
+                    f"✔  Override [{override_source}] ATTRIBUT angewendet: element_nr={element_nr}, ri={ri}, "
+                    f"{attr_name}: '{old_value}' → '{attr_value}'{reason_text}"
+                )
+        
+        modified_variants.append(variant)
+    
+    return modified_variants
+
+
+def create_directional_segment_variants_optimized(seg_dict: dict, target_candidates, original_candidates=None, override_config=None, override_gdf=None) -> list[dict]:
     """
     Memory-optimierte Version der Varianten-Erstellung.
     Reduziert Memory-Allokationen und redundante Operationen für bessere Performance.
     Verwendet create_base_variant_optimized() für effizientere Variant-Erstellung.
+    
+    Args:
+        seg_dict: Dictionary mit Segment-Informationen
+        target_candidates: GeoDataFrame mit TILDA-Kandidaten
+        original_candidates: Originale TILDA-Kandidaten für Logging
+        override_config: Dictionary mit Override-Konfiguration aus override_ways.txt
+        override_gdf: GeoDataFrame mit räumlichen Override-Einträgen aus override_ways.gpkg
     """
     variants = []
     
@@ -1024,6 +1189,10 @@ def create_directional_segment_variants_optimized(seg_dict: dict, target_candida
                 set_priority_values(variant, best_below_threshold, segment_angle, candidates_priorities)
 
             variants.append(variant)
+    
+    # Wende Override-Konfiguration an (falls vorhanden)
+    if override_config or override_gdf is not None:
+        variants = apply_override_configuration(variants, override_config, target_candidates, seg_dict, segment_angle, override_gdf)
     
     return variants
 
@@ -1342,6 +1511,10 @@ def process(net_path, osm_path, out_path, crs, buffer, data_dir="./data", log_ca
         net_segmented.to_file(seg_path, driver="FlatGeobuf")
         logging.info(f"✔  Segmentiertes Netz gespeichert als {seg_path}")
 
+    # ---------- Lade Override-Konfiguration ---------------------------------
+    override_config = get_override_ways(os.path.join(data_dir, 'override_ways.txt'))
+    override_gdf = load_override_geopackage(os.path.join(data_dir, 'override_ways.gpkg'), crs)
+    
     # ---------- Snapping/Attributübernahme auf Segmente ---------------------
     seg_attr_path = f"{base_output_dir}/snapping/rvn-segmented-attributed-osm{filename_suffix}.fgb"
     os.makedirs(os.path.dirname(seg_attr_path), exist_ok=True)
@@ -1406,7 +1579,7 @@ def process(net_path, osm_path, out_path, crs, buffer, data_dir="./data", log_ca
                 # Verarbeite aktuelle Batch
                 batch_results = process_segments_batch(
                     segments_batch, osm, osm.sindex, buffer, 
-                    candidates_log, batch_start
+                    candidates_log, batch_start, override_config, override_gdf
                 )
                 snapped_records.extend(batch_results)
                 
@@ -1436,7 +1609,7 @@ def process(net_path, osm_path, out_path, crs, buffer, data_dir="./data", log_ca
                 for batch_start in range(0, total, CONFIG_BATCH_SIZE):
                     batch_end = min(batch_start + CONFIG_BATCH_SIZE, total)
                     segments_batch = segments_list[batch_start:batch_end]
-                    batch_data_list.append((segments_batch, osm_temp_path, buffer, batch_start))
+                    batch_data_list.append((segments_batch, osm_temp_path, buffer, batch_start, override_config, override_gdf))
                 
                 # Verwende multiprocessing Pool für parallele Verarbeitung mit Progress-Balken
                 with mp.Pool(processes=CONFIG_CPU_CORES) as pool:

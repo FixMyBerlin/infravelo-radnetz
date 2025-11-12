@@ -1,0 +1,54 @@
+# Override-Konfiguration für Snapping
+# =====================================
+# 
+# Format: tilda_id|element_nr|ri|attributes_json
+#
+# Beispiele:
+# 
+# 1. Erzwinge spezifischen TILDA-Weg (höchste Priorität +1000):
+#    way/123456|12345|0|{"force_match": true}
+#
+# 2. Überschreibe nur Attribute (nach normalem Snapping):
+#    way/789012|67890|1|{"fuehr": "Radfahrstreifen", "pflicht": "ja"}
+#
+# 3. Kombiniere beide (erzwinge Match UND überschreibe Attribute):
+#    way/111222|33344|0|{"force_match": true, "fuehr": "Radfahrstreifen", "breite": "2.0"}
+#
+# Verfügbare Override-Attribute:
+# - force_match: true/false (erzwingt Match mit diesem TILDA-Weg)
+# - fuehr: Führungsform
+# - pflicht: Benutzungspflicht
+# - breite: Breite (als String mit Dezimalpunkt, z.B. "2.5")
+# - ofm: Oberflächenmaterial
+# - farbe: Farbliche Beschichtung
+# - protek: Protektion
+# - trennstreifen: Sicherheitstrennstreifen
+# - nutz_beschr: Nutzungsbeschränkung
+# - Kommentar: Kommentar
+#
+# Format-Details:
+# - tilda_id: OSM-ID im Format "way/123456" 
+# - element_nr: Element-Nummer der RVN-Kante (aus Netzwerk)
+# - ri: Richtung (0 = Hinrichtung, 1 = Gegenrichtung)
+# - attributes_json: JSON-Objekt mit Override-Attributen
+#
+# Hinweise:
+# - Zeilen mit # am Anfang sind Kommentare
+# - Leere Zeilen werden ignoriert
+# - force_match gibt dem TILDA-Weg +1000 Priorität beim Snapping
+# - Andere Attribute werden NACH dem Snapping überschrieben
+# - JSON muss gültiges Format haben: {"key": "value"}
+# - Mehrere Attribute mit Komma trennen: {"attr1": "val1", "attr2": "val2"}
+#
+# =====================================
+
+# Beispiel-Einträge (auskommentiert):
+# way/123456|12345|0|{"force_match": true, "fuehr": "Radfahrstreifen"}
+# way/789012|67890|1|{"breite": "2.0", "pflicht": "ja"}
+
+# Format: tilda_id|element_nr|ri|attributes_json
+
+way/24969047|33570023_33570042.02|0|{"force_match": true}
+way/857983579|40560017_40560016.03|0|{"force_match": true}
+way/857983579|40560017_40560016.03|1|{"force_match": true}
+way/702557463|37540060_38530031.01|0|{"force_match": true}

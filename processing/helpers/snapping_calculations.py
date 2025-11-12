@@ -45,7 +45,7 @@ class SnappingPriorities:
         "cycleway*":                37,  # Radweg
         "footAndCycleway*":         35,  # Fußweg mit Radverkehr
         "footwayBicycle*":          32,  # Fußweg mit Radverkehr
-        "bicycleRoad*":             30,  # Fahrradstraße
+        "bicycleRoad*":             27,  # Fahrradstraße
         "crossing":                 25, # Kreuzungsweg
         "sharedBusLaneBikeWithBus": 12,  # Radfahrstreifen mit Busverkehr frei
         "sharedBusLaneBusWithBike": 12, # Bussonderfahrstreifen mit Radverkehr frei
