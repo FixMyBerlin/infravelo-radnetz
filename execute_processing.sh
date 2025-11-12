@@ -118,6 +118,20 @@ if [[ -n "$CLIP_REGION" ]]; then
     fi
 fi
 
+# Prüfe ob .venv existiert
+if [ ! -d ".venv" ]; then
+    echo "❌ Fehler: .venv Verzeichnis nicht gefunden!"
+    echo "Bitte erstelle zuerst die virtuelle Umgebung mit:"
+    echo "python3 -m venv .venv"
+    echo "source .venv/bin/activate"
+    echo "pip install -r requirements.txt"
+    exit 1
+fi
+
+# Aktiviere virtuelles Environment automatisch
+echo "🔧 Aktiviere virtuelles Environment..."
+source .venv/bin/activate
+
 if [[ -n "$CLIP_REGION" && -n "$VIEW" ]]; then
     echo "❌ --clip und --view dürfen nicht kombiniert werden"
     exit 1

@@ -82,6 +82,10 @@ if [ ! -d ".venv" ]; then
     exit 1
 fi
 
+# Aktiviere virtuelles Environment automatisch
+echo "🔧 Aktiviere virtuelles Environment..."
+source "$PROJECT_ROOT/.venv/bin/activate"
+
 # Setze PYTHONPATH damit die helper Module gefunden werden
 export PYTHONPATH="$PROJECT_ROOT/processing:$PYTHONPATH"
 
