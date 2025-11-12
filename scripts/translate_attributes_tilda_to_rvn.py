@@ -268,6 +268,10 @@ def determine_ofm(row) -> str:
     if not surface or surface == "nan":
         return "NICHT-GEFUNDEN"
     
+    # Prüfe auf "none" Wert
+    if surface == "none":
+        return "[TODO] Fehlt"
+    
     # Prüfe Mappings
     if surface in MAPPING_OFM_SURFACE:
         return MAPPING_OFM_SURFACE[surface]
