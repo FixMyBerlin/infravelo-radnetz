@@ -423,7 +423,7 @@ def angle_difference(angle1, angle2):
     return min(diff, 360 - diff)
 
 
-def calculate_angle_priority(segment_geom, candidate_geom):
+def calculate_angle_priority(segment_geom, candidate_geom, segment_angle=None, candidate_angle=None):
     """
     Berechnet die Winkel-Priorität basierend auf der Ausrichtung zwischen Segment und Kandidat.
     Verwendung einer progressiven quadratischen Funktion mit Nullpunkt bei 45°.
@@ -444,13 +444,18 @@ def calculate_angle_priority(segment_geom, candidate_geom):
     Args:
         segment_geom: Geometrie des Netzwerksegments
         candidate_geom: Geometrie des Kandidaten
+        segment_angle: Optional vorberechneter Segment-Winkel (für Performance)
+        candidate_angle: Optional vorberechneter Kandidaten-Winkel (für Performance)
         
     Returns:
         float: Winkel-Priorität (-80 bis +20)
     """
-    segment_angle = calculate_line_angle(segment_geom)
-    # Bei Kreisverkehren: Übergebe Segment als Referenz für Tangentenberechnung
-    candidate_angle = calculate_line_angle(candidate_geom, reference_geom=segment_geom)
+    # Verwende vorberechnete Winkel falls vorhanden (Performance-Optimierung)
+    if segment_angle is None:
+        segment_angle = calculate_line_angle(segment_geom)
+    if candidate_angle is None:
+        # Bei Kreisverkehren: Übergebe Segment als Referenz für Tangentenberechnung
+        candidate_angle = calculate_line_angle(candidate_geom, reference_geom=segment_geom)
     
     angle_diff = angle_difference(segment_angle, candidate_angle)
     
@@ -479,6 +484,46 @@ def calculate_angle_priority(segment_geom, candidate_geom):
     return angle_priority
 
 
+def calculate_angle_priority_vectorized(segment_angle, candidate_angles_series, segment_geom=None):
+    """
+    Vektorisierte Version von calculate_angle_priority für bessere Performance.
+    Berechnet Winkel-Prioritäten für alle Kandidaten gleichzeitig.
+    
+    Args:
+        segment_angle: Winkel des Segments (bereits berechnet)
+        candidate_angles_series: Pandas Series mit Kandidaten-Winkeln
+        segment_geom: Optional - Segment-Geometrie für Logging
+        
+    Returns:
+        np.array: Array mit Winkel-Prioritäten für alle Kandidaten
+    """
+    # Berechne Winkeldifferenzen vektorisiert
+    angle_diffs = np.abs(candidate_angles_series.values - segment_angle)
+    
+    # Berücksichtige 360°-Periodizität vektorisiert
+    angle_diffs = np.where(angle_diffs > 180, 360 - angle_diffs, angle_diffs)
+    
+    # Normalisiere auf 0-90° (kleinster Winkel)
+    normalized_angles = np.minimum(angle_diffs, 180 - angle_diffs)
+    
+    # Berechne Prioritäten vektorisiert
+    angle_priorities = np.zeros_like(normalized_angles, dtype=float)
+    
+    # Bereich 0° - 45°: Linear abfallend
+    mask_linear = normalized_angles <= 45
+    angle_priorities[mask_linear] = SnappingPriorities.ANGLE_PARALLEL_REWARD * (1 - normalized_angles[mask_linear] / 45)
+    
+    # Bereich 45° - 90°: Quadratisch abfallend
+    mask_quad = ~mask_linear
+    t = (normalized_angles[mask_quad] - 45) / 45
+    angle_priorities[mask_quad] = SnappingPriorities.ANGLE_ORTHOGONAL_PENALTY * (t ** 2)
+    
+    # Runde auf zwei Nachkommastellen
+    angle_priorities = np.round(angle_priorities, 2)
+    
+    return angle_priorities
+
+
 def calculate_distance_priority(distance):
     """
     Berechnet die Entfernungs-Priorität basierend auf der Entfernung zum Segmentmittelpunkt.
@@ -502,6 +547,28 @@ def calculate_distance_priority(distance):
     
     logging.debug(f"Entfernungs-Priorität: {distance:.2f}m → {distance_priority:.2f} Punkte")
     return distance_priority
+
+
+def calculate_distance_priority_vectorized(distances_series):
+    """
+    Vektorisierte Version von calculate_distance_priority für bessere Performance.
+    Berechnet Entfernungs-Prioritäten für alle Kandidaten gleichzeitig.
+    
+    Args:
+        distances_series: Pandas Series mit Entfernungen in Metern
+        
+    Returns:
+        np.array: Array mit Entfernungs-Prioritäten
+    """
+    # Vektorisierte hyperbolische Funktion
+    distance_priorities = (SnappingPriorities.DISTANCE_MAX_PRIORITY / 
+                          (1 + distances_series.values / SnappingPriorities.DISTANCE_REFERENCE)) * \
+                          SnappingPriorities.DISTANCE_WEIGHT_FACTOR
+    
+    # Runde auf zwei Nachkommastellen
+    distance_priorities = np.round(distance_priorities, 2)
+    
+    return distance_priorities
 
 
 def calculate_overlap_priority(segment_geom, candidate_geom):
@@ -543,6 +610,33 @@ def calculate_overlap_priority(segment_geom, candidate_geom):
     logging.debug(f"Überlappungs-Priorität: score={overlap_score:.2f} → {overlap_priority:.2f} Punkte "
                  f"(0%={SnappingPriorities.OVERLAP_MIN_PRIORITY}, 100%={SnappingPriorities.OVERLAP_MAX_PRIORITY})")
     return overlap_priority
+
+
+def calculate_overlap_priority_vectorized(segment_geom, candidate_geometries):
+    """
+    Vektorisierte Version von calculate_overlap_priority für bessere Performance.
+    Berechnet Überlappungs-Prioritäten für alle Kandidaten gleichzeitig.
+    
+    Args:
+        segment_geom: Geometrie des Netzwerksegments
+        candidate_geometries: Pandas Series oder GeoSeries mit Kandidaten-Geometrien
+        
+    Returns:
+        tuple: (overlap_priorities: np.array, overlap_scores: np.array)
+    """
+    # Berechne Overlap-Scores für alle Kandidaten
+    overlap_scores = np.array([calculate_overlap_score(segment_geom, geom) 
+                               for geom in candidate_geometries])
+    
+    # Vektorisierte lineare Skalierung
+    overlap_priorities = (SnappingPriorities.OVERLAP_MIN_PRIORITY + 
+                         overlap_scores * (SnappingPriorities.OVERLAP_MAX_PRIORITY - 
+                                          SnappingPriorities.OVERLAP_MIN_PRIORITY))
+    
+    # Runde auf zwei Nachkommastellen
+    overlap_priorities = np.round(overlap_priorities, 2)
+    
+    return overlap_priorities, overlap_scores
 
 
 def determine_segment_direction(segment_geom, osm_geom) -> int:
@@ -749,59 +843,74 @@ def find_best_candidate_for_direction(candidates, seg_dict, ri_value, segment_an
         _, details = calculate_osm_priority_detailed(candidate, seg_dict)
         priority_details[idx] = details
     
-    # Berechne Winkel-Priorität für alle Kandidaten
-    candidates["angle_priority"] = 0.0
-    for idx, candidate in candidates.iterrows():
-        angle_prio = calculate_angle_priority(segment_geom, candidate.geometry)
-        candidates.at[idx, "angle_priority"] = angle_prio
+    # ============ VEKTORISIERTE PRIORITÄTS-BERECHNUNGEN (Performance-Optimierung) ============
     
-    # Berechne Entfernung zum Segmentmittelpunkt und Entfernungs-Priorität
+    # Berechne Segment-Winkel einmal (statt für jeden Kandidaten)
+    if segment_angle is None:
+        segment_angle = calculate_line_angle(segment_geom)
+    
+    # Berechne Winkel-Priorität vektorisiert (nutzt vorberechnete Kandidaten-Winkel falls vorhanden)
+    if 'angle' in candidates.columns:
+        # Kandidaten-Winkel wurden bereits in process_segments_batch berechnet
+        candidates["angle_priority"] = calculate_angle_priority_vectorized(segment_angle, candidates['angle'], segment_geom)
+    else:
+        # Fallback: Berechne Winkel hier (sollte nicht passieren bei optimiertem Code)
+        logging.debug("Warnung: Kandidaten-Winkel nicht vorberechnet, berechne jetzt (Performance-Verlust)")
+        candidates["angle_priority"] = candidates.geometry.apply(
+            lambda geom: calculate_angle_priority(segment_geom, geom, segment_angle=segment_angle)
+        )
+    
+    # Berechne Entfernung zum Segmentmittelpunkt (vektorisiert durch GeoPandas)
     mid = segment_geom.interpolate(0.5, normalized=True)
     candidates["dist_to_mid"] = candidates.geometry.distance(mid)
     
-    # Berechne Entfernungs-Priorität für alle Kandidaten
-    candidates["distance_priority"] = candidates["dist_to_mid"].apply(calculate_distance_priority)
+    # Berechne Entfernungs-Priorität vektorisiert
+    candidates["distance_priority"] = calculate_distance_priority_vectorized(candidates["dist_to_mid"])
     
-    # Berechne Überlappungs-Priorität für alle Kandidaten
-    candidates["priority_overlap"] = 0.0
-    for idx, candidate in candidates.iterrows():
-        overlap_prio = calculate_overlap_priority(segment_geom, candidate.geometry)
-        candidates.at[idx, "priority_overlap"] = overlap_prio
-        # Füge priority_overlap zu priority_details hinzu
+    # Berechne Überlappungs-Priorität vektorisiert
+    overlap_priorities, overlap_scores = calculate_overlap_priority_vectorized(segment_geom, candidates.geometry)
+    candidates["priority_overlap"] = overlap_priorities
+    
+    # Füge Überlappungs-Details zu priority_details hinzu
+    for idx, (overlap_prio, overlap_score) in zip(candidates.index, zip(overlap_priorities, overlap_scores)):
         if idx in priority_details:
-            priority_details[idx]['priority_overlap'] = overlap_prio
-            priority_details[idx]['overlap_score'] = calculate_overlap_score(segment_geom, candidate.geometry)
+            priority_details[idx]['priority_overlap'] = float(overlap_prio)
+            priority_details[idx]['overlap_score'] = float(overlap_score)
     
-    # Berechne Richtungskompatibilität für jeden Kandidaten
-    candidates["direction_compatibility"] = 0
+    # ============ VEKTORISIERTE RICHTUNGSKOMPATIBILITÄTS-BERECHNUNG ============
     
-    # Logge Segmentwinkel für Debugging - verwende übergebenen Winkel falls vorhanden
-    if segment_angle is None:
-        segment_angle = calculate_line_angle(segment_geom)
     logging.debug(f"Segment element_nr={element_nr}: Winkel={segment_angle:.2f}°")
     
-    for idx, candidate in candidates.iterrows():
-        candidate_verkehrsri = candidate.get('verkehrsri', '')
-        candidate_tilda_id = candidate.get('tilda_id', f'idx_{idx}')
-        # Verwende bereits berechneten Winkel falls vorhanden
-        if 'angle' in candidate:
-            candidate_angle = candidate['angle']
-        else:
-            candidate_angle = calculate_line_angle(candidate.geometry)
+    # Initialisiere mit Standardwert für Zweirichtungsverkehr
+    candidates["direction_compatibility"] = SnappingPriorities.DIRECTION_BIDIRECTIONAL
+    
+    # Finde alle Einrichtungsverkehr-Kandidaten
+    einrichtung_mask = candidates['verkehrsri'] == 'Einrichtungsverkehr'
+    
+    if einrichtung_mask.any():
+        # Berechne Richtungen für alle Einrichtungsverkehr-Kandidaten vektorisiert
+        einrichtung_indices = candidates[einrichtung_mask].index
         
-        if candidate_verkehrsri == 'Einrichtungsverkehr':
-            # Bei Einrichtungsverkehr: Prüfe Richtungsausrichtung
+        for idx in einrichtung_indices:
+            candidate = candidates.loc[idx]
+            candidate_tilda_id = candidate.get('tilda_id', f'idx_{idx}')
+            
+            # Bestimme Segment-Richtung (muss einzeln berechnet werden wegen Geometrie-Vergleich)
             segment_direction = determine_segment_direction(segment_geom, candidate.geometry)
+            
+            # Verwende bereits berechneten Winkel
+            if 'angle' in candidate:
+                candidate_angle = candidate['angle']
+            else:
+                candidate_angle = calculate_line_angle(candidate.geometry)
             
             logging.debug(f"  Kandidat {candidate_tilda_id}: Einrichtungsverkehr, "
                          f"Winkel={candidate_angle:.2f}°, segment_direction={segment_direction}, "
                          f"ri_value={ri_value}")
             
-            # Wenn ri_value None ist, behandle es als "beste verfügbare Richtung"
+            # Setze Richtungskompatibilität basierend auf ri_value
             if ri_value is None:
-                # Für den Fall, dass wir den besten Kandidaten UNABHÄNGIG von der Richtung suchen
-                # (z.B. bei Sonderfällen wo nur Mischverkehr vorhanden ist)
-                # Vergeben wir die perfekte Bewertung, da die Richtung später richtig gesetzt wird
+                # Sonderfall: Unabhängig von Richtung
                 candidates.at[idx, "direction_compatibility"] = SnappingPriorities.DIRECTION_PERFECT_MATCH
                 logging.debug(f"    → ri_value=None (Sonderfall): Vergebe DIRECTION_PERFECT_MATCH={SnappingPriorities.DIRECTION_PERFECT_MATCH}, da Richtung später korrekt gesetzt wird")
             elif segment_direction == ri_value:
@@ -809,12 +918,17 @@ def find_best_candidate_for_direction(candidates, seg_dict, ri_value, segment_an
                 candidates.at[idx, "direction_compatibility"] = SnappingPriorities.DIRECTION_PERFECT_MATCH
                 logging.debug(f"    → Richtung passt perfekt! direction_compatibility={SnappingPriorities.DIRECTION_PERFECT_MATCH}")
             else:
-                # Richtung passt nicht - NEGATIVE Priorität für gegenläufige Wege
+                # Richtung passt nicht - NEGATIVE Priorität
                 candidates.at[idx, "direction_compatibility"] = SnappingPriorities.DIRECTION_WRONG_WAY
                 logging.debug(f"    → Richtung passt NICHT! direction_compatibility={SnappingPriorities.DIRECTION_WRONG_WAY} (gegenläufig)")
-        else:
-            # Bei Zweirichtungsverkehr: Kann für beide Richtungen verwendet werden
-            candidates.at[idx, "direction_compatibility"] = SnappingPriorities.DIRECTION_BIDIRECTIONAL
+    
+    # Logge Zweirichtungsverkehr-Kandidaten (weniger verbose)
+    bidirectional_mask = candidates['verkehrsri'] != 'Einrichtungsverkehr'
+    if bidirectional_mask.any() and logging.getLogger().isEnabledFor(logging.DEBUG):
+        for idx in candidates[bidirectional_mask].index:
+            candidate = candidates.loc[idx]
+            candidate_tilda_id = candidate.get('tilda_id', f'idx_{idx}')
+            candidate_angle = candidate.get('angle', 0.0)
             logging.debug(f"  Kandidat {candidate_tilda_id}: Zweirichtungsverkehr, "
                          f"Winkel={candidate_angle:.2f}°, direction_compatibility={SnappingPriorities.DIRECTION_BIDIRECTIONAL}")
     
