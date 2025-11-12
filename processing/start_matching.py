@@ -554,9 +554,13 @@ def combine_multiple_datasets(datasets, output_path):
     return combined_gdf
 
 
-def calculate_difference_datasets(base_gdf, subtract_gdf, output_path, base_name, subtract_name):
+def calculate_difference_datasets(base_gdf, subtract_gdf, output_path, base_name, subtract_name, protected_ids=None):
     """
     Berechnet die Differenz zwischen zwei Datensätzen (base_gdf - subtract_gdf).
+    
+    Args:
+        protected_ids (set, optional): Set von OSM-Way-IDs, die geschützt werden sollen
+                                       (z.B. aus include_ways.txt) und niemals entfernt werden dürfen
     """
     if base_gdf is not None and subtract_gdf is not None:
         print(f"\n--- Berechne Differenz: {base_name} ohne {subtract_name} ---")
@@ -564,7 +568,8 @@ def calculate_difference_datasets(base_gdf, subtract_gdf, output_path, base_name
             base_gdf,
             subtract_gdf,
             output_path,
-            target_crs=TARGET_CRS
+            target_crs=TARGET_CRS,
+            protected_ids=protected_ids
         )
         print(f"Differenz-Datei gespeichert: {output_path}")
         return difference_gdf
@@ -573,10 +578,14 @@ def calculate_difference_datasets(base_gdf, subtract_gdf, output_path, base_name
         return None
 
 
-def calculate_multiple_difference_datasets(base_gdf, subtract_gdfs, output_path, base_name, subtract_names):
+def calculate_multiple_difference_datasets(base_gdf, subtract_gdfs, output_path, base_name, subtract_names, protected_ids=None):
     """
     Berechnet die Differenz zwischen einem Datensatz und mehreren anderen Datensätzen.
     base_gdf - (subtract_gdf1 + subtract_gdf2 + ...)
+    
+    Args:
+        protected_ids (set, optional): Set von OSM-Way-IDs, die geschützt werden sollen
+                                       (z.B. aus include_ways.txt) und niemals entfernt werden dürfen
     """
     if base_gdf is None:
         print(f"Warnung: Basis-Datensatz {base_name} ist nicht verfügbar.")
@@ -609,7 +618,8 @@ def calculate_multiple_difference_datasets(base_gdf, subtract_gdfs, output_path,
         base_gdf,
         combined_subtract_gdf,
         output_path,
-        target_crs=TARGET_CRS
+        target_crs=TARGET_CRS,
+        protected_ids=protected_ids
     )
     print(f"Differenz-Datei gespeichert: {output_path}")
     return difference_gdf
@@ -691,6 +701,14 @@ def main():
         )
         processed_datasets[source_name] = processed_gdf
 
+    # Lade protected IDs aus include_ways.txt für Differenz-Berechnungen
+    # Diese Wege dürfen niemals durch geometrische Filter entfernt werden
+    protected_ids = None
+    if not args.skip_manual_interventions:
+        protected_ids = get_included_ways()
+        if protected_ids:
+            print(f"\n🛡️  {len(protected_ids)} Wege aus include_ways.txt werden bei Differenz-Berechnungen geschützt")
+    
     # Differenz-Berechnungen
     # Straßen ohne Radwege
     streets_without_bikelanes = None
@@ -701,7 +719,8 @@ def main():
             processed_datasets.get('bikelanes'),
             output_path,
             'streets',
-            'bikelanes'
+            'bikelanes',
+            protected_ids=protected_ids
         )
 
     # Wege ohne Straßen UND Radwege
@@ -713,7 +732,8 @@ def main():
             [processed_datasets.get('streets'), processed_datasets.get('bikelanes')],
             output_path,
             'paths',
-            ['streets', 'bikelanes']
+            ['streets', 'bikelanes'],
+            protected_ids=protected_ids
         )
 
     # Kombiniere alle verfügbaren Datensätze (ohne Überschneidungen)

@@ -22,21 +22,27 @@ from helpers.globals import DEFAULT_CRS
 BUFFER_METERS = 10  # Buffer-Radius in Metern für die Differenzbildung
 
 
-def difference_streets_without_bikelanes(streets_gdf, bikelanes_gdf, target_crs=None):
+def difference_streets_without_bikelanes(streets_gdf, bikelanes_gdf, target_crs=None, protected_ids=None):
     """
     Berechnet die Differenz zwischen Straßen und Radwegen.
     
     Entfernt vollständig alle Straßen, die zu 80% oder mehr im Buffer (BUFFER_METERS) 
     um Radwege liegen. Straßen mit weniger als 80% Überschneidung bleiben vollständig erhalten.
     
+    Wege, die in protected_ids enthalten sind (z.B. aus include_ways.txt), werden niemals
+    entfernt, unabhängig von ihrer Überschneidung mit Radwegen.
+    
     Args:
         streets_gdf (GeoDataFrame): GeoDataFrame mit Straßengeometrien
         bikelanes_gdf (GeoDataFrame): GeoDataFrame mit Radweggeometrien
         target_crs (str, optional): Ziel-CRS für Projektion vor Pufferung (z.B. 'EPSG:25833').
                                    Wenn None, wird nicht reprojiziert.
+        protected_ids (set, optional): Set von OSM-Way-IDs, die geschützt werden sollen
+                                       (z.B. aus include_ways.txt)
     
     Returns:
         GeoDataFrame: Straßen mit weniger als 80% Überschneidung mit Radwegen-Buffern
+                     plus alle geschützten Wege
     """
     # Sicherstellen, dass beide GeoDataFrames im projizierten CRS vorliegen für korrekte Pufferung
     if target_crs is not None:
@@ -85,6 +91,30 @@ def difference_streets_without_bikelanes(streets_gdf, bikelanes_gdf, target_crs=
     # Nur Straßen behalten, die weniger als 80% im Buffer liegen
     threshold = 0.8
     keep_mask = overlap_ratios < threshold
+    
+    # Schütze manuell eingeschlossene Wege (z.B. aus include_ways.txt)
+    # Diese dürfen niemals durch die Differenz-Berechnung entfernt werden
+    if protected_ids is not None and len(protected_ids) > 0:
+        # Bestimme die ID-Spalte
+        id_col = 'tilda_osm_id' if 'tilda_osm_id' in streets_gdf.columns else 'tilda_id'
+        
+        if id_col in streets_gdf.columns:
+            # Erstelle Maske für geschützte Wege
+            protected_mask = streets_gdf[id_col].isin(protected_ids)
+            protected_count = protected_mask.sum()
+            
+            if protected_count > 0:
+                # Kombiniere beide Masken: behalte Wege mit <80% Überschneidung ODER geschützte Wege
+                keep_mask = keep_mask | protected_mask
+                
+                # Zähle, wie viele geschützte Wege sonst entfernt worden wären
+                would_be_removed = protected_mask & (overlap_ratios >= threshold)
+                rescued_count = would_be_removed.sum()
+                
+                if rescued_count > 0:
+                    logging.info(f"🛡️  {rescued_count} geschützte Wege (include_ways.txt) vor Entfernung bewahrt, "
+                               f"obwohl sie ≥{threshold*100}% Überschneidung haben")
+    
     result_gdf = streets_gdf[keep_mask].copy()
     
     logging.info(f"Von {len(streets_gdf)} Straßen bleiben {len(result_gdf)} erhalten "
@@ -93,25 +123,31 @@ def difference_streets_without_bikelanes(streets_gdf, bikelanes_gdf, target_crs=
     return result_gdf
 
 
-def get_or_create_difference_fgb(streets_gdf, bikelanes_gdf, output_path, target_crs=None):
+def get_or_create_difference_fgb(streets_gdf, bikelanes_gdf, output_path, target_crs=None, protected_ids=None):
     """
     Berechnet die Differenz zwischen Straßen und Radwegen und speichert sie als FlatGeobuf.
     
     Entfernt vollständig alle Straßen, die zu 80% oder mehr im Buffer um Radwege liegen.
     Berechnet immer neu um Cache-Probleme zu vermeiden und aktuelle Daten zu gewährleisten.
     
+    Wege, die in protected_ids enthalten sind (z.B. aus include_ways.txt), werden niemals
+    entfernt, unabhängig von ihrer Überschneidung mit Radwegen.
+    
     Args:
         streets_gdf (GeoDataFrame): GeoDataFrame mit Straßengeometrien
         bikelanes_gdf (GeoDataFrame): GeoDataFrame mit Radweggeometrien
         output_path (str): Pfad zur Ausgabedatei (FlatGeobuf)
         target_crs (str, optional): Ziel-CRS für Projektion vor Pufferung
+        protected_ids (set, optional): Set von OSM-Way-IDs, die geschützt werden sollen
+                                       (z.B. aus include_ways.txt)
     
     Returns:
         GeoDataFrame: Straßen mit weniger als 80% Überschneidung mit Radwegen-Buffern
+                     plus alle geschützten Wege
     """
     # Differenz immer neu berechnen um Cache-Probleme zu vermeiden
     logging.info("Berechne Differenz: entferne Straßen mit ≥80% Überschneidung mit Radwegen...")
-    diff_gdf = difference_streets_without_bikelanes(streets_gdf, bikelanes_gdf, target_crs=target_crs)
+    diff_gdf = difference_streets_without_bikelanes(streets_gdf, bikelanes_gdf, target_crs=target_crs, protected_ids=protected_ids)
     
     # Ergebnis als FlatGeobuf speichern
     diff_gdf.to_file(output_path, driver='FlatGeobuf')
