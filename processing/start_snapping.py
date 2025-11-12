@@ -1785,6 +1785,11 @@ if __name__ == "__main__":
             args.osm = "./output-bbox/matched/matched_tilda_ways.fgb"
         if args.out == "./output/snapping_network_enriched.fgb":
             args.out = "./output-bbox/snapping_network_enriched_view.fgb"
+    
+    # Bei clip Standard-Eingabepfad mit Suffix versehen falls unverändert
+    if args.clip:
+        if args.osm == "./output/matched/matched_tilda_ways.fgb":
+            args.osm = f"./output/matched/matched_tilda_ways_{args.clip}.fgb"
 
     # CPU-Kerne-Konfiguration übernehmen (validiere Eingabe)
     cpu_cores = max(1, min(args.cpu_cores, mp.cpu_count()))

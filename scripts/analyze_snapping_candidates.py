@@ -350,7 +350,7 @@ def main():
     
     if args.bezirk == 'neukoelln':
         network_file = project_root / 'output' / 'snapping_network_enriched_neukoelln.fgb'
-        tilda_file = project_root / 'output' / 'matched' / 'matched_tilda_ways.fgb'
+        tilda_file = project_root / 'output' / 'matched' / 'matched_tilda_ways_neukoelln.fgb'
         output_suffix = '_neukoelln'
     else:
         network_file = project_root / 'output' / 'snapping_network_enriched.fgb'

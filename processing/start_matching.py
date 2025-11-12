@@ -759,7 +759,12 @@ def main():
         datasets_for_combination['paths'] = paths_without_streets_and_bikelanes
 
     if datasets_for_combination:
-        combined_path = f'{base_output_dir}/matched/matched_tilda_ways.fgb'
+        # Bestimme Dateiname mit optionalem Suffix basierend auf Clipping
+        if args.clip:
+            combined_filename = f'matched_tilda_ways_{args.clip}.fgb'
+        else:
+            combined_filename = 'matched_tilda_ways.fgb'
+        combined_path = f'{base_output_dir}/matched/{combined_filename}'
         combined_gdf = combine_multiple_datasets(datasets_for_combination, combined_path)
         if combined_gdf is not None:
             print(f"Kombinierte Daten gespeichert: {combined_path}")

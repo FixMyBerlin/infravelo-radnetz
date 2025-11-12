@@ -63,7 +63,9 @@ Nach der TILDA-Datenvorbereitung wird die Hauptverarbeitung gestartet:
 #### Schritt 1: OSM-Matching (`start_matching.py`)
 - Ordnet TILDA-übersetzte Attribute dem Berliner Radvorrangsnetz zu
 - Führt räumliches Matching durch und erstellt bereinigte Datensätze
-- **Ausgabe**: `output/matched/matched_tilda_ways.fgb`
+- **Ausgabe**: 
+  - Standard (ganz Berlin): `output/matched/matched_tilda_ways.fgb`
+  - Mit Clipping: `output/matched/matched_tilda_ways_{region}.fgb` (z.B. neukoelln, norden, sueden)
 
 #### Schritt 2: Snapping und Attribut-Übernahme (`start_snapping.py`) 
 - Überträgt TILDA-Attribute auf ein topologisches Richtungs-Straßennetz
