@@ -5,7 +5,7 @@
 #
 # Beispiele:
 # 
-# 1. Erzwinge spezifischen TILDA-Weg (höchste Priorität +1000):
+# 1. Erzwinge spezifischen TILDA-Weg (höchste Priorität +150):
 #    way/123456|12345|0|{"force_match": true}
 #
 # 2. Überschreibe nur Attribute (nach normalem Snapping):
@@ -35,7 +35,7 @@
 # Hinweise:
 # - Zeilen mit # am Anfang sind Kommentare
 # - Leere Zeilen werden ignoriert
-# - force_match gibt dem TILDA-Weg +1000 Priorität beim Snapping
+# - force_match gibt dem TILDA-Weg +150 Priorität beim Snapping
 # - Andere Attribute werden NACH dem Snapping überschrieben
 # - JSON muss gültiges Format haben: {"key": "value"}
 # - Mehrere Attribute mit Komma trennen: {"attr1": "val1", "attr2": "val2"}
