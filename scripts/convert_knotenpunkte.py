@@ -73,6 +73,29 @@ def convert_knotenpunkte_to_geojson():
         logging.info(f"Spalten: {list(gdf.columns)}")
         logging.info(f"Ursprüngliches CRS: {gdf.crs}")
         
+        # Ersetze NULL-Werte durch "keine" für spezifische Attribute
+        # Aber nur, wenn KP_Nichtbetrachten = 0 ist
+        null_replacement_columns = ['Mar_RVF_KP', 'Furt_rot', 'Fl_Linksab', 'vorgez_Fl', 'RFS_Mitte']
+        
+        if 'KP_Nichtbetrachten' in gdf.columns:
+            # Erstelle Maske für Zeilen mit KP_Nichtbetrachten = 0
+            mask = gdf['KP_Nichtbetrachten'] == 0
+            rows_to_process = mask.sum()
+            logging.info(f"Anzahl Zeilen mit KP_Nichtbetrachten = 0: {rows_to_process}")
+            
+            for col in null_replacement_columns:
+                if col in gdf.columns:
+                    # Zähle NULL-Werte bei KP_Nichtbetrachten = 0
+                    null_count = (gdf.loc[mask, col].isna()).sum()
+                    if null_count > 0:
+                        # Ersetze NULL nur bei KP_Nichtbetrachten = 0
+                        gdf.loc[mask, col] = gdf.loc[mask, col].fillna('keine')
+                        logging.info(f"Ersetze {null_count} NULL-Werte in Spalte '{col}' durch 'keine' (nur bei KP_Nichtbetrachten = 0)")
+                else:
+                    logging.warning(f"Spalte '{col}' nicht in Datei gefunden")
+        else:
+            logging.warning("Spalte 'KP_Nichtbetrachten' nicht gefunden - keine NULL-Ersetzung durchgeführt")
+        
         # Konvertiere zu WGS84 (EPSG:4326) für GeoJSON
         if gdf.crs is not None and gdf.crs.to_string() != 'EPSG:4326':
             logging.info("Konvertiere CRS zu WGS84 (EPSG:4326)")
