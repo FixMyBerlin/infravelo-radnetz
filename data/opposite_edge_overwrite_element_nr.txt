@@ -1,21 +1,38 @@
-# Liste von element_nr für Kanten, bei denen die Rückrichtung (ri=1) entfernt werden soll
+# Liste von element_nr für Kanten, bei denen die Rückrichtung (ri=1) verarbeitet werden soll
 #
-# Format: Eine element_nr pro Zeile (als String, z.B. "46510007_46510033.01")
-# Kommentare beginnen mit #
-# Leerzeilen werden ignoriert
+# Format: element_nr [|Modus]
+# - Kommentare beginnen mit #
+# - Leerzeilen werden ignoriert
 #
-# Anwendungsfall:
+# ZWEI MODI:
+#
+# 1. REMOVE-MODUS (Standard): Entfernt ri=1 komplett
+#    Format: element_nr (ohne Suffix)
+#    Beispiel: 46510007_46510033.01
+#
+# 2. KEINE-RADINFRA-MODUS: Setzt ri=1 auf "Keine Radinfrastruktur vorhanden"
+#    Format: element_nr|true
+#    Beispiel: 40450020_40450004.01|true
+#
+#    Effekt:
+#    - fuehr = "Keine Radinfrastruktur vorhanden"
+#    - Alle anderen Attribute (pflicht, breite, ofm, etc.) werden auf None gesetzt
+#    - Die Kante bleibt erhalten (wird nicht gelöscht)
+#
+# ANWENDUNGSFALL:
 # Manchmal wird im Snapping für beide Richtungen (ri=0 und ri=1) eine Infrastruktur zugewiesen,
 # obwohl nur die Hinrichtung (ri=0) tatsächlich existiert.
-# Diese Liste ermöglicht das manuelle Entfernen der falschen Rückrichtung.
+# - Verwende REMOVE-MODUS, wenn die ri=1 Richtung komplett falsch ist
+# - Verwende KEINE-RADINFRA-MODUS, wenn die ri=1 Richtung existiert, aber keine Radinfra hat
 #
 # WARNUNG:
 # Falls die ri=0 Kante verkehrsri="Zweirichtungsverkehr" hat, wird eine Warnung ausgegeben,
 # da dies auf einen Konflikt hindeutet, der manuell geprüft werden sollte.
 #
-# Beispiel:
-# 46510007_46510033.01
-# 42520034_43520038.01
+# Beispiele:
+# 46510007_46510033.01              # REMOVE: Entfernt ri=1
+# 42520034_43520038.01              # REMOVE: Entfernt ri=1
+# 40450020_40450004.01|true         # KEINE-RADINFRA: Setzt ri=1 auf "Keine Radinfra"
 
 46510007_46510033.01
 46510002_46510007.01
@@ -92,8 +109,8 @@
 40460012_40460013.01
 40460014_40460012.01
 
-# 40450020_40450004.01
-# Sollte eigentlich Keine Infra sein.
+# 40450020_40450004.01: ri=1 sollte "Keine Radinfra" sein
+40450020_40450004.01|true
 
 43520041_43520016.01
 43520016_43520014.01
@@ -180,3 +197,11 @@
 47600002_46600027.01
 48530036_48530041.02
 48530006_48530040.01
+45520030_45520025.01
+46510032_46510016.01
+46510033_46510016.01
+48520012_48520025.02
+52530007_52520040.02
+57470033_58470010.03
+39670042_39670041.01
+32540042_32540003.01

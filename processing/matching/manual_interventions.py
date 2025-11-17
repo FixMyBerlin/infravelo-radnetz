@@ -316,7 +316,7 @@ def get_override_ways(override_file_path='./data/override_ways.txt'):
     return overrides
 
 
-def find_spatial_override(segment_geometry, override_gdf, min_overlap_ratio=0.8):
+def find_spatial_override(segment_geometry, override_gdf, ri_value=None, min_overlap_ratio=0.8):
     """
     Findet räumlich übereinstimmende Override-Einträge für ein Segment.
     
@@ -326,6 +326,7 @@ def find_spatial_override(segment_geometry, override_gdf, min_overlap_ratio=0.8)
     Args:
         segment_geometry: Shapely LineString Geometrie des Segments
         override_gdf: GeoDataFrame mit Override-Einträgen
+        ri_value: Richtungswert (0 oder 1) - wenn gegeben, muss Override-ri übereinstimmen
         min_overlap_ratio: Minimaler Überlappungsgrad (0.0-1.0), Standard: 0.8 (80%)
     
     Returns:
@@ -380,13 +381,33 @@ def find_spatial_override(segment_geometry, override_gdf, min_overlap_ratio=0.8)
     if best_match is None:
         return None
     
+    # WICHTIG: Prüfe ri-Übereinstimmung falls ri_value gegeben und in GeoPackage vorhanden
+    if ri_value is not None and 'ri' in best_match.index:
+        override_ri = best_match.get('ri')
+        # Prüfe ob ri-Wert gesetzt und ob er übereinstimmt
+        if override_ri is not None:
+            try:
+                override_ri_int = int(override_ri)
+                ri_value_int = int(ri_value)
+                if override_ri_int != ri_value_int:
+                    # ri passt nicht - kein Match
+                    logging.debug(
+                        f"Räumlicher Override übersprungen: ri stimmt nicht überein "
+                        f"(Override ri={override_ri_int}, Segment ri={ri_value_int})"
+                    )
+                    return None
+            except (ValueError, TypeError):
+                # Wenn Konvertierung fehlschlägt, ignoriere ri-Prüfung
+                pass
+    
     # Extrahiere Override-Attribute
     override_info = {
         'overlap_ratio': best_overlap_ratio,
         'force_match': False,
         'attributes': {},
         'tilda_id': None,
-        'override_reason': None
+        'override_reason': None,
+        'override_geometry': best_match.geometry  # Füge Override-Geometrie hinzu für Distanzberechnung
     }
     
     # Extrahiere tilda_id falls vorhanden

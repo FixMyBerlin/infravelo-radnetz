@@ -40,6 +40,7 @@ from shapely.geometry import LineString, MultiLineString
 from helpers.progressbar import print_progressbar
 from helpers.district_assignment import assign_district_to_edges
 from helpers.globals import DEFAULT_CRS
+from helpers.tilda_link_generator import generate_aggregation_tilda_link
 
 
 # -------------------------------------------------------------- Konstanten --
@@ -408,6 +409,14 @@ def aggregate_edge_group(edge_group):
     
     # Berechne die Länge für ALLE Kanten (Einzelsegmente und aggregierte Kanten)
     aggregated['Länge'] = int(round(calculate_segment_length(aggregated.geometry)))
+    
+    # Regeneriere tilda_link für die aggregierte Geometrie
+    # (tilda_link sollte auf den Mittelpunkt der aggregierten Geometrie zeigen)
+    if 'tilda_id' in aggregated and aggregated['tilda_id']:
+        tilda_id_value = str(aggregated['tilda_id'])
+        # Nur generieren wenn tilda_id vorhanden und nicht leer/None
+        if tilda_id_value and tilda_id_value.lower() not in ['none', 'nan', '']:
+            aggregated['tilda_link'] = generate_aggregation_tilda_link(tilda_id_value, aggregated.geometry)
     
     # Zusätzliche Metadaten
     # DEBUG 

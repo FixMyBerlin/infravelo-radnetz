@@ -51,6 +51,7 @@ from helpers.snapping_calculations import (
     find_best_candidate_for_direction,
     SnappingPriorities
 )
+from helpers.tilda_link_generator import generate_snapping_tilda_link
 from matching.manual_interventions import get_override_ways, load_override_geopackage, find_spatial_override
 
 # -------------------------------------------------------------- Konstanten --
@@ -74,7 +75,7 @@ RVN_ATTRIBUT_ENDE_VP   = "endet_bei_vp"         # Endknoten-ID
 # Attribute an denen die Kanten getrennt werden bzw. verschmolzen werden
 # Diese Attribute müssen in den übersetzten TILDA Daten vorhanden sein
 FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES = ["fuehr", "ofm", "protek", "pflicht", "breite", "farbe", "ri", "verkehrsri", "trennstreifen", "nutz_beschr", "Kommentar"]
-FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES=["data_source", "tilda_id", "tilda_name","tilda_oneway", "tilda_category", "tilda_traffic_sign", "tilda_mapillary", "tilda_mapillary_traffic_sign", "tilda_mapillary_backward", "tilda_mapillary_forward", "tilda_width_source", "prio_traffic_sign", "prio_category", "prio_streetname_equality", "prio_angle", "prio_distance", "prio_overlap", "prio_direction_compatibility", "prio_total", "prio_candidates", "value_prio_distance_meter", "value_prio_overlap_score", "angle_diff", "angle_segment", "angle_tilda"]
+FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES=["data_source", "tilda_id", "tilda_link", "tilda_name","tilda_oneway", "tilda_category", "tilda_traffic_sign", "tilda_mapillary", "tilda_mapillary_traffic_sign", "tilda_mapillary_backward", "tilda_mapillary_forward", "tilda_width_source", "prio_traffic_sign", "prio_category", "prio_streetname_equality", "prio_angle", "prio_distance", "prio_overlap", "prio_direction_compatibility", "prio_total", "prio_candidates", "value_prio_distance_meter", "value_prio_overlap_score", "angle_diff", "angle_segment", "angle_tilda"]
 
 # Gewünschte Spaltenreihenfolge für Datenaufbereitung (finale Ausgabe)
 COLUMN_ORDER = [
@@ -98,6 +99,7 @@ COLUMN_ORDER = [
     "Kommentar",
     # TILDA-Spalten (geprefixte Spalten)
     "tilda_id",
+    "tilda_link",
     "tilda_name",
     "tilda_oneway",
     "tilda_category",
@@ -338,12 +340,18 @@ def process_segments_batch_parallel(batch_data):
     Jeder Worker-Prozess lädt die OSM-Daten aus einer temporären Pickle-Datei.
     
     Args:
-        batch_data: Tuple mit (segments_batch, osm_temp_path, buffer, batch_start_idx, override_config, override_gdf)
+        batch_data: Tuple mit (segments_batch, osm_temp_path, buffer, batch_start_idx, override_config, override_gdf, matched_tilda_temp_path)
     
     Returns:
         List[dict]: Liste der verarbeiteten Segment-Varianten
     """
-    segments_batch, osm_temp_path, buffer, batch_start_idx, override_config, override_gdf = batch_data
+    segments_batch, osm_temp_path, buffer, batch_start_idx, override_config, override_gdf, matched_tilda_temp_path = batch_data
+    
+    # Lade matched_tilda_ways aus temporärer Pickle-Datei
+    matched_tilda_ways_gdf = None
+    if matched_tilda_temp_path and os.path.exists(matched_tilda_temp_path):
+        with open(matched_tilda_temp_path, 'rb') as f:
+            matched_tilda_ways_gdf = pickle.load(f)
     
     # Lade OSM-Daten aus temporärer Pickle-Datei
     with open(osm_temp_path, 'rb') as f:
@@ -362,7 +370,7 @@ def process_segments_batch_parallel(batch_data):
         
         if not cand_idx:
             # Keine TILDA-Kandidaten gefunden
-            variants = create_directional_segment_variants_optimized(seg_dict, None, None, override_config, override_gdf)
+            variants = create_directional_segment_variants_optimized(seg_dict, None, None, override_config, override_gdf, matched_tilda_ways_gdf)
             batch_results.extend(variants)
             continue
             
@@ -375,7 +383,7 @@ def process_segments_batch_parallel(batch_data):
         
         if cand.empty:
             # Keine TILDA-Kandidaten im Buffer
-            variants = create_directional_segment_variants_optimized(seg_dict, None, None, override_config, override_gdf)
+            variants = create_directional_segment_variants_optimized(seg_dict, None, None, override_config, override_gdf, matched_tilda_ways_gdf)
             batch_results.extend(variants)
             continue
 
@@ -435,13 +443,13 @@ def process_segments_batch_parallel(batch_data):
                         # Optionally write to a small progress log in parallel mode
                         logging.info(f"Gefundenes Ausreißer-Kandidat mit erweitertem Buffer für element_nr={seg_dict.get('element_nr','unknown')}")
 
-        variants = create_directional_segment_variants_optimized(seg_dict, cand, cand, override_config, override_gdf)
+        variants = create_directional_segment_variants_optimized(seg_dict, cand, cand, override_config, override_gdf, matched_tilda_ways_gdf)
         batch_results.extend(variants)
     
     return batch_results
 
 
-def process_segments_batch(segments_batch, osm_gdf, osm_sidx, buffer, candidates_log=None, batch_start_idx=0, override_config=None, override_gdf=None):
+def process_segments_batch(segments_batch, osm_gdf, osm_sidx, buffer, candidates_log=None, batch_start_idx=0, override_config=None, override_gdf=None, matched_tilda_ways_gdf=None):
     """
     Verarbeitet eine Batch von Segmenten gleichzeitig.
     Reduziert Overhead durch Batch-Operationen.
@@ -468,7 +476,7 @@ def process_segments_batch(segments_batch, osm_gdf, osm_sidx, buffer, candidates
         
         if not cand_idx:
             # Keine TILDA-Kandidaten gefunden
-            variants = create_directional_segment_variants_optimized(seg_dict, None)
+            variants = create_directional_segment_variants_optimized(seg_dict, None, None, override_config, override_gdf, matched_tilda_ways_gdf)
             batch_results.extend(variants)
             
             if candidates_log:
@@ -484,7 +492,7 @@ def process_segments_batch(segments_batch, osm_gdf, osm_sidx, buffer, candidates
         
         if cand.empty:
             # Keine TILDA-Kandidaten im Buffer
-            variants = create_directional_segment_variants_optimized(seg_dict, None)
+            variants = create_directional_segment_variants_optimized(seg_dict, None, None, override_config, override_gdf, matched_tilda_ways_gdf)
             batch_results.extend(variants)
             
             if candidates_log:
@@ -564,7 +572,7 @@ def process_segments_batch(segments_batch, osm_gdf, osm_sidx, buffer, candidates
                         candidates_log.write(f"      → VERFÜGBARE: {all_tilda_ids}\n")
 
         # Erzeuge Segment-Varianten basierend auf TILDA-Daten (optimiert)
-        variants = create_directional_segment_variants_optimized(seg_dict, cand, cand, override_config, override_gdf)
+        variants = create_directional_segment_variants_optimized(seg_dict, cand, cand, override_config, override_gdf, matched_tilda_ways_gdf)
         batch_results.extend(variants)
         
         # Logge ausgewählte Kandidaten
@@ -677,21 +685,33 @@ def normalize_merge_attributes_batch(df, fields):
 
 def load_opposite_edge_overwrite_list(data_dir):
     """
-    Lädt die Liste der element_nr, für die die Rückrichtung (ri=1) entfernt werden soll.
+    Lädt die Liste der element_nr, für die die Rückrichtung (ri=1) verarbeitet werden soll.
+    
+    Unterstützt zwei Modi:
+    1. element_nr alleine: Entfernt ri=1 komplett (alte Funktionalität)
+    2. element_nr|KeineRadinfra: Setzt ri=1 auf "Keine Radinfrastruktur vorhanden"
+    
+    Format:
+    - 40450020_40450004.01                  # Entfernt ri=1
+    - 40450020_40450004.01|true             # Setzt fuehr="Keine Radinfrastruktur vorhanden" für ri=1
+    - 40450020_40450004.01|KeineRadinfra    # Alias für |true
     
     Args:
         data_dir: Verzeichnis mit der Datei opposite_edge_overwrite_element_nr.txt
     
     Returns:
-        set: Menge der element_nr (als Strings), für die ri=1 entfernt werden soll
+        dict: Dictionary mit zwei Keys:
+            - 'remove': set von element_nr (Strings), für die ri=1 entfernt werden soll
+            - 'keine_infra': set von element_nr (Strings), für die ri=1 auf "Keine Radinfra" gesetzt werden soll
     """
     file_path = Path(data_dir) / OPPOSITE_EDGE_OVERWRITE_FILE
     
     if not file_path.exists():
         logging.info(f"Keine Opposite-Edge-Overwrite-Liste gefunden: {file_path}")
-        return set()
+        return {'remove': set(), 'keine_infra': set()}
     
-    element_nrs = set()
+    element_nrs_remove = set()
+    element_nrs_keine_infra = set()
     
     with open(file_path, 'r', encoding='utf-8') as f:
         for line_num, line in enumerate(f, 1):
@@ -702,48 +722,93 @@ def load_opposite_edge_overwrite_list(data_dir):
             if not line or line.startswith('#'):
                 continue
             
-            # Füge element_nr als String hinzu (keine Integer-Konvertierung)
-            element_nrs.add(line)
-            logging.debug(f"  Zeile {line_num}: '{line}' hinzugefügt")
+            # Parse neue Syntax: element_nr|KeineRadinfra
+            if '|' in line:
+                parts = line.split('|', 1)
+                if len(parts) == 2:
+                    element_nr = parts[0].strip()
+                    mode = parts[1].strip().lower()
+                    
+                    # Akzeptiere verschiedene Schreibweisen
+                    if mode in ['true']:
+                        element_nrs_keine_infra.add(element_nr)
+                        logging.debug(f"  Zeile {line_num}: '{element_nr}' → KeineRadinfra-Modus")
+                    else:
+                        logging.warning(
+                            f"Zeile {line_num}: Unbekannter Modus '{mode}' für element_nr={element_nr} - "
+                            f"verwende Remove-Modus (gültig: true, KeineRadinfra, keine_radinfra, KeineInfra)"
+                        )
+                        element_nrs_remove.add(element_nr)
+                else:
+                    # Ungültiges Format mit |, behandle als Remove
+                    logging.warning(f"Zeile {line_num}: Ungültiges Format '{line}' - verwende Remove-Modus")
+                    element_nrs_remove.add(line)
+            else:
+                # Alte Syntax: nur element_nr (Remove-Modus)
+                element_nrs_remove.add(line)
+                logging.debug(f"  Zeile {line_num}: '{line}' → Remove-Modus")
     
-    if element_nrs:
-        logging.info(f"✔  Opposite-Edge-Overwrite-Liste geladen: {len(element_nrs)} element_nr(s) aus {file_path}")
+    total = len(element_nrs_remove) + len(element_nrs_keine_infra)
+    if total > 0:
+        logging.info(
+            f"✔  Opposite-Edge-Overwrite-Liste geladen: {total} element_nr(s) aus {file_path} "
+            f"(Remove: {len(element_nrs_remove)}, KeineRadinfra: {len(element_nrs_keine_infra)})"
+        )
     else:
         logging.info(f"Opposite-Edge-Overwrite-Liste ist leer: {file_path}")
     
-    return element_nrs
+    return {'remove': element_nrs_remove, 'keine_infra': element_nrs_keine_infra}
 
 
-def apply_opposite_edge_overwrite(gdf, opposite_edge_element_nrs):
+def apply_opposite_edge_overwrite(gdf, opposite_edge_config):
     """
-    Entfernt die Rückrichtung (ri=1) für die angegebenen element_nr.
+    Verarbeitet Rückrichtung (ri=1) für die angegebenen element_nr.
+    
+    Unterstützt zwei Modi:
+    1. Remove-Modus: Entfernt ri=1 komplett
+    2. KeineRadinfra-Modus: Setzt fuehr="Keine Radinfrastruktur vorhanden" und alle anderen 
+       Merge-Attribute auf None für ri=1
+    
     Gibt Warnungen aus, wenn ri=0 verkehrsri="Zweirichtungsverkehr" hat.
     
     Args:
         gdf: GeoDataFrame mit den Kanten
-        opposite_edge_element_nrs: Set von element_nr, für die ri=1 entfernt werden soll
+        opposite_edge_config: Dictionary mit 'remove' und 'keine_infra' Sets
     
     Returns:
-        GeoDataFrame: Gefiltertes GeoDataFrame ohne die entfernten ri=1 Kanten
+        GeoDataFrame: Verarbeitetes GeoDataFrame
     """
-    if not opposite_edge_element_nrs:
+    # Kompatibilität: Falls altes Set-Format übergeben wird
+    if isinstance(opposite_edge_config, set):
+        opposite_edge_config = {'remove': opposite_edge_config, 'keine_infra': set()}
+    
+    element_nrs_remove = opposite_edge_config.get('remove', set())
+    element_nrs_keine_infra = opposite_edge_config.get('keine_infra', set())
+    
+    total = len(element_nrs_remove) + len(element_nrs_keine_infra)
+    
+    if total == 0:
         logging.info("Keine Opposite-Edge-Overwrites zu verarbeiten")
         return gdf
     
-    logging.info(f"Verarbeite Opposite-Edge-Overwrites für {len(opposite_edge_element_nrs)} element_nr(s)...")
+    logging.info(
+        f"Verarbeite Opposite-Edge-Overwrites für {total} element_nr(s) "
+        f"(Remove: {len(element_nrs_remove)}, KeineRadinfra: {len(element_nrs_keine_infra)})..."
+    )
     
     # Zähler für Statistiken
     removed_count = 0
+    keine_infra_count = 0
     warning_count = 0
     not_found_count = 0
     
-    # Prüfe jede element_nr
-    for element_nr in opposite_edge_element_nrs:
+    # Verarbeite Remove-Modus
+    for element_nr in element_nrs_remove:
         # Finde alle Kanten mit dieser element_nr
         matching_edges = gdf[gdf['element_nr'] == element_nr]
         
         if len(matching_edges) == 0:
-            logging.warning(f"  element_nr={element_nr}: NICHT GEFUNDEN in Daten")
+            logging.warning(f"  element_nr={element_nr}: NICHT GEFUNDEN in Daten (Remove-Modus)")
             not_found_count += 1
             continue
         
@@ -765,20 +830,52 @@ def apply_opposite_edge_overwrite(gdf, opposite_edge_element_nrs):
             logging.info(f"  element_nr={element_nr}: Entferne {len(ri1_edges)} ri=1 Kante(n)")
             removed_count += len(ri1_edges)
     
-    # Filtere das GeoDataFrame
+    # Filtere das GeoDataFrame (Remove-Modus)
     original_count = len(gdf)
-    mask = ~((gdf['element_nr'].isin(opposite_edge_element_nrs)) & (gdf['ri'] == 1))
-    gdf_filtered = gdf[mask].copy()
+    mask = ~((gdf['element_nr'].isin(element_nrs_remove)) & (gdf['ri'] == 1))
+    gdf = gdf[mask].copy()
+    
+    # Verarbeite KeineRadinfra-Modus
+    for element_nr in element_nrs_keine_infra:
+        # Finde alle ri=1 Kanten mit dieser element_nr
+        mask = (gdf['element_nr'] == element_nr) & (gdf['ri'] == 1)
+        matching_indices = gdf[mask].index
+        
+        if len(matching_indices) == 0:
+            logging.warning(f"  element_nr={element_nr}: NICHT GEFUNDEN in Daten (KeineRadinfra-Modus)")
+            not_found_count += 1
+            continue
+        
+        # Setze fuehr="Keine Radinfrastruktur vorhanden"
+        gdf.loc[matching_indices, 'fuehr'] = 'Keine Radinfrastruktur vorhanden'
+        
+        # Setze alle anderen Merge-Attribute (außer ri, fuehr, verkehrsri) auf None
+        for attr in FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES:
+            if attr not in ['ri', 'fuehr', 'verkehrsri']:
+                if attr in gdf.columns:
+                    gdf.loc[matching_indices, attr] = None
+        
+        # Setze auch zusätzliche Attribute auf None (für Konsistenz)
+        for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
+            if attr in gdf.columns:
+                gdf.loc[matching_indices, attr] = None
+        
+        logging.info(
+            f"  element_nr={element_nr}: Setze {len(matching_indices)} ri=1 Kante(n) auf "
+            f"'Keine Radinfrastruktur vorhanden'"
+        )
+        keine_infra_count += len(matching_indices)
     
     logging.info(
         f"✔  Opposite-Edge-Overwrite abgeschlossen: "
         f"{removed_count} ri=1 Kante(n) entfernt, "
+        f"{keine_infra_count} ri=1 Kante(n) auf 'Keine Radinfra' gesetzt, "
         f"{warning_count} Warnung(en), "
         f"{not_found_count} nicht gefunden"
     )
-    logging.info(f"   Kanten vorher: {original_count}, nachher: {len(gdf_filtered)}")
+    logging.info(f"   Kanten vorher: {original_count}, nachher: {len(gdf)}")
     
-    return gdf_filtered
+    return gdf
 
 
 def normalize_merge_attribute(value):
@@ -924,7 +1021,55 @@ def debug_merge_attributes(gdf, id_field, osm_fields, sample_element_nr=None):
             logging.info(f"  Kombination {idx}: {dict(row)}")
 
 
-def apply_override_configuration(variants, override_config, target_candidates, seg_dict, segment_angle, override_gdf=None):
+def create_hybrid_override_candidate(override_tilda_id, override_geometry, segment_geometry, matched_tilda_ways_gdf, seg_dict):
+    """
+    Erstellt einen synthetischen Hybrid-Kandidaten wenn Override TILDA-Weg außerhalb des Buffers referenziert.
+    
+    Der Hybrid-Kandidat kombiniert:
+    - Original TILDA-Weg Geometrie und Attribute (aus matched_tilda_ways_gdf)
+    - Distanz zur Override-Geometrie (statt zur Original-Geometrie)
+    - is_override Flag für +80 Priority-Bonus
+    
+    Args:
+        override_tilda_id: TILDA-ID des zu ladenden Original-Wegs
+        override_geometry: Override-Geometrie für Distanzberechnung
+        segment_geometry: Geometrie des Segments
+        matched_tilda_ways_gdf: GeoDataFrame mit allen TILDA-Wegen
+        seg_dict: Dictionary mit Segment-Informationen
+    
+    Returns:
+        GeoDataFrame: Single-row GeoDataFrame mit Hybrid-Kandidat oder None bei Fehler
+    """
+    if matched_tilda_ways_gdf is None or len(matched_tilda_ways_gdf) == 0:
+        logging.error(f"Hybrid-Kandidat: matched_tilda_ways_gdf ist leer oder None")
+        return None
+    
+    # Suche Original-TILDA-Weg
+    original_way = matched_tilda_ways_gdf[matched_tilda_ways_gdf['tilda_id'] == override_tilda_id]
+    
+    if len(original_way) == 0:
+        logging.warning(f"Hybrid-Kandidat: TILDA-Weg {override_tilda_id} nicht in matched_tilda_ways gefunden")
+        return None
+    
+    # Erstelle Kopie des Original-Wegs (behält ALLE Attribute und Geometrie)
+    hybrid = original_way.copy()
+    
+    # Berechne Distanz zur OVERRIDE-Geometrie (nicht zur Original-Geometrie)
+    hybrid['d'] = override_geometry.distance(segment_geometry)
+    hybrid['dist_to_mid'] = hybrid['d']
+    
+    # Markiere als Override für +80 Bonus
+    hybrid['is_override'] = True
+    
+    logging.debug(
+        f"Hybrid-Kandidat erstellt: tilda_id={override_tilda_id}, "
+        f"dist_to_override={hybrid['d'].iloc[0]:.2f}m (Original-Geometrie behalten)"
+    )
+    
+    return hybrid
+
+
+def apply_override_configuration(variants, override_config, target_candidates, seg_dict, segment_angle, override_gdf=None, matched_tilda_ways_gdf=None):
     """
     Wendet Override-Konfiguration auf Segment-Varianten an.
     
@@ -933,8 +1078,11 @@ def apply_override_configuration(variants, override_config, target_candidates, s
     2. override_gdf: GeoPackage-basiert mit räumlichem Matching
     
     Zwei Modi:
-    1. force_match: Erzwingt einen bestimmten TILDA-Weg mit höchster Priorität (+1000)
+    1. force_match: Erzwingt einen bestimmten TILDA-Weg mit höchster Priorität (+80)
     2. attribute override: Überschreibt spezifische Attribute nach dem Snapping
+    
+    Hybrid-Kandidaten: Wenn force_match einen TILDA-Weg außerhalb des Buffers referenziert,
+    wird ein Hybrid-Kandidat erstellt der Original-TILDA-Geometrie mit Override-Distanz kombiniert.
     
     Args:
         variants: Liste von Segment-Varianten (vor Override)
@@ -943,6 +1091,7 @@ def apply_override_configuration(variants, override_config, target_candidates, s
         seg_dict: Dictionary mit Segment-Informationen
         segment_angle: Winkel des Segments
         override_gdf: Optional - GeoDataFrame mit räumlichen Override-Einträgen
+        matched_tilda_ways_gdf: Optional - GeoDataFrame mit allen TILDA-Wegen für Hybrid-Kandidaten
     
     Returns:
         list: Liste von Segment-Varianten (nach Override)
@@ -950,23 +1099,23 @@ def apply_override_configuration(variants, override_config, target_candidates, s
     element_nr = seg_dict.get('element_nr')
     segment_geometry = seg_dict.get('geometry')
     
-    # Prüfe räumliche Overrides (GeoPackage) falls vorhanden
-    spatial_override = None
-    if override_gdf is not None and segment_geometry is not None:
-        spatial_override = find_spatial_override(segment_geometry, override_gdf)
-        if spatial_override:
-            logging.debug(
-                f"Räumlicher Override gefunden für element_nr={element_nr}: "
-                f"Überlappung={spatial_override['overlap_ratio']:.2%}"
-            )
-    
-    if not element_nr and not spatial_override:
+    if not element_nr and override_gdf is None:
         return variants
     
-    # Verarbeite jede Variante
+    # Verarbeite jede Variante (WICHTIG: räumliche Overrides HIER suchen mit ri!)
     modified_variants = []
     for variant in variants:
         ri = variant.get('ri')
+        
+        # Prüfe räumliche Overrides (GeoPackage) PER VARIANTE mit ri-Prüfung
+        spatial_override = None
+        if override_gdf is not None and segment_geometry is not None:
+            spatial_override = find_spatial_override(segment_geometry, override_gdf, ri)
+            if spatial_override:
+                logging.debug(
+                    f"Räumlicher Override gefunden für element_nr={element_nr}, ri={ri}: "
+                    f"Überlappung={spatial_override['overlap_ratio']:.2%}"
+                )
         
         # Prüfe zuerst räumlichen Override (hat Vorrang)
         active_override = None
@@ -1000,32 +1149,56 @@ def apply_override_configuration(variants, override_config, target_candidates, s
         force_match = active_override.get('force_match', False)
         override_attributes = active_override.get('attributes', {})
         override_reason = active_override.get('override_reason')
+        override_geometry = active_override.get('override_geometry')  # Für Hybrid-Kandidaten
         
         # Modus 1: Force Match - Erzwinge bestimmten TILDA-Weg
         if force_match:
-            if target_candidates is None or len(target_candidates) == 0:
-                logging.warning(
-                    f"Override FORCE_MATCH für element_nr={element_nr}, ri={ri}: "
-                    f"Keine TILDA-Kandidaten verfügbar für {override_tilda_id}"
-                )
-                modified_variants.append(variant)
-                continue
+            # Suche den spezifischen TILDA-Kandidaten in target_candidates
+            matching_candidate = None
+            if target_candidates is not None and len(target_candidates) > 0:
+                matching_candidates = target_candidates[
+                    target_candidates['tilda_id'] == override_tilda_id
+                ]
+                if len(matching_candidates) > 0:
+                    matching_candidate = matching_candidates.iloc[0]
             
-            # Suche den spezifischen TILDA-Kandidaten
-            matching_candidate = target_candidates[
-                target_candidates['tilda_id'] == override_tilda_id
-            ]
+            # Falls nicht in target_candidates, erstelle Hybrid-Kandidaten
+            if matching_candidate is None:
+                if matched_tilda_ways_gdf is not None and override_geometry is not None:
+                    logging.debug(
+                        f"Override FORCE_MATCH für element_nr={element_nr}, ri={ri}: "
+                        f"TILDA-Weg {override_tilda_id} nicht in Buffer-Kandidaten - erstelle Hybrid-Kandidaten"
+                    )
+                    
+                    # Erstelle Hybrid-Kandidaten (Original-TILDA-Geometrie + Override-Distanz)
+                    hybrid_candidate_gdf = create_hybrid_override_candidate(
+                        override_tilda_id, override_geometry, segment_geometry, 
+                        matched_tilda_ways_gdf, seg_dict
+                    )
+                    
+                    if hybrid_candidate_gdf is not None and len(hybrid_candidate_gdf) > 0:
+                        matching_candidate = hybrid_candidate_gdf.iloc[0]
+                        logging.info(
+                            f"✔  Hybrid-Kandidat erstellt für element_nr={element_nr}, ri={ri}, "
+                            f"tilda_id={override_tilda_id} (außerhalb Buffer)"
+                        )
+                    else:
+                        logging.warning(
+                            f"Override FORCE_MATCH für element_nr={element_nr}, ri={ri}: "
+                            f"Hybrid-Kandidat konnte nicht erstellt werden für {override_tilda_id}"
+                        )
+                        modified_variants.append(variant)
+                        continue
+                else:
+                    logging.warning(
+                        f"Override FORCE_MATCH für element_nr={element_nr}, ri={ri}: "
+                        f"TILDA-Weg {override_tilda_id} nicht verfügbar (matched_tilda_ways oder override_geometry fehlt)"
+                    )
+                    modified_variants.append(variant)
+                    continue
             
-            if len(matching_candidate) == 0:
-                logging.warning(
-                    f"Override FORCE_MATCH für element_nr={element_nr}, ri={ri}: "
-                    f"TILDA-Weg {override_tilda_id} nicht in Kandidaten gefunden"
-                )
-                modified_variants.append(variant)
-                continue
-            
-            # Verwende den ersten Match (sollte nur einer sein)
-            forced_candidate = matching_candidate.iloc[0]
+            # Verwende den gefundenen oder erstellten Kandidaten
+            forced_candidate = matching_candidate
             
             # Überschreibe Variante mit erzwungenem Kandidaten
             for attr in FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES:
@@ -1035,15 +1208,20 @@ def apply_override_configuration(variants, override_config, target_candidates, s
             for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
                 variant[attr] = forced_candidate.get(attr)
             
-            # Setze Prioritätswerte mit +1000 Bonus
-            set_priority_values(variant, forced_candidate.to_dict(), segment_angle)
-            if 'prio_total' in variant:
-                variant['prio_total'] = variant.get('prio_total', 0) + 1000
+            # Setze Prioritätswerte mit Bonus
+            set_priority_values(variant, forced_candidate.to_dict() if hasattr(forced_candidate, 'to_dict') else dict(forced_candidate), segment_angle)
             
+            # Prioritäts-Bonus: +80 für Override (ist_override oder force_match)
+            is_override_candidate = forced_candidate.get('is_override', False)
+            priority_bonus = 80
+            if 'prio_total' in variant:
+                variant['prio_total'] = variant.get('prio_total', 0) + priority_bonus
+            
+            candidate_type = "HYBRID" if is_override_candidate else "NORMAL"
             reason_text = f" ({override_reason})" if override_reason else ""
             logging.info(
                 f"✔  Override [{override_source}] FORCE_MATCH angewendet: element_nr={element_nr}, ri={ri}, "
-                f"tilda_id={override_tilda_id}{reason_text}"
+                f"tilda_id={override_tilda_id} [{candidate_type}] (+{priority_bonus}){reason_text}"
             )
         
         # Modus 2: Attribute Override - Überschreibe nur spezifische Attribute
@@ -1071,7 +1249,7 @@ def apply_override_configuration(variants, override_config, target_candidates, s
     return modified_variants
 
 
-def create_directional_segment_variants_optimized(seg_dict: dict, target_candidates, original_candidates=None, override_config=None, override_gdf=None) -> list[dict]:
+def create_directional_segment_variants_optimized(seg_dict: dict, target_candidates, original_candidates=None, override_config=None, override_gdf=None, matched_tilda_ways_gdf=None) -> list[dict]:
     """
     Memory-optimierte Version der Varianten-Erstellung.
     Reduziert Memory-Allokationen und redundante Operationen für bessere Performance.
@@ -1193,7 +1371,7 @@ def create_directional_segment_variants_optimized(seg_dict: dict, target_candida
     
     # Wende Override-Konfiguration an (falls vorhanden)
     if override_config or override_gdf is not None:
-        variants = apply_override_configuration(variants, override_config, target_candidates, seg_dict, segment_angle, override_gdf)
+        variants = apply_override_configuration(variants, override_config, target_candidates, seg_dict, segment_angle, override_gdf, matched_tilda_ways_gdf)
     
     return variants
 
@@ -1312,6 +1490,10 @@ def create_directional_segment_variants_from_matched_tilda_ways(seg_dict: dict, 
             for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
                 variant[attr] = best_osm.get(attr)
             
+            # Generiere TILDA-Link falls tilda_id vorhanden
+            if 'tilda_id' in best_osm and best_osm.get('tilda_id'):
+                variant['tilda_link'] = generate_snapping_tilda_link(best_osm['tilda_id'], variant['geometry'])
+            
             # Übertrage Prioritätswerte falls vorhanden (mit Kandidaten-Liste)
             set_priority_values(variant, best_osm, segment_angle, candidates_priorities)
                 
@@ -1355,6 +1537,10 @@ def create_directional_segment_variants_from_matched_tilda_ways(seg_dict: dict, 
                 # Zusätzliche OSM-Attribute für Debugging/Referenz
                 for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
                     variant[attr] = best_osm.get(attr)
+                
+                # Generiere TILDA-Link falls tilda_id vorhanden
+                if 'tilda_id' in best_osm and best_osm.get('tilda_id'):
+                    variant['tilda_link'] = generate_snapping_tilda_link(best_osm['tilda_id'], variant['geometry'])
                 
                 # Übertrage Prioritätswerte falls vorhanden (mit Kandidaten-Liste)
                 set_priority_values(variant, best_osm, segment_angle, candidates_priorities)
@@ -1457,8 +1643,13 @@ def process(net_path, osm_path, out_path, crs, buffer, data_dir="./data", log_ca
     net = read(net_path).to_crs(crs)
     osm = read(osm_path).to_crs(crs)
     
+    # Lade auch matched_tilda_ways für Hybrid-Kandidaten (falls Override außerhalb Buffer)
+    # Dies ist dieselbe Datei wie osm_path, aber wir behalten sie separat für Klarheit
+    matched_tilda_ways_gdf = osm.copy()
+    
     logging.info(f"Netzwerk: {len(net)} Features geladen")
     logging.info(f"TILDA-übersetzte Daten: {len(osm)} Features geladen")
+    logging.info(f"Matched TILDA Ways für Hybrid-Kandidaten: {len(matched_tilda_ways_gdf)} Features")
     
     # Räumliche Filter: Entweder Region oder View (nicht beides erlaubt – wird vorher geprüft)
     if clip_region:
@@ -1580,7 +1771,7 @@ def process(net_path, osm_path, out_path, crs, buffer, data_dir="./data", log_ca
                 # Verarbeite aktuelle Batch
                 batch_results = process_segments_batch(
                     segments_batch, osm, osm.sindex, buffer, 
-                    candidates_log, batch_start, override_config, override_gdf
+                    candidates_log, batch_start, override_config, override_gdf, matched_tilda_ways_gdf
                 )
                 snapped_records.extend(batch_results)
                 
@@ -1595,13 +1786,19 @@ def process(net_path, osm_path, out_path, crs, buffer, data_dir="./data", log_ca
             # Parallelisierte Verarbeitung für bessere Performance
             logging.info(f"Verwende parallelisierte Verarbeitung mit {CONFIG_CPU_CORES} Kernen")
             
-            # Erstelle temporäre Pickle-Datei für OSM-Daten (für Worker-Prozesse)
+            # Erstelle temporäre Pickle-Dateien für OSM-Daten und matched_tilda_ways (für Worker-Prozesse)
             with tempfile.NamedTemporaryFile(suffix='.pkl', delete=False) as temp_file:
                 osm_temp_path = temp_file.name
             
-            # Speichere OSM-Daten als Pickle (unterstützt alle Python-Objekte)
+            with tempfile.NamedTemporaryFile(suffix='.pkl', delete=False) as temp_file:
+                matched_tilda_temp_path = temp_file.name
+            
+            # Speichere OSM-Daten und matched_tilda_ways als Pickle (unterstützt alle Python-Objekte)
             with open(osm_temp_path, 'wb') as f:
                 pickle.dump(osm, f)
+            
+            with open(matched_tilda_temp_path, 'wb') as f:
+                pickle.dump(matched_tilda_ways_gdf, f)
             
             try:
                 # Bereite Batches für Parallelverarbeitung vor
@@ -1610,7 +1807,7 @@ def process(net_path, osm_path, out_path, crs, buffer, data_dir="./data", log_ca
                 for batch_start in range(0, total, CONFIG_BATCH_SIZE):
                     batch_end = min(batch_start + CONFIG_BATCH_SIZE, total)
                     segments_batch = segments_list[batch_start:batch_end]
-                    batch_data_list.append((segments_batch, osm_temp_path, buffer, batch_start, override_config, override_gdf))
+                    batch_data_list.append((segments_batch, osm_temp_path, buffer, batch_start, override_config, override_gdf, matched_tilda_temp_path))
                 
                 # Verwende multiprocessing Pool für parallele Verarbeitung mit Progress-Balken
                 with mp.Pool(processes=CONFIG_CPU_CORES) as pool:
@@ -1641,9 +1838,11 @@ def process(net_path, osm_path, out_path, crs, buffer, data_dir="./data", log_ca
                     logging.info(f"Parallelverarbeitung abgeschlossen: {total} Segmente → {output_edges} Kanten in {elapsed:.1f}s ({rate:.1f} seg/s)")
                     
             finally:
-                # Aufräumen: Lösche temporäre Datei
+                # Aufräumen: Lösche temporäre Dateien
                 if os.path.exists(osm_temp_path):
                     os.unlink(osm_temp_path)
+                if os.path.exists(matched_tilda_temp_path):
+                    os.unlink(matched_tilda_temp_path)
         
         elapsed_total = time.time() - start_time
         final_rate = total / elapsed_total
@@ -1680,25 +1879,6 @@ def process(net_path, osm_path, out_path, crs, buffer, data_dir="./data", log_ca
         logging.error("Abbruch: Keine Ausgabesegmente nach Merging entstanden")
         sys.exit(1)
 
-    # ---------- Finale Datenbereinigung ------------------------------------
-    # Entferne Breite-Attribut bei allen Kanten mit Mischverkehr mit motorisiertem Verkehr
-    mischverkehr_mask = out_gdf['fuehr'] == 'Mischverkehr mit motorisiertem Verkehr'
-    mischverkehr_count = mischverkehr_mask.sum()
-    if mischverkehr_count > 0:
-        logging.info(f"Entferne Breite-Attribut bei {mischverkehr_count} Kanten mit Mischverkehr")
-        out_gdf.loc[mischverkehr_mask, 'breite'] = None
-
-    # Setze Breite auf '[TODO] Breite fehlt' für alle Segmente mit NULL-Breite 
-    # (außer Mischverkehr und "Keine Radinfrastruktur vorhanden")
-    nicht_mischverkehr_mask = out_gdf['fuehr'] != 'Mischverkehr mit motorisiertem Verkehr'
-    keine_radinfra_mask = out_gdf['fuehr'] != 'Keine Radinfrastruktur vorhanden'
-    breite_null_mask = out_gdf['breite'].isna()
-    combined_mask = nicht_mischverkehr_mask & keine_radinfra_mask & breite_null_mask
-    breite_todo_count = combined_mask.sum()
-    if breite_todo_count > 0:
-        logging.info(f"Setze breite='[TODO] Breite fehlt' für {breite_todo_count} Kanten ohne Breite (exkl. Mischverkehr und 'Keine Radinfrastruktur')")
-        out_gdf.loc[combined_mask, 'breite'] = '[TODO] Breite fehlt'
-
     # ---------- SFID hinzufügen ---------------------------------------------
     logging.info("Füge SFID-Spalte (Snapping FID) hinzu...")
     out_gdf['sfid'] = range(1, len(out_gdf) + 1)
@@ -1717,6 +1897,7 @@ def process(net_path, osm_path, out_path, crs, buffer, data_dir="./data", log_ca
     out_gdf = reorder_columns_for_output(out_gdf)
 
     # ---------- Finale Datenbereinigung: fuehr=null beheben ---------------
+    # WICHTIG: Diese Bereinigung muss VOR der Breiten-Bereinigung erfolgen!
     # Wenn kein passender Weg gefunden wurde (prio_total < -10), ist fuehr=null
     # Diese Wege erhalten die korrekte Zuweisung: "Keine Radinfrastruktur vorhanden"
     fuehr_null_mask = out_gdf['fuehr'].isna()
@@ -1724,6 +1905,32 @@ def process(net_path, osm_path, out_path, crs, buffer, data_dir="./data", log_ca
     if fuehr_null_count > 0:
         logging.info(f"Setze fuehr='Keine Radinfrastruktur vorhanden' für {fuehr_null_count} Kanten ohne TILDA-Match (prio_total < -10)")
         out_gdf.loc[fuehr_null_mask, 'fuehr'] = 'Keine Radinfrastruktur vorhanden'
+
+    # ---------- Finale Datenbereinigung: Breite ------------------------------------
+    # Entferne Breite-Attribut bei allen Kanten mit Mischverkehr mit motorisiertem Verkehr
+    mischverkehr_mask = out_gdf['fuehr'] == 'Mischverkehr mit motorisiertem Verkehr'
+    mischverkehr_count = mischverkehr_mask.sum()
+    if mischverkehr_count > 0:
+        logging.info(f"Entferne Breite-Attribut bei {mischverkehr_count} Kanten mit Mischverkehr")
+        out_gdf.loc[mischverkehr_mask, 'breite'] = None
+
+    # Entferne Breite-Attribut bei allen Kanten ohne Radinfrastruktur
+    keine_radinfra_mask = out_gdf['fuehr'] == 'Keine Radinfrastruktur vorhanden'
+    keine_radinfra_count = keine_radinfra_mask.sum()
+    if keine_radinfra_count > 0:
+        logging.info(f"Entferne Breite-Attribut bei {keine_radinfra_count} Kanten ohne Radinfrastruktur")
+        out_gdf.loc[keine_radinfra_mask, 'breite'] = None
+
+    # Setze Breite auf '[TODO] Breite fehlt' für alle Segmente mit NULL-Breite 
+    # (außer Mischverkehr und "Keine Radinfrastruktur vorhanden")
+    nicht_mischverkehr_mask = out_gdf['fuehr'] != 'Mischverkehr mit motorisiertem Verkehr'
+    keine_radinfra_mask_negiert = out_gdf['fuehr'] != 'Keine Radinfrastruktur vorhanden'
+    breite_null_mask = out_gdf['breite'].isna()
+    combined_mask = nicht_mischverkehr_mask & keine_radinfra_mask_negiert & breite_null_mask
+    breite_todo_count = combined_mask.sum()
+    if breite_todo_count > 0:
+        logging.info(f"Setze breite='[TODO] Breite fehlt' für {breite_todo_count} Kanten ohne Breite (exkl. Mischverkehr und 'Keine Radinfrastruktur')")
+        out_gdf.loc[combined_mask, 'breite'] = '[TODO] Breite fehlt'
 
     # ---------- Ergebnis speichern ------------------------------------------
     p, *layer = out_path.split(":")
