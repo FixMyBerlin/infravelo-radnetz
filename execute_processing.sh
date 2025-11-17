@@ -34,6 +34,34 @@
 
 set -e  # Script bei Fehlern beenden
 
+# Help-Funktion
+show_help() {
+    cat << EOF
+Verwendung: $0 [OPTIONEN]
+
+Führt den infraVelo Radnetz Verarbeitungsprozess aus.
+
+OPTIONEN:
+  --clip <region>      Regionale Verarbeitung: neukoelln, norden oder sueden
+  --view <z/lat/lon>   Viewport-Zuschnitt (WGS84, z.B. 18/52.488306/13.425140)
+                       Schreibt Ergebnisse nach output-bbox/
+  --start-step <1-4>   Startet ab angegebenem Schritt:
+                       1 = OSM-Wege Matching
+                       2 = Snapping und Attribut-Übernahme
+                       3 = Schutzstreifen-Konvertierung
+                       4 = Finale Aggregation
+  --clean-cache        Vollständige Cache-Bereinigung vor Verarbeitung
+  --help, -h           Zeigt diese Hilfe an
+
+BEISPIELE:
+  $0 --clip neukoelln                   # Nur Bezirk Neukölln
+  $0 --view 18/52.488306/13.425140      # Kleiner Viewport-Ausschnitt
+  $0 --clip norden --start-step 2       # Norden ab Schritt 2
+
+EOF
+    exit 0
+}
+
 # Zeiterfassung initialisieren
 SCRIPT_START_TIME=$(date +%s)
 
@@ -80,6 +108,9 @@ CLEAN_CACHE=""
 # Verarbeite alle Argumente
 while [[ $# -gt 0 ]]; do
     case $1 in
+        --help|-h)
+            show_help
+            ;;
         --clip)
             CLIP_REGION="$2"
             shift 2
@@ -98,7 +129,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         *)
             echo "❌ Unbekanntes Argument: $1"
-            echo "Verwendung: $0 [--clip neukoelln|norden|sueden] [--view z/lat/lon] [--start-step <1-5>] [--clean-cache]"
+            echo "Verwendung: $0 --help für weitere Informationen"
             exit 1
             ;;
     esac
