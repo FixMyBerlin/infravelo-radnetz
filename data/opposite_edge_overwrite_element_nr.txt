@@ -1,39 +1,64 @@
-# Liste von element_nr für Kanten, bei denen die Rückrichtung (ri=1) verarbeitet werden soll
+# Liste von element_nr für Kanten, bei denen Richtungen verarbeitet werden sollen
 #
 # Format: element_nr [|Modus]
 # - Kommentare beginnen mit #
 # - Leerzeilen werden ignoriert
 #
-# ZWEI MODI:
+# VIER MODI:
 #
 # 1. REMOVE-MODUS (Standard): Entfernt ri=1 komplett
 #    Format: element_nr (ohne Suffix)
 #    Beispiel: 46510007_46510033.01
 #
-# 2. KEINE-RADINFRA-MODUS: Setzt ri=1 auf "Keine Radinfrastruktur vorhanden"
-#    Format: element_nr|true
-#    Beispiel: 40450020_40450004.01|true
+# 2. GEGENRICHTUNG-MODUS: Setzt ri=1 auf "Keine Radinfrastruktur vorhanden"
+#    Format: element_nr|Gegenrichtung (oder |true, |ri1, |gegen)
+#    Beispiel: 40450020_40450004.01|Gegenrichtung
 #
-#    Effekt:
+# 3. HINRICHTUNG-MODUS: Setzt ri=0 auf "Keine Radinfrastruktur vorhanden"
+#    Format: element_nr|Hinrichtung (oder |ri0, |hin)
+#    Beispiel: 49510013_49510004.01|Hinrichtung
+#
+# 4. BEIDE-MODUS: Setzt ri=0 UND ri=1 auf "Keine Radinfrastruktur vorhanden"
+#    Format: element_nr|Beide (oder |both, |all, |BeideRichtungen)
+#    Beispiel: 49510013_49510004.01|Beide
+#
+# EFFEKT bei Modi 2-4:
 #    - fuehr = "Keine Radinfrastruktur vorhanden"
 #    - Alle anderen Attribute (pflicht, breite, ofm, etc.) werden auf None gesetzt
-#    - Die Kante bleibt erhalten (wird nicht gelöscht)
+#    - Die Kante(n) bleiben erhalten (werden nicht gelöscht)
 #
 # ANWENDUNGSFALL:
 # Manchmal wird im Snapping für beide Richtungen (ri=0 und ri=1) eine Infrastruktur zugewiesen,
-# obwohl nur die Hinrichtung (ri=0) tatsächlich existiert.
+# obwohl nur eine Richtung oder keine Richtung tatsächlich Radinfra hat.
 # - Verwende REMOVE-MODUS, wenn die ri=1 Richtung komplett falsch ist
-# - Verwende KEINE-RADINFRA-MODUS, wenn die ri=1 Richtung existiert, aber keine Radinfra hat
+# - Verwende GEGENRICHTUNG-MODUS, wenn ri=1 existiert, aber keine Radinfra hat
+# - Verwende HINRICHTUNG-MODUS, wenn ri=0 existiert, aber keine Radinfra hat
+# - Verwende BEIDE-MODUS, wenn beide Richtungen existieren, aber keine Radinfra haben
 #
 # WARNUNG:
 # Falls die ri=0 Kante verkehrsri="Zweirichtungsverkehr" hat, wird eine Warnung ausgegeben,
 # da dies auf einen Konflikt hindeutet, der manuell geprüft werden sollte.
 #
 # Beispiele:
-# 46510007_46510033.01              # REMOVE: Entfernt ri=1
-# 42520034_43520038.01              # REMOVE: Entfernt ri=1
-# 40450020_40450004.01|true         # KEINE-RADINFRA: Setzt ri=1 auf "Keine Radinfra"
+# 46510007_46510033.01                  # REMOVE: Entfernt ri=1
+# 42520034_43520038.01                  # REMOVE: Entfernt ri=1
+# 40450020_40450004.01|Gegenrichtung    # Setzt ri=1 auf "Keine Radinfra"
+# 40450020_40450004.01|true             # Alternative Schreibweise (Gegenrichtung)
+# 49510013_49510004.01|Hinrichtung      # Setzt ri=0 auf "Keine Radinfra"
+# 49510013_49510004.01|Beide            # Setzt ri=0 UND ri=1 auf "Keine Radinfra"
 
+#---------------------------------------------------------------------------------------
+# Sonderfälle
+
+# 40450020_40450004.01: ri=1 sollte "Keine Radinfra" sein
+40450020_40450004.01|Gegenrichtung
+
+# 49510013_49510004.01: beide Richtungen sollten "Keine Radinfra" sein
+49510013_49510004.01|Beide
+
+48500050_48500021.02|Hinrichtung
+
+# Normalfälle
 46510007_46510033.01
 46510002_46510007.01
 46510029_46510002.01
@@ -108,10 +133,6 @@
 44450014_45460013.01
 40460012_40460013.01
 40460014_40460012.01
-
-# 40450020_40450004.01: ri=1 sollte "Keine Radinfra" sein
-40450020_40450004.01|true
-
 43520041_43520016.01
 43520016_43520014.01
 43520015_43520014.01
@@ -205,3 +226,4 @@
 57470033_58470010.03
 39670042_39670041.01
 32540042_32540003.01
+46520017_46520044.03

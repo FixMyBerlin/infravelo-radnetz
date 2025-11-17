@@ -67,6 +67,17 @@ INPUT_NEUKOELLN_BOUNDARY_FILE = "Bezirk Neukölln Grenze.fgb"
 # Datei mit element_nr für manuelles Überschreiben der Rückrichtung (ri=1)
 OPPOSITE_EDGE_OVERWRITE_FILE = "opposite_edge_overwrite_element_nr.txt"
 
+# Führungsformen, die keine Breitenangabe erfordern (werden bei fehlender Breite auf NULL gesetzt)
+FUEHR_WITHOUT_WIDTH_REQUIREMENT = [
+    'Bussonderfahrstreifen mit Radverkehr frei (Z245 mit Z1022‐10)',
+    'Gehweg mit Zusatzzeichen "Radverkehr frei" (Z239 mit Z1022-10)',
+    'Mischverkehr mit motorisiertem Verkehr',
+    'Sonstige Wege (Gehwege, Wege durch Grünflächen, Plätze)',
+    'Gemeinsamer Geh- und Radweg mit Z240',
+    'Fahrradstraße /-zone (Z 244)',
+    'Radfahrstreifen mit Linienverkehr frei (Z237 mit Z1026-32)'
+]
+
 # Feldnamen für das Netz
 RVN_ATTRIBUT_ELEMENT_NR = "element_nr"           # Kanten-ID
 RVN_ATTRIBUT_BEGINN_VP = "beginnt_bei_vp"       # Startknoten-ID
@@ -687,31 +698,38 @@ def load_opposite_edge_overwrite_list(data_dir):
     """
     Lädt die Liste der element_nr, für die die Rückrichtung (ri=1) verarbeitet werden soll.
     
-    Unterstützt zwei Modi:
+    Unterstützt vier Modi:
     1. element_nr alleine: Entfernt ri=1 komplett (alte Funktionalität)
-    2. element_nr|KeineRadinfra: Setzt ri=1 auf "Keine Radinfrastruktur vorhanden"
+    2. element_nr|Gegenrichtung: Setzt ri=1 auf "Keine Radinfrastruktur vorhanden"
+    3. element_nr|Hinrichtung: Setzt ri=0 auf "Keine Radinfrastruktur vorhanden"
+    4. element_nr|Beide: Setzt ri=0 UND ri=1 auf "Keine Radinfrastruktur vorhanden"
     
     Format:
     - 40450020_40450004.01                  # Entfernt ri=1
-    - 40450020_40450004.01|true             # Setzt fuehr="Keine Radinfrastruktur vorhanden" für ri=1
-    - 40450020_40450004.01|KeineRadinfra    # Alias für |true
+    - 40450020_40450004.01|Gegenrichtung    # Setzt ri=1 auf "Keine Radinfra"
+    - 49510013_49510004.01|Hinrichtung      # Setzt ri=0 auf "Keine Radinfra"
+    - 49510013_49510004.01|Beide            # Setzt ri=0 UND ri=1 auf "Keine Radinfra"
     
     Args:
         data_dir: Verzeichnis mit der Datei opposite_edge_overwrite_element_nr.txt
     
     Returns:
-        dict: Dictionary mit zwei Keys:
+        dict: Dictionary mit vier Keys:
             - 'remove': set von element_nr (Strings), für die ri=1 entfernt werden soll
-            - 'keine_infra': set von element_nr (Strings), für die ri=1 auf "Keine Radinfra" gesetzt werden soll
+            - 'keine_infra_ri1': set von element_nr für ri=1 → "Keine Radinfra"
+            - 'keine_infra_ri0': set von element_nr für ri=0 → "Keine Radinfra"
+            - 'keine_infra_beide': set von element_nr für ri=0+ri=1 → "Keine Radinfra"
     """
     file_path = Path(data_dir) / OPPOSITE_EDGE_OVERWRITE_FILE
     
     if not file_path.exists():
         logging.info(f"Keine Opposite-Edge-Overwrite-Liste gefunden: {file_path}")
-        return {'remove': set(), 'keine_infra': set()}
+        return {'remove': set(), 'keine_infra_ri1': set(), 'keine_infra_ri0': set(), 'keine_infra_beide': set()}
     
     element_nrs_remove = set()
-    element_nrs_keine_infra = set()
+    element_nrs_keine_infra_ri1 = set()  # Gegenrichtung
+    element_nrs_keine_infra_ri0 = set()  # Hinrichtung
+    element_nrs_keine_infra_beide = set()  # Beide
     
     with open(file_path, 'r', encoding='utf-8') as f:
         for line_num, line in enumerate(f, 1):
@@ -722,21 +740,29 @@ def load_opposite_edge_overwrite_list(data_dir):
             if not line or line.startswith('#'):
                 continue
             
-            # Parse neue Syntax: element_nr|KeineRadinfra
+            # Parse neue Syntax: element_nr|Modus
             if '|' in line:
                 parts = line.split('|', 1)
                 if len(parts) == 2:
                     element_nr = parts[0].strip()
                     mode = parts[1].strip().lower()
                     
-                    # Akzeptiere verschiedene Schreibweisen
-                    if mode in ['true']:
-                        element_nrs_keine_infra.add(element_nr)
-                        logging.debug(f"  Zeile {line_num}: '{element_nr}' → KeineRadinfra-Modus")
+                    # Gegenrichtung (ri=1) - neue und alte Schreibweisen
+                    if mode in ['gegenrichtung', 'gegen', 'ri1', 'true', 'keineradinfra', 'keine_radinfra', 'keineinfra']:
+                        element_nrs_keine_infra_ri1.add(element_nr)
+                        logging.debug(f"  Zeile {line_num}: '{element_nr}' → Gegenrichtung (ri=1) KeineRadinfra-Modus")
+                    # Hinrichtung (ri=0)
+                    elif mode in ['hinrichtung', 'hin', 'ri0']:
+                        element_nrs_keine_infra_ri0.add(element_nr)
+                        logging.debug(f"  Zeile {line_num}: '{element_nr}' → Hinrichtung (ri=0) KeineRadinfra-Modus")
+                    # Beide (ri=0 + ri=1)
+                    elif mode in ['beide', 'both', 'all', 'beiderichtungen']:
+                        element_nrs_keine_infra_beide.add(element_nr)
+                        logging.debug(f"  Zeile {line_num}: '{element_nr}' → Beide Richtungen KeineRadinfra-Modus")
                     else:
                         logging.warning(
                             f"Zeile {line_num}: Unbekannter Modus '{mode}' für element_nr={element_nr} - "
-                            f"verwende Remove-Modus (gültig: true, KeineRadinfra, keine_radinfra, KeineInfra)"
+                            f"verwende Remove-Modus (gültig: Gegenrichtung, Hinrichtung, Beide)"
                         )
                         element_nrs_remove.add(element_nr)
                 else:
@@ -748,44 +774,60 @@ def load_opposite_edge_overwrite_list(data_dir):
                 element_nrs_remove.add(line)
                 logging.debug(f"  Zeile {line_num}: '{line}' → Remove-Modus")
     
-    total = len(element_nrs_remove) + len(element_nrs_keine_infra)
+    total = len(element_nrs_remove) + len(element_nrs_keine_infra_ri1) + len(element_nrs_keine_infra_ri0) + len(element_nrs_keine_infra_beide)
     if total > 0:
         logging.info(
             f"✔  Opposite-Edge-Overwrite-Liste geladen: {total} element_nr(s) aus {file_path} "
-            f"(Remove: {len(element_nrs_remove)}, KeineRadinfra: {len(element_nrs_keine_infra)})"
+            f"(Remove: {len(element_nrs_remove)}, Gegenrichtung: {len(element_nrs_keine_infra_ri1)}, "
+            f"Hinrichtung: {len(element_nrs_keine_infra_ri0)}, Beide: {len(element_nrs_keine_infra_beide)})"
         )
     else:
         logging.info(f"Opposite-Edge-Overwrite-Liste ist leer: {file_path}")
     
-    return {'remove': element_nrs_remove, 'keine_infra': element_nrs_keine_infra}
+    return {
+        'remove': element_nrs_remove,
+        'keine_infra_ri1': element_nrs_keine_infra_ri1,
+        'keine_infra_ri0': element_nrs_keine_infra_ri0,
+        'keine_infra_beide': element_nrs_keine_infra_beide
+    }
 
 
 def apply_opposite_edge_overwrite(gdf, opposite_edge_config):
     """
     Verarbeitet Rückrichtung (ri=1) für die angegebenen element_nr.
     
-    Unterstützt zwei Modi:
+    Unterstützt vier Modi:
     1. Remove-Modus: Entfernt ri=1 komplett
-    2. KeineRadinfra-Modus: Setzt fuehr="Keine Radinfrastruktur vorhanden" und alle anderen 
-       Merge-Attribute auf None für ri=1
+    2. Gegenrichtung-Modus: Setzt ri=1 auf "Keine Radinfrastruktur vorhanden"
+    3. Hinrichtung-Modus: Setzt ri=0 auf "Keine Radinfrastruktur vorhanden"
+    4. Beide-Modus: Setzt ri=0 UND ri=1 auf "Keine Radinfrastruktur vorhanden"
     
     Gibt Warnungen aus, wenn ri=0 verkehrsri="Zweirichtungsverkehr" hat.
     
     Args:
         gdf: GeoDataFrame mit den Kanten
-        opposite_edge_config: Dictionary mit 'remove' und 'keine_infra' Sets
+        opposite_edge_config: Dictionary mit 'remove', 'keine_infra_ri1', 'keine_infra_ri0', 'keine_infra_beide' Sets
     
     Returns:
         GeoDataFrame: Verarbeitetes GeoDataFrame
     """
-    # Kompatibilität: Falls altes Set-Format übergeben wird
+    # Kompatibilität: Falls altes Format übergeben wird
     if isinstance(opposite_edge_config, set):
-        opposite_edge_config = {'remove': opposite_edge_config, 'keine_infra': set()}
+        opposite_edge_config = {'remove': opposite_edge_config, 'keine_infra_ri1': set(), 'keine_infra_ri0': set(), 'keine_infra_beide': set()}
+    elif 'keine_infra' in opposite_edge_config:  # Alte Version mit nur 'keine_infra'
+        opposite_edge_config = {
+            'remove': opposite_edge_config.get('remove', set()),
+            'keine_infra_ri1': opposite_edge_config.get('keine_infra', set()),
+            'keine_infra_ri0': set(),
+            'keine_infra_beide': set()
+        }
     
     element_nrs_remove = opposite_edge_config.get('remove', set())
-    element_nrs_keine_infra = opposite_edge_config.get('keine_infra', set())
+    element_nrs_keine_infra_ri1 = opposite_edge_config.get('keine_infra_ri1', set())
+    element_nrs_keine_infra_ri0 = opposite_edge_config.get('keine_infra_ri0', set())
+    element_nrs_keine_infra_beide = opposite_edge_config.get('keine_infra_beide', set())
     
-    total = len(element_nrs_remove) + len(element_nrs_keine_infra)
+    total = len(element_nrs_remove) + len(element_nrs_keine_infra_ri1) + len(element_nrs_keine_infra_ri0) + len(element_nrs_keine_infra_beide)
     
     if total == 0:
         logging.info("Keine Opposite-Edge-Overwrites zu verarbeiten")
@@ -793,12 +835,15 @@ def apply_opposite_edge_overwrite(gdf, opposite_edge_config):
     
     logging.info(
         f"Verarbeite Opposite-Edge-Overwrites für {total} element_nr(s) "
-        f"(Remove: {len(element_nrs_remove)}, KeineRadinfra: {len(element_nrs_keine_infra)})..."
+        f"(Remove: {len(element_nrs_remove)}, Gegenrichtung: {len(element_nrs_keine_infra_ri1)}, "
+        f"Hinrichtung: {len(element_nrs_keine_infra_ri0)}, Beide: {len(element_nrs_keine_infra_beide)})..."
     )
     
     # Zähler für Statistiken
     removed_count = 0
-    keine_infra_count = 0
+    keine_infra_ri1_count = 0
+    keine_infra_ri0_count = 0
+    keine_infra_beide_count = 0
     warning_count = 0
     not_found_count = 0
     
@@ -835,14 +880,14 @@ def apply_opposite_edge_overwrite(gdf, opposite_edge_config):
     mask = ~((gdf['element_nr'].isin(element_nrs_remove)) & (gdf['ri'] == 1))
     gdf = gdf[mask].copy()
     
-    # Verarbeite KeineRadinfra-Modus
-    for element_nr in element_nrs_keine_infra:
+    # Verarbeite Gegenrichtung-Modus (ri=1)
+    for element_nr in element_nrs_keine_infra_ri1:
         # Finde alle ri=1 Kanten mit dieser element_nr
         mask = (gdf['element_nr'] == element_nr) & (gdf['ri'] == 1)
         matching_indices = gdf[mask].index
         
         if len(matching_indices) == 0:
-            logging.warning(f"  element_nr={element_nr}: NICHT GEFUNDEN in Daten (KeineRadinfra-Modus)")
+            logging.warning(f"  element_nr={element_nr}: NICHT GEFUNDEN in Daten (Gegenrichtung-Modus, ri=1)")
             not_found_count += 1
             continue
         
@@ -861,15 +906,79 @@ def apply_opposite_edge_overwrite(gdf, opposite_edge_config):
                 gdf.loc[matching_indices, attr] = None
         
         logging.info(
-            f"  element_nr={element_nr}: Setze {len(matching_indices)} ri=1 Kante(n) auf "
+            f"  element_nr={element_nr}: Setze {len(matching_indices)} Gegenrichtung (ri=1) Kante(n) auf "
             f"'Keine Radinfrastruktur vorhanden'"
         )
-        keine_infra_count += len(matching_indices)
+        keine_infra_ri1_count += len(matching_indices)
+    
+    # Verarbeite Hinrichtung-Modus (ri=0)
+    for element_nr in element_nrs_keine_infra_ri0:
+        # Finde alle ri=0 Kanten mit dieser element_nr
+        mask = (gdf['element_nr'] == element_nr) & (gdf['ri'] == 0)
+        matching_indices = gdf[mask].index
+        
+        if len(matching_indices) == 0:
+            logging.warning(f"  element_nr={element_nr}: NICHT GEFUNDEN in Daten (Hinrichtung-Modus, ri=0)")
+            not_found_count += 1
+            continue
+        
+        # Setze fuehr="Keine Radinfrastruktur vorhanden"
+        gdf.loc[matching_indices, 'fuehr'] = 'Keine Radinfrastruktur vorhanden'
+        
+        # Setze alle anderen Merge-Attribute (außer ri, fuehr, verkehrsri) auf None
+        for attr in FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES:
+            if attr not in ['ri', 'fuehr', 'verkehrsri']:
+                if attr in gdf.columns:
+                    gdf.loc[matching_indices, attr] = None
+        
+        # Setze auch zusätzliche Attribute auf None (für Konsistenz)
+        for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
+            if attr in gdf.columns:
+                gdf.loc[matching_indices, attr] = None
+        
+        logging.info(
+            f"  element_nr={element_nr}: Setze {len(matching_indices)} Hinrichtung (ri=0) Kante(n) auf "
+            f"'Keine Radinfrastruktur vorhanden'"
+        )
+        keine_infra_ri0_count += len(matching_indices)
+    
+    # Verarbeite Beide-Modus (ri=0 + ri=1)
+    for element_nr in element_nrs_keine_infra_beide:
+        # Finde alle Kanten (ri=0 und ri=1) mit dieser element_nr
+        mask = gdf['element_nr'] == element_nr
+        matching_indices = gdf[mask].index
+        
+        if len(matching_indices) == 0:
+            logging.warning(f"  element_nr={element_nr}: NICHT GEFUNDEN in Daten (Beide-Modus)")
+            not_found_count += 1
+            continue
+        
+        # Setze fuehr="Keine Radinfrastruktur vorhanden"
+        gdf.loc[matching_indices, 'fuehr'] = 'Keine Radinfrastruktur vorhanden'
+        
+        # Setze alle anderen Merge-Attribute (außer ri, fuehr, verkehrsri) auf None
+        for attr in FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES:
+            if attr not in ['ri', 'fuehr', 'verkehrsri']:
+                if attr in gdf.columns:
+                    gdf.loc[matching_indices, attr] = None
+        
+        # Setze auch zusätzliche Attribute auf None (für Konsistenz)
+        for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
+            if attr in gdf.columns:
+                gdf.loc[matching_indices, attr] = None
+        
+        logging.info(
+            f"  element_nr={element_nr}: Setze {len(matching_indices)} Kante(n) (beide Richtungen) auf "
+            f"'Keine Radinfrastruktur vorhanden'"
+        )
+        keine_infra_beide_count += len(matching_indices)
     
     logging.info(
         f"✔  Opposite-Edge-Overwrite abgeschlossen: "
         f"{removed_count} ri=1 Kante(n) entfernt, "
-        f"{keine_infra_count} ri=1 Kante(n) auf 'Keine Radinfra' gesetzt, "
+        f"{keine_infra_ri1_count} Gegenrichtung (ri=1), "
+        f"{keine_infra_ri0_count} Hinrichtung (ri=0), "
+        f"{keine_infra_beide_count} Beide Richtungen auf 'Keine Radinfra' gesetzt, "
         f"{warning_count} Warnung(en), "
         f"{not_found_count} nicht gefunden"
     )
@@ -1907,13 +2016,6 @@ def process(net_path, osm_path, out_path, crs, buffer, data_dir="./data", log_ca
         out_gdf.loc[fuehr_null_mask, 'fuehr'] = 'Keine Radinfrastruktur vorhanden'
 
     # ---------- Finale Datenbereinigung: Breite ------------------------------------
-    # Entferne Breite-Attribut bei allen Kanten mit Mischverkehr mit motorisiertem Verkehr
-    mischverkehr_mask = out_gdf['fuehr'] == 'Mischverkehr mit motorisiertem Verkehr'
-    mischverkehr_count = mischverkehr_mask.sum()
-    if mischverkehr_count > 0:
-        logging.info(f"Entferne Breite-Attribut bei {mischverkehr_count} Kanten mit Mischverkehr")
-        out_gdf.loc[mischverkehr_mask, 'breite'] = None
-
     # Entferne Breite-Attribut bei allen Kanten ohne Radinfrastruktur
     keine_radinfra_mask = out_gdf['fuehr'] == 'Keine Radinfrastruktur vorhanden'
     keine_radinfra_count = keine_radinfra_mask.sum()
@@ -1921,15 +2023,22 @@ def process(net_path, osm_path, out_path, crs, buffer, data_dir="./data", log_ca
         logging.info(f"Entferne Breite-Attribut bei {keine_radinfra_count} Kanten ohne Radinfrastruktur")
         out_gdf.loc[keine_radinfra_mask, 'breite'] = None
 
-    # Setze Breite auf '[TODO] Breite fehlt' für alle Segmente mit NULL-Breite 
-    # (außer Mischverkehr und "Keine Radinfrastruktur vorhanden")
-    nicht_mischverkehr_mask = out_gdf['fuehr'] != 'Mischverkehr mit motorisiertem Verkehr'
-    keine_radinfra_mask_negiert = out_gdf['fuehr'] != 'Keine Radinfrastruktur vorhanden'
+    # Entferne Breite-Attribut bei Führungsformen, die keine Breitenangabe erfordern
+    fuehr_no_width_mask = out_gdf['fuehr'].isin(FUEHR_WITHOUT_WIDTH_REQUIREMENT)
+    fuehr_no_width_count = fuehr_no_width_mask.sum()
+    if fuehr_no_width_count > 0:
+        logging.info(f"Entferne Breite-Attribut bei {fuehr_no_width_count} Kanten mit Führungsformen ohne Breitenerfordernis")
+        out_gdf.loc[fuehr_no_width_mask, 'breite'] = None
+
+    # Setze Breite auf '[TODO] Breite fehlt' für alle Segmente mit NULL-Breite,
+    # die eine Breitenangabe erfordern (alle außer 'Keine Radinfrastruktur' und FUEHR_WITHOUT_WIDTH_REQUIREMENT)
     breite_null_mask = out_gdf['breite'].isna()
-    combined_mask = nicht_mischverkehr_mask & keine_radinfra_mask_negiert & breite_null_mask
+    keine_radinfra_mask_negiert = out_gdf['fuehr'] != 'Keine Radinfrastruktur vorhanden'
+    requires_width_mask = ~out_gdf['fuehr'].isin(FUEHR_WITHOUT_WIDTH_REQUIREMENT)
+    combined_mask = breite_null_mask & keine_radinfra_mask_negiert & requires_width_mask
     breite_todo_count = combined_mask.sum()
     if breite_todo_count > 0:
-        logging.info(f"Setze breite='[TODO] Breite fehlt' für {breite_todo_count} Kanten ohne Breite (exkl. Mischverkehr und 'Keine Radinfrastruktur')")
+        logging.info(f"Setze breite='[TODO] Breite fehlt' für {breite_todo_count} Kanten ohne Breite (nur für Führungsformen mit Breitenerfordernis)")
         out_gdf.loc[combined_mask, 'breite'] = '[TODO] Breite fehlt'
 
     # ---------- Ergebnis speichern ------------------------------------------
