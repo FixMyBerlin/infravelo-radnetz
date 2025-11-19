@@ -44,10 +44,11 @@ pip install -r requirements.txt
 # Vorher ausführbar machen: chmod +x execute_processing.sh
 # TILDA Daten müssen in ./data-raw-tilda liegen
 ./process_tilda_data.sh
+./process_rvn.sh
 ./execute_processing.sh
 
-# Beides hintereinander
-./process_tilda_data.sh && ./execute_processing.sh
+# Alle drei hintereinander
+./process_tilda_data.sh && ./process_rvn.sh && ./execute_processing.sh
 ```
 
 ## Projekt-Ordnerstruktur

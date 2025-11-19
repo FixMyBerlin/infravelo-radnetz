@@ -24,7 +24,13 @@ Das [`clip_tilda_data.py`](./clip_tilda_data.py) schneidet TILDA-Daten auf besti
 ### Bezirke zu Punkten zuweisen
 Das [`assign_node_ids.py`](./assign_node_ids.py) fügt zwei Attribute zu den *Verbindungspunkten* aus dem Detailnetz hinzu: `Knotenpunkt-ID` und `Bezirksnummer`.
 
-## 🛤️ RVN-Verarbeitung (Reihenfolge wichtig)
+## 🛤️ RVN-Verarbeitung
+
+```bash
+./process_rvn.sh
+```
+
+Dieses Skript führt die drei wichtigen RVN-Vorverarbeitungsschritte aus:
 
 ### 1. Virtuelle Knotenpunkte verarbeiten
 Das [`split_rvn_at_virtual_nodes.py`](./split_rvn_at_virtual_nodes.py) teilt das Berliner Radvorrangsnetz an virtuellen Knotenpunkten auf. Virtuelle Knotenpunkte liegen mitten auf Linien und erfordern eine Aufteilung der betroffenen Linien.
@@ -93,12 +99,10 @@ python scripts/setup.py
 ./process_tilda_data.sh
 python scripts/assign_node_ids.py
 
-# 2. RVN-Grundverarbeitung
-python scripts/split_rvn_at_virtual_nodes.py
-python scripts/assign_element_nr_to_rvn.py
-python scripts/enrich_rvn_with_detailnetz.py
+# 2. RVN-Verarbeitung
+./process_rvn.sh
 
-# 3. Hauptverarbeitung (execute_processing.sh)
+# 3. Hauptverarbeitung
 ./execute_processing.sh
 
 # 4. Nachgelagerte Analysen (optional)
