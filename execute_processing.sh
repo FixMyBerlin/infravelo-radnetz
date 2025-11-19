@@ -231,6 +231,7 @@ fi
 # Verschiebe finale Dateien (falls vorhanden)
 for f in "snapping_converted_bikelanes${SUFFIX}.fgb" \
                  "snapping_converted_bikelanes${SUFFIX}.geojson" \
+                 "snapping/snapping_with_overrides${SUFFIX}.fgb" \
                  "aggregated_rvn_final${SUFFIX}.gpkg" \
                  "aggregated_rvn_final${SUFFIX}.fgb" \
                  "aggregated_rvn_final${SUFFIX}.geojson"; do
@@ -339,6 +340,25 @@ if [[ $START_STEP -le 3 ]]; then
     show_elapsed_time $STEP3_START "Schritt 3"
     echo "✅ Schritt 3 abgeschlossen."
     echo ""
+    
+    # Schritt 3b: Override-Anwendung
+    echo "🔧 Schritt 3b/5: Override-Anwendung..."
+    STEP3B_START=$(date +%s)
+    echo "  - Wende Overrides auf konvertierte Bikelanes an..."
+    if [[ -n "$CLIP_REGION" ]]; then
+        ./.venv/bin/python processing/start_overriding.py --clip "$CLIP_REGION"
+    elif [[ -n "$VIEW" ]]; then
+        ./.venv/bin/python processing/start_overriding.py --view "$VIEW"
+    else
+        ./.venv/bin/python processing/start_overriding.py
+    fi
+    if [ $? -ne 0 ]; then
+        echo "❌ Fehler in Schritt 3b: start_overriding.py"
+        exit 1
+    fi
+    show_elapsed_time $STEP3B_START "Schritt 3b"
+    echo "✅ Schritt 3b abgeschlossen."
+    echo ""
 else
     echo "⏭️  Überspringe Schritt 3 (Schutzstreifen-Konvertierung)"
     echo ""
@@ -355,11 +375,11 @@ if [[ $START_STEP -le 4 ]]; then
     echo "🎯 Schritt 4/5: Finale Aggregation..."
     STEP4_START=$(date +%s)
     if [[ -n "$CLIP_REGION" ]]; then
-        ./.venv/bin/python processing/start_aggregation.py --clip "$CLIP_REGION" --input "./output/snapping_converted_bikelanes_${CLIP_REGION}.fgb"
+        ./.venv/bin/python processing/start_aggregation.py --clip "$CLIP_REGION" --input "./output/snapping/snapping_with_overrides_${CLIP_REGION}.fgb"
     elif [[ -n "$VIEW" ]]; then
-        ./.venv/bin/python processing/start_aggregation.py --view "$VIEW" --input ./output-bbox/snapping_converted_bikelanes_view.fgb
+        ./.venv/bin/python processing/start_aggregation.py --view "$VIEW" --input ./output-bbox/snapping/snapping_with_overrides_view.fgb
     else
-        ./.venv/bin/python processing/start_aggregation.py --input ./output/snapping_converted_bikelanes.fgb
+        ./.venv/bin/python processing/start_aggregation.py --input ./output/snapping/snapping_with_overrides.fgb
     fi
     if [ $? -ne 0 ]; then
         echo "❌ Fehler in Schritt 4: start_aggregation.py"
