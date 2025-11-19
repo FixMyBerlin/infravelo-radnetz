@@ -74,8 +74,13 @@ MAPPING_PROTEK_SEPARATION = {
     "bollard": "Poller (auf Sperrfläche)",
     "bump": "Schwellen (auf Sperrfläche)",
     "vertical_panel": "Leitboys (flexibel, auf Breitstrich, ohne Sperrfläche)",
+    "flex_post": "Leitboys (flexibel, auf Breitstrich, ohne Sperrfläche)",
+
     "planter": "Sonstige (z.B. Pflanzkübel, Leitplanke)",
     "guard_rail": "Sonstige (z.B. Pflanzkübel, Leitplanke)",
+    "fence": "Sonstige (z.B. Pflanzkübel, Leitplanke)",
+    "jersey_barrier": "Sonstige (z.B. Pflanzkübel, Leitplanke)",
+    
     "no": "Ohne"
 }
 
@@ -437,17 +442,45 @@ def determine_nutz_beschr(row, fuehr: str) -> str:
         if sign in traffic_sign:
             return "Schadensschild/StVO Zusatzeichen (Straßenschäden, Gehwegschäden, Radwegschäden)"
     
-    # TODO: Physische Sperre (Absperrschranke Z600) - noch nicht implementiert
+    # Fall Physische Sperre (Absperrschranke Z600) - noch nicht implementiert
+    # Wird durch Override und TILDA Hinweise abgebildet.
     
     return "keine"
 
 
-def determine_kommentar(row) -> str:
+def collect_todo_attributes(row) -> list:
     """
-    Bestimmt den Kommentar basierend auf dem lifecycle-Attribut.
+    Sammelt alle Attribute aus CONFIG_ATTRIBUTES_NOT_RENAMING, die einen [TODO] Wert enthalten.
+    
+    Args:
+        row: Datenzeile mit RVN-Attributen
+    
+    Returns:
+        Liste von Attributnamen, die TODO enthalten
+    """
+    todo_attrs = []
+    
+    for attr in CONFIG_ATTRIBUTES_NOT_RENAMING:
+        if attr in row.index:
+            value = str(row.get(attr, "")).strip()
+            if value and "[TODO]" in value.upper():
+                todo_attrs.append(attr)
+    
+    return todo_attrs
+
+
+def determine_kommentar(row, translated_row=None) -> str:
+    """
+    Bestimmt den Kommentar basierend auf dem lifecycle-Attribut und fehlenden Attributen.
+    
+    Wenn lifecycle=construction:
+    - Hauptkommentar: "Derzeit Baustelle (Stand ...)"
+    - Zusatzkommentare: Für jedes Attribut mit [TODO] wird hinzugefügt:
+      "{Attributname} Attribut fehlt aufgrund von Baustelle"
     
     Args:
         row: Datenzeile mit OSM-Attributen
+        translated_row: Optional - Datenzeile mit übersetzten RVN-Attributen (nach Translation)
     
     Returns:
         Kommentar oder None (null)
@@ -455,22 +488,37 @@ def determine_kommentar(row) -> str:
     # TODO Umbennung in lifecycle
     lifecycle = str(row.get("lifecycle", "")).strip().lower()
     
+    comments = []
+    
     if lifecycle == "construction":
-        # Formatiere das updated_at Datum
+        # Hauptkommentar: Baustelle
         updated_at = row.get("updated_at")
         try:
             if updated_at and str(updated_at).strip() and str(updated_at).strip() != "nan":
                 # Konvertiere Unix-Timestamp zu lesbarem Datum
                 timestamp = int(float(str(updated_at).strip()))
                 date_str = datetime.fromtimestamp(timestamp).strftime("%d.%m.%Y")
-                return f"Derzeit Baustelle (Stand {date_str})"
+                comments.append(f"Derzeit Baustelle (Stand {date_str})")
             else:
-                return "Derzeit Baustelle (Stand unbekannt)"
+                comments.append("Derzeit Baustelle (Stand unbekannt)")
         except (ValueError, TypeError, OSError) as e:
             logging.warning(f"Fehler beim Formatieren des updated_at Datums: {updated_at}, Fehler: {e}")
-            return "Derzeit Baustelle (Stand unbekannt)"
+            comments.append("Derzeit Baustelle (Stand unbekannt)")
+        
+        # Zusatzkommentare: Fehlende Attribute aufgrund Baustelle
+        if translated_row is not None:
+            todo_attrs = collect_todo_attributes(translated_row)
+            for attr in todo_attrs:
+                # Kapitalisiere ersten Buchstaben des Attributnamens
+                attr_display = attr.capitalize()
+                comments.append(f"{attr_display} Attribut fehlt aufgrund von Baustelle")
+    
     elif lifecycle == "temporary":
-        return "Temporäre Markierungen zum Erhebungszeitpunkt"
+        comments.append("Temporäre Markierungen zum Erhebungszeitpunkt")
+    
+    # Verbinde alle Kommentare mit Semikolon
+    if comments:
+        return "; ".join(comments)
     
     return None
 
@@ -571,13 +619,15 @@ def translate_tilda_attributes(gdf: gpd.GeoDataFrame, data_source: str) -> gpd.G
         nutz_beschr = determine_nutz_beschr(row, fuehr)
         result_gdf.loc[result_gdf.index[idx-1], "nutz_beschr"] = nutz_beschr
         
-        # Kommentar
-        kommentar = determine_kommentar(row)
-        result_gdf.loc[result_gdf.index[idx-1], "Kommentar"] = kommentar
-        
         # Länge berechnen (gerundet, ohne Nachkommastellen)
         length = int(round(calculate_segment_length(row.geometry)))
         result_gdf.loc[result_gdf.index[idx-1], "Länge"] = length
+        
+        # Kommentar (NACH allen anderen Attributen, um TODO-Attribute zu erkennen)
+        # Erstelle eine temporäre Row mit allen übersetzten Attributen
+        translated_row = result_gdf.loc[result_gdf.index[idx-1]]
+        kommentar = determine_kommentar(row, translated_row)
+        result_gdf.loc[result_gdf.index[idx-1], "Kommentar"] = kommentar
         
         # Fortschrittsanzeige
         print_progressbar(idx, total, prefix=f"Übersetze {data_source}: ")
