@@ -49,6 +49,9 @@ pip install -r requirements.txt
 
 # Alle drei hintereinander
 ./process_tilda_data.sh && ./process_rvn.sh && ./execute_processing.sh
+
+# Falls GeoJSONs gewünscht sind
+python ./scripts/convert_to_geojson.py
 ```
 
 ## Projekt-Ordnerstruktur
