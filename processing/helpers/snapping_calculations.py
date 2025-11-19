@@ -76,7 +76,7 @@ class SnappingPriorities:
     
     # Überlappungs-Priorität Konfiguration (geometrische Überlappung)
     OVERLAP_MAX_PRIORITY = 10        # Maximale Priorität bei 100% Überlappung (Kandidat passt perfekt zum Segment)
-    OVERLAP_MIN_PRIORITY = -10       # Minimale Priorität bei 0% Überlappung (Overshoot: Kandidat ragt komplett am Segment vorbei)
+    OVERLAP_MIN_PRIORITY = -13       # Minimale Priorität bei 0% Überlappung (Overshoot: Kandidat ragt komplett am Segment vorbei)
 
 
 def calculate_overlap_score(segment_geom, candidate_geom):
