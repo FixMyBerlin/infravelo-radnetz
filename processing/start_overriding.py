@@ -28,7 +28,7 @@ INPUT:
 - data/override_ways.txt (Textdatei mit Text-Overrides)
 
 OUTPUT:
-- output/snapping/snapping_with_overrides.fgb (Netzwerk mit angewendeten Overrides)
+- output/snapping_with_overrides.fgb (Netzwerk mit angewendeten Overrides)
 (Bei Clipping: snapping_with_overrides_neukoelln.fgb bzw. snapping_with_overrides_norden.fgb)
 """
 import argparse
@@ -45,6 +45,10 @@ from helpers.globals import DEFAULT_CRS
 from helpers.clipping import clip_to_region, clip_to_view
 
 
+# ============================================================================
+# KONFIGURATION
+# ============================================================================
+
 # Override-spezifische Attribute die überschrieben werden dürfen
 OVERRIDE_ATTRIBUTES = [
     'fuehr', 'ofm', 'protek', 'pflicht', 'breite', 
@@ -55,6 +59,10 @@ OVERRIDE_ATTRIBUTES = [
 PRIORITY_ATTRIBUTES = [
     'prio_total', 'prio_distance', 'prio_angle', 'prio_verkehrsri'
 ]
+
+# Räumliche Matching-Parameter
+SPATIAL_TOLERANCE_METERS = 7.0  # Maximale Distanz für räumliches Matching
+MIN_OVERLAP_RATIO = 0.8  # Minimaler Overlap-Anteil (0.0-1.0) für GeoPackage-Overrides
 
 
 def load_override_geopackage(gpkg_path, crs):
@@ -162,34 +170,119 @@ def load_text_overrides(text_path):
         return None
 
 
-def project_geometry_to_network(override_geom, network_gdf):
+def project_geometry_to_network(override_geom, network_gdf, override_idx=None, tilda_id=None):
     """
     Projiziert eine Override-Geometrie auf das Netzwerk und findet alle betroffenen Segmente.
+    
+    Ein Segment wird nur als betroffen betrachtet, wenn mindestens MIN_OVERLAP_RATIO (80%)
+    der Override-Geometrie mit dem Segment überlappt.
     
     Args:
         override_geom: Shapely-Geometrie des Overrides
         network_gdf: GeoDataFrame mit Netzwerk-Segmenten
+        override_idx: Index des Override-Eintrags (für Logging)
+        tilda_id: tilda_id des Override-Eintrags (für Logging)
     
     Returns:
-        Liste von Segment-Indizes die vom Override betroffen sind
+        Liste von Segment-Indizen die vom Override betroffen sind
     """
     affected_segments = []
+    override_label = f"Override {override_idx}" if override_idx is not None else "Override"
+    if tilda_id:
+        override_label += f" (tilda_id={tilda_id})"
     
     try:
         # Verwende räumlichen Index für effiziente Suche
-        possible_matches_idx = list(network_gdf.sindex.intersection(override_geom.bounds))
+        # Erweitere Bounding Box um Toleranz, um auch nahe Segmente zu finden
+        minx, miny, maxx, maxy = override_geom.bounds
+        expanded_bounds = (
+            minx - SPATIAL_TOLERANCE_METERS,
+            miny - SPATIAL_TOLERANCE_METERS,
+            maxx + SPATIAL_TOLERANCE_METERS,
+            maxy + SPATIAL_TOLERANCE_METERS
+        )
+        possible_matches_idx = list(network_gdf.sindex.intersection(expanded_bounds))
         
+        override_length = override_geom.length
+        if override_length == 0:
+            logging.warning(f"⚠️  {override_label}: Override-Geometrie hat Länge 0")
+            return []
+        
+        logging.info(f"🔍 {override_label}: Länge={override_length:.1f}m, {len(possible_matches_idx)} potenzielle Segmente in erweiteter Bounding Box (±{SPATIAL_TOLERANCE_METERS}m)")
+        
+        checked_count = 0
         for idx in possible_matches_idx:
             segment_geom = network_gdf.iloc[idx].geometry
+            segment_info = network_gdf.iloc[idx]
+            element_nr = segment_info.get('element_nr', 'N/A')
+            ri = segment_info.get('ri', 'N/A')
+            sfid = segment_info.get('sfid', 'N/A')
             
-            # Prüfe ob Segment die Override-Geometrie schneidet oder sehr nahe ist
-            if segment_geom.intersects(override_geom) or segment_geom.distance(override_geom) < 5.0:  # 5m Toleranz
-                affected_segments.append(idx)
+            # Prüfe räumliche Nähe
+            distance = segment_geom.distance(override_geom)
+            intersects = segment_geom.intersects(override_geom)
+            
+            if not (intersects or distance < SPATIAL_TOLERANCE_METERS):
+                logging.debug(
+                    f"  ✗ Segment {idx} (sfid={sfid}, element_nr={element_nr}, ri={ri}): "
+                    f"Zu weit entfernt (distance={distance:.1f}m > {SPATIAL_TOLERANCE_METERS}m)"
+                )
+                continue
+            
+            checked_count += 1
+            
+            # Berechne Overlap: Wie viel % des Segments wird von der Override-Geometrie abgedeckt?
+            try:
+                overlap_length = 0.0
+                segment_length = segment_geom.length
+                
+                if segment_length == 0:
+                    logging.debug(f"  ⚠️  Segment {idx}: Länge 0, überspringe")
+                    continue
+                
+                # Methode: Berechne wie viel des Segments innerhalb eines Buffers um die Override-Geometrie liegt
+                # Buffer um die Override-Geometrie erstellen
+                override_buffer = override_geom.buffer(SPATIAL_TOLERANCE_METERS)
+                
+                # Intersection des Segments mit dem Buffer
+                if override_buffer.intersects(segment_geom):
+                    intersection = override_buffer.intersection(segment_geom)
+                    if hasattr(intersection, 'length'):
+                        overlap_length = intersection.length
+                    elif hasattr(intersection, 'geoms'):
+                        # MultiLineString oder GeometryCollection
+                        overlap_length = sum(g.length for g in intersection.geoms if hasattr(g, 'length'))
+                
+                # Berechne Overlap-Ratio (wie viel % des SEGMENTS wird abgedeckt)
+                overlap_ratio = overlap_length / segment_length if segment_length > 0 else 0.0
+                
+                # Segment ist betroffen wenn Overlap >= Schwellwert
+                if overlap_ratio >= MIN_OVERLAP_RATIO:
+                    affected_segments.append(idx)
+                    logging.info(
+                        f"  ✓ Segment {idx} (sfid={sfid}, element_nr={element_nr}, ri={ri}): "
+                        f"Overlap {overlap_ratio:.1%} auf Segment (Segment: {segment_length:.1f}m, Overlap: {overlap_length:.1f}m, "
+                        f"Override: {override_length:.1f}m)"
+                    )
+                else:
+                    logging.info(
+                        f"  ✗ Segment {idx} (sfid={sfid}, element_nr={element_nr}, ri={ri}): "
+                        f"Overlap {overlap_ratio:.1%} < {MIN_OVERLAP_RATIO:.0%} auf Segment "
+                        f"(Segment: {segment_length:.1f}m, Overlap: {overlap_length:.1f}m, "
+                        f"Override: {override_length:.1f}m)"
+                    )
+            
+            except Exception as e:
+                logging.warning(f"  ⚠️  Segment {idx}: Fehler bei Overlap-Berechnung: {e}")
+                continue
+        
+        if checked_count == 0:
+            logging.info(f"  ℹ️  Keine Segmente innerhalb {SPATIAL_TOLERANCE_METERS}m Toleranz gefunden")
         
         return affected_segments
     
     except Exception as e:
-        logging.error(f"❌ Fehler bei Geometrie-Projektion: {e}")
+        logging.error(f"❌ {override_label}: Fehler bei Geometrie-Projektion: {e}")
         return []
 
 
@@ -203,13 +296,14 @@ def apply_geopackage_overrides(network_gdf, override_gdf, matched_tilda_gdf):
         matched_tilda_gdf: GeoDataFrame mit matched TILDA ways (für Attribut-Lookup)
     
     Returns:
-        tuple: (Anzahl angewendeter Overrides, Liste von Warnungen bei Dopplungen)
+        tuple: (Anzahl angewendeter Overrides, Liste von Warnungen bei Dopplungen, Anzahl nicht angewendeter Overrides)
     """
     if override_gdf is None or len(override_gdf) == 0:
-        return 0, []
+        return 0, [], 0
     
     applied_count = 0
     warnings = []
+    not_applied_count = 0
     
     # Track welche Segmente bereits Override haben (für Dopplung-Warnung)
     segments_with_override = set()
@@ -220,10 +314,11 @@ def apply_geopackage_overrides(network_gdf, override_gdf, matched_tilda_gdf):
         tilda_id = override_row.get('tilda_id')
         
         # Finde betroffene Segmente
-        affected_segments = project_geometry_to_network(override_geom, network_gdf)
+        affected_segments = project_geometry_to_network(override_geom, network_gdf, override_idx, tilda_id)
         
         if not affected_segments:
             logging.debug(f"🔍 GeoPackage-Override {override_idx}: Keine betroffenen Segmente gefunden")
+            not_applied_count += 1
             continue
         
         # Filtere nach ri wenn vorhanden und nicht NULL
@@ -247,6 +342,7 @@ def apply_geopackage_overrides(network_gdf, override_gdf, matched_tilda_gdf):
         
         if not affected_segments:
             logging.debug(f"🔍 GeoPackage-Override {override_idx}: Keine Segmente mit passendem ri gefunden")
+            not_applied_count += 1
             continue
         
         # Hole Attribute zum Überschreiben
@@ -275,6 +371,7 @@ def apply_geopackage_overrides(network_gdf, override_gdf, matched_tilda_gdf):
         
         if not override_attributes:
             logging.debug(f"🔍 GeoPackage-Override {override_idx}: Keine Attribute zum Überschreiben gefunden")
+            not_applied_count += 1
             continue
         
         # Wende Override auf alle betroffenen Segmente an
@@ -314,7 +411,7 @@ def apply_geopackage_overrides(network_gdf, override_gdf, matched_tilda_gdf):
             
             applied_count += 1
     
-    return applied_count, warnings
+    return applied_count, warnings, not_applied_count
 
 
 def apply_text_overrides(network_gdf, text_overrides, matched_tilda_gdf):
@@ -327,13 +424,14 @@ def apply_text_overrides(network_gdf, text_overrides, matched_tilda_gdf):
         matched_tilda_gdf: GeoDataFrame mit matched TILDA ways (für Attribut-Lookup)
     
     Returns:
-        tuple: (Anzahl angewendeter Overrides, Liste von Warnungen bei Dopplungen)
+        tuple: (Anzahl angewendeter Overrides, Liste von Warnungen bei Dopplungen, Anzahl nicht angewendeter Overrides)
     """
     if text_overrides is None or len(text_overrides) == 0:
-        return 0, []
+        return 0, [], 0
     
     applied_count = 0
     warnings = []
+    not_applied_count = 0
     
     # Track welche Segmente bereits Override haben (für Dopplung-Warnung)
     segments_with_override = set()
@@ -351,6 +449,7 @@ def apply_text_overrides(network_gdf, text_overrides, matched_tilda_gdf):
         
         if not affected_segments:
             logging.debug(f"🔍 Text-Override element_nr={element_nr}, ri={ri}: Keine betroffenen Segmente gefunden")
+            not_applied_count += 1
             continue
         
         # Hole Attribute zum Überschreiben
@@ -377,6 +476,7 @@ def apply_text_overrides(network_gdf, text_overrides, matched_tilda_gdf):
         
         if not override_attributes:
             logging.debug(f"🔍 Text-Override element_nr={element_nr}, ri={ri}: Keine Attribute zum Überschreiben gefunden")
+            not_applied_count += 1
             continue
         
         # Wende Override auf alle betroffenen Segmente an
@@ -415,7 +515,7 @@ def apply_text_overrides(network_gdf, text_overrides, matched_tilda_gdf):
             
             applied_count += 1
     
-    return applied_count, warnings
+    return applied_count, warnings, not_applied_count
 
 
 def main():
@@ -445,10 +545,10 @@ def main():
     # Input-Dateien (snapping_converted_bikelanes liegt im Root von output/)
     if args.clip:
         input_file = output_dir / f"snapping_converted_bikelanes_{args.clip}.fgb"
-        output_file = snapping_dir / f"snapping_with_overrides_{args.clip}.fgb"
+        output_file = output_dir / f"snapping_with_overrides_{args.clip}.fgb"
     else:
         input_file = output_dir / "snapping_converted_bikelanes.fgb"
-        output_file = snapping_dir / "snapping_with_overrides.fgb"
+        output_file = output_dir / "snapping_with_overrides.fgb"
     
     matched_tilda_file = matched_dir / "matched_tilda_ways.fgb"
     override_gpkg_file = data_dir / "override_ways.gpkg"
@@ -491,20 +591,24 @@ def main():
 
     # Wende GeoPackage-Overrides an (haben Vorrang)
     logging.info("🔧 Wende GeoPackage-Overrides an")
-    gpkg_count, gpkg_warnings = apply_geopackage_overrides(network_gdf, override_gdf, matched_tilda_gdf)
+    gpkg_count, gpkg_warnings, gpkg_not_applied = apply_geopackage_overrides(network_gdf, override_gdf, matched_tilda_gdf)
     
     if gpkg_count > 0:
         logging.info(f"✔  {gpkg_count} Segmente durch GeoPackage-Overrides modifiziert")
+    if gpkg_not_applied > 0:
+        logging.info(f"ℹ️  {gpkg_not_applied} GeoPackage-Overrides konnten nicht angewendet werden")
     
     for warning in gpkg_warnings:
         logging.warning(warning)
 
     # Wende Text-Overrides an
     logging.info("🔧 Wende Text-Overrides an")
-    text_count, text_warnings = apply_text_overrides(network_gdf, text_overrides, matched_tilda_gdf)
+    text_count, text_warnings, text_not_applied = apply_text_overrides(network_gdf, text_overrides, matched_tilda_gdf)
     
     if text_count > 0:
         logging.info(f"✔  {text_count} Segmente durch Text-Overrides modifiziert")
+    if text_not_applied > 0:
+        logging.info(f"ℹ️  {text_not_applied} Text-Overrides konnten nicht angewendet werden")
     
     for warning in text_warnings:
         logging.warning(warning)

@@ -62,9 +62,9 @@ EXCLUDE_FIELD_PREFIXES = ['priority', 'angle']
 
 # Standard-Dateien die automatisch konvertiert werden sollen
 DEFAULT_FILES = [
-    'aggregated_rvn_final.gpkg',
-    'snapping_converted_bikelanes.fgb',
-    'matched/matched_tilda_ways.fgb'
+    'matched/matched_tilda_ways.fgb',
+    'snapping_with_overrides.fgb',
+    'aggregated_rvn_final.gpkg'
 ]
 
 

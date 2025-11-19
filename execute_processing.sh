@@ -231,7 +231,6 @@ fi
 # Verschiebe finale Dateien (falls vorhanden)
 for f in "snapping_converted_bikelanes${SUFFIX}.fgb" \
                  "snapping_converted_bikelanes${SUFFIX}.geojson" \
-                 "snapping/snapping_with_overrides${SUFFIX}.fgb" \
                  "aggregated_rvn_final${SUFFIX}.gpkg" \
                  "aggregated_rvn_final${SUFFIX}.fgb" \
                  "aggregated_rvn_final${SUFFIX}.geojson"; do
@@ -375,11 +374,11 @@ if [[ $START_STEP -le 4 ]]; then
     echo "🎯 Schritt 4/5: Finale Aggregation..."
     STEP4_START=$(date +%s)
     if [[ -n "$CLIP_REGION" ]]; then
-        ./.venv/bin/python processing/start_aggregation.py --clip "$CLIP_REGION" --input "./output/snapping/snapping_with_overrides_${CLIP_REGION}.fgb"
+        ./.venv/bin/python processing/start_aggregation.py --clip "$CLIP_REGION" --input "./output/snapping_with_overrides_${CLIP_REGION}.fgb"
     elif [[ -n "$VIEW" ]]; then
-        ./.venv/bin/python processing/start_aggregation.py --view "$VIEW" --input ./output-bbox/snapping/snapping_with_overrides_view.fgb
+        ./.venv/bin/python processing/start_aggregation.py --view "$VIEW" --input ./output-bbox/snapping_with_overrides_view.fgb
     else
-        ./.venv/bin/python processing/start_aggregation.py --input ./output/snapping/snapping_with_overrides.fgb
+        ./.venv/bin/python processing/start_aggregation.py --input ./output/snapping_with_overrides.fgb
     fi
     if [ $? -ne 0 ]; then
         echo "❌ Fehler in Schritt 4: start_aggregation.py"
