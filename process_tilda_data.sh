@@ -28,19 +28,22 @@ Ausgabedateien (output/TILDA-translated/):
 - TILDA Bikelanes Translated.fgb
 - TILDA Streets Translated.fgb
 - TILDA Paths Translated.fgb
+(Bei --clip: Dateien mit " Neukoelln", " Norden" oder " Sueden" Suffix)
 
 Verwendung:
-    ./process_tilda_data.sh [--translate-only]
+    ./process_tilda_data.sh [--translate-only] [--clip <region>]
 
 Argumente:
     --translate-only    Überspringt das Clipping und führt nur die TILDA-Attribut-Übersetzung durch
                        (Voraussetzung: geclippte Dateien in data/ sind bereits vorhanden)
+    --clip <region>     Regionaler Zuschnitt: neukoelln, norden oder sueden
 """
 
 set -e  # Beende das Skript bei Fehlern
 
 # Argumentverarbeitung
 TRANSLATE_ONLY=false
+CLIP_REGION=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -48,11 +51,16 @@ while [[ $# -gt 0 ]]; do
             TRANSLATE_ONLY=true
             shift
             ;;
+        --clip)
+            CLIP_REGION="$2"
+            shift 2
+            ;;
         -h|--help)
-            echo "Verwendung: $0 [--translate-only]"
+            echo "Verwendung: $0 [--translate-only] [--clip <region>]"
             echo ""
             echo "Optionen:"
             echo "  --translate-only    Überspringt das Clipping und führt nur die TILDA-Attribut-Übersetzung durch"
+            echo "  --clip <region>     Regionaler Zuschnitt: neukoelln, norden oder sueden"
             echo "  -h, --help         Zeigt diese Hilfe an"
             exit 0
             ;;
@@ -63,6 +71,14 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+# Validiere CLIP_REGION
+if [[ -n "$CLIP_REGION" ]]; then
+    if [[ ! "$CLIP_REGION" =~ ^(neukoelln|norden|sueden)$ ]]; then
+        echo "❌ Ungültige Region: $CLIP_REGION. Erlaubt sind: neukoelln, norden, sueden"
+        exit 1
+    fi
+fi
 
 # Variablen definieren
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -115,11 +131,20 @@ if [ "$TRANSLATE_ONLY" = false ]; then
     echo "📁 Eingabeverzeichnis: $INPUT_DIR"
     echo "📁 Ausgabeverzeichnis: $OUTPUT_DIR"
     echo "🗺️  Clip-Features: $CLIP_FEATURES"
+    if [[ -n "$CLIP_REGION" ]]; then
+        echo "🌍 Regionaler Zuschnitt: $CLIP_REGION"
+    fi
     echo ""
 
     TRANSLATE_SCRIPT="$PROJECT_ROOT/scripts/translate_attributes_tilda_to_rvn.py"
     TRANSLATE_OUTPUT_DIR="$PROJECT_ROOT/output/TILDA-translated"
     mkdir -p "$TRANSLATE_OUTPUT_DIR"
+
+    # Setze Clip-Argument für translate_attributes_tilda_to_rvn.py
+    TRANSLATE_CLIP_ARG=""
+    if [[ -n "$CLIP_REGION" ]]; then
+        TRANSLATE_CLIP_ARG="--clip $CLIP_REGION"
+    fi
 
     # Verarbeite bikelanes.fgb -> TILDA Radwege Berlin.fgb
     echo "🚴 Verarbeite Radwege (bikelanes.fgb)..."
@@ -128,7 +153,7 @@ if [ "$TRANSLATE_ONLY" = false ]; then
         --clip-features "$CLIP_FEATURES" \
         --output "$OUTPUT_DIR/TILDA Radwege Berlin.fgb"
     echo "🔄 Übersetze TILDA Radwege Berlin.fgb..."
-    python3 "$TRANSLATE_SCRIPT" --data-dir "$OUTPUT_DIR" --output-dir "$TRANSLATE_OUTPUT_DIR" --crs 25833
+    python3 "$TRANSLATE_SCRIPT" --data-dir "$OUTPUT_DIR" --output-dir "$TRANSLATE_OUTPUT_DIR" --crs 25833 $TRANSLATE_CLIP_ARG
 
     # Verarbeite roads.fgb -> TILDA Straßen Berlin.fgb
     echo ""
@@ -138,7 +163,7 @@ if [ "$TRANSLATE_ONLY" = false ]; then
         --clip-features "$CLIP_FEATURES" \
         --output "$OUTPUT_DIR/TILDA Straßen Berlin.fgb"
     echo "🔄 Übersetze TILDA Straßen Berlin.fgb..."
-    python3 "$TRANSLATE_SCRIPT" --data-dir "$OUTPUT_DIR" --output-dir "$TRANSLATE_OUTPUT_DIR" --crs 25833
+    python3 "$TRANSLATE_SCRIPT" --data-dir "$OUTPUT_DIR" --output-dir "$TRANSLATE_OUTPUT_DIR" --crs 25833 $TRANSLATE_CLIP_ARG
 
     # Verarbeite roadsPathClasses.fgb -> TILDA Wege Berlin.fgb
     echo ""
@@ -148,14 +173,18 @@ if [ "$TRANSLATE_ONLY" = false ]; then
         --clip-features "$CLIP_FEATURES" \
         --output "$OUTPUT_DIR/TILDA Wege Berlin.fgb"
     echo "🔄 Übersetze TILDA Wege Berlin.fgb..."
-    python3 "$TRANSLATE_SCRIPT" --data-dir "$OUTPUT_DIR" --output-dir "$TRANSLATE_OUTPUT_DIR" --crs 25833
+    python3 "$TRANSLATE_SCRIPT" --data-dir "$OUTPUT_DIR" --output-dir "$TRANSLATE_OUTPUT_DIR" --crs 25833 $TRANSLATE_CLIP_ARG
 
     echo ""
     echo "✅ Clipping und Übersetzung der TILDA Daten erfolgreich abgeschlossen!"
     echo "📊 Geclippte und übersetzte Dateien:"
-    echo "   - $OUTPUT_DIR/TILDA Radwege Berlin.fgb -> $TRANSLATE_OUTPUT_DIR/TILDA Bikelanes Translated.fgb"
-    echo "   - $OUTPUT_DIR/TILDA Straßen Berlin.fgb -> $TRANSLATE_OUTPUT_DIR/TILDA Streets Translated.fgb"
-    echo "   - $OUTPUT_DIR/TILDA Wege Berlin.fgb -> $TRANSLATE_OUTPUT_DIR/TILDA Paths Translated.fgb"
+    REGION_SUFFIX=""
+    if [[ -n "$CLIP_REGION" ]]; then
+        REGION_SUFFIX=" $(echo ${CLIP_REGION^})"  # Capitalize first letter
+    fi
+    echo "   - $OUTPUT_DIR/TILDA Radwege Berlin.fgb -> $TRANSLATE_OUTPUT_DIR/TILDA Bikelanes${REGION_SUFFIX} Translated.fgb"
+    echo "   - $OUTPUT_DIR/TILDA Straßen Berlin.fgb -> $TRANSLATE_OUTPUT_DIR/TILDA Streets${REGION_SUFFIX} Translated.fgb"
+    echo "   - $OUTPUT_DIR/TILDA Wege Berlin.fgb -> $TRANSLATE_OUTPUT_DIR/TILDA Paths${REGION_SUFFIX} Translated.fgb"
 else
     echo "⏭️  Überspringe Clipping (--translate-only aktiviert)"
     
@@ -178,6 +207,9 @@ else
     
     echo ""
     echo "🔄 Starte TILDA Attribut-Übersetzung..."
+    if [[ -n "$CLIP_REGION" ]]; then
+        echo "🌍 Regionaler Zuschnitt: $CLIP_REGION"
+    fi
     TRANSLATE_SCRIPT="$PROJECT_ROOT/scripts/translate_attributes_tilda_to_rvn.py"
     TRANSLATE_OUTPUT_DIR="$PROJECT_ROOT/output/TILDA-translated"
 
@@ -190,10 +222,16 @@ else
     # Erstelle das Ausgabeverzeichnis für die Übersetzung falls es nicht existiert
     mkdir -p "$TRANSLATE_OUTPUT_DIR"
 
+    # Setze Clip-Argument für translate_attributes_tilda_to_rvn.py
+    TRANSLATE_CLIP_ARG=""
+    if [[ -n "$CLIP_REGION" ]]; then
+        TRANSLATE_CLIP_ARG="--clip $CLIP_REGION"
+    fi
+
     # Aktiviere die virtuelle Umgebung und führe die Übersetzung aus
     echo "📝 Übersetze TILDA-Attribute zu RVN-Attributen..."
     cd "$PROJECT_ROOT"
-    python3 "$TRANSLATE_SCRIPT" --data-dir "$OUTPUT_DIR"
+    python3 "$TRANSLATE_SCRIPT" --data-dir "$OUTPUT_DIR" $TRANSLATE_CLIP_ARG
 
     if [ $? -ne 0 ]; then
         echo "❌ Fehler bei der TILDA Attribut-Übersetzung"
@@ -203,9 +241,13 @@ else
     echo ""
     echo "✅ TILDA Attribut-Übersetzung erfolgreich abgeschlossen!"
     echo "📊 Übersetzte Dateien:"
-    echo "   - $TRANSLATE_OUTPUT_DIR/TILDA Bikelanes Translated.fgb"
-    echo "   - $TRANSLATE_OUTPUT_DIR/TILDA Streets Translated.fgb"  
-    echo "   - $TRANSLATE_OUTPUT_DIR/TILDA Paths Translated.fgb"
+    REGION_SUFFIX=""
+    if [[ -n "$CLIP_REGION" ]]; then
+        REGION_SUFFIX=" $(echo ${CLIP_REGION^})"  # Capitalize first letter
+    fi
+    echo "   - $TRANSLATE_OUTPUT_DIR/TILDA Bikelanes${REGION_SUFFIX} Translated.fgb"
+    echo "   - $TRANSLATE_OUTPUT_DIR/TILDA Streets${REGION_SUFFIX} Translated.fgb"  
+    echo "   - $TRANSLATE_OUTPUT_DIR/TILDA Paths${REGION_SUFFIX} Translated.fgb"
 fi
 
 echo ""
