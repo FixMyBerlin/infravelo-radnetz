@@ -52,7 +52,6 @@ from helpers.snapping_calculations import (
     SnappingPriorities
 )
 from helpers.tilda_link_generator import generate_snapping_tilda_link
-from matching.manual_interventions import get_override_ways, load_override_geopackage, find_spatial_override
 
 # -------------------------------------------------------------- Konstanten --
 CONFIG_BUFFER_DEFAULT = 30     # Standard-Puffergröße in Metern zum Suchraum
