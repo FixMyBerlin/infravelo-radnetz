@@ -34,6 +34,44 @@
 
 set -e  # Script bei Fehlern beenden
 
+# Array für Backup-Dateien
+declare -a BACKUP_FILES=()
+
+# Funktion zum Erstellen von Backups
+create_backup() {
+    local file="$1"
+    if [ -f "$file" ]; then
+        mv "$file" "${file}.backup"
+        BACKUP_FILES+=("$file")
+        echo "    ↪ Backup erstellt: $(basename "$file")" >&2
+    fi
+}
+
+# Funktion zum Löschen erfolgreicher Backups
+cleanup_backups() {
+    for file in "${BACKUP_FILES[@]}"; do
+        rm -f "${file}.backup"
+    done
+    BACKUP_FILES=()
+}
+
+# Funktion zur Wiederherstellung bei Fehler
+restore_backups() {
+    echo "" >&2
+    echo "⚠️  Fehler erkannt - stelle Backup-Dateien wieder her..." >&2
+    for file in "${BACKUP_FILES[@]}"; do
+        if [ -f "${file}.backup" ]; then
+            mv "${file}.backup" "$file"
+            echo "  ✅ Wiederhergestellt: $(basename "$file")" >&2
+        fi
+    done
+    BACKUP_FILES=()
+    echo "💾 Backup-Dateien wurden wiederhergestellt." >&2
+}
+
+# Trap für Fehlerbehandlung
+trap 'restore_backups' ERR EXIT
+
 # Help-Funktion
 show_help() {
     cat << EOF
@@ -247,22 +285,24 @@ echo "🔄 Starte Verarbeitungsprozess..."
 
 # Schritt 1: Matching
 if [[ $START_STEP -le 1 ]]; then
-    echo "🧹 Bereinigte temporäre Dateien für Schritt 1..."
-    # Lösche Cache- und Zwischendateien aus dem entsprechenden Verzeichnis
-    if [ -d "${BASE_OUT_DIR}/matching" ]; then
-        rm -f ${BASE_OUT_DIR}/matching/osm_*_in_buffering.fgb
-        rm -f ${BASE_OUT_DIR}/matching/osm_*_manual_interventions.fgb
-        rm -f ${BASE_OUT_DIR}/matching/osm_*_orthogonal_all_ways.fgb
-        rm -f ${BASE_OUT_DIR}/matching/osm_*_orthogonal_removed.fgb
-        echo "  - Gelöscht: ${BASE_OUT_DIR}/matching/ Zwischendateien"
-    fi
-    # Lösche matched Dateien (werden in Schritt 1 erstellt)
-    rm -f ${BASE_OUT_DIR}/matched/matched_tilda_*.fgb
-    rm -f ${BASE_OUT_DIR}/matched/matched_tilda_*.txt
-    echo "  - Gelöscht: ${BASE_OUT_DIR}/matched/ TILDA Dateien"
-    
     echo "🔍 Schritt 1/4: OSM-Wege mit Radvorrangsnetz matchen..."
     STEP1_START=$(date +%s)
+    
+    # Erstelle Backups statt Dateien zu löschen
+    echo "  💾 Erstelle Backups der vorhandenen Dateien..."
+    if [ -d "${BASE_OUT_DIR}/matching" ]; then
+        for file in ${BASE_OUT_DIR}/matching/osm_*_in_buffering.fgb \
+                    ${BASE_OUT_DIR}/matching/osm_*_manual_interventions.fgb \
+                    ${BASE_OUT_DIR}/matching/osm_*_orthogonal_all_ways.fgb \
+                    ${BASE_OUT_DIR}/matching/osm_*_orthogonal_removed.fgb; do
+            create_backup "$file"
+        done
+    fi
+    for file in ${BASE_OUT_DIR}/matched/matched_tilda_*.fgb \
+                ${BASE_OUT_DIR}/matched/matched_tilda_*.txt; do
+        create_backup "$file"
+    done
+    
     if [[ -n "$CLIP_REGION" ]]; then
         ./.venv/bin/python processing/start_matching.py --clip "$CLIP_REGION"
     elif [[ -n "$VIEW" ]]; then
@@ -274,6 +314,9 @@ if [[ $START_STEP -le 1 ]]; then
         echo "❌ Fehler in Schritt 1: start_matching.py"
         exit 1
     fi
+    
+    # Lösche Backups nach erfolgreichem Abschluss
+    cleanup_backups
     show_elapsed_time $STEP1_START "Schritt 1"
     echo "✅ Schritt 1 abgeschlossen."
     echo ""
@@ -284,19 +327,19 @@ fi
 
 # Schritt 2: Snapping
 if [[ $START_STEP -le 2 ]]; then
-    echo "🧹 Bereinigte temporäre Dateien für Schritt 2..."
-    # Lösche Snapping Zwischendateien (werden in Schritt 2 erstellt)
-    if [ -d "${BASE_OUT_DIR}/snapping" ]; then
-        rm -f ${BASE_OUT_DIR}/snapping/rvn-segmented*.fgb
-        rm -f ${BASE_OUT_DIR}/snapping/osm_candidates_per_edge*.txt
-        echo "  - Gelöscht: ${BASE_OUT_DIR}/snapping/ Zwischendateien"
-    fi
-    # Lösche snapping_network_enriched Dateien (werden in Schritt 2 erstellt)
-    rm -f "${BASE_OUT_DIR}/snapping_network_enriched${SUFFIX}.fgb"
-    echo "  - Gelöscht: ${BASE_OUT_DIR}/snapping_network_enriched${SUFFIX}.fgb"
-    
     echo "📍 Schritt 2/4: Snapping und Attribut-Übernahme..."
     STEP2_START=$(date +%s)
+    
+    # Erstelle Backups statt Dateien zu löschen
+    echo "  💾 Erstelle Backups der vorhandenen Dateien..."
+    if [ -d "${BASE_OUT_DIR}/snapping" ]; then
+        for file in ${BASE_OUT_DIR}/snapping/rvn-segmented*.fgb \
+                    ${BASE_OUT_DIR}/snapping/osm_candidates_per_edge*.txt; do
+            create_backup "$file"
+        done
+    fi
+    create_backup "${BASE_OUT_DIR}/snapping_network_enriched${SUFFIX}.fgb"
+    
     if [[ -n "$CLIP_REGION" ]]; then
         ./.venv/bin/python processing/start_snapping.py --clip "$CLIP_REGION"
     elif [[ -n "$VIEW" ]]; then
@@ -308,6 +351,9 @@ if [[ $START_STEP -le 2 ]]; then
         echo "❌ Fehler in Schritt 2: start_snapping.py"
         exit 1
     fi
+    
+    # Lösche Backups nach erfolgreichem Abschluss
+    cleanup_backups
     show_elapsed_time $STEP2_START "Schritt 2"
     echo "✅ Schritt 2 abgeschlossen."
     echo ""
@@ -318,13 +364,13 @@ fi
 
 # Schritt 3: Schutzstreifen-Konvertierung
 if [[ $START_STEP -le 3 ]]; then
-    echo "🧹 Bereinigte temporäre Dateien für Schritt 3..."
-    # Lösche snapping_converted_bikelanes Dateien (werden in Schritt 3 erstellt)
-    rm -f "${BASE_OUT_DIR}/snapping_converted_bikelanes${SUFFIX}.fgb"
-    echo "  - Gelöscht: ${BASE_OUT_DIR}/snapping_converted_bikelanes${SUFFIX}.fgb"
-    
     echo "🚲 Schritt 3/5: Schutzstreifen-Konvertierung..."
     STEP3_START=$(date +%s)
+    
+    # Erstelle Backups statt Dateien zu löschen
+    echo "  💾 Erstelle Backups der vorhandenen Dateien..."
+    create_backup "${BASE_OUT_DIR}/snapping_converted_bikelanes${SUFFIX}.fgb"
+    
     if [[ -n "$CLIP_REGION" ]]; then
         ./.venv/bin/python processing/start_bikelane_conversion.py --clip "$CLIP_REGION"
     elif [[ -n "$VIEW" ]]; then
@@ -336,6 +382,9 @@ if [[ $START_STEP -le 3 ]]; then
         echo "❌ Fehler in Schritt 3: start_bikelane_conversion.py"
         exit 1
     fi
+    
+    # Lösche Backups nach erfolgreichem Abschluss
+    cleanup_backups
     show_elapsed_time $STEP3_START "Schritt 3"
     echo "✅ Schritt 3 abgeschlossen."
     echo ""
@@ -365,14 +414,14 @@ fi
 
 # Schritt 4: Finale Aggregation
 if [[ $START_STEP -le 4 ]]; then
-    echo "🧹 Bereinigte temporäre Dateien für Schritt 4..."
-    # Lösche aggregated_rvn_final Dateien (werden in Schritt 4 erstellt)
-    rm -f "${BASE_OUT_DIR}/aggregated_rvn_final${SUFFIX}.gpkg"
-    rm -f "${BASE_OUT_DIR}/aggregated_rvn_final${SUFFIX}.fgb"
-    echo "  - Gelöscht: ${BASE_OUT_DIR}/aggregated_rvn_final${SUFFIX} Dateien"
-    
     echo "🎯 Schritt 4/5: Finale Aggregation..."
     STEP4_START=$(date +%s)
+    
+    # Erstelle Backups statt Dateien zu löschen
+    echo "  💾 Erstelle Backups der vorhandenen Dateien..."
+    create_backup "${BASE_OUT_DIR}/aggregated_rvn_final${SUFFIX}.gpkg"
+    create_backup "${BASE_OUT_DIR}/aggregated_rvn_final${SUFFIX}.fgb"
+    
     if [[ -n "$CLIP_REGION" ]]; then
         ./.venv/bin/python processing/start_aggregation.py --clip "$CLIP_REGION" --input "./output/snapping_with_overrides_${CLIP_REGION}.fgb"
     elif [[ -n "$VIEW" ]]; then
@@ -384,6 +433,9 @@ if [[ $START_STEP -le 4 ]]; then
         echo "❌ Fehler in Schritt 4: start_aggregation.py"
         exit 1
     fi
+    
+    # Lösche Backups nach erfolgreichem Abschluss
+    cleanup_backups
     show_elapsed_time $STEP4_START "Schritt 4"
     echo "✅ Schritt 4 abgeschlossen."
     echo ""
@@ -429,6 +481,9 @@ fi
 #     echo ""
 # fi
 # echo ""
+
+# Deaktiviere Fehler-Trap bei erfolgreichem Abschluss
+trap - ERR EXIT
 
 echo "🎉 Verarbeitungsprozess erfolgreich abgeschlossen!"
 
