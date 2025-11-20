@@ -28,6 +28,7 @@ from helpers.globals import DEFAULT_CRS
 from helpers.progressbar import print_progressbar
 from helpers.traffic_signs import has_traffic_sign
 from helpers.width_parser import parse_width
+from helpers.construction_comments import collect_todo_attributes
 
 # --------------------------------------------------------- Konstanten --
 # Liste der neuen RVN-Attribute, die nicht umbenannt werden sollen
@@ -448,27 +449,6 @@ def determine_nutz_beschr(row, fuehr: str) -> str:
     return "keine"
 
 
-def collect_todo_attributes(row) -> list:
-    """
-    Sammelt alle Attribute aus CONFIG_ATTRIBUTES_NOT_RENAMING, die einen [TODO] Wert enthalten.
-    
-    Args:
-        row: Datenzeile mit RVN-Attributen
-    
-    Returns:
-        Liste von Attributnamen, die TODO enthalten
-    """
-    todo_attrs = []
-    
-    for attr in CONFIG_ATTRIBUTES_NOT_RENAMING:
-        if attr in row.index:
-            value = str(row.get(attr, "")).strip()
-            if value and "[TODO]" in value.upper():
-                todo_attrs.append(attr)
-    
-    return todo_attrs
-
-
 def determine_kommentar(row, translated_row=None) -> str:
     """
     Bestimmt den Kommentar basierend auf dem lifecycle-Attribut und fehlenden Attributen.
@@ -507,7 +487,7 @@ def determine_kommentar(row, translated_row=None) -> str:
         
         # Zusatzkommentare: Fehlende Attribute aufgrund Baustelle
         if translated_row is not None:
-            todo_attrs = collect_todo_attributes(translated_row)
+            todo_attrs = collect_todo_attributes(translated_row, CONFIG_ATTRIBUTES_NOT_RENAMING)
             for attr in todo_attrs:
                 # Kapitalisiere ersten Buchstaben des Attributnamens
                 attr_display = attr.capitalize()

@@ -52,6 +52,8 @@ from helpers.snapping_calculations import (
     SnappingPriorities
 )
 from helpers.tilda_link_generator import generate_snapping_tilda_link
+from helpers.construction_comments import update_construction_comments
+from helpers.construction_comments import update_construction_comments
 
 # -------------------------------------------------------------- Konstanten --
 CONFIG_BUFFER_DEFAULT = 30     # Standard-Puffergröße in Metern zum Suchraum
@@ -1780,6 +1782,9 @@ def process(net_path, osm_path, out_path, crs, buffer, data_dir="./data", log_ca
     if breite_todo_count > 0:
         logging.info(f"Setze breite='[TODO] Breite fehlt' für {breite_todo_count} Kanten ohne Breite (nur für Führungsformen mit Breitenerfordernis)")
         out_gdf.loc[combined_mask, 'breite'] = '[TODO] Breite fehlt'
+    
+    # Aktualisiere Kommentare für Baustellen mit neu hinzugefügten TODO-Attributen
+    update_construction_comments(out_gdf)
 
     # ---------- Ergebnis speichern ------------------------------------------
     p, *layer = out_path.split(":")
