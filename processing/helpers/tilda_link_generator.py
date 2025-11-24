@@ -64,28 +64,53 @@ def generate_tilda_link(geometry, zoom: float = 17.4, dataset: str = "infravelo-
     Generiert einen TILDA-Link basierend auf der Geometrie.
     
     Args:
-        geometry: LineString oder MultiLineString Geometrie
+        geometry: LineString oder MultiLineString Geometrie (in beliebigem CRS)
         zoom: Zoom-Level für die Karte (Standard: 17.4)
         dataset: Datensatz-Identifier (Standard: "infravelo-datensatz-b-fortlaufend")
         
     Returns:
         str: Vollständiger TILDA-Link oder None bei Fehlern
     """
-    # Berechne Mittelpunkt der Geometrie
-    centroid = calculate_geometry_centroid(geometry)
-    if not centroid:
+    try:
+        # Transformiere Geometrie nach WGS84 (EPSG:4326) falls nötig
+        # TILDA-Links benötigen Lat/Lng Koordinaten
+        import geopandas as gpd
+        from shapely.geometry import mapping
+        
+        # Erstelle temporäres GeoDataFrame um CRS-Transformation zu nutzen
+        temp_gdf = gpd.GeoDataFrame([{'geometry': geometry}], crs=None)
+        
+        # Versuche das CRS zu ermitteln - wenn die Geometrie bereits aus einem GeoDataFrame kommt,
+        # sollte sie ein CRS haben. Falls nicht, gehen wir davon aus, dass es schon WGS84 ist.
+        # Typischerweise kommt die Geometrie hier aus EPSG:25833 (UTM Zone 33N)
+        if hasattr(geometry, '__geo_interface__'):
+            # Shapely-Geometrie ohne CRS-Info
+            # Wir nehmen an, dass die Koordinaten in EPSG:25833 sind (Standard für Berlin)
+            temp_gdf = gpd.GeoDataFrame([{'geometry': geometry}], crs='EPSG:25833')
+        
+        # Transformiere zu WGS84
+        temp_gdf_wgs84 = temp_gdf.to_crs('EPSG:4326')
+        geometry_wgs84 = temp_gdf_wgs84.iloc[0].geometry
+        
+        # Berechne Mittelpunkt der transformierten Geometrie
+        centroid = calculate_geometry_centroid(geometry_wgs84)
+        if not centroid:
+            return None
+        
+        center_lng, center_lat = centroid
+        
+        # Baue vollständigen URL
+        base_url = "https://tilda-geo.de/regionen/infravelo"
+        # Format: map=zoom/lat/lng
+        map_param = f"map={zoom}/{center_lat}/{center_lng}"
+        data_param = f"data={dataset}"
+        full_url = f"{base_url}?{map_param}&{data_param}"
+        
+        return full_url
+        
+    except Exception as e:
+        logging.warning(f"Fehler bei TILDA-Link-Generierung: {e}")
         return None
-    
-    center_lng, center_lat = centroid
-    
-    # Baue vollständigen URL
-    base_url = "https://tilda-geo.de/regionen/infravelo"
-    # Format: map=zoom/lat/lng
-    map_param = f"map={zoom}/{center_lat}/{center_lng}"
-    data_param = f"data={dataset}"
-    full_url = f"{base_url}?{map_param}&{data_param}"
-    
-    return full_url
 
 
 def generate_snapping_tilda_link(tilda_id: str, geometry) -> str:
