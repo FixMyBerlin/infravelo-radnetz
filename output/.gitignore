@@ -7,3 +7,4 @@
 osm_candidates_per_edge*
 *.csv
 .~lock*
+*.backup
