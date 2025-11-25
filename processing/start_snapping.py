@@ -53,7 +53,7 @@ from helpers.snapping_calculations import (
 )
 from helpers.tilda_link_generator import generate_snapping_tilda_link
 from helpers.construction_comments import update_construction_comments
-from helpers.construction_comments import update_construction_comments
+from helpers.override_edges import load_opposite_edge_overwrite_list, apply_opposite_edge_overwrite
 
 # -------------------------------------------------------------- Konstanten --
 CONFIG_BUFFER_DEFAULT = 30     # Standard-Puffergröße in Metern zum Suchraum
@@ -64,9 +64,6 @@ CONFIG_CPU_CORES = mp.cpu_count() - 2  # Anzahl CPU-Kerne für Parallelisierung 
 
 # Neukölln Grenzendatei
 INPUT_NEUKOELLN_BOUNDARY_FILE = "Bezirk Neukölln Grenze.fgb"
-
-# Datei mit element_nr für manuelles Überschreiben der Rückrichtung (ri=1)
-OPPOSITE_EDGE_OVERWRITE_FILE = "opposite_edge_overwrite_element_nr.txt"
 
 # Führungsformen, die keine Breitenangabe erfordern (werden bei fehlender Breite auf NULL gesetzt)
 FUEHR_WITHOUT_WIDTH_REQUIREMENT = [
@@ -687,299 +684,6 @@ def normalize_merge_attributes_batch(df, fields):
     return pd.DataFrame(normalized, index=df.index)
 
 
-def load_opposite_edge_overwrite_list(data_dir):
-    """
-    Lädt die Liste der element_nr, für die die Rückrichtung (ri=1) verarbeitet werden soll.
-    
-    Unterstützt vier Modi:
-    1. element_nr alleine: Entfernt ri=1 komplett (alte Funktionalität)
-    2. element_nr|Gegenrichtung: Setzt ri=1 auf "Keine Radinfrastruktur vorhanden"
-    3. element_nr|Hinrichtung: Setzt ri=0 auf "Keine Radinfrastruktur vorhanden"
-    4. element_nr|Beide: Setzt ri=0 UND ri=1 auf "Keine Radinfrastruktur vorhanden"
-    
-    Format:
-    - 40450020_40450004.01                  # Entfernt ri=1
-    - 40450020_40450004.01|Gegenrichtung    # Setzt ri=1 auf "Keine Radinfra"
-    - 49510013_49510004.01|Hinrichtung      # Setzt ri=0 auf "Keine Radinfra"
-    - 49510013_49510004.01|Beide            # Setzt ri=0 UND ri=1 auf "Keine Radinfra"
-    
-    Args:
-        data_dir: Verzeichnis mit der Datei opposite_edge_overwrite_element_nr.txt
-    
-    Returns:
-        dict: Dictionary mit vier Keys:
-            - 'remove': set von element_nr (Strings), für die ri=1 entfernt werden soll
-            - 'keine_infra_ri1': set von element_nr für ri=1 → "Keine Radinfra"
-            - 'keine_infra_ri0': set von element_nr für ri=0 → "Keine Radinfra"
-            - 'keine_infra_beide': set von element_nr für ri=0+ri=1 → "Keine Radinfra"
-    """
-    file_path = Path(data_dir) / OPPOSITE_EDGE_OVERWRITE_FILE
-    
-    if not file_path.exists():
-        logging.info(f"Keine Opposite-Edge-Overwrite-Liste gefunden: {file_path}")
-        return {'remove': set(), 'keine_infra_ri1': set(), 'keine_infra_ri0': set(), 'keine_infra_beide': set()}
-    
-    element_nrs_remove = set()
-    element_nrs_keine_infra_ri1 = set()  # Gegenrichtung
-    element_nrs_keine_infra_ri0 = set()  # Hinrichtung
-    element_nrs_keine_infra_beide = set()  # Beide
-    
-    with open(file_path, 'r', encoding='utf-8') as f:
-        for line_num, line in enumerate(f, 1):
-            # Entferne Whitespace und Kommentare
-            line = line.strip()
-            
-            # Überspringe leere Zeilen und Kommentare
-            if not line or line.startswith('#'):
-                continue
-            
-            # Parse neue Syntax: element_nr|Modus
-            if '|' in line:
-                parts = line.split('|', 1)
-                if len(parts) == 2:
-                    element_nr = parts[0].strip()
-                    mode = parts[1].strip().lower()
-                    
-                    # Gegenrichtung (ri=1) - neue und alte Schreibweisen
-                    if mode in ['gegenrichtung', 'gegen', 'ri1', 'true', 'keineradinfra', 'keine_radinfra', 'keineinfra']:
-                        element_nrs_keine_infra_ri1.add(element_nr)
-                        logging.debug(f"  Zeile {line_num}: '{element_nr}' → Gegenrichtung (ri=1) KeineRadinfra-Modus")
-                    # Hinrichtung (ri=0)
-                    elif mode in ['hinrichtung', 'hin', 'ri0']:
-                        element_nrs_keine_infra_ri0.add(element_nr)
-                        logging.debug(f"  Zeile {line_num}: '{element_nr}' → Hinrichtung (ri=0) KeineRadinfra-Modus")
-                    # Beide (ri=0 + ri=1)
-                    elif mode in ['beide', 'both', 'all', 'beiderichtungen']:
-                        element_nrs_keine_infra_beide.add(element_nr)
-                        logging.debug(f"  Zeile {line_num}: '{element_nr}' → Beide Richtungen KeineRadinfra-Modus")
-                    else:
-                        logging.warning(
-                            f"Zeile {line_num}: Unbekannter Modus '{mode}' für element_nr={element_nr} - "
-                            f"verwende Remove-Modus (gültig: Gegenrichtung, Hinrichtung, Beide)"
-                        )
-                        element_nrs_remove.add(element_nr)
-                else:
-                    # Ungültiges Format mit |, behandle als Remove
-                    logging.warning(f"Zeile {line_num}: Ungültiges Format '{line}' - verwende Remove-Modus")
-                    element_nrs_remove.add(line)
-            else:
-                # Alte Syntax: nur element_nr (Remove-Modus)
-                element_nrs_remove.add(line)
-                logging.debug(f"  Zeile {line_num}: '{line}' → Remove-Modus")
-    
-    total = len(element_nrs_remove) + len(element_nrs_keine_infra_ri1) + len(element_nrs_keine_infra_ri0) + len(element_nrs_keine_infra_beide)
-    if total > 0:
-        logging.info(
-            f"✔  Opposite-Edge-Overwrite-Liste geladen: {total} element_nr(s) aus {file_path} "
-            f"(Remove: {len(element_nrs_remove)}, Gegenrichtung: {len(element_nrs_keine_infra_ri1)}, "
-            f"Hinrichtung: {len(element_nrs_keine_infra_ri0)}, Beide: {len(element_nrs_keine_infra_beide)})"
-        )
-    else:
-        logging.info(f"Opposite-Edge-Overwrite-Liste ist leer: {file_path}")
-    
-    return {
-        'remove': element_nrs_remove,
-        'keine_infra_ri1': element_nrs_keine_infra_ri1,
-        'keine_infra_ri0': element_nrs_keine_infra_ri0,
-        'keine_infra_beide': element_nrs_keine_infra_beide
-    }
-
-
-def apply_opposite_edge_overwrite(gdf, opposite_edge_config):
-    """
-    Verarbeitet Rückrichtung (ri=1) für die angegebenen element_nr.
-    
-    Unterstützt vier Modi:
-    1. Remove-Modus: Entfernt ri=1 komplett
-    2. Gegenrichtung-Modus: Setzt ri=1 auf "Keine Radinfrastruktur vorhanden"
-    3. Hinrichtung-Modus: Setzt ri=0 auf "Keine Radinfrastruktur vorhanden"
-    4. Beide-Modus: Setzt ri=0 UND ri=1 auf "Keine Radinfrastruktur vorhanden"
-    
-    Gibt Warnungen aus, wenn ri=0 verkehrsri="Zweirichtungsverkehr" hat.
-    
-    Args:
-        gdf: GeoDataFrame mit den Kanten
-        opposite_edge_config: Dictionary mit 'remove', 'keine_infra_ri1', 'keine_infra_ri0', 'keine_infra_beide' Sets
-    
-    Returns:
-        GeoDataFrame: Verarbeitetes GeoDataFrame
-    """
-    # Kompatibilität: Falls altes Format übergeben wird
-    if isinstance(opposite_edge_config, set):
-        opposite_edge_config = {'remove': opposite_edge_config, 'keine_infra_ri1': set(), 'keine_infra_ri0': set(), 'keine_infra_beide': set()}
-    elif 'keine_infra' in opposite_edge_config:  # Alte Version mit nur 'keine_infra'
-        opposite_edge_config = {
-            'remove': opposite_edge_config.get('remove', set()),
-            'keine_infra_ri1': opposite_edge_config.get('keine_infra', set()),
-            'keine_infra_ri0': set(),
-            'keine_infra_beide': set()
-        }
-    
-    element_nrs_remove = opposite_edge_config.get('remove', set())
-    element_nrs_keine_infra_ri1 = opposite_edge_config.get('keine_infra_ri1', set())
-    element_nrs_keine_infra_ri0 = opposite_edge_config.get('keine_infra_ri0', set())
-    element_nrs_keine_infra_beide = opposite_edge_config.get('keine_infra_beide', set())
-    
-    total = len(element_nrs_remove) + len(element_nrs_keine_infra_ri1) + len(element_nrs_keine_infra_ri0) + len(element_nrs_keine_infra_beide)
-    
-    if total == 0:
-        logging.info("Keine Opposite-Edge-Overwrites zu verarbeiten")
-        return gdf
-    
-    logging.info(
-        f"Verarbeite Opposite-Edge-Overwrites für {total} element_nr(s) "
-        f"(Remove: {len(element_nrs_remove)}, Gegenrichtung: {len(element_nrs_keine_infra_ri1)}, "
-        f"Hinrichtung: {len(element_nrs_keine_infra_ri0)}, Beide: {len(element_nrs_keine_infra_beide)})..."
-    )
-    
-    # Zähler für Statistiken
-    removed_count = 0
-    keine_infra_ri1_count = 0
-    keine_infra_ri0_count = 0
-    keine_infra_beide_count = 0
-    warning_count = 0
-    not_found_count = 0
-    
-    # Verarbeite Remove-Modus
-    for element_nr in element_nrs_remove:
-        # Finde alle Kanten mit dieser element_nr
-        matching_edges = gdf[gdf['element_nr'] == element_nr]
-        
-        if len(matching_edges) == 0:
-            logging.warning(f"  element_nr={element_nr}: NICHT GEFUNDEN in Daten (Remove-Modus)")
-            not_found_count += 1
-            continue
-        
-        # Prüfe ri=0 Kante auf Zweirichtungsverkehr
-        ri0_edges = matching_edges[matching_edges['ri'] == 0]
-        if len(ri0_edges) > 0:
-            for _, edge in ri0_edges.iterrows():
-                verkehrsri = edge.get('verkehrsri', None)
-                if verkehrsri == 'Zweirichtungsverkehr':
-                    logging.warning(
-                        f"  ⚠️  element_nr={element_nr} (ri=0): Verkehrsrichtung ist 'Zweirichtungsverkehr' "
-                        f"- BITTE MANUELL PRÜFEN ob Rückrichtung wirklich entfernt werden soll!"
-                    )
-                    warning_count += 1
-        
-        # Entferne ri=1 Kanten
-        ri1_edges = matching_edges[matching_edges['ri'] == 1]
-        if len(ri1_edges) > 0:
-            logging.info(f"  element_nr={element_nr}: Entferne {len(ri1_edges)} ri=1 Kante(n)")
-            removed_count += len(ri1_edges)
-    
-    # Filtere das GeoDataFrame (Remove-Modus)
-    original_count = len(gdf)
-    mask = ~((gdf['element_nr'].isin(element_nrs_remove)) & (gdf['ri'] == 1))
-    gdf = gdf[mask].copy()
-    
-    # Verarbeite Gegenrichtung-Modus (ri=1)
-    for element_nr in element_nrs_keine_infra_ri1:
-        # Finde alle ri=1 Kanten mit dieser element_nr
-        mask = (gdf['element_nr'] == element_nr) & (gdf['ri'] == 1)
-        matching_indices = gdf[mask].index
-        
-        if len(matching_indices) == 0:
-            logging.warning(f"  element_nr={element_nr}: NICHT GEFUNDEN in Daten (Gegenrichtung-Modus, ri=1)")
-            not_found_count += 1
-            continue
-        
-        # Setze fuehr="Keine Radinfrastruktur vorhanden"
-        gdf.loc[matching_indices, 'fuehr'] = 'Keine Radinfrastruktur vorhanden'
-        
-        # Setze alle anderen Merge-Attribute (außer ri, fuehr, verkehrsri) auf None
-        for attr in FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES:
-            if attr not in ['ri', 'fuehr', 'verkehrsri']:
-                if attr in gdf.columns:
-                    gdf.loc[matching_indices, attr] = None
-        
-        # Setze auch zusätzliche Attribute auf None (für Konsistenz)
-        for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
-            if attr in gdf.columns:
-                gdf.loc[matching_indices, attr] = None
-        
-        logging.info(
-            f"  element_nr={element_nr}: Setze {len(matching_indices)} Gegenrichtung (ri=1) Kante(n) auf "
-            f"'Keine Radinfrastruktur vorhanden'"
-        )
-        keine_infra_ri1_count += len(matching_indices)
-    
-    # Verarbeite Hinrichtung-Modus (ri=0)
-    for element_nr in element_nrs_keine_infra_ri0:
-        # Finde alle ri=0 Kanten mit dieser element_nr
-        mask = (gdf['element_nr'] == element_nr) & (gdf['ri'] == 0)
-        matching_indices = gdf[mask].index
-        
-        if len(matching_indices) == 0:
-            logging.warning(f"  element_nr={element_nr}: NICHT GEFUNDEN in Daten (Hinrichtung-Modus, ri=0)")
-            not_found_count += 1
-            continue
-        
-        # Setze fuehr="Keine Radinfrastruktur vorhanden"
-        gdf.loc[matching_indices, 'fuehr'] = 'Keine Radinfrastruktur vorhanden'
-        
-        # Setze alle anderen Merge-Attribute (außer ri, fuehr, verkehrsri) auf None
-        for attr in FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES:
-            if attr not in ['ri', 'fuehr', 'verkehrsri']:
-                if attr in gdf.columns:
-                    gdf.loc[matching_indices, attr] = None
-        
-        # Setze auch zusätzliche Attribute auf None (für Konsistenz)
-        for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
-            if attr in gdf.columns:
-                gdf.loc[matching_indices, attr] = None
-        
-        logging.info(
-            f"  element_nr={element_nr}: Setze {len(matching_indices)} Hinrichtung (ri=0) Kante(n) auf "
-            f"'Keine Radinfrastruktur vorhanden'"
-        )
-        keine_infra_ri0_count += len(matching_indices)
-    
-    # Verarbeite Beide-Modus (ri=0 + ri=1)
-    for element_nr in element_nrs_keine_infra_beide:
-        # Finde alle Kanten (ri=0 und ri=1) mit dieser element_nr
-        mask = gdf['element_nr'] == element_nr
-        matching_indices = gdf[mask].index
-        
-        if len(matching_indices) == 0:
-            logging.warning(f"  element_nr={element_nr}: NICHT GEFUNDEN in Daten (Beide-Modus)")
-            not_found_count += 1
-            continue
-        
-        # Setze fuehr="Keine Radinfrastruktur vorhanden"
-        gdf.loc[matching_indices, 'fuehr'] = 'Keine Radinfrastruktur vorhanden'
-        
-        # Setze alle anderen Merge-Attribute (außer ri, fuehr, verkehrsri) auf None
-        for attr in FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES:
-            if attr not in ['ri', 'fuehr', 'verkehrsri']:
-                if attr in gdf.columns:
-                    gdf.loc[matching_indices, attr] = None
-        
-        # Setze auch zusätzliche Attribute auf None (für Konsistenz)
-        for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
-            if attr in gdf.columns:
-                gdf.loc[matching_indices, attr] = None
-        
-        logging.info(
-            f"  element_nr={element_nr}: Setze {len(matching_indices)} Kante(n) (beide Richtungen) auf "
-            f"'Keine Radinfrastruktur vorhanden'"
-        )
-        keine_infra_beide_count += len(matching_indices)
-    
-    logging.info(
-        f"✔  Opposite-Edge-Overwrite abgeschlossen: "
-        f"{removed_count} ri=1 Kante(n) entfernt, "
-        f"{keine_infra_ri1_count} Gegenrichtung (ri=1), "
-        f"{keine_infra_ri0_count} Hinrichtung (ri=0), "
-        f"{keine_infra_beide_count} Beide Richtungen auf 'Keine Radinfra' gesetzt, "
-        f"{warning_count} Warnung(en), "
-        f"{not_found_count} nicht gefunden"
-    )
-    logging.info(f"   Kanten vorher: {original_count}, nachher: {len(gdf)}")
-    
-    return gdf
-
-
 def normalize_merge_attribute(value):
     """
     Normalisiert einzelne Attributwerte für das Merging.
@@ -1230,7 +934,7 @@ def create_directional_segment_variants_optimized(seg_dict: dict, target_candida
                 
                 # Setze fehlende Attribute auf None
                 for attr in FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES:
-                    if attr not in variant:
+                    if attr != 'ri' and attr not in variant:
                         variant[attr] = None
                 for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
                     variant[attr] = None
@@ -1335,37 +1039,7 @@ def create_directional_segment_variants_from_matched_tilda_ways(seg_dict: dict, 
         if temp_best:
             # Berechne ri basierend auf dem besten Kandidaten
             calculated_ri = determine_segment_direction(seg_dict["geometry"], temp_best["geometry"])
-            
-            # Jetzt rufe find_best_candidate_for_direction mit dem korrekten ri auf
-            result = find_best_candidate_for_direction(einrichtung_candidates, seg_dict, calculated_ri, segment_angle)
-            
-            # Entpacke das Tupel und extrahiere Kandidaten-Prioritäten
-            best_osm, all_candidates_sorted = unpack_candidate_result(result)
-            candidates_priorities = extract_candidates_priorities(all_candidates_sorted)
-            
-            if best_osm:
-                variant = seg_dict.copy()
-                variant["ri"] = calculated_ri
-            
-            # Übertrage alle relevanten Attribute vom besten OSM-Match
-            for attr in FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES:
-                if attr == 'ri':  # ri wurde bereits explizit gesetzt
-                    continue
-                if attr in best_osm:
-                    variant[attr] = best_osm.get(attr)
 
-            # Zusätzliche OSM-Attribute für Debugging/Referenz
-            for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
-                variant[attr] = best_osm.get(attr)
-            
-            # Generiere TILDA-Link falls tilda_id vorhanden
-            if 'tilda_id' in best_osm and best_osm.get('tilda_id'):
-                variant['tilda_link'] = generate_snapping_tilda_link(best_osm['tilda_id'], variant['geometry'])
-            
-            # Übertrage Prioritätswerte falls vorhanden (mit Kandidaten-Liste)
-            set_priority_values(variant, best_osm, segment_angle, candidates_priorities)
-                
-            variants.append(variant)
     else:
         # Bestimme welche Kandidaten verwendet werden sollen
         candidates_to_use = target_candidates
@@ -1376,69 +1050,60 @@ def create_directional_segment_variants_from_matched_tilda_ways(seg_dict: dict, 
             all(cand.get('verkehrsri') == 'Einrichtungsverkehr' 
                 for _, cand in dual_carriageway_candidates.iterrows())):
             
-            logging.debug(f"Dual carriageway erkannt für element_nr={seg_dict.get('element_nr', 'unknown')}: "
-                         f"{len(dual_carriageway_candidates)} Kandidaten")
             candidates_to_use = dual_carriageway_candidates
         
         # Standardfall/Dual Carriageway: Erstelle zwei Varianten, eine für jede Richtung
         # Bei dual carriageway werden beide Richtungen erstellt, auch wenn OSM-Wege Einrichtungsverkehr sind
         # Dies repräsentiert die Tatsache, dass beide Fahrbahnen physisch vorhanden sind
-        for ri_value in [0, 1]:  # 0 = Hinrichtung, 1 = Rückrichtung
+        for ri_value in [0, 1]:
             variant = seg_dict.copy()
             variant["ri"] = ri_value
-
-            # Finde den besten Kandidaten für diese spezifische Richtung
-            result = find_best_candidate_for_direction(candidates_to_use, seg_dict, ri_value, segment_angle)
             
-            # Entpacke das Tupel und extrahiere Kandidaten-Prioritäten
-            best_osm, all_candidates_sorted = unpack_candidate_result(result)
-            candidates_priorities = extract_candidates_priorities(all_candidates_sorted)
-
-            if best_osm:
-                # Übertrage alle relevanten Attribute vom besten OSM-Match
-                for attr in FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES:
-                    if attr == 'ri':  # ri wird explizit durch die Schleife gesetzt
-                        continue
-                    if attr in best_osm:
-                        variant[attr] = best_osm.get(attr)
-
-                # Zusätzliche OSM-Attribute für Debugging/Referenz
-                for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
-                    variant[attr] = best_osm.get(attr)
-                
-                # Generiere TILDA-Link falls tilda_id vorhanden
-                if 'tilda_id' in best_osm and best_osm.get('tilda_id'):
-                    variant['tilda_link'] = generate_snapping_tilda_link(best_osm['tilda_id'], variant['geometry'])
-                
-                # Übertrage Prioritätswerte falls vorhanden (mit Kandidaten-Liste)
-                set_priority_values(variant, best_osm, segment_angle, candidates_priorities)
-            else:
-                # Kein Kandidat über Schwellenwert, aber schreibe trotzdem die Prioritäten des besten Kandidaten
-                # für Debugging-Zwecke (falls Kandidaten vorhanden)
-                best_below_threshold = get_best_below_threshold(all_candidates_sorted)
-                
-                # Keine OSM-Daten: Standardwerte setzen
-                for attr in FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES:
-                    if attr == 'ri':  # ri wird explizit durch die Schleife gesetzt
-                        continue
-                    if attr not in variant:  # Behalte existierende Spalten wie 'geometry' etc.
-                        variant[attr] = None
-                
-                # Zusätzliche OSM-Attribute für Debugging/Referenz auf None setzen
-                for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
-                    variant[attr] = None
-                
-                # Setze Prioritätswerte - auch wenn kein Kandidat übernommen wird, 
-                # schreibe die Prioritäten des besten Kandidaten (für Debugging)
-                set_priority_values(variant, best_below_threshold, segment_angle, candidates_priorities)
-
-            variants.append(variant)
     
     # Berechne die Länge für alle Varianten einmalig am Ende (gerundet, ohne Nachkommastellen)
     for variant in variants:
-        variant["Länge"] = int(round(calculate_segment_length(variant["geometry"])))
+        variant["Länge"] = int(round(variant["geometry"].length))
     
     return variants
+
+
+# -------------------------------------------------- Datenaufbereitung --
+def reorder_columns_for_output(gdf):
+    """
+    Ordnet die Spalten gemäß der definierten Reihenfolge für die finale Ausgabe.
+    Diese Funktion ist Teil der Datenaufbereitung, nicht der Hauptverarbeitung.
+    
+    Args:
+        gdf: GeoDataFrame mit den angereicherten Kanten
+        
+    Returns:
+        GeoDataFrame mit geordneten Spalten
+    """
+    existing_cols = [col for col in COLUMN_ORDER if col in gdf.columns]
+    remaining_cols = [col for col in gdf.columns if col not in existing_cols]
+    new_order = existing_cols + remaining_cols
+    return gdf[new_order]
+
+
+# ------------------------------------------------------------- Hauptablauf --
+def process(net_path, osm_path, out_path, crs, buffer, data_dir="./data", log_candidates=False, view=None, clip_region=None):
+    """
+    Hauptfunktion für das Snapping von TILDA-Daten auf das Straßennetz.
+    
+    Args:
+        net_path: Pfad zum Straßennetz (FlatGeobuf)
+        osm_path: Pfad zu den TILDA-übersetzten Daten (FlatGeobuf)
+        out_path: Ausgabepfad für die angereicherten Netzwerkdaten
+        crs: Koordinatensystem
+        buffer: Puffergröße in Metern für die Kandidatensuche
+        data_dir: Verzeichnis mit Zusatzdaten (Bezirksgrenzen, etc.)
+        log_candidates: Aktiviert das Kandidaten-Logging
+        view: Optional - Viewport für räumlichen Filter
+        clip_region: Optional - Region für räumlichen Filter (z.B. 'neukoelln')
+    """
+    logging.info("="*80)
+    logging.info("START: Netzwerk-Snapping-Prozess")
+    logging.info("="*80)
 
 
 # -------------------------------------------------- Datenaufbereitung --
@@ -1716,7 +1381,12 @@ def process(net_path, osm_path, out_path, crs, buffer, data_dir="./data", log_ca
     opposite_edge_element_nrs = load_opposite_edge_overwrite_list(data_dir)
     
     if opposite_edge_element_nrs:
-        net_segmented = apply_opposite_edge_overwrite(net_segmented, opposite_edge_element_nrs)
+        net_segmented = apply_opposite_edge_overwrite(
+            net_segmented, 
+            opposite_edge_element_nrs,
+            FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES,
+            FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES
+        )
     
     # ---------- Segmente verschmelzen ---------------------------------------
     logging.info("Fasse Segmente mit gleicher element_nr und TILDA-Attributen zusammen ...")
