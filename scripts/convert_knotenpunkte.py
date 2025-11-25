@@ -3,14 +3,18 @@
 """
 convert_knotenpunkte.py
 -----------------------
-Konvertiert die Knotenpunkte-Datei von GeoPackage in GeoJSON-Format.
+Konvertiert die Knotenpunkte-Datei von GeoPackage in GeoJSON-Format und 
+fügt virtuelle Knotenpunkte hinzu.
 
 Dieses Skript lädt die Datei `knotenpunkte_mit_id_und_bezirken.gpkg` aus dem 
-data-raw-tilda Verzeichnis und konvertiert sie in das GeoJSON-Format mit 
-Standard-Projektion (WGS84, EPSG:4326).
+data-raw-tilda Verzeichnis sowie die virtuellen Knotenpunkte aus 
+`Virtuelle-Knotenpunkte.gpkg` aus dem data Verzeichnis. Beide werden 
+zusammengeführt und in das GeoJSON-Format mit Standard-Projektion 
+(WGS84, EPSG:4326) konvertiert.
 
 INPUT:
 - data-raw-tilda/knotenpunkte_mit_id_und_bezirken.gpkg
+- data/Virtuelle-Knotenpunkte.gpkg
 
 OUTPUT:
 - output/knotenpunkte_mit_id_und_bezirken.geojson (in WGS84)
@@ -19,7 +23,8 @@ VERWENDUNG:
     python scripts/convert_knotenpunkte.py
 
 Das Ergebnis wird immer als GeoJSON in WGS84 (EPSG:4326) exportiert, um der 
-GeoJSON-Spezifikation zu entsprechen.
+GeoJSON-Spezifikation zu entsprechen. Virtuelle Knotenpunkte werden mit dem 
+Attribut `ist_virtuell=1` markiert.
 """
 
 import logging
@@ -27,9 +32,11 @@ import sys
 import os
 
 import geopandas as gpd
+import pandas as pd
 
 # Konfiguration für Pfade
 INPUT_FILE = "./data-raw-tilda/knotenpunkte_mit_id_und_bezirken.gpkg"
+VIRTUAL_KNOTENPUNKTE_FILE = "./data/Virtuelle-Knotenpunkte.gpkg"
 OUTPUT_DIR = "./output/"
 OUTPUT_FILE = "knotenpunkte_mit_id_und_bezirken.geojson"
 
@@ -45,9 +52,66 @@ def setup_logging():
     )
 
 
+def load_and_merge_virtual_knotenpunkte(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    """
+    Lädt die virtuellen Knotenpunkte und fügt sie dem GeoDataFrame hinzu.
+    
+    Virtuelle Knotenpunkte werden mit dem Attribut `ist_virtuell=1` markiert.
+    Die Spalte `Knotenpunkt-ID` aus der virtuellen Datei wird auf die Spalte
+    `Knotenpunkt‐ID` der Hauptdatei gemappt (Bindestrich vs. Unicode-Hyphen).
+    
+    Args:
+        gdf: GeoDataFrame mit den regulären Knotenpunkten
+        
+    Returns:
+        GeoDataFrame mit regulären und virtuellen Knotenpunkten zusammengeführt
+    """
+    if not os.path.exists(VIRTUAL_KNOTENPUNKTE_FILE):
+        logging.warning(f"Virtuelle Knotenpunkte-Datei nicht gefunden: {VIRTUAL_KNOTENPUNKTE_FILE}")
+        logging.warning("Fahre ohne virtuelle Knotenpunkte fort.")
+        return gdf
+    
+    logging.info(f"Lade virtuelle Knotenpunkte: {VIRTUAL_KNOTENPUNKTE_FILE}")
+    
+    # Lade virtuelle Knotenpunkte
+    virtual_gdf = gpd.read_file(VIRTUAL_KNOTENPUNKTE_FILE)
+    
+    logging.info(f"Anzahl virtuelle Knotenpunkte geladen: {len(virtual_gdf)}")
+    logging.info(f"Spalten virtuelle Knotenpunkte: {list(virtual_gdf.columns)}")
+    
+    # Markiere als virtuell
+    virtual_gdf['ist_virtuell'] = 1
+    
+    # Mappe Spaltenname: "Knotenpunkt-ID" (normaler Bindestrich) -> "Knotenpunkt‐ID" (Unicode-Hyphen)
+    # Die Hauptdatei verwendet einen Unicode-Hyphen (U+2010), die virtuelle Datei einen ASCII-Hyphen
+    if 'Knotenpunkt-ID' in virtual_gdf.columns:
+        # Finde den korrekten Spaltennamen in der Hauptdatei (mit Unicode-Hyphen)
+        kp_id_col = [col for col in gdf.columns if 'Knotenpunkt' in col and 'ID' in col]
+        if kp_id_col:
+            virtual_gdf = virtual_gdf.rename(columns={'Knotenpunkt-ID': kp_id_col[0]})
+            logging.info(f"Spalte 'Knotenpunkt-ID' umbenannt zu '{kp_id_col[0]}'")
+    
+    # Stelle sicher, dass beide GeoDataFrames das gleiche CRS haben
+    if virtual_gdf.crs != gdf.crs:
+        logging.info(f"Konvertiere virtuelle Knotenpunkte von {virtual_gdf.crs} zu {gdf.crs}")
+        virtual_gdf = virtual_gdf.to_crs(gdf.crs)
+    
+    # Füge die virtuellen Knotenpunkte hinzu
+    # pandas.concat fügt fehlende Spalten automatisch mit NaN-Werten hinzu
+    combined_gdf = pd.concat([gdf, virtual_gdf], ignore_index=True)
+    
+    # Konvertiere zurück zu GeoDataFrame (concat kann den Typ verlieren)
+    combined_gdf = gpd.GeoDataFrame(combined_gdf, geometry='geometry', crs=gdf.crs)
+    
+    logging.info(f"Zusammengeführte Knotenpunkte: {len(combined_gdf)} (davon {len(virtual_gdf)} virtuell)")
+    
+    return combined_gdf
+
+
 def convert_knotenpunkte_to_geojson():
     """
-    Konvertiert die Knotenpunkte-Datei von GeoPackage zu GeoJSON.
+    Konvertiert die Knotenpunkte-Datei von GeoPackage zu GeoJSON
+    und fügt virtuelle Knotenpunkte hinzu.
     
     Returns:
         bool: True wenn erfolgreich, False bei Fehler
@@ -72,6 +136,12 @@ def convert_knotenpunkte_to_geojson():
         logging.info(f"Anzahl Features geladen: {len(gdf)}")
         logging.info(f"Spalten: {list(gdf.columns)}")
         logging.info(f"Ursprüngliches CRS: {gdf.crs}")
+        
+        # Markiere alle regulären Knotenpunkte als nicht-virtuell
+        gdf['ist_virtuell'] = 0
+        
+        # Lade und füge virtuelle Knotenpunkte hinzu
+        gdf = load_and_merge_virtual_knotenpunkte(gdf)
         
         # Ersetze NULL-Werte durch "keine" für spezifische Attribute
         # Aber nur, wenn KP_Nichtbetrachten = 0 ist
