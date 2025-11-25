@@ -1,4 +1,5 @@
 import { Layer } from 'react-map-gl/maplibre'
+import { useLayerFilter } from '../hooks/useLayerFilter'
 import { getWidthOpacity, getWidthStyle } from './shared/widthStyle'
 
 type Props = {
@@ -6,6 +7,8 @@ type Props = {
 }
 
 export const BikelaneWidthLayer = ({ sourceLayer }: Props) => {
+  const filter = useLayerFilter('bikelanesWidth')
+
   return (
     <Layer
       id="bikelanes-width"
@@ -17,6 +20,7 @@ export const BikelaneWidthLayer = ({ sourceLayer }: Props) => {
         'line-opacity': getWidthOpacity,
         'line-width': 4,
       }}
+      {...(filter && { filter })}
       beforeId="static-layers-start"
     />
   )
