@@ -65,6 +65,17 @@ TARGET_CRS = f'EPSG:{DEFAULT_CRS}'
 CONFIG_CPU_CORES = mp.cpu_count() - 2  # Anzahl CPU-Kerne für Parallelisierung (alle minus 1)
 CONFIG_BATCH_SIZE = 300  # Größe der Batches für parallele Verarbeitung
 
+# Filter-Konfiguration: Wege, die aus dem Matching ausgeschlossen werden sollen
+CONFIG_FILTER_EXCLUDED_WAYS = {
+    'category': [
+        'cyclewayLink',  # Verbindungswege zwischen Radwegen (nicht für Matching relevant)
+    ],
+    'tilda_road': [
+        'footway_crossing',  # Fußgänger-Querungswege
+        'footway_steps',     # Treppen (nicht befahrbar mit Fahrrad)
+    ]
+}
+
 # Spaltenreihenfolge für matched_tilda_ways.fgb (wird in combine_multiple_datasets verwendet)
 # RVN-Attribute kommen vor TILDA-Attributen
 MATCHED_COLUMN_ORDER = [
@@ -128,27 +139,52 @@ def load_geodataframe(path, name, target_crs):
     return gdf
 
 
-def filter_out_cycleway_link(gdf, dataset_name):
-    """Filtert alle Elemente mit category == 'cyclewayLink' heraus.
+def filter_out_wrong_ways(gdf, dataset_name):
+    """
+    Filtert unerwünschte Wege aus dem Datensatz heraus basierend auf CONFIG_FILTER_EXCLUDED_WAYS.
+    
+    Die Konfiguration definiert für jede Spalte (key) eine Liste von auszuschließenden Werten.
 
     Args:
         gdf (GeoDataFrame): Eingangs-Datensatz.
         dataset_name (str): Name des Datensatzes für Logging.
 
     Returns:
-        GeoDataFrame: Gefilterter Datensatz ohne category == 'cyclewayLink'.
+        GeoDataFrame: Gefilterter Datensatz ohne unerwünschte Wege.
     """
-    if 'category' not in gdf.columns:
-        # Keine category-Spalte vorhanden – nichts zu tun
-        return gdf
     initial_count = len(gdf)
     if initial_count == 0:
         return gdf
-    mask = gdf['category'] != 'cyclewayLink'
+    
+    # Erstelle Maske für alle gültigen Wege (UND-Verknüpfung aller Bedingungen)
+    mask = pd.Series([True] * len(gdf), index=gdf.index)
+    removed_details = []
+    
+    # Iteriere über alle konfigurierten Filter
+    for column, excluded_values in CONFIG_FILTER_EXCLUDED_WAYS.items():
+        if column not in gdf.columns:
+            continue
+        
+        # Erstelle Maske für diese Spalte: behalte nur Werte, die NICHT in excluded_values sind
+        column_mask = ~gdf[column].isin(excluded_values)
+        
+        # Zähle entfernte Features pro Wert
+        for value in excluded_values:
+            value_removed = (gdf[column] == value).sum()
+            if value_removed > 0:
+                removed_details.append(f"{value_removed} {value}")
+        
+        # Kombiniere mit Gesamt-Maske
+        mask = mask & column_mask
+    
+    # Wende Filter an
     filtered = gdf[mask].copy()
-    removed = initial_count - len(filtered)
-    if removed > 0:
-        print(f"Filter: Entferne {removed} 'cyclewayLink' Features aus {dataset_name} (vorher {initial_count}, jetzt {len(filtered)}).")
+    total_removed = initial_count - len(filtered)
+    
+    if total_removed > 0:
+        details_str = ", ".join(removed_details)
+        print(f"Filter: Entferne {total_removed} unerwünschte Features aus {dataset_name}: {details_str}")
+    
     return filtered
 
 
@@ -433,8 +469,9 @@ def process_data_source(osm_fgb_path, output_prefix, vorrangnetz_gdf, unified_bu
             print(f"⚠️  OSM {output_prefix} nach Regional-Clipping leer - erstelle leeres Ergebnis")
             return osm_gdf  # Return empty GeoDataFrame
     
-    # Schritt 1c: Entferne category == cyclewayLink (soll nicht gematcht werden)
-    osm_gdf = filter_out_cycleway_link(osm_gdf, f"OSM {output_prefix}")
+    # Schritt 1c: Entferne unerwünschte Wege (cyclewayLink, footway_crossing, footway_steps)
+    osm_gdf = filter_out_wrong_ways(osm_gdf, f"OSM {output_prefix}")
+    
     # Schritt 2: OSM-Wege im Buffer finden
     os.makedirs(f"{base_dir}/matching", exist_ok=True)
     cache_path = f'{base_dir}/matching/osm_{output_prefix}_in_buffering.fgb'
