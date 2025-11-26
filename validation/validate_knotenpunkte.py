@@ -3,14 +3,13 @@
 """
 validate_knotenpunkte.py
 --------------------------------------------------------------------
-Validiert die Eindeutigkeit der Knotenpunkte im TILDA-Datensatz.
-Prüft, ob jede okstra_id nur einmal vorkommt und gibt Warnungen bei Duplikaten aus.
+Validiert die Knotenpunkte im TILDA-Datensatz.
 
 INPUT:
 - data-raw-tilda/knotenpunkte_mit_id_und_bezirken.gpkg
 
 OUTPUT:
-- Konsolenausgabe mit Warnungen bei gefundenen Duplikaten
+- Konsolenausgabe mit Warnungen bei gefundenen Problemen
 """
 
 import sys
@@ -18,15 +17,26 @@ import logging
 import geopandas as gpd
 import pandas as pd
 from pathlib import Path
-from collections import Counter
-
-# Import der Helper aus processing
-sys.path.append(str(Path(__file__).parent.parent / 'processing'))
-from helpers.globals import DEFAULT_CRS
 
 # Logging konfigurieren
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# ============================================================================
+# KONFIGURATION: Pflichtfelder bei KP_Nichtbetrachten != 1
+# ============================================================================
+# Diese Felder müssen ausgefüllt sein, wenn KP_Nichtbetrachten NICHT 1 ist
+PFLICHTFELDER_BEI_BETRACHTUNG = [
+    'Knotenpunkt‐ID',  # Achtung: Bindestrich ist ein spezielles Unicode-Zeichen
+    'Bezirksnummer',
+    'KP_HVS',
+    'LSA_KP',
+    'Mar_RVF_KP',
+    'Furt_rot',
+    'Fl_Linksab',
+    'vorgez_Fl',
+    'RFS_Mitte'
+]
 
 
 def load_knotenpunkte(file_path):
@@ -51,114 +61,79 @@ def load_knotenpunkte(file_path):
         sys.exit(1)
 
 
-def validate_okstra_id_uniqueness(gdf):
+def validate_pflichtfelder_bei_betrachtung(gdf):
     """
-    Prüfe, ob jede okstra_id eindeutig ist.
+    Prüfe, ob bei Knotenpunkten mit KP_Nichtbetrachten != 1 alle Pflichtfelder ausgefüllt sind.
     
     Args:
         gdf: GeoDataFrame mit Knotenpunkten
         
     Returns:
-        True wenn alle okstra_ids eindeutig sind, False sonst
+        True wenn alle Pflichtfelder bei zu betrachtenden Knotenpunkten ausgefüllt sind, False sonst
     """
-    logger.info("Validiere Eindeutigkeit der okstra_id...")
+    logger.info("Prüfe Pflichtfelder bei zu betrachtenden Knotenpunkten (KP_Nichtbetrachten != 1)...")
     
-    # Prüfe, ob okstra_id-Spalte existiert
-    if 'okstra_id' not in gdf.columns:
-        logger.error("FEHLER: Spalte 'okstra_id' nicht gefunden!")
+    # Prüfe, ob KP_Nichtbetrachten-Spalte existiert
+    if 'KP_Nichtbetrachten' not in gdf.columns:
+        logger.error("FEHLER: Spalte 'KP_Nichtbetrachten' nicht gefunden!")
         logger.error(f"Verfügbare Spalten: {list(gdf.columns)}")
         return False
     
-    # Zähle Vorkommen jeder okstra_id
-    okstra_id_counts = Counter(gdf['okstra_id'])
+    # Filtere Knotenpunkte, die betrachtet werden sollen (KP_Nichtbetrachten == 0)
+    zu_betrachten_mask = gdf['KP_Nichtbetrachten'] == 0
+    gdf_zu_betrachten = gdf[zu_betrachten_mask]
     
-    # Finde Duplikate (IDs, die mehr als einmal vorkommen)
-    duplicates = {okstra_id: count for okstra_id, count in okstra_id_counts.items() if count > 1}
+    logger.info(f"Zu betrachtende Knotenpunkte (KP_Nichtbetrachten == 0): {len(gdf_zu_betrachten)} von {len(gdf)}")
     
-    if not duplicates:
-        logger.info("✓ Alle okstra_ids sind eindeutig!")
+    if len(gdf_zu_betrachten) == 0:
+        logger.info("✓ Keine zu betrachtenden Knotenpunkte gefunden (KP_Nichtbetrachten == 0)")
         return True
     
-    # Ausgabe der Duplikate
-    logger.warning(f"⚠ WARNUNG: {len(duplicates)} okstra_id(s) kommen mehrfach vor!")
-    logger.warning("-" * 80)
+    all_valid = True
+    total_null_count = 0
     
-    for okstra_id, count in sorted(duplicates.items(), key=lambda x: x[1], reverse=True):
-        logger.warning(f"  okstra_id '{okstra_id}' kommt {count}x vor")
+    for feld in PFLICHTFELDER_BEI_BETRACHTUNG:
+        # Prüfe, ob Feld existiert
+        if feld not in gdf.columns:
+            logger.warning(f"⚠ WARNUNG: Pflichtfeld '{feld}' nicht in den Daten gefunden!")
+            all_valid = False
+            continue
         
-        # Zeige Details zu den betroffenen Features
-        duplicate_features = gdf[gdf['okstra_id'] == okstra_id]
-        for idx, row in duplicate_features.iterrows():
-            # Sichere Geometrie-Koordinaten-Extraktion
-            if row.geometry is None or row.geometry.is_empty:
-                coords = "keine Geometrie"
-            else:
-                try:
-                    coords = f"({row.geometry.x:.2f}, {row.geometry.y:.2f})"
-                except AttributeError:
-                    coords = f"{row.geometry.geom_type}"
-            
-            logger.warning(f"    - Index {idx}: Koordinaten {coords}")
-            
-            # Zeige zusätzliche Attribute, falls vorhanden
-            if 'Bezirksnummer' in row.index and pd.notna(row['Bezirksnummer']):
-                logger.warning(f"      Bezirk: {row['Bezirksnummer']}")
-    
-    logger.warning("-" * 80)
-    logger.warning(f"Gesamt: {sum(duplicates.values())} nicht-eindeutige Features gefunden")
-    
-    return False
-
-
-def validate_null_okstra_ids(gdf):
-    """
-    Prüfe, ob es Features ohne okstra_id gibt.
-    
-    Args:
-        gdf: GeoDataFrame mit Knotenpunkten
+        # Prüfe auf NULL-Werte
+        null_mask = gdf_zu_betrachten[feld].isnull()
+        null_count = null_mask.sum()
         
-    Returns:
-        True wenn alle Features eine okstra_id haben, False sonst
-    """
-    logger.info("Prüfe auf fehlende okstra_ids...")
-    
-    null_ids = gdf['okstra_id'].isnull()
-    null_count = null_ids.sum()
-    
-    if null_count == 0:
-        logger.info("✓ Alle Features haben eine okstra_id")
-        return True
-    
-    logger.warning(f"⚠ WARNUNG: {null_count} Feature(s) haben keine okstra_id!")
-    
-    # Zeige Details zu Features ohne okstra_id
-    null_features = gdf[null_ids]
-    for idx, row in null_features.head(10).iterrows():
-        # Sichere Geometrie-Koordinaten-Extraktion
-        if row.geometry is None or row.geometry.is_empty:
-            coords = "keine Geometrie"
+        if null_count > 0:
+            all_valid = False
+            total_null_count += null_count
+            logger.warning(f"⚠ WARNUNG: Pflichtfeld '{feld}' hat {null_count} NULL-Werte bei zu betrachtenden Knotenpunkten!")
+            
+            # Zeige erste Beispiele
+            null_indices = gdf_zu_betrachten[null_mask].index[:5].tolist()
+            logger.warning(f"  Beispiel-Indizes: {null_indices}")
+            
+            if null_count > 5:
+                logger.warning(f"  ... und {null_count - 5} weitere NULL-Werte")
         else:
-            try:
-                coords = f"({row.geometry.x:.2f}, {row.geometry.y:.2f})"
-            except AttributeError:
-                coords = f"{row.geometry.geom_type}"
-        
-        logger.warning(f"  - Index {idx}: Koordinaten {coords}")
+            logger.info(f"✓ Pflichtfeld '{feld}': Keine NULL-Werte")
     
-    if null_count > 10:
-        logger.warning(f"  ... und {null_count - 10} weitere Features")
+    if not all_valid:
+        logger.warning("-" * 80)
+        logger.warning(f"Gesamt: {total_null_count} NULL-Werte in Pflichtfeldern gefunden")
+    else:
+        logger.info("✓ Alle Pflichtfelder sind bei zu betrachtenden Knotenpunkten ausgefüllt!")
     
-    return False
+    return all_valid
 
 
 def main():
     """Hauptfunktion zur Validierung der Knotenpunkte."""
     logger.info("=" * 80)
-    logger.info("VALIDIERUNG: Knotenpunkte-Eindeutigkeit")
+    logger.info("VALIDIERUNG: Knotenpunkte - Pflichtfelder bei Betrachtung")
     logger.info("=" * 80)
     
     # Dateipfad definieren
-    input_file = Path("data-raw-tilda/knotenpunkte_mit_id_und_bezirken.gpkg")
+    input_file = Path("output/knotenpunkte_mit_id_und_bezirken.geojson")
     
     if not input_file.exists():
         logger.error(f"FEHLER: Datei nicht gefunden: {input_file}")
@@ -170,8 +145,7 @@ def main():
     # Validierungen durchführen
     validation_results = []
     
-    validation_results.append(validate_null_okstra_ids(gdf))
-    validation_results.append(validate_okstra_id_uniqueness(gdf))
+    validation_results.append(validate_pflichtfelder_bei_betrachtung(gdf))
     
     # Zusammenfassung
     logger.info("=" * 80)

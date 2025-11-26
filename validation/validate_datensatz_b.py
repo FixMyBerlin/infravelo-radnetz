@@ -48,7 +48,9 @@ ATTRIBUTES_TO_VALIDATE = [
     'pflicht',
     'strassenname',
     'Bezirksnummer',
-    'Länge'
+    'Länge',
+    'beginnt_bei_vp',
+    'endet_bei_vp'
 ]
 
 # Diese Attribute werden von der Validierung geprüft, führen aber NICHT zur 
@@ -219,6 +221,43 @@ def validate_todo_values(gdf, attributes):
         logger.info("✓ Keine TODO-Werte gefunden!")
     
     return all_valid
+
+
+def validate_element_nr_unknown(gdf):
+    """
+    Prüfe, ob element_nr den Substring 'UNKNOWN' enthält.
+    
+    Args:
+        gdf: GeoDataFrame mit den Daten
+        
+    Returns:
+        True wenn keine UNKNOWN-Werte gefunden wurden, False sonst
+    """
+    logger.info("Prüfe auf UNKNOWN-Substring in element_nr...")
+    
+    if 'element_nr' not in gdf.columns:
+        logger.warning("⚠ WARNUNG: Attribut 'element_nr' nicht gefunden!")
+        return False
+    
+    # Suche nach UNKNOWN (case-insensitive)
+    unknown_mask = gdf['element_nr'].astype(str).str.contains('UNKNOWN', case=False, na=False)
+    unknown_count = unknown_mask.sum()
+    
+    if unknown_count > 0:
+        logger.warning(f"⚠ WARNUNG: element_nr hat {unknown_count} Einträge mit 'UNKNOWN'!")
+        
+        # Zeige erste Beispiele mit den Werten
+        unknown_features = gdf[unknown_mask].head(5)
+        for idx, row in unknown_features.iterrows():
+            logger.warning(f"  Index {idx}: '{row['element_nr']}'")
+        
+        if unknown_count > 5:
+            logger.warning(f"  ... und {unknown_count - 5} weitere UNKNOWN-Einträge")
+        
+        return False
+    
+    logger.info("✓ Attribut 'element_nr': Keine UNKNOWN-Werte")
+    return True
 
 
 def validate_missing_attributes(gdf, attributes):
@@ -412,6 +451,7 @@ def main():
     validation_results.append(validate_missing_attributes(gdf, ATTRIBUTES_TO_VALIDATE))
     validation_results.append(validate_null_values(gdf, ATTRIBUTES_TO_VALIDATE))
     validation_results.append(validate_todo_values(gdf, ATTRIBUTES_TO_VALIDATE))
+    validation_results.append(validate_element_nr_unknown(gdf))
     
     # Zusammenfassung
     logger.info("=" * 80)
