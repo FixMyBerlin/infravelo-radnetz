@@ -143,7 +143,7 @@ def convert_knotenpunkte_to_geojson():
         # Lade und füge virtuelle Knotenpunkte hinzu
         gdf = load_and_merge_virtual_knotenpunkte(gdf)
         
-        # Ersetze NULL-Werte durch "keine" für spezifische Attribute
+        # Ersetze NULL-Werte und "(NULL)"-Strings durch "keine" für spezifische Attribute
         # Aber nur, wenn KP_Nichtbetrachten = 0 ist
         null_replacement_columns = ['Mar_RVF_KP', 'Furt_rot', 'Fl_Linksab', 'vorgez_Fl', 'RFS_Mitte']
         
@@ -155,12 +155,21 @@ def convert_knotenpunkte_to_geojson():
             
             for col in null_replacement_columns:
                 if col in gdf.columns:
-                    # Zähle NULL-Werte bei KP_Nichtbetrachten = 0
+                    # Zähle echte NULL-Werte (NaN) bei KP_Nichtbetrachten = 0
                     null_count = (gdf.loc[mask, col].isna()).sum()
+                    # Zähle "(NULL)"-String-Werte bei KP_Nichtbetrachten = 0
+                    string_null_count = (gdf.loc[mask, col] == "(NULL)").sum()
+                    
                     if null_count > 0:
-                        # Ersetze NULL nur bei KP_Nichtbetrachten = 0
+                        # Ersetze echte NULL nur bei KP_Nichtbetrachten = 0
                         gdf.loc[mask, col] = gdf.loc[mask, col].fillna('keine')
                         logging.info(f"Ersetze {null_count} NULL-Werte in Spalte '{col}' durch 'keine' (nur bei KP_Nichtbetrachten = 0)")
+                    
+                    if string_null_count > 0:
+                        # Ersetze "(NULL)"-Strings nur bei KP_Nichtbetrachten = 0
+                        string_null_mask = mask & (gdf[col] == "(NULL)")
+                        gdf.loc[string_null_mask, col] = 'keine'
+                        logging.info(f"Ersetze {string_null_count} '(NULL)'-Strings in Spalte '{col}' durch 'keine' (nur bei KP_Nichtbetrachten = 0)")
                 else:
                     logging.warning(f"Spalte '{col}' nicht in Datei gefunden")
         else:
