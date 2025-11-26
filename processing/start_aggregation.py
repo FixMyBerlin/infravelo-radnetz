@@ -546,11 +546,14 @@ def normalize_mischverkehr_types(gdf):
     - "Mischverkehr (OSM:Schutzstreifen)" → "Mischverkehr mit motorisiertem Verkehr"
     - "Mischverkehr mit motorisiertem Verkehr" bleibt unverändert
     
+    WICHTIG: Entfernt auch die Breite bei allen Mischverkehr-Kanten nach der Aggregation,
+    da Mischverkehr keine Breitenangabe haben soll.
+    
     Args:
         gdf: GeoDataFrame mit aggregierten Kanten
         
     Returns:
-        GeoDataFrame mit vereinheitlichten Mischverkehr-Typen
+        GeoDataFrame mit vereinheitlichten Mischverkehr-Typen (ohne Breite)
     """
     if 'fuehr' not in gdf.columns:
         logging.warning("Spalte 'fuehr' nicht gefunden - überspringe Normalisierung der Mischverkehr-Typen")
@@ -576,6 +579,15 @@ def normalize_mischverkehr_types(gdf):
         logging.info(f"Gesamt nach Normalisierung: {total_mischverkehr}× 'Mischverkehr mit motorisiertem Verkehr'")
     else:
         logging.info("Keine Mischverkehr-Varianten zur Normalisierung gefunden")
+    
+    # WICHTIG: Entferne Breite bei ALLEN Mischverkehr-Kanten nach der Aggregation
+    # Dies ist notwendig, da bei der Aggregation die Breite von anderen Segmenten übernommen werden könnte
+    if 'breite' in gdf.columns:
+        mischverkehr_mask = gdf['fuehr'].str.contains('Mischverkehr', case=False, na=False)
+        mischverkehr_with_breite = (mischverkehr_mask & gdf['breite'].notna()).sum()
+        if mischverkehr_with_breite > 0:
+            logging.info(f"Entferne Breite bei {mischverkehr_with_breite} Mischverkehr-Kanten nach Aggregation")
+            gdf.loc[mischverkehr_mask, 'breite'] = None
     
     return gdf
 
