@@ -56,7 +56,7 @@ from helpers.construction_comments import update_construction_comments
 from helpers.override_edges import load_opposite_edge_overwrite_list, apply_opposite_edge_overwrite
 
 # -------------------------------------------------------------- Konstanten --
-CONFIG_BUFFER_DEFAULT = 30     # Standard-Puffergröße in Metern zum Suchraum
+CONFIG_BUFFER_DEFAULT = 33     # Standard-Puffergröße in Metern zum Suchraum
 CONFIG_SEGMENT_LENGTH = 2.5    # Segmentlänge in Metern für die Netz-Aufteilung
 CONFIG_PROGRESS_UPDATE_INTERVAL = 100  # Fortschritt alle N Segmente aktualisieren
 CONFIG_BATCH_SIZE = 750        # Anzahl Segmente pro Batch für bessere Performance
