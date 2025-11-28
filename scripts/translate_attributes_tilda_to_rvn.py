@@ -460,6 +460,11 @@ def determine_kommentar(row, translated_row=None) -> str:
     - Zusatzkommentare: Für jedes Attribut mit [TODO] wird hinzugefügt:
       "{Attributname} Attribut fehlt aufgrund von Baustelle"
     
+    Wenn lifecycle=temporary:
+    - Hauptkommentar: "Temporäre Markierungen zum Erhebungszeitpunkt"
+    - Zusatzkommentare: Für jedes Attribut mit [TODO] wird hinzugefügt:
+      "{Attributname} Attribut fehlt aufgrund von temporärer Infrastruktur"
+    
     Args:
         row: Datenzeile mit OSM-Attributen
         translated_row: Optional - Datenzeile mit übersetzten RVN-Attributen (nach Translation)
@@ -497,6 +502,14 @@ def determine_kommentar(row, translated_row=None) -> str:
     
     elif lifecycle == "temporary":
         comments.append("Temporäre Markierungen zum Erhebungszeitpunkt")
+        
+        # Zusatzkommentare: Fehlende Attribute aufgrund temporärer Infrastruktur
+        if translated_row is not None:
+            todo_attrs = collect_todo_attributes(translated_row, CONFIG_ATTRIBUTES_NOT_RENAMING)
+            for attr in todo_attrs:
+                # Kapitalisiere ersten Buchstaben des Attributnamens
+                attr_display = attr.capitalize()
+                comments.append(f"{attr_display} Attribut fehlt aufgrund von temporärer Infrastruktur")
     
     # Verbinde alle Kommentare mit Semikolon
     if comments:

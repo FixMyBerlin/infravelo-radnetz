@@ -52,7 +52,7 @@ from helpers.snapping_calculations import (
     SnappingPriorities
 )
 from helpers.tilda_link_generator import generate_snapping_tilda_link
-from helpers.construction_comments import update_construction_comments
+from helpers.construction_comments import update_construction_comments, update_temporary_infrastructure_comments
 from helpers.override_edges import load_opposite_edge_overwrite_list, apply_opposite_edge_overwrite
 
 # -------------------------------------------------------------- Konstanten --
@@ -1464,6 +1464,9 @@ def process(net_path, osm_path, out_path, crs, buffer, data_dir="./data", log_ca
     
     # Aktualisiere Kommentare für Baustellen mit neu hinzugefügten TODO-Attributen
     update_construction_comments(out_gdf)
+    
+    # Aktualisiere Kommentare für temporäre Infrastruktur mit neu hinzugefügten TODO-Attributen
+    update_temporary_infrastructure_comments(out_gdf)
 
     # ---------- Ergebnis speichern ------------------------------------------
     p, *layer = out_path.split(":")
