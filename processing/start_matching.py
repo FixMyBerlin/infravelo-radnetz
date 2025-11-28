@@ -19,17 +19,16 @@ OUTPUT TMP FILES:
 - output/matched/matched_tilda_bikelanes_ways.fgb
 - output/matched/matched_tilda_streets_ways.fgb
 - output/matched/matched_tilda_paths_ways.fgb
-- output/matched/matched_tilda_streets_without_bikelanes.fgb
-- output/matched/matched_tilda_paths_without_streets_and_bikelanes.fgb
+- output/matched/matched_tilda_streets_without_bikelanes.fgb (nur für Analyse)
+- output/matched/matched_tilda_paths_without_streets_and_bikelanes.fgb (nur für Analyse)
 
 OUTPUT:
-- output/matched/matched_tilda_ways.fgb (kombinierte Datei)
+- output/matched/matched_tilda_ways.fgb (kombinierte Datei mit ALLEN Datenquellen)
 
 VERWENDUNG:
 - Standardmodus: python start_matching.py (verwendet ganz Berlin)
 - Regionaler Zuschnitt: python start_matching.py --clip neukoelln|norden|sueden
 - Viewport Zuschnitt: python start_matching.py --view 18/52.488306/13.425140
-- Alle Straßen verwenden: python start_matching.py --use-all-streets-in-buffer (verwendet alle Straßen im Buffer anstatt nur die ohne Radwege)
 """
 
 import geopandas as gpd
@@ -67,9 +66,6 @@ CONFIG_BATCH_SIZE = 300  # Größe der Batches für parallele Verarbeitung
 
 # Filter-Konfiguration: Wege, die aus dem Matching ausgeschlossen werden sollen
 CONFIG_FILTER_EXCLUDED_WAYS = {
-    'category': [
-        'cyclewayLink',  # Verbindungswege zwischen Radwegen (nicht für Matching relevant)
-    ],
     'tilda_road': [
         'footway_crossing',  # Fußgänger-Querungswege
         'footway_steps',     # Treppen (nicht befahrbar mit Fahrrad)
@@ -423,9 +419,11 @@ def parse_arguments():
     parser.add_argument('--skip-bikelanes', action='store_true', help='Skip processing of bikelanes dataset')
     parser.add_argument('--skip-streets', action='store_true', help='Skip processing of streets dataset')
     parser.add_argument('--skip-paths', action='store_true', help='Skip processing of paths dataset')
-    parser.add_argument('--skip-difference-streets-bikelanes', action='store_true', help='Skip difference: only streets without bikelanes')
-    parser.add_argument('--skip-difference-paths-streets-bikelanes', action='store_true', help='Skip difference: only paths without streets and bikelanes')
-    parser.add_argument('--use-all-streets-in-buffer', action='store_true', help='Verwende alle Straßen im Buffer anstatt nur Straßen ohne Radwege für das finale Dataset')
+    # HINWEIS: Differenz-Berechnungen werden nicht mehr für die finale Kombination verwendet,
+    # da parallele Straßen und Radwege unterschiedliche Infrastrukturen darstellen können.
+    # Die Differenz-Dateien werden weiterhin für Analyse-Zwecke erstellt.
+    parser.add_argument('--skip-difference-streets-bikelanes', action='store_true', help='Skip difference calculation (nur für Analyse-Zwecke)')
+    parser.add_argument('--skip-difference-paths-streets-bikelanes', action='store_true', help='Skip difference calculation (nur für Analyse-Zwecke)')
     parser.add_argument('--clip', type=str, choices=['neukoelln', 'norden', 'sueden'], help="Regionaler Zuschnitt: 'neukoelln', 'norden' oder 'sueden'. Nicht mit --view kombinierbar.")
     parser.add_argument('--view', type=str, help="Viewport Zuschnitt 'zoom/lat/lon' (WGS84, z.B. 18/52.488306/13.425140). Nicht mit --clip kombinierbar.")
     # Parallelisierungs-Optionen
@@ -469,7 +467,7 @@ def process_data_source(osm_fgb_path, output_prefix, vorrangnetz_gdf, unified_bu
             print(f"⚠️  OSM {output_prefix} nach Regional-Clipping leer - erstelle leeres Ergebnis")
             return osm_gdf  # Return empty GeoDataFrame
     
-    # Schritt 1c: Entferne unerwünschte Wege (cyclewayLink, footway_crossing, footway_steps)
+    # Schritt 1c: Entferne unerwünschte Wege (footway_crossing, footway_steps)
     osm_gdf = filter_out_wrong_ways(osm_gdf, f"OSM {output_prefix}")
     
     # Schritt 2: OSM-Wege im Buffer finden
@@ -773,27 +771,29 @@ def main():
             protected_ids=protected_ids
         )
 
-    # Kombiniere alle verfügbaren Datensätze (ohne Überschneidungen)
+    # Kombiniere alle verfügbaren Datensätze
+    # HINWEIS: Wir verwenden ALLE Straßen (nicht nur streets_without_bikelanes),
+    # da parallele Straßen und Radwege unterschiedliche Infrastrukturen darstellen können.
+    # Das Snapping wählt durch seine Priorisierung (SnappingPriorities) den passenden Kandidaten.
     datasets_for_combination = {}
+    
     # Verwende alle Radwege
     if processed_datasets.get('bikelanes') is not None:
         datasets_for_combination['bikelanes'] = processed_datasets['bikelanes']
     
-    # Entscheide, ob alle Straßen oder nur Straßen ohne Radwege verwendet werden sollen
-    if args.use_all_streets_in_buffer:
-        # Verwende alle Straßen im Buffer
-        if processed_datasets.get('streets') is not None:
-            datasets_for_combination['streets'] = processed_datasets['streets']
-            print("Hinweis: Verwende alle Straßen im Buffer für das finale Dataset.")
-    else:
-        # Verwende nur Straßen ohne Radwege
-        if streets_without_bikelanes is not None:
-            datasets_for_combination['streets'] = streets_without_bikelanes
-            print("Hinweis: Verwende nur Straßen ohne Radwege.")
+    # Verwende ALLE Straßen im Buffer (nicht nur Straßen ohne Radwege)
+    # Grund: Parallele Straßen und Radwege sind oft unterschiedliche Infrastrukturen
+    # (z.B. Fahrbahn mit Mischverkehr neben Gehweg mit Radverkehr frei).
+    # Die Differenzberechnung hat diese fälschlicherweise entfernt.
+    if processed_datasets.get('streets') is not None:
+        datasets_for_combination['streets'] = processed_datasets['streets']
+        print("Hinweis: Verwende alle Straßen im Buffer (Snapping-Priorisierung wählt den besten Kandidaten).")
     
-    # Verwende die gefilterten Wege (ohne Streets und Bikelanes) anstatt der ursprünglichen Wege
-    if paths_without_streets_and_bikelanes is not None:
-        datasets_for_combination['paths'] = paths_without_streets_and_bikelanes
+    # Verwende ALLE Wege im Buffer (nicht nur paths_without_streets_and_bikelanes)
+    # Gleicher Grund wie bei Straßen: verschiedene Infrastrukturen können parallel existieren.
+    if processed_datasets.get('paths') is not None:
+        datasets_for_combination['paths'] = processed_datasets['paths']
+        print("Hinweis: Verwende alle Wege im Buffer (Snapping-Priorisierung wählt den besten Kandidaten).")
 
     if datasets_for_combination:
         # Bestimme Dateiname mit optionalem Suffix basierend auf Clipping
@@ -805,11 +805,8 @@ def main():
         combined_gdf = combine_multiple_datasets(datasets_for_combination, combined_path)
         if combined_gdf is not None:
             print(f"Kombinierte Daten gespeichert: {combined_path}")
-            if args.use_all_streets_in_buffer:
-                print(f"Hinweis: Alle Straßen im Buffer wurden verwendet. Wege wurden von Straßen und Radwegen subtrahiert.")
-            else:
-                print(f"Hinweis: Straßen ohne Radwege wurden verwendet.")
-            print(f"         Wege wurden von Straßen und Radwegen subtrahiert, um Überschneidungen zu vermeiden.")
+            print(f"Hinweis: Alle Datenquellen (bikelanes, streets, paths) wurden ohne Differenzberechnung kombiniert.")
+            print(f"         Das Snapping wählt durch Priorisierung den passenden Kandidaten pro Segment.")
     else:
         print("Warnung: Keine Daten zum Kombinieren verfügbar.")
 
