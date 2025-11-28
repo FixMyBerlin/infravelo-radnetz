@@ -57,6 +57,10 @@ BUFFER_BIKELANES_METERS = 35  # Buffer-Radius in Metern für Radwege
 BUFFER_STREETS_METERS = 15    # Buffer-Radius in Metern für Straßen
 BUFFER_PATHS_METERS = 15      # Buffer-Radius in Metern für Wege
 
+# Mindestanteil eines Weges, der im Buffer liegen muss, um aufgenommen zu werden (0.0 - 1.0)
+# Ein Wert von 0.7 bedeutet: mindestens 70% der Weglänge müssen im Buffer liegen
+BUFFER_FRACTION_THRESHOLD = 0.7
+
 # Verwende CRS aus globals.py
 TARGET_CRS = f'EPSG:{DEFAULT_CRS}'
 
@@ -220,11 +224,17 @@ def process_geometries_batch_parallel(batch_data):
     return batch_mask
 
 
-def find_osm_ways_in_buffer_parallel(osm_gdf, unified_buffer, cache_path, fraction_threshold=0.7, use_parallel=True):
+def find_osm_ways_in_buffer_parallel(osm_gdf, unified_buffer, cache_path, fraction_threshold=None, use_parallel=True):
     """
     Findet alle OSM-Wege, die zu mindestens fraction_threshold im Buffer liegen. 
     Nutzt File Caching und optionale Parallelisierung.
+    
+    Args:
+        fraction_threshold: Mindestanteil der Weglänge im Buffer (default: BUFFER_FRACTION_THRESHOLD)
     """
+    if fraction_threshold is None:
+        fraction_threshold = BUFFER_FRACTION_THRESHOLD
+        
     if os.path.exists(cache_path):
         print(f'Lade zwischengespeichertes Ergebnis aus {cache_path}...')
         matched_gdf = gpd.read_file(cache_path)
