@@ -122,10 +122,10 @@ def determine_verkehrsri(row, data_source: str) -> str:
         elif oneway == "car_not_bike":
             return "Zweirichtungsverkehr"
         elif oneway == "assumed_no":
-            # TODO Prüfen ob die Daten präzisiert werden müssen
+            # Prüfen ob die Daten präzisiert werden müssen
             return "Zweirichtungsverkehr"
         elif oneway == "implicit_yes":
-            # TODO Prüfen ob die Daten präzisiert werden müssen
+            # Prüfen ob die Daten präzisiert werden müssen
             return "Einrichtungsverkehr"
         elif not oneway or oneway in ["None", "none"]:
             # Fehlende Werte
@@ -218,6 +218,8 @@ def determine_fuehrung(row, data_source: str) -> str:
         return "Sonstige Wege (Gehwege, Wege durch Grünflächen, Plätze)"
     elif category == "crossing":
         return "Kreuzungsweg"
+    elif category == "cyclewayLink":
+        return "Radweg"  # Verbindungswege zwischen Radwegen
     elif category == "needsClarification":
         return "[TODO] Klärung notwendig"
     
@@ -341,7 +343,7 @@ def determine_protek(row) -> str:
     
     # TODO: Weitere komplexe Logik für Poller mit/ohne Sperrfläche
     logging.warning(f"Keine Protektion gefunden für Feature {row.get('osm_id', 'unbekannt')}")
-    return "[TODO] Protektionstyp fehlt"
+    return "Protektionstyp nicht bekannt"
 
 
 def determine_trennstreifen(row) -> str:
