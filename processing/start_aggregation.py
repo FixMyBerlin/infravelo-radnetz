@@ -297,10 +297,91 @@ def aggregate_fuehr_by_longest_section(segments_group):
     return None
 
 
+def append_comment(existing_comment, new_comment):
+    """
+    Ergänzt einen bestehenden Kommentar um einen neuen Text.
+    Fügt "; " als Trennzeichen ein, wenn bereits ein Kommentar existiert.
+    
+    Args:
+        existing_comment: Bestehender Kommentar (kann None oder leer sein)
+        new_comment: Neuer Kommentar-Text zum Anhängen
+        
+    Returns:
+        Kombinierter Kommentar-String
+    """
+    if existing_comment and pd.notna(existing_comment) and str(existing_comment).strip():
+        return f"{existing_comment}; {new_comment}"
+    return new_comment
+
+
+def aggregate_breite_excluding_kreuzungsweg(segments_group):
+    """
+    Aggregiert die Breite (kleinster Wert) unter Ausschluss von Kreuzungsweg-Segmenten.
+    
+    Kreuzungswege haben oft schmale Breiten, die nicht repräsentativ für die gesamte
+    Kante sind. Daher werden sie bei der Breitenaggregation ignoriert.
+    
+    Args:
+        segments_group: DataFrame-Gruppe mit Segmenten einer Kante
+        
+    Returns:
+        tuple: (aggregierte_breite, nur_kreuzungswege)
+            - aggregierte_breite: Kleinste Breite der Nicht-Kreuzungsweg-Segmente oder None
+            - nur_kreuzungswege: True wenn nur Kreuzungswege vorhanden waren
+    """
+    if 'breite' not in segments_group.columns:
+        return None, False
+    
+    if 'fuehr' not in segments_group.columns:
+        # Ohne fuehr-Spalte können wir Kreuzungswege nicht identifizieren
+        # Fallback: normale min-Aggregation
+        values = segments_group['breite'].dropna().tolist()
+        if not values:
+            return None, False
+        numeric_values = pd.to_numeric(values, errors='coerce')
+        numeric_values = numeric_values[~pd.isna(numeric_values)]
+        return float(min(numeric_values)) if len(numeric_values) > 0 else None, False
+    
+    # Filtere Segmente die KEINE Kreuzungswege sind
+    non_kreuzungsweg_mask = segments_group['fuehr'] != "Kreuzungsweg"
+    non_kreuzungsweg_segments = segments_group[non_kreuzungsweg_mask]
+    
+    # Prüfe ob nur Kreuzungswege vorhanden sind
+    if len(non_kreuzungsweg_segments) == 0:
+        logging.debug("Nur Kreuzungswege vorhanden - Breite wird leer gelassen")
+        return None, True
+    
+    # Extrahiere Breiten der Nicht-Kreuzungsweg-Segmente
+    breite_values = non_kreuzungsweg_segments['breite'].dropna().tolist()
+    if not breite_values:
+        return None, False
+    
+    # Konvertiere zu numerischen Werten
+    numeric_values = pd.to_numeric(breite_values, errors='coerce')
+    numeric_values = numeric_values[~pd.isna(numeric_values)]
+    
+    if len(numeric_values) == 0:
+        return None, False
+    
+    min_breite = float(min(numeric_values))
+    
+    # Logging wenn Kreuzungswege ignoriert wurden
+    kreuzungsweg_count = (~non_kreuzungsweg_mask).sum()
+    if kreuzungsweg_count > 0:
+        logging.debug(
+            f"Breite-Aggregation: {kreuzungsweg_count} Kreuzungsweg-Segment(e) ignoriert, "
+            f"min. Breite aus {len(numeric_values)} Segment(en): {min_breite:.2f}m"
+        )
+    
+    return min_breite, False
+
+
 def aggregate_by_worst_case(segments_group, attribute, aggregation_type):
     """
     Aggregiert ein Attribut basierend auf dem schlechtesten Fall.
-
+    
+    Hinweis: Für 'breite' wird stattdessen aggregate_breite_excluding_kreuzungsweg
+    verwendet, um Kreuzungswege auszuschließen.
     """
     if attribute not in segments_group.columns:
         return None
@@ -311,6 +392,7 @@ def aggregate_by_worst_case(segments_group, attribute, aggregation_type):
     
     if aggregation_type == "min":
         # Kleinster numerischer Wert (für Breite)
+        # HINWEIS: Für Breite sollte aggregate_breite_excluding_kreuzungsweg verwendet werden
         # Konvertiere zu numerischen Werten, falls als String gespeichert
         numeric_values = pd.to_numeric(values, errors='coerce')
         numeric_values = numeric_values[~pd.isna(numeric_values)]
@@ -367,6 +449,16 @@ def aggregate_edge_group(edge_group):
     if len(edge_group) == 1:
         # Nur ein Segment - keine Aggregation nötig
         aggregated = edge_group.iloc[0].copy()
+        
+        # Prüfe ob Einzelsegment ein Kreuzungsweg ist → Breite entfernen und Kommentar ergänzen
+        if 'fuehr' in aggregated and aggregated.get('fuehr') == "Kreuzungsweg":
+            aggregated['breite'] = None
+            existing_comment = aggregated.get('Kommentar', None)
+            aggregated['Kommentar'] = append_comment(
+                existing_comment,
+                "Breite nicht ermittelbar (nur Kreuzungswege vorhanden)"
+            )
+            logging.debug(f"Einzelsegment Kreuzungsweg: Breite entfernt, Kommentar ergänzt")
     else:
         # Basis-Informationen der Kante übernehmen (erste Zeile)
         aggregated = edge_group.iloc[0].copy()
@@ -398,8 +490,22 @@ def aggregate_edge_group(edge_group):
                 aggregated[attr] = aggregate_by_longest_section(edge_group, attr)
         
         # Attribute nach "schlechtestem Fall" aggregieren
+        # Spezielle Behandlung für Breite: Kreuzungswege ausschließen
+        if 'breite' in edge_group.columns:
+            breite_value, nur_kreuzungswege = aggregate_breite_excluding_kreuzungsweg(edge_group)
+            aggregated['breite'] = breite_value
+            if nur_kreuzungswege:
+                # Kommentar ergänzen wenn nur Kreuzungswege vorhanden waren
+                existing_comment = aggregated.get('Kommentar', None)
+                aggregated['Kommentar'] = append_comment(
+                    existing_comment,
+                    "Breite nicht ermittelbar (nur Kreuzungswege vorhanden)"
+                )
+                logging.debug(f"Kante mit nur Kreuzungswegen: Kommentar ergänzt")
+        
+        # Andere Worst-Case-Attribute aggregieren (ohne Breite, da oben behandelt)
         for attr, agg_type in WORST_CASE_ATTRIBUTES.items():
-            if attr in edge_group.columns:
+            if attr in edge_group.columns and attr != 'breite':
                 aggregated[attr] = aggregate_by_worst_case(edge_group, attr, agg_type)
         
         # TILDA-Attribute durch Semikolon-Kombination aggregieren (dynamisch erkannt)
