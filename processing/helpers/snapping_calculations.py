@@ -42,11 +42,11 @@ class SnappingPriorities:
     # Kategorie-Prioritäten (höhere Zahl = höhere Priorität)
     # Geht auch als Prozent in die Distanzberechnung ein.
     CATEGORY_PRIORITIES = {
-        "cycleway*":                33,  # Radweg
+        "cycleway*":                32,  # Radweg
         "footAndCycleway*":         31,  # Fußweg mit Radverkehr
         "footwayBicycle*":          30,  # Fußweg mit Radverkehr
         "bicycleRoad*":             28,  # Fahrradstraße
-        "crossing":                 25, # Kreuzungsweg
+        "crossing":                 27, # Kreuzungsweg
         "sharedBusLaneBikeWithBus": 12,  # Radfahrstreifen mit Busverkehr frei
         "sharedBusLaneBusWithBike": 12, # Bussonderfahrstreifen mit Radverkehr frei
         "pedestrianAreaBicycleYes": 5,  # Fußgängerzone mit Radverkehr
