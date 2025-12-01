@@ -17,29 +17,49 @@ DEFAULT_ATTRIBUTE_NAMES = ["pflicht", "breite", "ofm", "farbe", "protek",
                            "trennstreifen", "nutz_beschr", "fuehr", "verkehrsri"]
 
 
-def collect_todo_attributes(row, attribute_names: list) -> list:
+def collect_todo_attributes(row, attribute_names: list, include_missing: bool = False) -> list:
     """
-    Sammelt alle Attribute die einen [TODO] Wert enthalten.
+    Sammelt alle Attribute die einen fehlenden oder unvollständigen Wert haben.
+    
+    Erkannt werden:
+    - Werte mit "[TODO]" im Text
+    - Werte mit "fehlt" im Text (z.B. "Breite fehlt", "[TODO] Fehlt")
+    - Bei include_missing=True zusätzlich: None, NaN, leere Strings
     
     Args:
         row: Datenzeile mit RVN-Attributen (pandas Series oder dict-like)
         attribute_names: Liste der zu prüfenden Attributnamen
+        include_missing: Wenn True, werden auch fehlende/leere Werte (None, NaN, "") 
+                        als fehlende Attribute gesammelt (z.B. für Baustellen)
     
     Returns:
-        Liste von Attributnamen, die TODO enthalten
+        Liste von Attributnamen, die als fehlend erkannt wurden
     """
     todo_attrs = []
     
     for attr in attribute_names:
         # Prüfe ob das Attribut existiert (sowohl für Series.index als auch dict-like)
         if hasattr(row, 'index') and attr in row.index:
-            value = str(row.get(attr, "")).strip()
+            raw_value = row.get(attr, None)
         elif attr in row:
-            value = str(row.get(attr, "")).strip()
+            raw_value = row.get(attr, None)
         else:
             continue
-            
-        if value and "[TODO]" in value.upper():
+        
+        # Prüfe auf fehlende Werte (None, NaN, leere Strings)
+        if include_missing:
+            import pandas as pd
+            if raw_value is None or (isinstance(raw_value, float) and pd.isna(raw_value)):
+                todo_attrs.append(attr)
+                continue
+            value_str = str(raw_value).strip()
+            if value_str in ["", "nan", "None", "none"]:
+                todo_attrs.append(attr)
+                continue
+        
+        # Prüfe auf [TODO] oder "fehlt" im Wert
+        value_str = str(raw_value).strip().lower() if raw_value is not None else ""
+        if value_str and ("[todo]" in value_str or "fehlt" in value_str):
             todo_attrs.append(attr)
     
     return todo_attrs
@@ -80,8 +100,10 @@ def _update_comments_for_pattern(gdf, search_pattern: str, reason_text: str,
     
     for idx in gdf[has_pattern].index:
         # Sammle alle TODO-Attribute für dieses Segment
+        # include_missing=True, da bei Baustellen/temporärer Infrastruktur auch fehlende Werte
+        # (z.B. breite=None) als fehlende Attribute gelten
         row = gdf.loc[idx]
-        todo_attrs = collect_todo_attributes(row, attribute_names)
+        todo_attrs = collect_todo_attributes(row, attribute_names, include_missing=True)
         
         # Wenn TODO-Attribute gefunden wurden, aktualisiere Kommentar
         if todo_attrs:

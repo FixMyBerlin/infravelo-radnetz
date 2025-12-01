@@ -457,13 +457,13 @@ def determine_kommentar(row, translated_row=None) -> str:
     
     Wenn lifecycle=construction:
     - Hauptkommentar: "Derzeit Baustelle (Stand ...)"
-    - Zusatzkommentare: Für jedes Attribut mit [TODO] wird hinzugefügt:
-      "{Attributname} Attribut fehlt aufgrund von Baustelle"
+    - Zusatzkommentare: Für jedes Attribut mit [TODO] oder fehlendem Wert (None, NaN, "")
+      wird hinzugefügt: "{Attributname} Attribut fehlt aufgrund von Baustelle"
     
     Wenn lifecycle=temporary:
     - Hauptkommentar: "Temporäre Markierungen zum Erhebungszeitpunkt"
-    - Zusatzkommentare: Für jedes Attribut mit [TODO] wird hinzugefügt:
-      "{Attributname} Attribut fehlt aufgrund von temporärer Infrastruktur"
+    - Zusatzkommentare: Für jedes Attribut mit [TODO] oder fehlendem Wert (None, NaN, "")
+      wird hinzugefügt: "{Attributname} Attribut fehlt aufgrund von temporärer Infrastruktur"
     
     Args:
         row: Datenzeile mit OSM-Attributen
@@ -494,7 +494,7 @@ def determine_kommentar(row, translated_row=None) -> str:
         
         # Zusatzkommentare: Fehlende Attribute aufgrund Baustelle
         if translated_row is not None:
-            todo_attrs = collect_todo_attributes(translated_row, CONFIG_ATTRIBUTES_NOT_RENAMING)
+            todo_attrs = collect_todo_attributes(translated_row, CONFIG_ATTRIBUTES_NOT_RENAMING, include_missing=True)
             for attr in todo_attrs:
                 # Kapitalisiere ersten Buchstaben des Attributnamens
                 attr_display = attr.capitalize()
@@ -505,7 +505,7 @@ def determine_kommentar(row, translated_row=None) -> str:
         
         # Zusatzkommentare: Fehlende Attribute aufgrund temporärer Infrastruktur
         if translated_row is not None:
-            todo_attrs = collect_todo_attributes(translated_row, CONFIG_ATTRIBUTES_NOT_RENAMING)
+            todo_attrs = collect_todo_attributes(translated_row, CONFIG_ATTRIBUTES_NOT_RENAMING, include_missing=True)
             for attr in todo_attrs:
                 # Kapitalisiere ersten Buchstaben des Attributnamens
                 attr_display = attr.capitalize()

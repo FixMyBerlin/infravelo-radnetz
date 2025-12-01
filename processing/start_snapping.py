@@ -1442,7 +1442,7 @@ def process(net_path, osm_path, out_path, crs, buffer, data_dir="./data", log_ca
         logging.info(f"Entferne Breite-Attribut bei {mischverkehr_count} Mischverkehr-Kanten (alle Varianten)")
         out_gdf.loc[mischverkehr_mask, 'breite'] = None
 
-    # Setze Breite auf '[TODO] Breite fehlt' für alle Segmente mit NULL-Breite,
+    # Setze Breite auf 'Breite fehlt' für alle Segmente mit NULL-Breite,
     # die eine Breitenangabe erfordern (alle außer 'Keine Radinfrastruktur' und FUEHR_WITHOUT_WIDTH_REQUIREMENT)
     # WICHTIG: Führungsformen in FUEHR_WITHOUT_WIDTH_REQUIREMENT behalten ihre Breite falls vorhanden,
     # erhalten aber kein [TODO] wenn keine Breite vorhanden ist
@@ -1452,8 +1452,8 @@ def process(net_path, osm_path, out_path, crs, buffer, data_dir="./data", log_ca
     combined_mask = breite_null_mask & keine_radinfra_mask_negiert & requires_width_mask
     breite_todo_count = combined_mask.sum()
     if breite_todo_count > 0:
-        logging.info(f"Setze breite='[TODO] Breite fehlt' für {breite_todo_count} Kanten ohne Breite (nur für Führungsformen mit Breitenerfordernis)")
-        out_gdf.loc[combined_mask, 'breite'] = '[TODO] Breite fehlt'
+        logging.info(f"Setze breite='Breite fehlt' für {breite_todo_count} Kanten ohne Breite (nur für Führungsformen mit Breitenerfordernis)")
+        out_gdf.loc[combined_mask, 'breite'] = 'Breite fehlt'
     
     # Logge Statistik für Führungsformen ohne Breitenerfordernis
     fuehr_no_width_mask = out_gdf['fuehr'].isin(FUEHR_WITHOUT_WIDTH_REQUIREMENT)
