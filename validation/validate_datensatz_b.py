@@ -40,6 +40,7 @@ logger = logging.getLogger(__name__)
 # Diese Attribute werden auf NULL-Werte und "TODO"-Substring geprüft
 ATTRIBUTES_TO_VALIDATE = [
     'fuehr',
+    'verkehrsri',
     'protek',
     'trennstreifen',
     'nutz_beschr',

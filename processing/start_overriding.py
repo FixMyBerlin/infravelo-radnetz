@@ -52,7 +52,7 @@ from helpers.clipping import clip_to_region, clip_to_view
 # Override-spezifische Attribute die überschrieben werden dürfen
 OVERRIDE_ATTRIBUTES = [
     'fuehr', 'ofm', 'protek', 'pflicht', 'breite', 
-    'farbe', 'trennstreifen', 'nutz_beschr'
+    'farbe', 'trennstreifen', 'nutz_beschr', 'verkehrsri'
 ]
 
 # Prioritäts-Attribute die bei Override gelöscht werden
