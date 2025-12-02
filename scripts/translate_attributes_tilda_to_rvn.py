@@ -25,6 +25,7 @@ from pathlib import Path
 from datetime import datetime
 import geopandas as gpd
 from helpers.globals import DEFAULT_CRS
+from start_snapping import CONFIG_BUFFER_DEFAULT
 from helpers.progressbar import print_progressbar
 from helpers.traffic_signs import has_traffic_sign
 from helpers.width_parser import parse_width
@@ -40,6 +41,8 @@ INPUT_FILES = {
     "streets": "TILDA Straßen Berlin.fgb", 
     "paths": "TILDA Wege Berlin.fgb"
 }
+# Radvorrangsnetz-Datei für Buffer-Clipping
+INPUT_RVN_FILE = "Berlin Radvorrangsnetz.fgb"
 # Neukölln Grenzendatei
 INPUT_NEUKOELLN_BOUNDARY_FILE = "Bezirk Neukölln Grenze.fgb"
 
@@ -96,6 +99,84 @@ TRAFFIC_SIGNS_NUTZ_BESCHR = ["Gehwegschäden", "Radwegschäden", "Geh- und Radwe
 CONFIG_REMOVE_TILDA_ATTRIBUTES = [
     "lit", "description", "maxspeed_name_ref", "maxspeed_confidence", "maxspeed_conditional", "maxspeed_source", "mapillary_coverage",  "bridge", "tunnel", "todos", "updated_age", "updated_at", "surface_confidence", "surface_source", "smoothness_confidence", "smoothness_source", "length", "offset", "_parent_highway"
 ]
+
+# RVN-Buffer Cache (wird einmal geladen und wiederverwendet)
+_rvn_buffer_cache = None
+
+
+def load_rvn_buffer(data_dir: str, crs: int, buffer_distance: float = CONFIG_BUFFER_DEFAULT) -> gpd.GeoDataFrame:
+    """
+    Lädt das Radvorrangsnetz und erstellt einen Buffer um alle Linien.
+    Das Ergebnis wird gecached um mehrfaches Laden zu vermeiden.
+    
+    Args:
+        data_dir: Verzeichnis mit den Eingabedateien
+        crs: Ziel-Koordinatensystem
+        buffer_distance: Puffergröße in Metern (default: CONFIG_BUFFER_DEFAULT)
+    
+    Returns:
+        GeoDataFrame mit gepuffertem RVN als einzelnes Polygon
+    """
+    global _rvn_buffer_cache
+    
+    if _rvn_buffer_cache is not None:
+        return _rvn_buffer_cache
+    
+    rvn_path = os.path.join(data_dir, INPUT_RVN_FILE)
+    
+    if not os.path.exists(rvn_path):
+        logging.warning(f"RVN-Datei nicht gefunden: {rvn_path}. Kein Buffer-Clipping möglich.")
+        return None
+    
+    logging.info(f"Lade RVN für Buffer-Berechnung: {rvn_path}")
+    rvn_gdf = gpd.read_file(rvn_path).to_crs(crs)
+    
+    # Erstelle Buffer um alle RVN-Linien und vereinige zu einem Polygon
+    logging.info(f"Erstelle {buffer_distance}m Buffer um RVN ({len(rvn_gdf)} Features)")
+    rvn_buffered = rvn_gdf.geometry.buffer(buffer_distance)
+    rvn_union = rvn_buffered.unary_union
+    
+    # Erstelle GeoDataFrame mit dem vereinigten Buffer
+    _rvn_buffer_cache = gpd.GeoDataFrame(geometry=[rvn_union], crs=crs)
+    
+    return _rvn_buffer_cache
+
+
+def clip_to_rvn_buffer(gdf: gpd.GeoDataFrame, data_dir: str, crs: int) -> gpd.GeoDataFrame:
+    """
+    Filtert alle Features, die den RVN-Buffer berühren (intersect).
+    Behält vollständige Linien - kein geometrisches Zuschneiden.
+    
+    Args:
+        gdf: GeoDataFrame mit TILDA-Daten
+        data_dir: Verzeichnis mit den Eingabedateien
+        crs: Ziel-Koordinatensystem
+    
+    Returns:
+        GeoDataFrame nur mit Features die den RVN-Buffer berühren
+    """
+    rvn_buffer = load_rvn_buffer(data_dir, crs)
+    
+    if rvn_buffer is None:
+        logging.warning("Kein RVN-Buffer verfügbar. Verwende alle Features.")
+        return gdf
+    
+    original_count = len(gdf)
+    
+    # Spatial Index für effiziente Abfrage
+    # Finde alle Features die den Buffer intersecten (berühren)
+    buffer_geom = rvn_buffer.geometry.iloc[0]
+    intersects_mask = gdf.geometry.intersects(buffer_geom)
+    
+    filtered_gdf = gdf[intersects_mask].copy()
+    
+    filtered_count = len(filtered_gdf)
+    removed_count = original_count - filtered_count
+    percentage = (filtered_count / original_count * 100) if original_count > 0 else 0
+    
+    logging.info(f"RVN-Buffer Clipping: {filtered_count} von {original_count} Features behalten ({percentage:.1f}%), {removed_count} entfernt")
+    
+    return filtered_gdf
 
 
 # --------------------------------------------------------- Hilfsfunktionen --
@@ -665,7 +746,10 @@ def process_file(input_file: str, data_source: str, output_dir: str, crs: str, c
     gdf = gpd.read_file(input_file).to_crs(crs)
     logging.info(f"Geladen: {len(gdf)} Features")
     
-    # Optional: Auf Region zuschneiden
+    # Standardmäßig: Auf RVN-Buffer zuschneiden (behält vollständige Linien die den Buffer berühren)
+    gdf = clip_to_rvn_buffer(gdf, data_dir, crs)
+    
+    # Optional: Zusätzlich auf Region zuschneiden
     if clip_region:
         from helpers.clipping import clip_to_region
         gdf = clip_to_region(gdf, data_dir, crs, clip_region)
