@@ -139,3 +139,84 @@ def generate_aggregation_tilda_link(tilda_id: str, geometry) -> str:
         str: TILDA-Link oder None
     """
     return generate_tilda_link(geometry, dataset="infravelo-datensatz-c-fortlaufend")
+
+
+def extract_mapillary_key(row: dict) -> str:
+    """
+    Extrahiert den Mapillary-Key aus den verfügbaren Attributen.
+    Priorität: tilda_mapillary > tilda_width_source > tilda_mapillary_traffic_sign
+    
+    Args:
+        row: Dictionary mit TILDA-Attributen
+        
+    Returns:
+        str: Mapillary-Key oder None
+    """
+    # Priorität 1: tilda_mapillary (Hauptattribut)
+    mapillary = row.get('tilda_mapillary')
+    if mapillary and str(mapillary).strip() and str(mapillary).strip().lower() not in ['none', 'nan', '']:
+        return str(mapillary).strip()
+    
+    # Priorität 2: tilda_width_source (Mapillary-Key von Breitenquelle)
+    width_source = row.get('tilda_width_source')
+    if width_source and str(width_source).strip() and str(width_source).strip().lower() not in ['none', 'nan', '']:
+        return str(width_source).strip()
+    
+    # Priorität 3: tilda_mapillary_traffic_sign (Mapillary-Key von Verkehrszeichen)
+    traffic_sign = row.get('tilda_mapillary_traffic_sign')
+    if traffic_sign and str(traffic_sign).strip() and str(traffic_sign).strip().lower() not in ['none', 'nan', '']:
+        return str(traffic_sign).strip()
+    
+    return None
+
+
+def generate_tilda_mapillary_link(row: dict, geometry) -> str:
+    """
+    Generiert einen TILDA-Mapillary-Link basierend auf dem Mapillary-Key und der Geometrie.
+    
+    URL-Struktur:
+    https://tilda-geo.de/regionen/infravelo?map=18.8/<lat>/<lng>&config=l6jzgk.5ount5.5&f=21|<mapillary_key>|<lng>|<lat>&bg=areal2025-summer&v=2
+    
+    Args:
+        row: Dictionary mit TILDA-Attributen (tilda_mapillary, tilda_width_source, tilda_mapillary_traffic_sign)
+        geometry: LineString oder MultiLineString Geometrie
+        
+    Returns:
+        str: Vollständiger TILDA-Mapillary-Link oder None
+    """
+    try:
+        # Extrahiere Mapillary-Key
+        mapillary_key = extract_mapillary_key(row)
+        if not mapillary_key:
+            return None
+        
+        # Transformiere Geometrie nach WGS84 (EPSG:4326)
+        import geopandas as gpd
+        
+        temp_gdf = gpd.GeoDataFrame([{'geometry': geometry}], crs='EPSG:25833')
+        temp_gdf_wgs84 = temp_gdf.to_crs('EPSG:4326')
+        geometry_wgs84 = temp_gdf_wgs84.iloc[0].geometry
+        
+        # Berechne Mittelpunkt
+        centroid = calculate_geometry_centroid(geometry_wgs84)
+        if not centroid:
+            return None
+        
+        center_lng, center_lat = centroid
+        
+        # Baue vollständigen URL
+        # Format: map=zoom/lat/lng, f=21|mapillary_key|lng|lat
+        base_url = "https://tilda-geo.de/regionen/infravelo"
+        map_param = f"map=18.8/{center_lat}/{center_lng}"
+        config_param = "config=l6jzgk.5ount5.5"
+        feature_param = f"f=21|{mapillary_key}|{center_lng}|{center_lat}"
+        bg_param = "bg=areal2025-summer"
+        version_param = "v=2"
+        
+        full_url = f"{base_url}?{map_param}&{config_param}&{feature_param}&{bg_param}&{version_param}"
+        
+        return full_url
+        
+    except Exception as e:
+        logging.warning(f"Fehler bei TILDA-Mapillary-Link-Generierung: {e}")
+        return None

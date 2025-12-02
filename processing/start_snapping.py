@@ -84,7 +84,7 @@ RVN_ATTRIBUT_ENDE_VP   = "endet_bei_vp"         # Endknoten-ID
 # Attribute an denen die Kanten getrennt werden bzw. verschmolzen werden
 # Diese Attribute müssen in den übersetzten TILDA Daten vorhanden sein
 FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES = ["fuehr", "ofm", "protek", "pflicht", "breite", "farbe", "ri", "verkehrsri", "trennstreifen", "nutz_beschr", "Kommentar"]
-FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES=["data_source", "tilda_id", "tilda_link", "tilda_name","tilda_oneway", "tilda_category", "tilda_traffic_sign", "tilda_mapillary", "tilda_mapillary_traffic_sign", "tilda_mapillary_backward", "tilda_mapillary_forward", "tilda_width_source", "prio_traffic_sign", "prio_category", "prio_streetname_equality", "prio_angle", "prio_distance", "prio_overlap", "prio_direction_compatibility", "prio_total", "prio_candidates", "value_prio_distance_meter", "value_prio_overlap_score", "angle_diff", "angle_segment", "angle_tilda"]
+FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES=["data_source", "tilda_id", "tilda_link", "tilda_link_mapillary", "tilda_name","tilda_oneway", "tilda_category", "tilda_traffic_sign", "tilda_mapillary", "tilda_mapillary_traffic_sign", "tilda_mapillary_backward", "tilda_mapillary_forward", "tilda_width_source", "prio_traffic_sign", "prio_category", "prio_streetname_equality", "prio_angle", "prio_distance", "prio_overlap", "prio_direction_compatibility", "prio_total", "prio_candidates", "value_prio_distance_meter", "value_prio_overlap_score", "angle_diff", "angle_segment", "angle_tilda"]
 
 # Gewünschte Spaltenreihenfolge für Datenaufbereitung (finale Ausgabe)
 COLUMN_ORDER = [
@@ -109,6 +109,7 @@ COLUMN_ORDER = [
     # TILDA-Spalten (geprefixte Spalten)
     "tilda_id",
     "tilda_link",
+    "tilda_link_mapillary",
     "tilda_name",
     "tilda_oneway",
     "tilda_category",

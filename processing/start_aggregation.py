@@ -40,7 +40,7 @@ from shapely.geometry import LineString, MultiLineString
 from helpers.progressbar import print_progressbar
 from helpers.district_assignment import assign_district_to_edges
 from helpers.globals import DEFAULT_CRS
-from helpers.tilda_link_generator import generate_aggregation_tilda_link
+from helpers.tilda_link_generator import generate_aggregation_tilda_link, generate_tilda_mapillary_link
 
 
 # -------------------------------------------------------------- Konstanten --
@@ -523,6 +523,9 @@ def aggregate_edge_group(edge_group):
         # Nur generieren wenn tilda_id vorhanden und nicht leer/None
         if tilda_id_value and tilda_id_value.lower() not in ['none', 'nan', '']:
             aggregated['tilda_link'] = generate_aggregation_tilda_link(tilda_id_value, aggregated.geometry)
+    
+    # Generiere tilda_link_mapillary basierend auf verfügbaren Mapillary-Attributen
+    aggregated['tilda_link_mapillary'] = generate_tilda_mapillary_link(aggregated, aggregated.geometry)
     
     # Zusätzliche Metadaten
     # DEBUG 
