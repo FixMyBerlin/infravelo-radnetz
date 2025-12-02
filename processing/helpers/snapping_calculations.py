@@ -60,7 +60,7 @@ class SnappingPriorities:
     # Richtungskompatibilität Prioritäten
     DIRECTION_PERFECT_MATCH = 15      # Einrichtungsverkehr mit passender Richtung
     DIRECTION_BIDIRECTIONAL = 10      # Zweirichtungsverkehr (beide Richtungen möglich)
-    DIRECTION_WRONG_WAY = -100        # Einrichtungsverkehr mit falscher Richtung
+    DIRECTION_WRONG_WAY = -110        # Einrichtungsverkehr mit falscher Richtung
     
     # Winkel-Priorität Konfiguration (kontinuierliche Funktion)
     ANGLE_PARALLEL_REWARD = 20       # Belohnung für parallele Wege (0°, 180°) - maximaler Wert
