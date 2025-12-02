@@ -298,9 +298,7 @@ def determine_fuehrung(row, data_source: str) -> str:
     elif category == "pedestrianAreaBicycleYes":
         return "Sonstige Wege (Gehwege, Wege durch Grünflächen, Plätze)"
     elif category == "crossing":
-        return "Kreuzungsweg"
-    elif category == "cyclewayLink":
-        return "Radweg"  # Verbindungswege zwischen Radwegen
+        return "Kreuzungsweg"   
     elif category == "needsClarification":
         return "[TODO] Klärung notwendig"
     

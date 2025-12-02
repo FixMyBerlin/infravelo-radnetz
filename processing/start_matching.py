@@ -73,6 +73,9 @@ CONFIG_FILTER_EXCLUDED_WAYS = {
     'tilda_road': [
         'footway_crossing',  # Fußgänger-Querungswege
         'footway_steps',     # Treppen (nicht befahrbar mit Fahrrad)
+    ],
+    'tilda_category': [
+        'cyclewayLink',      # Verbindungswege zwischen Radwegen (keine eigenständige Infrastruktur)
     ]
 }
 
