@@ -7,7 +7,7 @@ Validiert die konvertierten Radverkehrsanlagen-Daten (Datensatz B).
 Prüft auf NULL-Werte und TODO-Substring in wichtigen Attributen.
 
 INPUT:
-- output/snapping_converted_bikelanes.fgb (oder mit --clip: _neukoelln, _norden, _sueden)
+- output/snapping_with_overrides.fgb (oder mit --clip: _neukoelln, _norden, _sueden)
 
 OUTPUT:
 - Konsolenausgabe mit Warnungen bei gefundenen Problemen
@@ -261,6 +261,86 @@ def validate_element_nr_unknown(gdf):
     return True
 
 
+def validate_duplicate_tilda_id_for_opposite_directions(gdf):
+    """
+    Prüfe, ob bei Einrichtungsverkehr entgegengesetzte Kanten (ri=0 und ri=1) 
+    die gleiche tilda_id haben. Das darf nicht sein, da jede Richtung eine 
+    eigene TILDA-Quelle haben sollte.
+    
+    Beispiel-Problem: element_nr=53470054_53470052.02 mit verkehrsri="Einrichtungsverkehr"
+    für ri=0 und ri=1, aber beide mit gleicher tilda_id.
+    
+    Args:
+        gdf: GeoDataFrame mit den Daten
+        
+    Returns:
+        True wenn keine Duplikate gefunden wurden, False sonst
+    """
+    logger.info("Prüfe auf doppelte tilda_id bei entgegengesetzten Einrichtungsverkehr-Kanten...")
+    
+    # Prüfe ob erforderliche Spalten existieren
+    required_columns = ['element_nr', 'ri', 'verkehrsri', 'tilda_id']
+    missing_columns = [col for col in required_columns if col not in gdf.columns]
+    
+    if missing_columns:
+        logger.warning(f"⚠ WARNUNG: Fehlende Spalten für diese Validierung: {', '.join(missing_columns)}")
+        return True  # Keine Validierung möglich, aber kein Fehler
+    
+    # Filtere nur Einrichtungsverkehr-Features
+    einrichtungsverkehr_mask = gdf['verkehrsri'] == 'Einrichtungsverkehr'
+    einrichtungsverkehr_gdf = gdf[einrichtungsverkehr_mask].copy()
+    
+    if len(einrichtungsverkehr_gdf) == 0:
+        logger.info("✓ Keine Einrichtungsverkehr-Features gefunden - Validierung übersprungen")
+        return True
+    
+    logger.info(f"  Analysiere {len(einrichtungsverkehr_gdf)} Einrichtungsverkehr-Features...")
+    
+    # Gruppiere nach element_nr und sammle ri-Werte mit zugehörigen tilda_ids
+    problematic_elements = []
+    
+    # Gruppiere nach element_nr
+    grouped = einrichtungsverkehr_gdf.groupby('element_nr')
+    
+    for element_nr, group in grouped:
+        # Prüfe ob beide Richtungen (ri=0 und ri=1) existieren
+        ri_values = group['ri'].unique()
+        
+        if 0 in ri_values and 1 in ri_values:
+            # Hole tilda_ids für beide Richtungen
+            tilda_ids_ri0 = set(group[group['ri'] == 0]['tilda_id'].dropna().unique())
+            tilda_ids_ri1 = set(group[group['ri'] == 1]['tilda_id'].dropna().unique())
+            
+            # Prüfe auf Überschneidung (gleiche tilda_id in beiden Richtungen)
+            duplicate_tilda_ids = tilda_ids_ri0 & tilda_ids_ri1
+            
+            if duplicate_tilda_ids:
+                problematic_elements.append({
+                    'element_nr': element_nr,
+                    'duplicate_tilda_ids': list(duplicate_tilda_ids),
+                    'tilda_ids_ri0': list(tilda_ids_ri0),
+                    'tilda_ids_ri1': list(tilda_ids_ri1)
+                })
+    
+    if problematic_elements:
+        logger.warning(f"⚠ WARNUNG: {len(problematic_elements)} element_nr mit doppelter tilda_id für entgegengesetzte Richtungen gefunden!")
+        
+        # Zeige erste Beispiele
+        for item in problematic_elements[:5]:
+            logger.warning(f"  element_nr: {item['element_nr']}")
+            logger.warning(f"    Doppelte tilda_id(s): {item['duplicate_tilda_ids']}")
+            logger.warning(f"    tilda_ids für ri=0: {item['tilda_ids_ri0']}")
+            logger.warning(f"    tilda_ids für ri=1: {item['tilda_ids_ri1']}")
+        
+        if len(problematic_elements) > 5:
+            logger.warning(f"  ... und {len(problematic_elements) - 5} weitere problematische element_nr")
+        
+        return False
+    
+    logger.info("✓ Keine doppelten tilda_id bei entgegengesetzten Einrichtungsverkehr-Kanten gefunden")
+    return True
+
+
 def validate_missing_attributes(gdf, attributes):
     """
     Prüfe, ob alle erforderlichen Attribute vorhanden sind.
@@ -419,18 +499,18 @@ def main():
     # Dateipfad basierend auf --clip Parameter bestimmen
     needs_clipping = False
     if args.clip:
-        input_file = Path(f"output/snapping_converted_bikelanes_{args.clip}.fgb")
+        input_file = Path(f"output/snapping_with_overrides{args.clip}.fgb")
         logger.info(f"Modus: Regionaler Zuschnitt ({args.clip})")
         
         # Wenn geclippte Datei nicht existiert, lade Standard-Datei und clippe dynamisch
         if not input_file.exists():
-            fallback_file = Path("output/snapping_converted_bikelanes.fgb")
+            fallback_file = Path("output/snapping_with_overrides.fgb")
             logger.warning(f"⚠ Geclippte Datei nicht gefunden: {input_file}")
             logger.info(f"→ Lade Standard-Datei und clippe auf Region '{args.clip}'")
             input_file = fallback_file
             needs_clipping = True
     else:
-        input_file = Path("output/snapping_converted_bikelanes.fgb")
+        input_file = Path("output/snapping_with_overrides.fgb")
         logger.info("Modus: Vollständiger Datensatz")
     
     # Lade Daten
@@ -453,6 +533,7 @@ def main():
     validation_results.append(validate_null_values(gdf, ATTRIBUTES_TO_VALIDATE))
     validation_results.append(validate_todo_values(gdf, ATTRIBUTES_TO_VALIDATE))
     validation_results.append(validate_element_nr_unknown(gdf))
+    validation_results.append(validate_duplicate_tilda_id_for_opposite_directions(gdf))
     
     # Zusammenfassung
     logger.info("=" * 80)
