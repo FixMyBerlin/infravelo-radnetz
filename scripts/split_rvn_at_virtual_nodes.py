@@ -3,19 +3,20 @@
 """
 split_rvn_at_virtual_nodes.py
 --------------------------------------------------------------------
-Teilt das Berliner Radvorrangsnetz an virtuellen Knotenpunkten auf.
+Teilt das Berliner Radvorrangsnetz und das Detailnetz an virtuellen Knotenpunkten auf.
 Virtuelle Knotenpunkte liegen nicht an Linienendpunkten, sondern mitten auf
 Linien und erfordern daher eine Aufteilung der betroffenen Linien.
 
-Das Script wird vor assign_element_nr_to_rvn.py ausgeführt, damit die
-element_nr-Zuweisung korrekt auf die aufgeteilten Segmente angewendet wird.
+Die neuen element_nr werden im Skript assign_element_nr_to_rvn.py ausgeführt.
 
 INPUT:
 - data/Virtuelle-Knotenpunkte.gpkg (von assign_node_ids erstellt)
 - data/Berlin Radvorrangsnetz.fgb
+- data/Berlin Straßenabschnitte Detailnetz.fgb
 
 OUTPUT:
 - output/rvn/Berlin Radvorrangsnetz_mit_virtuellen-knotenpunkten.fgb
+- output/rvn/Berlin Detailnetz_mit_virtuellen-knotenpunkten.fgb
 """
 
 import geopandas as gpd
@@ -32,6 +33,53 @@ VIRTUAL_NODE_TOLERANCE = 3.0  # Maximale Entfernung in Metern für virtuellen Kn
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
+def load_virtual_nodes(virtual_nodes_path):
+    """
+    Lädt die virtuellen Knotenpunkte.
+    
+    Args:
+        virtual_nodes_path (str): Pfad zu den virtuellen Knotenpunkten
+        
+    Returns:
+        GeoDataFrame: Virtuelle Knotenpunkte
+    """
+    logging.info(f"Lade virtuelle Knotenpunkte von {virtual_nodes_path}")
+    virtual_nodes_gdf = gpd.read_file(virtual_nodes_path)
+    
+    target_crs = f'EPSG:{DEFAULT_CRS}'
+    if virtual_nodes_gdf.crs != target_crs:
+        logging.info(f"Projiziere virtuelle Knotenpunkte auf {target_crs}")
+        virtual_nodes_gdf = virtual_nodes_gdf.to_crs(target_crs)
+    
+    logging.info(f"Virtuelle Knotenpunkte geladen: {len(virtual_nodes_gdf)} Punkte")
+    
+    return virtual_nodes_gdf
+
+
+def load_geodataframe(path, name="Datensatz"):
+    """
+    Lädt ein GeoDataFrame und projiziert es auf das Ziel-CRS.
+    
+    Args:
+        path (str): Pfad zur Datei
+        name (str): Name des Datensatzes für Logging
+        
+    Returns:
+        GeoDataFrame: Geladener Datensatz
+    """
+    logging.info(f"Lade {name} von {path}")
+    gdf = gpd.read_file(path)
+    
+    target_crs = f'EPSG:{DEFAULT_CRS}'
+    if gdf.crs != target_crs:
+        logging.info(f"Projiziere {name} auf {target_crs}")
+        gdf = gdf.to_crs(target_crs)
+    
+    logging.info(f"{name} geladen: {len(gdf)} Einträge")
+    
+    return gdf
+
+
 def load_data(rvn_path, virtual_nodes_path):
     """
     Lädt das Radvorrangsnetz und die virtuellen Knotenpunkte.
@@ -43,24 +91,8 @@ def load_data(rvn_path, virtual_nodes_path):
     Returns:
         tuple: (rvn_gdf, virtual_nodes_gdf) GeoDataFrames
     """
-    logging.info(f"Lade Radvorrangsnetz von {rvn_path}")
-    rvn_gdf = gpd.read_file(rvn_path)
-    
-    logging.info(f"Lade virtuelle Knotenpunkte von {virtual_nodes_path}")
-    virtual_nodes_gdf = gpd.read_file(virtual_nodes_path)
-    
-    # Sicherstellen, dass beide Datensätze das gleiche CRS haben
-    target_crs = f'EPSG:{DEFAULT_CRS}'
-    if rvn_gdf.crs != target_crs:
-        logging.info(f"Projiziere Radvorrangsnetz auf {target_crs}")
-        rvn_gdf = rvn_gdf.to_crs(target_crs)
-        
-    if virtual_nodes_gdf.crs != target_crs:
-        logging.info(f"Projiziere virtuelle Knotenpunkte auf {target_crs}")
-        virtual_nodes_gdf = virtual_nodes_gdf.to_crs(target_crs)
-    
-    logging.info(f"Radvorrangsnetz geladen: {len(rvn_gdf)} Linien")
-    logging.info(f"Virtuelle Knotenpunkte geladen: {len(virtual_nodes_gdf)} Punkte")
+    rvn_gdf = load_geodataframe(rvn_path, "Radvorrangsnetz")
+    virtual_nodes_gdf = load_virtual_nodes(virtual_nodes_path)
     
     return rvn_gdf, virtual_nodes_gdf
 
@@ -222,27 +254,29 @@ def split_line_at_point(line_geom, point, tolerance=VIRTUAL_NODE_TOLERANCE):
         return [line_geom]
 
 
-def split_rvn_at_virtual_nodes(rvn_gdf, virtual_nodes_gdf):
+def split_geodataframe_at_virtual_nodes(gdf, virtual_nodes_gdf, dataset_name="Datensatz"):
     """
-    Teilt alle Linien des RVN an virtuellen Knotenpunkten.
+    Teilt alle Linien eines GeoDataFrames an virtuellen Knotenpunkten.
     Verarbeitet virtuelle Knotenpunkte seriell pro Linie.
     
     Args:
-        rvn_gdf (GeoDataFrame): Radvorrangsnetz
+        gdf (GeoDataFrame): Zu splittendes GeoDataFrame mit Liniengeometrien
         virtual_nodes_gdf (GeoDataFrame): Virtuelle Knotenpunkte
+        dataset_name (str): Name des Datensatzes für Logging
         
     Returns:
-        GeoDataFrame: RVN mit aufgeteilten Linien
+        GeoDataFrame: GeoDataFrame mit aufgeteilten Linien
     """
-    logging.info("Starte Aufteilung der RVN-Linien an virtuellen Knotenpunkten...")
+    logging.info(f"Starte Aufteilung der {dataset_name}-Linien an virtuellen Knotenpunkten...")
     
     result_segments = []
     splits_performed = 0
     lines_affected = 0
+    total_lines = len(gdf)
     
-    for line_idx, line_row in rvn_gdf.iterrows():
+    for line_idx, line_row in gdf.iterrows():
         if line_idx % 100 == 0:
-            logging.info(f"Verarbeite Linie {line_idx + 1} von {len(rvn_gdf)}")
+            logging.info(f"Verarbeite Linie {line_idx + 1} von {total_lines}")
         
         current_geometry = line_row.geometry
         line_was_split = False
@@ -305,10 +339,10 @@ def split_rvn_at_virtual_nodes(rvn_gdf, virtual_nodes_gdf):
             lines_affected += 1
     
     # Erstelle neues GeoDataFrame
-    result_gdf = gpd.GeoDataFrame(result_segments, crs=rvn_gdf.crs)
+    result_gdf = gpd.GeoDataFrame(result_segments, crs=gdf.crs)
     
-    logging.info(f"Aufteilung abgeschlossen:")
-    logging.info(f"  Ursprüngliche Linien: {len(rvn_gdf)}")
+    logging.info(f"Aufteilung {dataset_name} abgeschlossen:")
+    logging.info(f"  Ursprüngliche Linien: {total_lines}")
     logging.info(f"  Resultierende Segmente: {len(result_gdf)}")
     logging.info(f"  Betroffene Linien: {lines_affected}")
     logging.info(f"  Durchgeführte Splits: {splits_performed}")
@@ -316,30 +350,66 @@ def split_rvn_at_virtual_nodes(rvn_gdf, virtual_nodes_gdf):
     return result_gdf
 
 
+def split_rvn_at_virtual_nodes(rvn_gdf, virtual_nodes_gdf):
+    """
+    Teilt alle Linien des RVN an virtuellen Knotenpunkten.
+    Wrapper-Funktion für Abwärtskompatibilität.
+    
+    Args:
+        rvn_gdf (GeoDataFrame): Radvorrangsnetz
+        virtual_nodes_gdf (GeoDataFrame): Virtuelle Knotenpunkte
+        
+    Returns:
+        GeoDataFrame: RVN mit aufgeteilten Linien
+    """
+    return split_geodataframe_at_virtual_nodes(rvn_gdf, virtual_nodes_gdf, "RVN")
+
+
 def main():
     """
-    Hauptfunktion zur Aufteilung des RVN an virtuellen Knotenpunkten.
+    Hauptfunktion zur Aufteilung des RVN und Detailnetzes an virtuellen Knotenpunkten.
     """
     # Dateipfade definieren
-    rvn_path = 'data/Berlin Radvorrangsnetz.fgb'
     virtual_nodes_path = 'data/Virtuelle-Knotenpunkte.gpkg'
-    output_path = 'output/rvn/Berlin Radvorrangsnetz_mit_virtuellen-knotenpunkten.fgb'
+    
+    rvn_path = 'data/Berlin Radvorrangsnetz.fgb'
+    rvn_output_path = 'output/rvn/Berlin Radvorrangsnetz_mit_virtuellen-knotenpunkten.fgb'
+    
+    detailnetz_path = 'data/Berlin Straßenabschnitte Detailnetz.fgb'
+    detailnetz_output_path = 'output/rvn/Berlin Detailnetz_mit_virtuellen-knotenpunkten.fgb'
     
     # Stelle sicher, dass das Ausgabeverzeichnis existiert
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    os.makedirs(os.path.dirname(rvn_output_path), exist_ok=True)
     
     try:
-        # Lade Daten
-        rvn_gdf, virtual_nodes_gdf = load_data(rvn_path, virtual_nodes_path)
+        # Lade virtuelle Knotenpunkte (einmal für beide Datensätze)
+        virtual_nodes_gdf = load_virtual_nodes(virtual_nodes_path)
         
-        # Führe Aufteilung durch
-        split_rvn = split_rvn_at_virtual_nodes(rvn_gdf, virtual_nodes_gdf)
+        # 1. RVN splitten
+        logging.info("=" * 60)
+        logging.info("SCHRITT 1: Radvorrangsnetz splitten")
+        logging.info("=" * 60)
+        rvn_gdf = load_geodataframe(rvn_path, "Radvorrangsnetz")
+        split_rvn = split_geodataframe_at_virtual_nodes(rvn_gdf, virtual_nodes_gdf, "RVN")
         
-        # Speichere Ergebnis
-        logging.info(f"Speichere aufgeteiltes RVN nach {output_path}")
-        split_rvn.to_file(output_path, driver='FlatGeobuf')
+        logging.info(f"Speichere aufgeteiltes RVN nach {rvn_output_path}")
+        split_rvn.to_file(rvn_output_path, driver='FlatGeobuf')
         
+        # 2. Detailnetz splitten
+        logging.info("")
+        logging.info("=" * 60)
+        logging.info("SCHRITT 2: Detailnetz splitten")
+        logging.info("=" * 60)
+        detailnetz_gdf = load_geodataframe(detailnetz_path, "Detailnetz")
+        split_detailnetz = split_geodataframe_at_virtual_nodes(detailnetz_gdf, virtual_nodes_gdf, "Detailnetz")
+        
+        logging.info(f"Speichere aufgeteiltes Detailnetz nach {detailnetz_output_path}")
+        split_detailnetz.to_file(detailnetz_output_path, driver='FlatGeobuf')
+        
+        logging.info("")
+        logging.info("=" * 60)
         logging.info("Verarbeitung erfolgreich abgeschlossen!")
+        logging.info("=" * 60)
         
     except Exception as e:
         logging.error(f"Fehler bei der Verarbeitung: {e}")

@@ -8,7 +8,7 @@ um detaillierte Informationen wie Straßennamen und -klassen zu ergänzen.
 
 INPUT:
 - output/rvn/Berlin Vorrangnetz_with_element_nr.fgb
-- data/Berlin Straßenabschnitte Detailnetz.fgb
+- output/rvn/Berlin Detailnetz_mit_virtuellen-knotenpunkten.fgb (gesplittet an virtuellen Knotenpunkten)
 
 OUTPUT:
 - output/rvn/vorrangnetz_details_combined_rvn.fgb
@@ -58,8 +58,8 @@ def load_input_data():
     vorrangnetz = gpd.read_file(vorrangnetz_path)
     logger.info(f"Vorrangnetz geladen: {len(vorrangnetz)} Kanten")
     
-    # Detailnetz laden
-    detailnetz_path = "data/Berlin Straßenabschnitte Detailnetz.fgb"
+    # Detailnetz laden (gesplittet an virtuellen Knotenpunkten)
+    detailnetz_path = "output/rvn/Berlin Detailnetz_mit_virtuellen-knotenpunkten.fgb"
     if not os.path.exists(detailnetz_path):
         raise FileNotFoundError(f"Detailnetz-Datei nicht gefunden: {detailnetz_path}")
     
@@ -171,6 +171,65 @@ def find_detailnetz_in_buffer(vorrangnetz, detailnetz, buffer_meters=5):
     
     result = detailnetz.loc[detailnetz_in_buffer].copy()
     logger.info(f"Gefunden: {len(result)} Detailnetz-Kanten im {buffer_meters}m Buffer")
+    
+    return result
+
+
+def transfer_element_nr_from_vorrangnetz(detailnetz_in_buffer, vorrangnetz):
+    """
+    Überträgt die element_nr (mit virtuellen Knotenpunkten) vom Vorrangnetz auf die Detailnetz-Kanten.
+    Das Matching erfolgt über räumliche Nähe - die Detailnetz-Geometrie muss nahe der Vorrangnetz-Geometrie liegen.
+    
+    Args:
+        detailnetz_in_buffer (GeoDataFrame): Detailnetz-Kanten im Buffer
+        vorrangnetz (GeoDataFrame): Vorrangnetz mit element_nr (inkl. virtueller Knotenpunkte)
+        
+    Returns:
+        GeoDataFrame: Detailnetz mit übertragenen element_nr
+    """
+    logger.info("Übertrage element_nr vom Vorrangnetz auf Detailnetz...")
+    
+    result = detailnetz_in_buffer.copy()
+    
+    # Erstelle Spatial Index für Vorrangnetz
+    vorrangnetz_sindex = vorrangnetz.sindex
+    
+    transferred_count = 0
+    
+    for idx, detail_row in result.iterrows():
+        detail_geom = detail_row.geometry
+        
+        # Finde Vorrangnetz-Kanten in der Nähe
+        possible_matches_idx = list(vorrangnetz_sindex.intersection(detail_geom.bounds))
+        
+        if not possible_matches_idx:
+            continue
+        
+        possible_matches = vorrangnetz.iloc[possible_matches_idx]
+        
+        # Finde die beste Übereinstimmung basierend auf Hausdorff-Distanz
+        best_match = None
+        best_distance = float('inf')
+        
+        for rvn_idx, rvn_row in possible_matches.iterrows():
+            rvn_geom = rvn_row.geometry
+            
+            # Berechne die Distanz zwischen den Geometrien
+            distance = detail_geom.hausdorff_distance(rvn_geom)
+            
+            # Wenn sehr ähnliche Geometrie gefunden (< 5m Hausdorff-Distanz)
+            if distance < 5.0 and distance < best_distance:
+                best_match = rvn_row
+                best_distance = distance
+        
+        if best_match is not None:
+            # Übertrage element_nr und VP-Informationen vom Vorrangnetz
+            result.at[idx, 'element_nr'] = best_match['element_nr']
+            result.at[idx, 'beginnt_bei_vp'] = best_match['beginnt_bei_vp']
+            result.at[idx, 'endet_bei_vp'] = best_match['endet_bei_vp']
+            transferred_count += 1
+    
+    logger.info(f"element_nr übertragen: {transferred_count} von {len(result)} Detailnetz-Kanten")
     
     return result
 
@@ -424,19 +483,22 @@ def main():
         # 4. Geometrien bei verkehrsrichtung='G' umdrehen
         detailnetz_corrected = reverse_geometry_for_gegenrichtung(detailnetz_in_buffer)
         
-        # 5. Lücken im Vorrangnetz identifizieren
-        vorrangnetz_gaps = identify_gaps_in_coverage(vorrangnetz_prep, detailnetz_corrected, buffer_meters=5)
+        # 5. element_nr vom Vorrangnetz auf Detailnetz übertragen (inkl. virtueller Knotenpunkte)
+        detailnetz_with_element_nr = transfer_element_nr_from_vorrangnetz(detailnetz_corrected, vorrangnetz_prep)
         
-        # 6. Datensätze kombinieren
-        combined_gdf = combine_datasets(detailnetz_corrected, vorrangnetz_gaps)
+        # 6. Lücken im Vorrangnetz identifizieren
+        vorrangnetz_gaps = identify_gaps_in_coverage(vorrangnetz_prep, detailnetz_with_element_nr, buffer_meters=5)
         
-        # 7. Duplikate entfernen
+        # 7. Datensätze kombinieren
+        combined_gdf = combine_datasets(detailnetz_with_element_nr, vorrangnetz_gaps)
+        
+        # 8. Duplikate entfernen
         final_gdf = check_for_duplicates(combined_gdf)
         
-        # 8. Ausgeschlossene element_nr entfernen
+        # 9. Ausgeschlossene element_nr entfernen
         final_gdf = filter_excluded_elements(final_gdf)
         
-        # 9. Ergebnis speichern
+        # 10. Ergebnis speichern
         output_path = "output/rvn/vorrangnetz_details_combined_rvn.fgb"
         save_result(final_gdf, output_path)
         
