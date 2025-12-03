@@ -32,6 +32,11 @@ from helpers.width_parser import parse_width
 from helpers.construction_comments import collect_todo_attributes
 
 # --------------------------------------------------------- Konstanten --
+# Liste der RVN-Attribute, die auf fehlende Werte geprüft werden sollen
+# (für Baustellen/temporäre Infrastruktur Kommentare)
+# HINWEIS: "Kommentar" und "Länge" sind hier NICHT enthalten, da diese keine Pflichtattribute sind
+CONFIG_ATTRIBUTES_TODO_CHECK = ["pflicht", "breite", "ofm", "farbe", "protek", "trennstreifen", "nutz_beschr", "fuehr", "verkehrsri"]
+
 # Liste der neuen RVN-Attribute, die nicht umbenannt werden sollen
 CONFIG_ATTRIBUTES_NOT_RENAMING = ["pflicht", "breite", "ofm", "farbe", "protek", "trennstreifen", "nutz_beschr", "fuehr", "verkehrsri", "Länge", "Kommentar"]
 
@@ -534,15 +539,15 @@ def determine_kommentar(row, translated_row=None) -> str:
     """
     Bestimmt den Kommentar basierend auf dem lifecycle-Attribut und fehlenden Attributen.
     
-    Wenn lifecycle=construction:
+    Wenn lifecycle=construction oder lifecycle=construction_no_access:
     - Hauptkommentar: "Derzeit Baustelle (Stand ...)"
-    - Zusatzkommentare: Für jedes Attribut mit [TODO] oder fehlendem Wert (None, NaN, "")
-      wird hinzugefügt: "{Attributname} Attribut fehlt aufgrund von Baustelle"
+    - Zusatzkommentare: Für jedes Attribut aus CONFIG_ATTRIBUTES_TODO_CHECK mit [TODO] 
+      oder fehlendem Wert wird hinzugefügt: "{Attributname} Attribut fehlt aufgrund von Baustelle"
     
     Wenn lifecycle=temporary:
     - Hauptkommentar: "Temporäre Markierungen zum Erhebungszeitpunkt"
-    - Zusatzkommentare: Für jedes Attribut mit [TODO] oder fehlendem Wert (None, NaN, "")
-      wird hinzugefügt: "{Attributname} Attribut fehlt aufgrund von temporärer Infrastruktur"
+    - Zusatzkommentare: Für jedes Attribut aus CONFIG_ATTRIBUTES_TODO_CHECK mit [TODO] 
+      oder fehlendem Wert wird hinzugefügt: "{Attributname} Attribut fehlt aufgrund von temporärer Infrastruktur"
     
     Args:
         row: Datenzeile mit OSM-Attributen
@@ -551,12 +556,12 @@ def determine_kommentar(row, translated_row=None) -> str:
     Returns:
         Kommentar oder None (null)
     """
-    # TODO Umbennung in lifecycle
     lifecycle = str(row.get("lifecycle", "")).strip().lower()
     
     comments = []
     
-    if lifecycle == "construction":
+    # Behandle beide construction-Varianten
+    if lifecycle in ["construction", "construction_no_access"]:
         # Hauptkommentar: Baustelle
         updated_at = row.get("updated_at")
         try:
@@ -573,7 +578,7 @@ def determine_kommentar(row, translated_row=None) -> str:
         
         # Zusatzkommentare: Fehlende Attribute aufgrund Baustelle
         if translated_row is not None:
-            todo_attrs = collect_todo_attributes(translated_row, CONFIG_ATTRIBUTES_NOT_RENAMING, include_missing=True)
+            todo_attrs = collect_todo_attributes(translated_row, CONFIG_ATTRIBUTES_TODO_CHECK, include_missing=True)
             for attr in todo_attrs:
                 # Kapitalisiere ersten Buchstaben des Attributnamens
                 attr_display = attr.capitalize()
@@ -584,7 +589,7 @@ def determine_kommentar(row, translated_row=None) -> str:
         
         # Zusatzkommentare: Fehlende Attribute aufgrund temporärer Infrastruktur
         if translated_row is not None:
-            todo_attrs = collect_todo_attributes(translated_row, CONFIG_ATTRIBUTES_NOT_RENAMING, include_missing=True)
+            todo_attrs = collect_todo_attributes(translated_row, CONFIG_ATTRIBUTES_TODO_CHECK, include_missing=True)
             for attr in todo_attrs:
                 # Kapitalisiere ersten Buchstaben des Attributnamens
                 attr_display = attr.capitalize()
