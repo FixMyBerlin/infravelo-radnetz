@@ -44,7 +44,6 @@ def load_virtuelle_knotenpunkte(file_path):
     try:
         gdf = gpd.read_file(file_path)
         logger.info(f"Virtuelle Knotenpunkte geladen: {len(gdf)} Features")
-        logger.info(f"Verfügbare Spalten: {list(gdf.columns)}")
         return gdf
     except Exception as e:
         logger.error(f"Fehler beim Laden der Daten: {e}")
@@ -66,7 +65,6 @@ def validate_knotenpunkt_id_uniqueness(gdf):
     # Prüfe, ob Knotenpunkt-ID-Spalte existiert
     if 'Knotenpunkt-ID' not in gdf.columns:
         logger.error("FEHLER: Spalte 'Knotenpunkt-ID' nicht gefunden!")
-        logger.error(f"Verfügbare Spalten: {list(gdf.columns)}")
         return False
     
     # Zähle Vorkommen jeder Knotenpunkt-ID

@@ -3,17 +3,17 @@
 """
 validate_datensatz_b.py
 --------------------------------------------------------------------
-Validiert die konvertierten Radverkehrsanlagen-Daten (Datensatz B).
-Prüft auf NULL-Werte und TODO-Substring in wichtigen Attributen.
+Überprüft Datensatz B (Radverkehrsanlagen) auf Fehler und Probleme.
+Prüft auf NULL-Werte, TODO-Substring und weitere Auffälligkeiten in wichtigen Attributen.
 
 INPUT:
 - output/snapping_with_overrides.fgb (oder mit --clip: _neukoelln, _norden, _sueden)
 
 OUTPUT:
-- Konsolenausgabe mit Warnungen bei gefundenen Problemen
+- Konsolenausgabe mit Hinweisen und Warnungen zu gefundenen Problemen
 
 USAGE:
-- Vollständiger Datensatz: python validate_datensatz_b.py
+- Gesamter Datensatz: python validate_datensatz_b.py
 - Regionaler Zuschnitt: python validate_datensatz_b.py --clip neukoelln|norden|sueden
 """
 
@@ -81,7 +81,6 @@ def load_converted_bikelanes(file_path):
     try:
         gdf = gpd.read_file(file_path)
         logger.info(f"Daten geladen: {len(gdf)} Features")
-        logger.info(f"Verfügbare Spalten: {list(gdf.columns)}")
         return gdf
     except Exception as e:
         logger.error(f"Fehler beim Laden der Daten: {e}")
@@ -92,8 +91,10 @@ def validate_null_values(gdf, attributes):
     """
     Prüfe auf NULL-Werte in den angegebenen Attributen.
     
-    Spezialbehandlung für 'breite': Wird nur bei Führungsformen geprüft, 
-    die nicht "Mischverkehr mit motorisiertem Verkehr" sind.
+    Spezialbehandlung:
+    - 'breite': Wird nur bei Führungsformen geprüft, die nicht "Mischverkehr mit motorisiertem Verkehr" sind.
+    - 'Keine Radinfrastruktur vorhanden': Features mit dieser Führungsform werden komplett übersprungen,
+      da hier NULL-Werte erwartet werden.
     
     Args:
         gdf: GeoDataFrame mit den Daten
@@ -107,18 +108,29 @@ def validate_null_values(gdf, attributes):
     all_valid = True
     total_null_count = 0
     
+    # Filtere Features ohne Radinfrastruktur aus (dort sind NULL-Werte erlaubt)
+    if 'fuehr' in gdf.columns:
+        keine_radinfra_mask = gdf['fuehr'] == 'Keine Radinfrastruktur vorhanden'
+        gdf_to_validate = gdf[~keine_radinfra_mask]
+        keine_radinfra_count = keine_radinfra_mask.sum()
+        
+        if keine_radinfra_count > 0:
+            logger.info(f"→ {keine_radinfra_count} Features mit 'Keine Radinfrastruktur vorhanden' übersprungen (NULL-Werte erwartet)")
+    else:
+        gdf_to_validate = gdf
+    
     for attr in attributes:
         # Prüfe, ob Attribut existiert
-        if attr not in gdf.columns:
+        if attr not in gdf_to_validate.columns:
             logger.warning(f"⚠ WARNUNG: Attribut '{attr}' nicht gefunden in den Daten!")
             all_valid = False
             continue
         
         # Spezialbehandlung für 'breite': nur bei Nicht-Mischverkehr prüfen
-        if attr == 'breite' and 'fuehr' in gdf.columns:
+        if attr == 'breite' and 'fuehr' in gdf_to_validate.columns:
             # Filtere nur Features, die nicht Mischverkehr sind
-            nicht_mischverkehr_mask = gdf['fuehr'] != 'Mischverkehr mit motorisiertem Verkehr'
-            gdf_to_check = gdf[nicht_mischverkehr_mask]
+            nicht_mischverkehr_mask = gdf_to_validate['fuehr'] != 'Mischverkehr mit motorisiertem Verkehr'
+            gdf_to_check = gdf_to_validate[nicht_mischverkehr_mask]
             
             null_mask = gdf_to_check[attr].isnull()
             null_count = null_mask.sum()
@@ -143,7 +155,7 @@ def validate_null_values(gdf, attributes):
                 logger.info(f"  → {mischverkehr_count} Mischverkehr-Features übersprungen")
         else:
             # Normale Prüfung für alle anderen Attribute
-            null_mask = gdf[attr].isnull()
+            null_mask = gdf_to_validate[attr].isnull()
             null_count = null_mask.sum()
             
             if null_count > 0:
@@ -152,7 +164,7 @@ def validate_null_values(gdf, attributes):
                 logger.warning(f"⚠ WARNUNG: Attribut '{attr}' hat {null_count} NULL-Werte!")
                 
                 # Zeige erste Beispiele
-                null_indices = gdf[null_mask].index[:5].tolist()
+                null_indices = gdf_to_validate[null_mask].index[:5].tolist()
                 logger.warning(f"  Beispiel-Indizes: {null_indices}")
                 
                 if null_count > 5:
@@ -162,9 +174,86 @@ def validate_null_values(gdf, attributes):
     
     if not all_valid:
         logger.warning("-" * 80)
-        logger.warning(f"Gesamt: {total_null_count} NULL-Werte in {len([a for a in attributes if a in gdf.columns])} Attributen gefunden")
+        logger.warning(f"Gesamt: {total_null_count} NULL-Werte in {len([a for a in attributes if a in gdf_to_validate.columns])} Attributen gefunden")
     else:
         logger.info("✓ Keine NULL-Werte gefunden!")
+    
+    return all_valid
+
+
+def validate_keine_radinfra_has_null_values(gdf):
+    """
+    Prüfe, ob Features mit 'Keine Radinfrastruktur vorhanden' erwartete NULL-Werte haben.
+    
+    Bei 'Keine Radinfrastruktur vorhanden' sollten folgende Attribute NULL sein:
+    - verkehrsri, protek, trennstreifen, nutz_beschr, farbe, breite, pflicht
+    
+    Args:
+        gdf: GeoDataFrame mit den Daten
+        
+    Returns:
+        True wenn alle 'Keine Radinfrastruktur vorhanden' Features korrekte NULL-Werte haben, False sonst
+    """
+    logger.info("Prüfe ob 'Keine Radinfrastruktur vorhanden' korrekte NULL-Werte hat...")
+    
+    # Attribute die bei 'Keine Radinfrastruktur vorhanden' NULL sein sollten
+    expected_null_attributes = [
+        'verkehrsri',
+        'protek',
+        'trennstreifen',
+        'nutz_beschr',
+        'farbe',
+        'breite',
+        'pflicht'
+    ]
+    
+    if 'fuehr' not in gdf.columns:
+        logger.warning("⚠ WARNUNG: Attribut 'fuehr' nicht gefunden!")
+        return False
+    
+    # Filtere Features mit 'Keine Radinfrastruktur vorhanden'
+    keine_radinfra_mask = gdf['fuehr'] == 'Keine Radinfrastruktur vorhanden'
+    keine_radinfra_gdf = gdf[keine_radinfra_mask]
+    
+    if len(keine_radinfra_gdf) == 0:
+        logger.info("✓ Keine Features mit 'Keine Radinfrastruktur vorhanden' gefunden - Validierung übersprungen")
+        return True
+    
+    logger.info(f"  Analysiere {len(keine_radinfra_gdf)} Features mit 'Keine Radinfrastruktur vorhanden'...")
+    
+    all_valid = True
+    total_non_null_count = 0
+    
+    for attr in expected_null_attributes:
+        if attr not in keine_radinfra_gdf.columns:
+            logger.warning(f"⚠ WARNUNG: Attribut '{attr}' nicht gefunden in den Daten!")
+            all_valid = False
+            continue
+        
+        # Prüfe auf NICHT-NULL-Werte (diese sind problematisch)
+        non_null_mask = keine_radinfra_gdf[attr].notnull()
+        non_null_count = non_null_mask.sum()
+        
+        if non_null_count > 0:
+            all_valid = False
+            total_non_null_count += non_null_count
+            logger.warning(f"⚠ WARNUNG: Attribut '{attr}' hat {non_null_count} NICHT-NULL-Werte bei 'Keine Radinfrastruktur vorhanden'!")
+            
+            # Zeige erste Beispiele mit den Werten
+            non_null_features = keine_radinfra_gdf[non_null_mask].head(5)
+            for idx, row in non_null_features.iterrows():
+                logger.warning(f"  Index {idx}: '{row[attr]}'")
+            
+            if non_null_count > 5:
+                logger.warning(f"  ... und {non_null_count - 5} weitere Nicht-NULL-Werte")
+        else:
+            logger.info(f"✓ Attribut '{attr}': Alle Werte sind NULL (wie erwartet)")
+    
+    if not all_valid:
+        logger.warning("-" * 80)
+        logger.warning(f"Gesamt: {total_non_null_count} unerwartete Nicht-NULL-Werte bei 'Keine Radinfrastruktur vorhanden' gefunden")
+    else:
+        logger.info("✓ Alle 'Keine Radinfrastruktur vorhanden' Features haben korrekte NULL-Werte!")
     
     return all_valid
 
@@ -172,6 +261,8 @@ def validate_null_values(gdf, attributes):
 def validate_todo_values(gdf, attributes):
     """
     Prüfe auf "TODO"-Substring in den angegebenen Attributen.
+    
+    Überspringt Features mit 'Keine Radinfrastruktur vorhanden', da dort NULL-Werte erwartet werden.
     
     Args:
         gdf: GeoDataFrame mit den Daten
@@ -182,19 +273,29 @@ def validate_todo_values(gdf, attributes):
     """
     logger.info("Prüfe auf TODO-Substring in den Attributen...")
     
+    # Filtere Features ohne Radinfrastruktur aus
+    if 'fuehr' in gdf.columns:
+        keine_radinfra_mask = gdf['fuehr'] == 'Keine Radinfrastruktur vorhanden'
+        gdf_to_validate = gdf[~keine_radinfra_mask]
+        keine_radinfra_count = keine_radinfra_mask.sum()
+        
+        if keine_radinfra_count > 0:
+            logger.info(f"→ {keine_radinfra_count} Features mit 'Keine Radinfrastruktur vorhanden' übersprungen")
+    else:
+        gdf_to_validate = gdf
     all_valid = True
     total_todo_count = 0
     
     for attr in attributes:
         # Prüfe, ob Attribut existiert
-        if attr not in gdf.columns:
+        if attr not in gdf_to_validate.columns:
             # Bereits bei NULL-Prüfung gewarnt
             continue
         
         # Prüfe nur String-Spalten
-        if gdf[attr].dtype == 'object' or isinstance(gdf[attr].iloc[0], str) if len(gdf) > 0 else False:
+        if gdf_to_validate[attr].dtype == 'object' or isinstance(gdf_to_validate[attr].iloc[0], str) if len(gdf_to_validate) > 0 else False:
             # Suche nach TODO (case-insensitive)
-            todo_mask = gdf[attr].astype(str).str.contains('TODO', case=False, na=False)
+            todo_mask = gdf_to_validate[attr].astype(str).str.contains('TODO', case=False, na=False)
             todo_count = todo_mask.sum()
             
             if todo_count > 0:
@@ -203,7 +304,7 @@ def validate_todo_values(gdf, attributes):
                 logger.warning(f"⚠ WARNUNG: Attribut '{attr}' hat {todo_count} Einträge mit 'TODO'!")
                 
                 # Zeige erste Beispiele mit den Werten
-                todo_features = gdf[todo_mask].head(5)
+                todo_features = gdf_to_validate[todo_mask].head(5)
                 for idx, row in todo_features.iterrows():
                     logger.warning(f"  Index {idx}: '{row[attr]}'")
                 
@@ -370,6 +471,8 @@ def filter_problematic_features(gdf, attributes, excluded_attributes=None):
     """
     Filtere Features, die NULL-Werte oder TODO-Substring in den angegebenen Attributen haben.
     
+    Überspringt Features mit 'Keine Radinfrastruktur vorhanden', da dort NULL-Werte erwartet werden.
+    
     Args:
         gdf: GeoDataFrame mit den Daten
         attributes: Liste der zu prüfenden Attributnamen
@@ -389,30 +492,41 @@ def filter_problematic_features(gdf, attributes, excluded_attributes=None):
     if excluded_attributes:
         logger.info(f"Ausgeschlossene Attribute (werden nicht für Filterung verwendet): {', '.join(excluded_attributes)}")
     
+    # Filtere Features ohne Radinfrastruktur aus (dort sind NULL-Werte erlaubt)
+    if 'fuehr' in gdf.columns:
+        keine_radinfra_mask = gdf['fuehr'] == 'Keine Radinfrastruktur vorhanden'
+        gdf_to_filter = gdf[~keine_radinfra_mask]
+        keine_radinfra_count = keine_radinfra_mask.sum()
+        
+        if keine_radinfra_count > 0:
+            logger.info(f"→ {keine_radinfra_count} Features mit 'Keine Radinfrastruktur vorhanden' übersprungen")
+    else:
+        gdf_to_filter = gdf
+    
     # Erstelle eine Maske für alle problematischen Features
-    problematic_mask = pd.Series(False, index=gdf.index)
+    problematic_mask = pd.Series(False, index=gdf_to_filter.index)
     
     for attr in attributes_for_filtering:
-        if attr not in gdf.columns:
+        if attr not in gdf_to_filter.columns:
             continue
         
         # Spezialbehandlung für 'breite': nur bei Nicht-Mischverkehr prüfen
-        if attr == 'breite' and 'fuehr' in gdf.columns:
+        if attr == 'breite' and 'fuehr' in gdf_to_filter.columns:
             # Nur NULL-Werte bei Nicht-Mischverkehr-Features als problematisch markieren
-            nicht_mischverkehr_mask = gdf['fuehr'] != 'Mischverkehr mit motorisiertem Verkehr'
-            null_mask = gdf[attr].isnull() & nicht_mischverkehr_mask
+            nicht_mischverkehr_mask = gdf_to_filter['fuehr'] != 'Mischverkehr mit motorisiertem Verkehr'
+            null_mask = gdf_to_filter[attr].isnull() & nicht_mischverkehr_mask
             problematic_mask |= null_mask
         else:
             # NULL-Werte
-            null_mask = gdf[attr].isnull()
+            null_mask = gdf_to_filter[attr].isnull()
             problematic_mask |= null_mask
         
         # TODO-Substring (nur bei String-Spalten)
-        if gdf[attr].dtype == 'object':
-            todo_mask = gdf[attr].astype(str).str.contains('TODO', case=False, na=False)
+        if gdf_to_filter[attr].dtype == 'object':
+            todo_mask = gdf_to_filter[attr].astype(str).str.contains('TODO', case=False, na=False)
             problematic_mask |= todo_mask
     
-    problematic_gdf = gdf[problematic_mask].copy()
+    problematic_gdf = gdf_to_filter[problematic_mask].copy()
     
     logger.info(f"Gefunden: {len(problematic_gdf)} von {len(gdf)} Features sind problematisch")
     
@@ -493,7 +607,7 @@ def main():
     
     # Header
     logger.info("=" * 80)
-    logger.info("VALIDIERUNG: Konvertierte Radverkehrsanlagen (Datensatz B)")
+    logger.info("PRÜFUNG: Datensatz B (Radverkehrsanlagen) auf Fehler und Probleme")
     logger.info("=" * 80)
     
     # Dateipfad basierend auf --clip Parameter bestimmen
@@ -524,7 +638,7 @@ def main():
     
     # Validierungen durchführen
     logger.info("-" * 80)
-    logger.info(f"Zu validierende Attribute: {', '.join(ATTRIBUTES_TO_VALIDATE)}")
+    logger.info(f"Zu prüfende Attribute: {', '.join(ATTRIBUTES_TO_VALIDATE)}")
     logger.info("-" * 80)
     
     validation_results = []
@@ -532,18 +646,19 @@ def main():
     validation_results.append(validate_missing_attributes(gdf, ATTRIBUTES_TO_VALIDATE))
     validation_results.append(validate_null_values(gdf, ATTRIBUTES_TO_VALIDATE))
     validation_results.append(validate_todo_values(gdf, ATTRIBUTES_TO_VALIDATE))
+    validation_results.append(validate_keine_radinfra_has_null_values(gdf))
     validation_results.append(validate_element_nr_unknown(gdf))
     validation_results.append(validate_duplicate_tilda_id_for_opposite_directions(gdf))
     
     # Zusammenfassung
     logger.info("=" * 80)
     if all(validation_results):
-        logger.info("✓ VALIDIERUNG ERFOLGREICH: Alle Prüfungen bestanden!")
-        logger.info(f"  {len(gdf)} Features validiert")
+        logger.info("✓ PRÜFUNG ABGESCHLOSSEN: Keine gravierenden Probleme gefunden!")
+        logger.info(f"  {len(gdf)} Features geprüft")
         logger.info(f"  {len(ATTRIBUTES_TO_VALIDATE)} Attribute geprüft")
     else:
-        logger.warning("⚠ VALIDIERUNG FEHLGESCHLAGEN: Es wurden Probleme gefunden!")
-        logger.warning("Bitte überprüfen Sie die Warnungen oben und korrigieren Sie die Daten.")
+        logger.warning("⚠ PRÜFUNG ABGESCHLOSSEN: Es wurden Probleme gefunden!")
+        logger.warning("Bitte prüfen Sie die Hinweise und Warnungen oben und beheben Sie ggf. die Daten.")
     logger.info("=" * 80)
     
     # Erstelle Datei mit problematischen Features, wenn gewünscht
