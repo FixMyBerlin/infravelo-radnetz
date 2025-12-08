@@ -62,7 +62,7 @@ export const getWidthLegend = (): LayerLegend => ({
     },
     {
       color: WIDTH_MISSING_LOW_PRIORITY,
-      label: 'Breitenangabe fehlt aber auch keine Priorität (blau)',
+      label: 'Breiten Nacherhebung',
       filterExpression: [
         'any',
         ['==', ['get', 'category'], 'sharedBusLaneBusWithBike'],
