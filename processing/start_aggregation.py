@@ -214,6 +214,21 @@ def detect_significant_changes(segments_group):
     return changes
 
 
+def is_kreuzungsweg(fuehr_value):
+    """
+    Prüft ob eine Führungsform ein Kreuzungsweg ist (inkl. konvertierte Varianten).
+    
+    Args:
+        fuehr_value: Führungsform-String
+        
+    Returns:
+        bool: True wenn es sich um einen Kreuzungsweg handelt
+    """
+    if pd.isna(fuehr_value):
+        return False
+    return str(fuehr_value).startswith("Kreuzungsweg")
+
+
 def aggregate_by_longest_section(segments_group, attribute):
     """
     Aggregiert ein Attribut basierend auf dem längsten Abschnitt.
@@ -269,29 +284,32 @@ def aggregate_fuehr_by_longest_section(segments_group):
     if not value_lengths:
         return None
     
-    # Entferne "Kreuzungsweg" aus der Auswahl (falls andere Werte existieren)
-    filtered_lengths = {k: v for k, v in value_lengths.items() if k != "Kreuzungsweg"}
+    # Entferne alle Kreuzungsweg-Varianten aus der Auswahl (falls andere Werte existieren)
+    filtered_lengths = {k: v for k, v in value_lengths.items() if not is_kreuzungsweg(k)}
     
     # Falls nach Filterung noch Werte vorhanden sind, wähle längsten
     if filtered_lengths:
         longest_value = max(filtered_lengths, key=filtered_lengths.get)
         
         # Logging, wenn Kreuzungsweg ignoriert wurde
-        if "Kreuzungsweg" in value_lengths:
-            kreuzungsweg_length = value_lengths["Kreuzungsweg"]
+        kreuzungsweg_variants = {k: v for k, v in value_lengths.items() if is_kreuzungsweg(k)}
+        if kreuzungsweg_variants:
+            kreuzungsweg_total_length = sum(kreuzungsweg_variants.values())
             total_length = sum(value_lengths.values())
             logging.debug(
-                f"Kreuzungsweg ({kreuzungsweg_length:.1f}m) ignoriert, "
+                f"Kreuzungsweg-Varianten ({kreuzungsweg_total_length:.1f}m) ignoriert, "
                 f"gewählt: {longest_value} ({filtered_lengths[longest_value]:.1f}m) "
                 f"von insgesamt {total_length:.1f}m"
             )
         
         return longest_value
     
-    # Fallback: Wenn nur "Kreuzungsweg" vorhanden ist, verwende diesen
-    if "Kreuzungsweg" in value_lengths:
-        logging.debug("Nur Kreuzungsweg vorhanden - wird als Fallback verwendet")
-        return "Kreuzungsweg"
+    # Fallback: Wenn nur Kreuzungsweg-Varianten vorhanden sind, verwende die längste
+    kreuzungsweg_variants = {k: v for k, v in value_lengths.items() if is_kreuzungsweg(k)}
+    if kreuzungsweg_variants:
+        longest_kreuzungsweg = max(kreuzungsweg_variants, key=kreuzungsweg_variants.get)
+        logging.debug(f"Nur Kreuzungsweg-Varianten vorhanden - verwende: {longest_kreuzungsweg}")
+        return longest_kreuzungsweg
     
     # Sollte nie erreicht werden, aber sicherheitshalber
     return None
@@ -342,8 +360,8 @@ def aggregate_breite_excluding_kreuzungsweg(segments_group):
         numeric_values = numeric_values[~pd.isna(numeric_values)]
         return float(min(numeric_values)) if len(numeric_values) > 0 else None, False
     
-    # Filtere Segmente die KEINE Kreuzungswege sind
-    non_kreuzungsweg_mask = segments_group['fuehr'] != "Kreuzungsweg"
+    # Filtere Segmente die KEINE Kreuzungswege sind (inkl. konvertierte Varianten)
+    non_kreuzungsweg_mask = ~segments_group['fuehr'].apply(is_kreuzungsweg)
     non_kreuzungsweg_segments = segments_group[non_kreuzungsweg_mask]
     
     # Prüfe ob nur Kreuzungswege vorhanden sind
@@ -843,6 +861,35 @@ def process(input_path, output_path, crs, clip_region=None, data_dir="./data", a
     # ---------- Spalten ordnen ----------------------------------------------
     logging.info("Ordne Spalten für finale Ausgabe...")
     result_gdf = reorder_aggregated_columns(result_gdf)
+
+    # ---------- NULL-Werte für "Keine Radinfrastruktur vorhanden" setzen ---
+    logging.info("Setze pflicht und breite auf NULL bei 'Keine Radinfrastruktur vorhanden'...")
+    if 'fuehr' in result_gdf.columns:
+        keine_radinfra_mask = result_gdf['fuehr'] == 'Keine Radinfrastruktur vorhanden'
+        keine_radinfra_count = keine_radinfra_mask.sum()
+        
+        if keine_radinfra_count > 0:
+            # Zähle wie viele Änderungen durchgeführt werden
+            pflicht_changes = 0
+            breite_changes = 0
+            
+            if 'pflicht' in result_gdf.columns:
+                pflicht_changes = (keine_radinfra_mask & result_gdf['pflicht'].notna()).sum()
+                result_gdf.loc[keine_radinfra_mask, 'pflicht'] = None
+            
+            if 'breite' in result_gdf.columns:
+                breite_changes = (keine_radinfra_mask & result_gdf['breite'].notna()).sum()
+                result_gdf.loc[keine_radinfra_mask, 'breite'] = None
+            
+            logging.info(f"  {keine_radinfra_count} Features mit 'Keine Radinfrastruktur vorhanden' gefunden")
+            if pflicht_changes > 0:
+                logging.info(f"  → pflicht: {pflicht_changes} Werte auf NULL gesetzt")
+            if breite_changes > 0:
+                logging.info(f"  → breite: {breite_changes} Werte auf NULL gesetzt")
+        else:
+            logging.info("  Keine Features mit 'Keine Radinfrastruktur vorhanden' gefunden")
+    else:
+        logging.warning("  Attribut 'fuehr' nicht gefunden - überspringe NULL-Setzung")
 
     # ---------- Ergebnis speichern ------------------------------------------
     p, *layer = output_path.split(":")
