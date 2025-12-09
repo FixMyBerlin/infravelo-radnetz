@@ -127,6 +127,9 @@ run_validation "TILDA Knotenpunkte (Eindeutigkeit)" "validation/validate_knotenp
 # 3. Datensatz B - NULL-Werte und TODO-Werte
 run_validation "Datensatz B (Konvertierte Radverkehrsanlagen)" "validation/validate_datensatz_b.py" "$CLIP_ARG"
 
+# 4. Datensatz C - Aggregierte RVN-Daten
+run_validation "Datensatz C (Aggregierte RVN-Daten)" "validation/validate_datensatz_c.py" "$CLIP_ARG"
+
 # ============================================================================
 # Zusammenfassung
 # ============================================================================
