@@ -42,19 +42,19 @@ class SnappingPriorities:
     # Kategorie-Prioritäten (höhere Zahl = höhere Priorität)
     # Geht auch als Prozent in die Distanzberechnung ein.
     CATEGORY_PRIORITIES = {
-        "cycleway*":                32,  # Radweg
-        "footAndCycleway*":         31,  # Fußweg mit Radverkehr
-        "footwayBicycle*":          30,  # Fußweg mit Radverkehr
+        "cycleway*":                35,  # Radweg
+        "footAndCycleway*":         32,  # Fußweg mit Radverkehr
+        "footwayBicycle*":          31,  # Fußweg mit Radverkehr
         "bicycleRoad*":             28,  # Fahrradstraße
-        "crossing":                 27, # Kreuzungsweg
+        "crossing":                 28, # Kreuzungsweg
         "sharedBusLaneBikeWithBus": 12,  # Radfahrstreifen mit Busverkehr frei
-        "sharedBusLaneBusWithBike": 12, # Bussonderfahrstreifen mit Radverkehr frei
+        "sharedBusLaneBusWithBike": 5, # Bussonderfahrstreifen mit Radverkehr frei
         "pedestrianAreaBicycleYes": 5,  # Fußgängerzone mit Radverkehr
         "sharedMotorVehicleLane":   1,  # Niedrigste Priorität
     }
     
     # Straßennamen-Match Prioritäten
-    STREET_NAME_MATCH_REWARD = 20     # Belohnung für exakte Straßennamen-Übereinstimmung
+    STREET_NAME_MATCH_REWARD = 15     # Belohnung für exakte Straßennamen-Übereinstimmung
     STREET_NAME_MISMATCH_PENALTY = -20  # Strafe für Straßennamen-Mismatch (reduziert von -30, da Segmente oft an Straßengrenzen liegen)
     
     # Richtungskompatibilität Prioritäten
