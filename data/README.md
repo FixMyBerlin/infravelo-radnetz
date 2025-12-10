@@ -33,4 +33,5 @@ Wir verwenden manuell gepflegte Listen von OpenStreetMap-Way-IDs, die das endgü
 * `exclude_ways.txt` enthält in jeder Zeile eine OSM-Way-ID, die aus dem finalen Datensatz **entfernt** werden soll.
 * `include_ways.txt` enthält in jeder Zeile eine OSM-Way-ID, die dem finalen Datensatz **hinzugefügt** werden soll.
 * `opposite_edge_overwrite_element_nr.txt` enthält in jeder Zeile eine `element_nr`, für die die entgegengesetzte Richtung (ri=1) aus dem finalen Datensatz **entfernt** werden soll. Das ist nützlich, wenn der Snapping-Prozess fälschlicherweise Infrastruktur in beide Richtungen zuordnet, in der Realität aber nur die Vorwärtsrichtung (ri=0) existiert.
-
+- `override_ways.gpkg` – GeoPackage mit räumlichen Override-Geometrien zur gezielten Überschreibung von Attributen nach dem Snapping.
+- `override_ways.txt` – Textdatei mit Text-Overrides im Format `tilda_id|element_nr|ri|attributes_json` für attributbasierte Überschreibungen.
