@@ -1,167 +1,79 @@
 # Verarbeitungsskripte
 
-Das Processing-System führt eine vollständige Verarbeitung der TILDA-Rohdaten bis hin zu den finalen aggregierten Radvorrangnetz-Daten durch.
+Das Processing-System verarbeitet TILDA-Rohdaten zu finalen Radvorrangnetz-Daten in 5 Schritten.
 
-Das System erstellt Zwischendateien für die Geodaten, um die Geschwindigkeit bei Wiederholungen zu verbessern. Dies kann jedoch auch zu **Caching-Problemen** führen. Bei Problemen löschen Sie den `output`-Ordner oder verwenden Sie `--clean-cache`.
+Das System nutzt Zwischendateien zur Beschleunigung, was zu **Caching-Problemen** führen kann. Bei Problemen: `output`-Ordner löschen oder `--clean-cache` verwenden.
 
-Siehe [REQUIREMENTS.md](./REQUIREMENTS.md) für Geodaten-Anforderungen.
+Siehe [REQUIREMENTS.md](./REQUIREMENTS.md) für Geodaten-Anforderungen. *Getestet mit Python 3.13.3.*
 
-*Getestet mit Python 3.13.3.*
-
-## Vollständige Verarbeitungskette
+## Verarbeitungskette
 
 ### 1. TILDA-Daten vorbereiten
-
-Zuerst müssen die TILDA-Rohdaten prozessiert werden:
 
 ```bash
 ./process_tilda_data.sh
 ```
 
-### 1b. Bushaltestellen auf RVN filtern (Optional, für Schutzstreifen-Konvertierung)
+Schneidet TILDA-Rohdaten (`data-raw-tilda/`) auf Berlin zu und übersetzt Attribute zu RVN-Format.
 
-Um Schutzstreifen an Bushaltestellen zu konvertieren, müssen zunächst die relevanten Bushaltestellen gefiltert werden:
+**Ausgabe**: `data/TILDA *.fgb` und `output/TILDA-translated/*.fgb`
 
-```bash
-python scripts/filter_bus_stops_on_rvn.py
-```
-
-**Eingabe**: `data/OSM-highway=bus_stop.geojson` (Bushaltestellen-Plattformen)  
-**Ausgabe**: `output/bus_stops_on_rvn.fgb` (Haltestellen auf dem RVN mit 15m Puffer)
-
-Dieser Schritt:
-- Lädt OSM-Bushaltestellen (`highway=bus_stop`, Plattformen)
-- Filtert nur Haltestellen im 15m-Puffer des Radvorrangsnetzes
-- Wird von `start_bikelane_conversion.py` für die Seitenprüfung verwendet
-
-Dieser Schritt:
-- Schneidet die TILDA-Rohdaten aus `data-raw-tilda/` auf Berlin zu
-- Übersetzt TILDA-Attribute zu RVN-Attributen
-- Erstellt drei bereinigte Datensätze in `data/` und `output/TILDA-translated/`
-
-**Eingabedateien (data-raw-tilda/):**
-- `bikelanes.fgb` → `TILDA Radwege Berlin.fgb` → `TILDA Bikelanes Translated.fgb`
-- `roads.fgb` → `TILDA Straßen Berlin.fgb` → `TILDA Streets Translated.fgb`
-- `roadsPathClasses.fgb` → `TILDA Wege Berlin.fgb` → `TILDA Paths Translated.fgb`
-
-### 2. Vollständige Verarbeitung durchführen
-
-Nach der TILDA-Datenvorbereitung wird die Hauptverarbeitung gestartet:
+### 2. Hauptverarbeitung
 
 ```bash
-./execute_processing.sh
+./execute_processing.sh [--clip neukoelln|norden|sueden] [--start-step 1-5] [--clean-cache]
 ```
 
-**Optionen:**
-- `--clip <region>` - Regionaler Zuschnitt: neukoelln, norden oder sueden
-- `--view z/lat/lon` - Viewport-Zuschnitt (WGS84, z.B. 18/52.488306/13.425140)
-- `--start-step <1-5>` - Startet ab bestimmtem Verarbeitungsschritt
-- `--clean-cache` - Vollständige Cache-Bereinigung vor Verarbeitung
+## Verarbeitungsschritte
 
-### Verarbeitungsschritte im Detail
+### Schritt 1: Matching (`start_matching.py`)
+Ordnet OSM-Wege räumlich dem Radvorrangsnetz zu. Wendet Filter an (Orthogonalität, manuelle Ein-/Ausschlüsse).
 
-#### Schritt 1: OSM-Matching (`start_matching.py`)
-- Ordnet TILDA-übersetzte Attribute dem Berliner Radvorrangsnetz zu
-- Führt räumliches Matching durch und erstellt bereinigte Datensätze
-- **Ausgabe**: 
-  - Standard (ganz Berlin): `output/matched/matched_tilda_ways.fgb`
-  - Mit Clipping: `output/matched/matched_tilda_ways_{region}.fgb` (z.B. neukoelln, norden, sueden)
+**Ausgabe**: `output/matched/matched_tilda_ways.fgb`
 
-#### Schritt 2: Snapping und Attribut-Übernahme (`start_snapping.py`) 
-- Überträgt TILDA-Attribute auf ein topologisches Richtungs-Straßennetz
-- Bei fehlenden TILDA-Daten wird `fuehr="Keine Radinfrastruktur vorhanden"` gesetzt
-- Berechnet Segmentlängen in Metern
-- Weist Bezirksnummern zu (basierend auf größtem räumlichen Anteil)
+### Schritt 2: Snapping (`start_snapping.py`)
+Überträgt TILDA-Attribute richtungsgenau auf topologisches Straßennetz. Segmentiert Netz in 2,5m-Abschnitte, matcht TILDA-Wege im Puffer (30m), bestimmt Fahrtrichtung (`ri=0`/`ri=1`) per Winkelvergleich, merged identische Segmente zurück.
 
-**Ausgabe**: `output/snapping_network_enriched.fgb` und `output/snapping_converted_bikelanes.fgb`.
+**Besonderheit Kreisverkehre**: Bei geschlossenen Ringen (Start = Ende) wird Tangente am nächsten Punkt berechnet statt direkter Winkel.
 
-**Besonderheit: Kreisverkehre und geschlossene Ringe**
+**Ausgabe**: `output/snapping_network_enriched.fgb`
 
-Das Snapping-System behandelt Kreisverkehre und andere geschlossene Ringe (Startpunkt == Endpunkt) speziell:
-
-- **Problem**: Bei geschlossenen Ringen ist die Standard-Winkelberechnung (Start → Ende) undefiniert, da dx=0 und dy=0. Das führt zu falschen Zuordnungen.
-- **Lösung**: Bei Kreisverkehren wird die Tangente am nächsten Punkt zum Segment berechnet.
-- **Funktionsweise**:
-  1. Das System erkennt automatisch geschlossene Ringe (Distanz Start-Ende < 1cm)
-  2. Es findet den nächsten Punkt auf dem Ring zum jeweiligen Netzwerk-Segment
-  3. Die Tangente wird durch den Winkel zwischen vorherigem und nächstem Punkt berechnet
-  4. Dies ermöglicht eine korrekte Richtungsbestimmung (ri=0 oder ri=1)
-
-
-#### Schritt 3: Schutzstreifen-Konvertierung (`start_bikelane_conversion.py`)
-**Konvertiert Schutzstreifen zu anderen Infrastrukturtypen unter bestimmten Bedingungen:**
-
-1. **Schutzstreifen an Bushaltestellen** → Radfahrstreifen:
-   - Werden zu Radfahrstreifen konvertiert, wenn:
-     - Sie im 20m Umkreis einer Bushaltestelle liegen UND
-     - Sie an Radfahrstreifen **derselben Richtung** angrenzen UND
-     - Die Bushaltestelle auf der **rechten Seite** (Fahrtrichtung) liegt
-   - Berücksichtigt Rechtsverkehr in Deutschland
-   - Benötigt vorheriges Ausführen von `scripts/filter_bus_stops_on_rvn.py`
-   - Neue Führungsform: `"Radfahrstreifen (OSM:Schutzstreifen an Haltestelle)"`
-
-2. **Kurze Schutzstreifen** (< 50m) → Radfahrstreifen:
-   - Werden zu Radfahrstreifen konvertiert, wenn sie an Radfahrstreifen **derselben Richtung** angrenzen
-   - Berücksichtigt zusammenhängende Segmente (mit 0,1m Toleranz)
-   - Neue Führungsform: `"Radfahrstreifen (OSM:Kurzer Schutzstreifen)"`
-
-3. **Kurze Schutzstreifen** (< 50m) → Mischverkehr:
-   - Werden zu Mischverkehr konvertiert, wenn sie an Mischverkehr angrenzen
-   - Berücksichtigt zusammenhängende Segmente derselben Richtung (mit 1,0m Toleranz)
-   - Neue Führungsform: `"Mischverkehr (OSM:Schutzstreifen)"`
-
-**Wichtige Prüfungen:**
-- **Richtungscheck bei allen Konvertierungen:** Nur angrenzende Wege mit gleichem `ri`-Attribut werden berücksichtigt (verhindert fälschliche Konvertierung bei entgegengesetzten Fahrrichtungen)
-- **Seitenprüfung:** Bei Haltestellen wird nur die Seite mit Haltestelle konvertiert
-- **Filter für `fuehr=None`:** Wege ohne Führungsform werden korrekt ausgefiltert
-- **MultiLineString-Handling:** Teile können aufgesplittet werden, wenn nur manche die Kriterien erfüllen
+### Schritt 3: Schutzstreifen-Konvertierung (`start_bikelane_conversion.py`)
+Konvertiert Schutzstreifen unter bestimmten Bedingungen:
+- An Bushaltestellen → Radfahrstreifen (nur rechte Seite, benachbart zu Radfahrstreifen)
+- Kurze Segmente (<50m) → Radfahrstreifen (benachbart zu Radfahrstreifen)
+- Kurze Segmente (<50m) → Mischverkehr (benachbart zu Mischverkehr)
+- Kurze Segmente an Knotenpunkten → Kreuzungswege
 
 **Ausgabe**: `output/snapping_converted_bikelanes.fgb`
 
-**Hinweis:** Alle konvertierten Varianten werden in der finalen Aggregation normalisiert:
-- `"Radfahrstreifen (OSM:...)"` → `"Radfahrstreifen"`
-- `"Mischverkehr (OSM:Schutzstreifen)"` → `"Mischverkehr mit motorisiertem Verkehr"`
+### Schritt 3b: Override-Anwendung (`start_overriding.py`)
+Wendet manuelle Overrides aus `data/override_ways.gpkg` und `data/override_ways.txt` auf Netzwerkdaten an. Überschreibt gezielt Attribute (fuehr, ofm, protek, pflicht, breite, farbe, trennstreifen, nutz_beschr, verkehrsri).
 
-#### Schritt 4: Finale Aggregation (`start_aggregation.py`)
-- Aggregiert Netzwerkdaten nach `element_nr` und Fahrtrichtung (`ri`)
-- Weist Bezirksnummern zu
-- Erstellt finale GeoPackage-Dateien mit separaten Layern
-- **Ausgabe**: `output/aggregated_rvn_final.gpkg`
+**Ausgabe**: `output/snapping_with_overrides.fgb`
 
-#### Schritt 5: Qualitätssicherungstests
+### Schritt 4: Aggregation (`start_aggregation.py`)
+Aggregiert Segmente nach `element_nr` + `ri` (Fahrtrichtung). Regelbasiert: längster Abschnitt für Führungsform/Bezirk/Material, schlechteste Ausprägung für Breite/Trennstreifen.
 
-Optionale, automatisierte Validierungen.
+**Ausgabe**: `output/aggregated_rvn_final.gpkg` (Layer: `hinrichtung`, `gegenrichtung`)
 
-## Finale Ausgabedateien
+## Python-Skripte im Überblick
 
-Nach erfolgreicher Verarbeitung finden sich die finalen Datensätze hier:
+- **`start_matching.py`**: Schritt 1 - OSM-Matching mit Filtern
+- **`start_snapping.py`**: Schritt 2 - Richtungsgerechtes Snapping
+- **`start_bikelane_conversion.py`**: Schritt 3 - Schutzstreifen-Konvertierung
+- **`start_overriding.py`**: Schritt 3b - Override-Anwendung
+- **`start_aggregation.py`**: Schritt 4 - Finale Aggregation
 
-### Standard-Modus (ganz Berlin):
-- **`output/snapping_network_enriched.fgb`** - Gesnappte Wege vor Schutzstreifen-Konvertierung
-- **`output/snapping_converted_bikelanes.fgb`** - Angereicherte Netzwerkdaten nach Schutzstreifen-Konvertierung
-- **`output/aggregated_rvn_final.gpkg`** - Finale aggregierte Netzwerkdaten mit 3 Layern:
-  - `hinrichtung` - Kanten mit ri=0 
-  - `gegenrichtung` - Kanten mit ri=1
+### Helper-Module (`helpers/`)
+- `globals.py`: Konstanten (CRS, Pfade)
+- `snapping_calculations.py`: Winkelberechnungen, Richtungserkennung
+- `district_assignment.py`: Bezirkszuweisung
+- `clipping.py`: Regionale/Viewport-Zuschnitte
+- `convert_*.py`: Schutzstreifen-Konvertierungslogik
+- `override_edges.py`: Override-Verarbeitung
 
-### Regionaler Zuschnitt (`--clip <region>`):
-- **`output/aggregated_rvn_final_{region}.gpkg`** (z.B. neukoelln, norden, sueden)
-- **`output/snapping_converted_bikelanes_{region}.fgb`**
-
-### Zusätzliche Dateien:
-- **`output/matched/`** - Gematchte OSM-Wege und Zwischendateien
-- **`output-last-run/`** - Gesicherte finale Dateien vom vorherigen Lauf
-
-## Filter und Verarbeitungslogik
-
-### Orthogonaler Filter
-Der `orthogonal_filter.py` führt zusätzliche Verarbeitungsschritte durch:
-- Selektiert kurze OSM-Wege unter einem Schwellenwert
-- Berechnet Vektoren der Radvorrangsnetz-Kanten in Puffer-Entfernung
-- Verwirft Segmente mit zu großem Winkelunterschied
-- Betrifft hauptsächlich Kreuzungen, die nicht parallel zum gewünschten Radvorrangsnetz verlaufen
-
-### Manuelle OSM Ein- und Ausschlüsse
-Manuelle Eingriffe verwenden die Dateien `data/exclude_ways.txt` und `data/include_ways.txt` (eine OSM-Weg-ID pro Zeile) zum Ausschließen oder Einschließen von OSM-Wegen. Dieser Schritt ist standardmäßig aktiviert und kann mit `--skip-manual-interventions` übersprungen werden.
-
-### Differenz-Berechnung  
-Das System berechnet standardmäßig die Differenz zwischen zwei Datensätzen (normalerweise verwendet zur Bestimmung aller Straßen, wo keine Radwege in OSM erkannt wurden). Dieser Schritt kann mit `--skip-difference-streets-bikelanes` übersprungen werden.
+### Matching-Module (`matching/`)
+- `orthogonal_filter.py`: Verwirft Segmente mit falscher Ausrichtung zum RVN
+- `manual_interventions.py`: Lädt `exclude_ways.txt` / `include_ways.txt`
+- `difference.py`: Berechnet Straßen ohne Radinfrastruktur
