@@ -62,6 +62,14 @@ class SnappingPriorities:
     DIRECTION_BIDIRECTIONAL = 10      # Zweirichtungsverkehr (beide Richtungen möglich)
     DIRECTION_WRONG_WAY = -110        # Einrichtungsverkehr mit falscher Richtung
     
+    # Fehlende Attribute Priorität
+    MISSING_ATTRIBUTE_PENALTY = -4    # Strafe für jedes fehlende Attribut (breite, ofm)
+    # Liste der zu prüfenden Attribute (jedes fehlende/ungültige Attribut gibt MISSING_ATTRIBUTE_PENALTY)
+    REQUIRED_ATTRIBUTES = {
+        'breite': lambda val: val is not None and val != "",
+        'ofm': lambda val: val is not None and val != "" and not val.startswith("[TODO]") and val != "NICHT-GEFUNDEN"
+    }
+    
     # Winkel-Priorität Konfiguration (kontinuierliche Funktion)
     ANGLE_PARALLEL_REWARD = 20       # Belohnung für parallele Wege (0°, 180°) - maximaler Wert
     ANGLE_ORTHOGONAL_PENALTY = -100   # Strafe für orthogonale Wege (90°) - minimaler Wert der kontinuierlichen Funktion
@@ -886,10 +894,18 @@ def find_best_candidate_for_direction(candidates, seg_dict, ri_value, segment_an
             priority_details[idx]['priority_overlap'] = float(overlap_prio)
             priority_details[idx]['overlap_score'] = float(overlap_score)
     
-    # Berechne Breiten-Priorität: -3 wenn keine Breite vorhanden
-    # Wege die von uns erfasst wurden haben immer eine Breite
-    candidates["width_priority"] = candidates.apply(
-        lambda row: 0 if (row.get("breite") is not None and row.get("breite") != "") else -3,
+    # Berechne Priorität für fehlende Attribute (breite, ofm)
+    # Wege die von uns erfasst wurden haben immer diese Attribute
+    def calculate_missing_attributes_penalty(row):
+        penalty = 0
+        for attr_name, validation_func in SnappingPriorities.REQUIRED_ATTRIBUTES.items():
+            attr_value = row.get(attr_name)
+            if not validation_func(attr_value):
+                penalty += SnappingPriorities.MISSING_ATTRIBUTE_PENALTY
+        return penalty
+    
+    candidates["missing_attributes_priority"] = candidates.apply(
+        calculate_missing_attributes_penalty,
         axis=1
     )
     
@@ -948,14 +964,14 @@ def find_best_candidate_for_direction(candidates, seg_dict, ri_value, segment_an
             logging.debug(f"  Kandidat {candidate_tilda_id}: Zweirichtungsverkehr, "
                          f"Winkel={candidate_angle:.2f}°, direction_compatibility={SnappingPriorities.DIRECTION_BIDIRECTIONAL}")
     
-    # Berechne Gesamt-Priorität: TILDA-Inhalt + Winkel + Entfernung + Überlappung + Richtungskompatibilität + Breite
+    # Berechne Gesamt-Priorität: TILDA-Inhalt + Winkel + Entfernung + Überlappung + Richtungskompatibilität + Fehlende Attribute
     candidates["total_priority_weighted"] = (
         candidates["priority"] +           # TILDA-Priorität (Inhalt)
         candidates["angle_priority"] +     # Winkel-Priorität (beinhaltet Richtungsausrichtung)
         candidates["distance_priority"] +  # Entfernungs-Priorität
         candidates["priority_overlap"] +   # Überlappungs-Priorität (verhindert Overshoot)
         candidates["direction_compatibility"] + # Richtungskompatibilität
-        candidates["width_priority"]       # Breiten-Priorität (-3 wenn keine Breite)
+        candidates["missing_attributes_priority"] # Fehlende Attribute (-3 pro fehlendem Attribut)
     ).round(2)  # Runde auf zwei Nachkommastellen
     
     # Sortiere ALLE Kandidaten nach gewichteter Gesamtpriorität (TILDA + Winkel + Entfernung)
