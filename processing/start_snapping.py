@@ -84,7 +84,7 @@ RVN_ATTRIBUT_ENDE_VP   = "endet_bei_vp"         # Endknoten-ID
 # Attribute an denen die Kanten getrennt werden bzw. verschmolzen werden
 # Diese Attribute müssen in den übersetzten TILDA Daten vorhanden sein
 FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES = ["fuehr", "ofm", "protek", "pflicht", "breite", "farbe", "ri", "verkehrsri", "trennstreifen", "nutz_beschr", "Kommentar"]
-FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES=["data_source", "tilda_id", "tilda_link", "tilda_link_mapillary", "tilda_name","tilda_oneway", "tilda_category", "tilda_traffic_sign", "tilda_mapillary", "tilda_mapillary_traffic_sign", "tilda_mapillary_backward", "tilda_mapillary_forward", "tilda_width_source", "prio_traffic_sign", "prio_category", "prio_streetname_equality", "prio_angle", "prio_distance", "prio_overlap", "prio_direction_compatibility", "prio_total", "prio_candidates", "value_prio_distance_meter", "value_prio_overlap_score", "angle_diff", "angle_segment", "angle_tilda"]
+FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES=["data_source", "tilda_id", "tilda_link", "tilda_link_mapillary", "tilda_name","tilda_oneway", "tilda_category", "tilda_traffic_sign", "tilda_mapillary", "tilda_mapillary_traffic_sign", "tilda_mapillary_backward", "tilda_mapillary_forward", "tilda_width_source", "prio_traffic_sign", "prio_category", "prio_streetname_equality", "prio_angle", "prio_distance", "prio_overlap", "prio_direction_compatibility", "prio_width", "prio_total", "prio_candidates", "value_prio_distance_meter", "value_prio_overlap_score", "angle_diff", "angle_segment", "angle_tilda"]
 
 # Gewünschte Spaltenreihenfolge für Datenaufbereitung (finale Ausgabe)
 COLUMN_ORDER = [
@@ -127,6 +127,7 @@ COLUMN_ORDER = [
     "prio_distance", # Gewichtete Entfernungs-Priorität (hyperbolisch)
     "prio_overlap",           # Überlappungs-Priorität (verhindert Overshoot)
     "prio_direction_compatibility", # Priorität für Richtungskompatibilität (Einrichtungs-/Zweirichtungsverkehr)
+    "prio_width",             # Priorität basierend auf Breiten-Verfügbarkeit (-3 wenn keine Breite)
     "prio_total",             # Gesamtpriorität (Summe aller obigen Prioritäten)
     "value_prio_distance_meter",    # Entfernung zum Segmentmittelpunkt (in Metern) - Rohwert
     "value_prio_overlap_score",     # Überlappungs-Score (0.0-1.0) - Rohwert
@@ -290,6 +291,7 @@ def set_priority_values(variant, best_osm, segment_angle, candidates_with_priori
         variant["prio_overlap"] = best_osm.get('priority_overlap', 0)  # Überlappungs-Priorität (verhindert Overshoot)
         # Speichere auch den Rohwert (0.0-1.0) aus priority_details falls verfügbar
         variant["value_prio_overlap_score"] = priority_details.get('overlap_score', None)
+        variant["prio_width"] = best_osm.get('width_priority', 0)  # Breiten-Priorität (-3 wenn keine Breite)
         variant["prio_total"] = best_osm.get('total_priority_weighted', 0)  # Gesamtpriorität
         # Richtungskompatibilität explizit speichern
         variant["prio_direction_compatibility"] = best_osm.get('direction_compatibility', 0)
@@ -315,6 +317,7 @@ def set_priority_values(variant, best_osm, segment_angle, candidates_with_priori
         variant["prio_distance"] = 0
         variant["prio_overlap"] = 0
         variant["value_prio_overlap_score"] = None
+        variant["prio_width"] = 0
         variant["prio_total"] = 0
         variant["prio_direction_compatibility"] = 0
         variant["angle_segment"] = segment_angle

@@ -706,6 +706,15 @@ def calculate_osm_priority_detailed(row, seg_dict=None) -> tuple:
                     if prio > category_priority:
                         category_priority = prio
                         matched_pattern = pattern
+        
+        # Sonderfall: "Sonstige Wege" (data_source=paths) unter 5m erhalten pauschalen Abzug
+        # da sie oft fälschlicherweise gegenüber Mischverkehr bevorzugt werden
+        data_source = row.get("data_source", "")
+        tilda_length = row.get("Länge", None)  # Länge ohne Prefix (wird nicht umbenannt laut CONFIG_ATTRIBUTES_NOT_RENAMING)
+        if data_source == "paths" and tilda_length is not None and tilda_length < 5:
+            category_priority -= 5
+            logging.debug(f"Kandidat {tilda_id}: 'Sonstige Wege' (paths) mit Länge {tilda_length}m < 5m → -5 Priorität")
+            
         priority += category_priority
     
     # Priorität basierend auf Straßennamen-Match
@@ -877,6 +886,13 @@ def find_best_candidate_for_direction(candidates, seg_dict, ri_value, segment_an
             priority_details[idx]['priority_overlap'] = float(overlap_prio)
             priority_details[idx]['overlap_score'] = float(overlap_score)
     
+    # Berechne Breiten-Priorität: -3 wenn keine Breite vorhanden
+    # Wege die von uns erfasst wurden haben immer eine Breite
+    candidates["width_priority"] = candidates.apply(
+        lambda row: 0 if (row.get("breite") is not None and row.get("breite") != "") else -3,
+        axis=1
+    )
+    
     # ============ VEKTORISIERTE RICHTUNGSKOMPATIBILITÄTS-BERECHNUNG ============
     
     logging.debug(f"Segment element_nr={element_nr}: Winkel={segment_angle:.2f}°")
@@ -932,13 +948,14 @@ def find_best_candidate_for_direction(candidates, seg_dict, ri_value, segment_an
             logging.debug(f"  Kandidat {candidate_tilda_id}: Zweirichtungsverkehr, "
                          f"Winkel={candidate_angle:.2f}°, direction_compatibility={SnappingPriorities.DIRECTION_BIDIRECTIONAL}")
     
-    # Berechne Gesamt-Priorität: TILDA-Inhalt + Winkel + Entfernung + Überlappung + Richtungskompatibilität
+    # Berechne Gesamt-Priorität: TILDA-Inhalt + Winkel + Entfernung + Überlappung + Richtungskompatibilität + Breite
     candidates["total_priority_weighted"] = (
         candidates["priority"] +           # TILDA-Priorität (Inhalt)
         candidates["angle_priority"] +     # Winkel-Priorität (beinhaltet Richtungsausrichtung)
         candidates["distance_priority"] +  # Entfernungs-Priorität
         candidates["priority_overlap"] +   # Überlappungs-Priorität (verhindert Overshoot)
-        candidates["direction_compatibility"] # Richtungskompatibilität
+        candidates["direction_compatibility"] + # Richtungskompatibilität
+        candidates["width_priority"]       # Breiten-Priorität (-3 wenn keine Breite)
     ).round(2)  # Runde auf zwei Nachkommastellen
     
     # Sortiere ALLE Kandidaten nach gewichteter Gesamtpriorität (TILDA + Winkel + Entfernung)
