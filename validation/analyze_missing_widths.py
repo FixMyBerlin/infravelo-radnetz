@@ -3,15 +3,16 @@
 """
 analyze_missing_widths.py
 --------------------------------------------------------------------
-Analysiert "Sonstige Wege" ohne Breite in den Snapping-Daten und exportiert
+Analysiert Radinfrastruktur ohne Breite in den Snapping-Daten und exportiert
 die zugehörigen originalen TILDA-Wege.
 
 Prüft:
-1. Findet alle Wege mit Führungsform "Sonstige Wege (Gehwege, Wege durch Grünflächen, Plätze)"
-2. Filtert davon diejenigen ohne Breite (breite=NULL oder breite='Breite fehlt')
-3. Extrahiert die tilda_id dieser Segmente
-4. Lädt die originalen TILDA-Wege aus matched_tilda_ways.fgb
-5. Exportiert die entsprechenden TILDA-Wege als tilda_missing_widths_sonstige_wege.fgb
+1. Findet alle Wege mit konfigurierten Führungsformen
+2. Schließt temporäre Markierungen und Baustellen aus (Kommentar-Feld)
+3. Filtert davon diejenigen ohne Breite (breite=NULL oder breite='Breite fehlt')
+4. Extrahiert die tilda_id dieser Segmente
+5. Lädt die originalen TILDA-Wege aus matched_tilda_ways.fgb
+6. Exportiert die entsprechenden TILDA-Wege als tilda_missing_widths.fgb
 """
 
 import sys
@@ -19,30 +20,58 @@ from pathlib import Path
 import geopandas as gpd
 import pandas as pd
 
-# Pfade
+# =============================================================================
+# KONFIGURATION
+# =============================================================================
+
+# Führungsformen, die analysiert werden sollen
+FUEHRUNGSFORMEN = [
+    "Sonstige Wege (Gehwege, Wege durch Grünflächen, Plätze)",
+    "Radweg",
+    "Gehweg mit Zusatzzeichen \"Radverkehr frei\" (Z239 mit Z1022-10)",
+    "Schutzstreifen",
+    "Radfahrstreifen",
+]
+
+# Ausschlussbegriffe für Kommentar-Feld (case-insensitiv)
+KOMMENTAR_AUSSCHLUSS = [
+    "temporär",
+    "baustelle",
+]
+
+# =============================================================================
+# PFADE
+# =============================================================================
+
 script_dir = Path(__file__).parent
 output_dir = script_dir.parent / "output"
 analysis_dir = output_dir / "analysis"
 
 SNAPPING_FILE = output_dir / "snapping_network_enriched.fgb"
 MATCHED_TILDA_FILE = output_dir / "matched" / "matched_tilda_ways.fgb"
-OUTPUT_FILE = analysis_dir / "tilda_missing_widths_sonstige_wege.fgb"
-
-# Führungsform für "Sonstige Wege"
-FUEHR_SONSTIGE_WEGE = "Sonstige Wege (Gehwege, Wege durch Grünflächen, Plätze)"
+OUTPUT_FILE = analysis_dir / "tilda_missing_widths.geojson"
 
 def main():
     print("=" * 80)
-    print("ANALYSE: Fehlende Breiten bei 'Sonstige Wege'")
+    print("ANALYSE: Fehlende Breiten bei Radinfrastruktur")
     print("=" * 80)
+    
+    # Zeige Konfiguration
+    print("\n📋 Konfiguration:")
+    print(f"   Analysierte Führungsformen ({len(FUEHRUNGSFORMEN)}):")
+    for fuehr in FUEHRUNGSFORMEN:
+        print(f"     - {fuehr}")
+    print(f"\n   Ausschlussbegriffe im Kommentar ({len(KOMMENTAR_AUSSCHLUSS)}):")
+    for term in KOMMENTAR_AUSSCHLUSS:
+        print(f"     - {term}")
     
     # Prüfe ob Dateien existieren
     if not SNAPPING_FILE.exists():
-        print(f"❌ FEHLER: Snapping-Datensatz nicht gefunden: {SNAPPING_FILE}")
+        print(f"\n❌ FEHLER: Snapping-Datensatz nicht gefunden: {SNAPPING_FILE}")
         return 1
     
     if not MATCHED_TILDA_FILE.exists():
-        print(f"❌ FEHLER: Matched TILDA-Datensatz nicht gefunden: {MATCHED_TILDA_FILE}")
+        print(f"\n❌ FEHLER: Matched TILDA-Datensatz nicht gefunden: {MATCHED_TILDA_FILE}")
         return 1
     
     # Erstelle analysis-Verzeichnis falls nicht vorhanden
@@ -54,31 +83,77 @@ def main():
     total_segments = len(snapping_gdf)
     print(f"   Gesamt Segmente: {total_segments:,}")
     
-    # Filtere "Sonstige Wege"
-    sonstige_mask = snapping_gdf['fuehr'] == FUEHR_SONSTIGE_WEGE
-    sonstige_gdf = snapping_gdf[sonstige_mask].copy()
+    # Filtere nach konfigurierten Führungsformen
+    fuehr_mask = snapping_gdf['fuehr'].isin(FUEHRUNGSFORMEN)
+    filtered_gdf = snapping_gdf[fuehr_mask].copy()
     
-    total_sonstige = len(sonstige_gdf)
-    print(f"\n📊 Segmente mit '{FUEHR_SONSTIGE_WEGE}': {total_sonstige:,} ({total_sonstige/total_segments*100:.2f}%)")
+    total_with_fuehr = len(filtered_gdf)
+    print(f"\n📊 Segmente mit konfigurierten Führungsformen: {total_with_fuehr:,} ({total_with_fuehr/total_segments*100:.2f}%)")
     
-    if total_sonstige == 0:
-        print("\n✅ ERGEBNIS: Keine 'Sonstige Wege' gefunden!")
+    # Zeige Verteilung nach Führungsformen
+    print("\n   Verteilung nach Führungsform:")
+    for fuehr in FUEHRUNGSFORMEN:
+        count = len(filtered_gdf[filtered_gdf['fuehr'] == fuehr])
+        if count > 0:
+            print(f"     {count:6,}x | {fuehr}")
+    
+    if total_with_fuehr == 0:
+        print("\n✅ ERGEBNIS: Keine Segmente mit den konfigurierten Führungsformen gefunden!")
+        return 0
+    
+    # Schließe temporäre Markierungen und Baustellen aus
+    print(f"\n🚧 Schließe temporäre Markierungen und Baustellen aus...")
+    
+    # Erstelle Maske für Ausschluss (case-insensitiv)
+    exclude_mask = pd.Series([False] * len(filtered_gdf), index=filtered_gdf.index)
+    
+    if 'Kommentar' in filtered_gdf.columns:
+        kommentar_series = filtered_gdf['Kommentar'].fillna('').str.lower()
+        for term in KOMMENTAR_AUSSCHLUSS:
+            term_lower = term.lower()
+            exclude_mask |= kommentar_series.str.contains(term_lower, na=False)
+    
+    excluded_count = exclude_mask.sum()
+    print(f"   Ausgeschlossene Segmente: {excluded_count:,}")
+    
+    # Zeige Beispiele für ausgeschlossene Segmente
+    if excluded_count > 0:
+        print("   Beispiel-Kommentare (erste 5):")
+        for kom in filtered_gdf[exclude_mask]['Kommentar'].head(5):
+            print(f"     - {kom}")
+    
+    # Wende Ausschluss an
+    filtered_gdf = filtered_gdf[~exclude_mask].copy()
+    
+    after_exclusion = len(filtered_gdf)
+    print(f"   Verbleibende Segmente: {after_exclusion:,}")
+    
+    if after_exclusion == 0:
+        print("\n✅ ERGEBNIS: Keine Segmente nach Ausschluss verblieben!")
         return 0
     
     # Filtere davon diejenigen ohne Breite
     # breite=NULL oder breite='Breite fehlt'
     no_width_mask = (
-        sonstige_gdf['breite'].isna() | 
-        sonstige_gdf['breite'].isnull() | 
-        (sonstige_gdf['breite'] == 'Breite fehlt')
+        filtered_gdf['breite'].isna() | 
+        filtered_gdf['breite'].isnull() | 
+        (filtered_gdf['breite'] == 'Breite fehlt')
     )
-    no_width_gdf = sonstige_gdf[no_width_mask].copy()
+    no_width_gdf = filtered_gdf[no_width_mask].copy()
     
     total_no_width = len(no_width_gdf)
-    print(f"   davon ohne Breite: {total_no_width:,} ({total_no_width/total_sonstige*100:.2f}%)")
+    print(f"\n📊 Segmente ohne Breite: {total_no_width:,} ({total_no_width/after_exclusion*100:.2f}%)")
+    
+    # Zeige Verteilung nach Führungsformen (ohne Breite)
+    if total_no_width > 0:
+        print("\n   Verteilung ohne Breite nach Führungsform:")
+        for fuehr in FUEHRUNGSFORMEN:
+            count = len(no_width_gdf[no_width_gdf['fuehr'] == fuehr])
+            if count > 0:
+                print(f"     {count:6,}x | {fuehr}")
     
     if total_no_width == 0:
-        print("\n✅ ERGEBNIS: Alle 'Sonstige Wege' haben eine Breite!")
+        print("\n✅ ERGEBNIS: Alle Segmente haben eine Breite!")
         return 0
     
     # Extrahiere tilda_id
@@ -124,10 +199,10 @@ def main():
     # Falls tilda_ids bereits im richtigen Format sind
     filtered_tilda_gdf = tilda_gdf[tilda_gdf[id_column].isin(tilda_ids)].copy()
     
-    total_filtered = len(filtered_tilda_gdf)
-    print(f"   Gefilterte TILDA-Wege: {total_filtered:,}")
+    filtered_tilda_count = len(filtered_tilda_gdf)
+    print(f"   Gefilterte TILDA-Wege: {filtered_tilda_count:,}")
     
-    if total_filtered == 0:
+    if filtered_tilda_count == 0:
         print("\n⚠️  WARNUNG: Keine übereinstimmenden TILDA-Wege gefunden!")
         print("   Möglicherweise stimmt das ID-Format nicht überein.")
         
@@ -144,19 +219,30 @@ def main():
     
     # Exportiere gefilterte TILDA-Wege
     print(f"\n💾 Exportiere TILDA-Wege nach: {OUTPUT_FILE.name}")
-    filtered_tilda_gdf.to_file(OUTPUT_FILE, driver="FlatGeobuf")
+    
+    # Transformiere zu WGS84 (EPSG:4326) für GeoJSON RFC-Konformität
+    if filtered_tilda_gdf.crs != "EPSG:4326":
+        print(f"   Transformiere CRS von {filtered_tilda_gdf.crs} nach EPSG:4326 (WGS84)...")
+        filtered_tilda_gdf = filtered_tilda_gdf.to_crs("EPSG:4326")
+    
+    filtered_tilda_gdf.to_file(OUTPUT_FILE, driver="GeoJSON")
     
     print(f"\n✅ Export erfolgreich!")
     print(f"   Datei: {OUTPUT_FILE}")
-    print(f"   Anzahl Features: {total_filtered:,}")
+    print(f"   Format: GeoJSON (EPSG:4326)")
+    print(f"   Anzahl Features: {filtered_tilda_count:,}")
     
     # Statistik
     print("\n" + "=" * 80)
     print("ZUSAMMENFASSUNG")
     print("=" * 80)
-    print(f"\nSegmente mit '{FUEHR_SONSTIGE_WEGE}' ohne Breite: {total_no_width:,}")
+    print(f"\nGesamt Segmente: {total_segments:,}")
+    print(f"Segmente mit konfigurierten Führungsformen: {total_with_fuehr:,}")
+    print(f"Ausgeschlossene Segmente (temporär/Baustelle): {excluded_count:,}")
+    print(f"Verbleibende Segmente: {after_exclusion:,}")
+    print(f"Segmente ohne Breite: {total_no_width:,}")
     print(f"Eindeutige tilda_ids: {total_tilda_ids:,}")
-    print(f"Exportierte TILDA-Wege: {total_filtered:,}")
+    print(f"Exportierte TILDA-Wege: {filtered_tilda_count:,}")
     
     # Zeige einige Beispiele
     print("\n" + "=" * 80)
@@ -176,8 +262,8 @@ def main():
         print(f"   Führung: {fuehr}")
         print(f"   Breite: {width}")
     
-    if total_filtered > 10:
-        print(f"\n   ... und {total_filtered - 10} weitere")
+    if filtered_tilda_count > 10:
+        print(f"\n   ... und {filtered_tilda_count - 10} weitere")
     
     print("\n" + "=" * 80)
     
