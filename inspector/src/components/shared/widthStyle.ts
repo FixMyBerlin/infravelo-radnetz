@@ -11,23 +11,27 @@ export const getWidthOpacity: DataDrivenPropertyValueSpecification<number> = 0.8
 
 export const getWidthStyle: DataDrivenPropertyValueSpecification<string> = [
   'case',
-  // First check if it's a category where width is not a priority
+  // First check if width and source are both present
+  ['all', ['has', 'width'], ['has', 'width_source']],
+  WIDTH_COMPLETE,
+  // Then check if width is present but source is missing
+  ['all', ['has', 'width'], ['!', ['has', 'width_source']]],
+  WIDTH_SOURCE_MISSING,
+  // Then check if width is missing AND it's a low priority category
   [
-    'any',
-    ['==', ['get', 'category'], 'sharedBusLaneBusWithBike'],
-    ['==', ['get', 'category'], 'sharedBusLaneBikeWithBus'],
-    ['==', ['get', 'category'], 'bicycleRoad'],
-    ['==', ['get', 'category'], 'bicycleRoad_vehicleDestination'],
+    'all',
+    ['!', ['has', 'width']],
+    [
+      'any',
+      ['==', ['get', 'category'], 'sharedBusLaneBusWithBike'],
+      ['==', ['get', 'category'], 'sharedBusLaneBikeWithBus'],
+      ['==', ['get', 'category'], 'bicycleRoad'],
+      ['==', ['get', 'category'], 'bicycleRoad_vehicleDestination'],
+    ],
   ],
   WIDTH_MISSING_LOW_PRIORITY,
-  // Then check if width is completely missing
-  ['!', ['has', 'width']],
+  // Otherwise width is missing
   WIDTH_MISSING,
-  // Then check if width source is missing
-  ['!', ['has', 'width_source']],
-  WIDTH_SOURCE_MISSING,
-  // Otherwise width and source are present
-  WIDTH_COMPLETE,
 ]
 
 export const getWidthLegend = (): LayerLegend => ({
