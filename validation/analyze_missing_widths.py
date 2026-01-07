@@ -156,10 +156,33 @@ def main():
         print("\n✅ ERGEBNIS: Alle Segmente haben eine Breite!")
         return 0
     
-    # Extrahiere tilda_id
-    print(f"\n🔍 Extrahiere tilda_id aus Snapping-Daten...")
-    tilda_ids = no_width_gdf['tilda_id'].dropna().unique()
+    # Extrahiere tilda_ids (alle zusammengeführten IDs)
+    print(f"\n🔍 Extrahiere tilda_ids aus Snapping-Daten...")
     
+    # Verwende die neue tilda_ids Spalte (mit Semikolon getrennte IDs) falls verfügbar
+    # Ansonsten Fallback auf einzelne tilda_id
+    all_tilda_ids = set()
+    
+    if 'tilda_ids' in no_width_gdf.columns:
+        print(f"   Verwende 'tilda_ids' Spalte (alle zusammengeführten IDs)...")
+        for tilda_ids_str in no_width_gdf['tilda_ids'].dropna():
+            if pd.notna(tilda_ids_str) and str(tilda_ids_str).strip():
+                # Splitte Semikolon-getrennte Werte
+                ids = str(tilda_ids_str).split(';')
+                for tid in ids:
+                    tid_clean = tid.strip()
+                    if tid_clean and tid_clean.lower() not in ['none', 'nan', '']:
+                        all_tilda_ids.add(tid_clean)
+    else:
+        print(f"   Fallback auf 'tilda_id' Spalte (nur primäre IDs)...")
+        if 'tilda_id' in no_width_gdf.columns:
+            for tid in no_width_gdf['tilda_id'].dropna().unique():
+                if pd.notna(tid) and str(tid).strip():
+                    tid_clean = str(tid).strip()
+                    if tid_clean.lower() not in ['none', 'nan', '']:
+                        all_tilda_ids.add(tid_clean)
+    
+    tilda_ids = sorted(all_tilda_ids)
     total_tilda_ids = len(tilda_ids)
     print(f"   Gefundene eindeutige tilda_ids: {total_tilda_ids:,}")
     

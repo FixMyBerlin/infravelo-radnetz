@@ -84,7 +84,7 @@ RVN_ATTRIBUT_ENDE_VP   = "endet_bei_vp"         # Endknoten-ID
 # Attribute an denen die Kanten getrennt werden bzw. verschmolzen werden
 # Diese Attribute müssen in den übersetzten TILDA Daten vorhanden sein
 FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES = ["fuehr", "ofm", "protek", "pflicht", "breite", "farbe", "ri", "verkehrsri", "trennstreifen", "nutz_beschr", "Kommentar"]
-FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES=["data_source", "tilda_id", "tilda_link", "tilda_link_mapillary", "tilda_name","tilda_oneway", "tilda_category", "tilda_traffic_sign", "tilda_mapillary", "tilda_mapillary_traffic_sign", "tilda_mapillary_backward", "tilda_mapillary_forward", "tilda_width_source", "prio_traffic_sign", "prio_category", "prio_streetname_equality", "prio_angle", "prio_distance", "prio_overlap", "prio_direction_compatibility", "prio_missing_attributes", "prio_total", "prio_candidates", "value_prio_distance_meter", "value_prio_overlap_score", "angle_diff", "angle_segment", "angle_tilda"]
+FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES=["data_source", "tilda_id", "tilda_ids", "tilda_link", "tilda_link_mapillary", "tilda_name","tilda_oneway", "tilda_category", "tilda_traffic_sign", "tilda_mapillary", "tilda_mapillary_traffic_sign", "tilda_mapillary_backward", "tilda_mapillary_forward", "tilda_width_source", "prio_traffic_sign", "prio_category", "prio_streetname_equality", "prio_angle", "prio_distance", "prio_overlap", "prio_direction_compatibility", "prio_missing_attributes", "prio_total", "prio_candidates", "value_prio_distance_meter", "value_prio_overlap_score", "angle_diff", "angle_segment", "angle_tilda"]
 
 # Gewünschte Spaltenreihenfolge für Datenaufbereitung (finale Ausgabe)
 COLUMN_ORDER = [
@@ -108,6 +108,7 @@ COLUMN_ORDER = [
     "Kommentar",
     # TILDA-Spalten (geprefixte Spalten)
     "tilda_id",
+    "tilda_ids",
     "tilda_link",
     "tilda_link_mapillary",
     "tilda_name",
@@ -753,6 +754,20 @@ def merge_segments(gdf, id_field, osm_fields):
         merged_row = gruppe.iloc[0].copy()
         merged_row["geometry"] = merged
         
+        # Sammle alle tilda_id Werte aus den zusammengeführten Segmenten
+        if 'tilda_id' in gruppe.columns:
+            tilda_id_values = gruppe['tilda_id'].dropna().astype(str)
+            # Entferne leere Strings und 'nan'/'None' Werte
+            tilda_id_values = tilda_id_values[tilda_id_values != '']
+            tilda_id_values = tilda_id_values[tilda_id_values.str.lower() != 'nan']
+            tilda_id_values = tilda_id_values[tilda_id_values.str.lower() != 'none']
+            # Ermittle einzigartige Werte und sortiere sie
+            unique_tilda_ids = sorted(tilda_id_values.unique())
+            # Kombiniere mit Semikolon
+            merged_row["tilda_ids"] = ';'.join(unique_tilda_ids) if len(unique_tilda_ids) > 0 else None
+        else:
+            merged_row["tilda_ids"] = None
+        
         # Berechne die Länge basierend auf der Anzahl der Segmente (jedes Segment ist CONFIG_SEGMENT_LENGTH Meter lang)
         # Dies ist effizienter als geometry.length zu berechnen, da die Segmente immer gleich lang sind
         merged_row["Länge"] = int(round(len(geoms) * CONFIG_SEGMENT_LENGTH))
@@ -870,6 +885,8 @@ def create_directional_segment_variants_optimized(seg_dict: dict, target_candida
                     variant[attr] = None
             for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
                 variant[attr] = None
+            # Initialisiere tilda_ids als leere Liste (wird später beim Merging gefüllt)
+            variant["tilda_ids"] = None
             # Setze Prioritätswerte auf 0 da keine Kandidaten vorhanden
             set_priority_values(variant, None, segment_angle)
             variants.append(variant)
@@ -897,6 +914,18 @@ def create_directional_segment_variants_optimized(seg_dict: dict, target_candida
                     variant[attr] = best_osm.get(attr)
             for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
                 variant[attr] = best_osm.get(attr)
+            
+            # Initialisiere tilda_ids mit der einzelnen tilda_id (wird beim Merging erweitert)
+            if 'tilda_id' in best_osm and best_osm['tilda_id']:
+                variant["tilda_ids"] = str(best_osm['tilda_id'])
+            else:
+                variant["tilda_ids"] = None
+            
+            # Initialisiere tilda_ids mit der einzelnen tilda_id (wird beim Merging erweitert)
+            if 'tilda_id' in best_osm and best_osm['tilda_id']:
+                variant["tilda_ids"] = str(best_osm['tilda_id'])
+            else:
+                variant["tilda_ids"] = None
             
             # Übertrage Prioritätswerte falls vorhanden (mit Kandidaten-Liste)
             set_priority_values(variant, best_osm, segment_angle, candidates_priorities)
@@ -929,6 +958,12 @@ def create_directional_segment_variants_optimized(seg_dict: dict, target_candida
                 for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
                     variant[attr] = best_osm.get(attr)
                 
+                # Initialisiere tilda_ids mit der einzelnen tilda_id (wird beim Merging erweitert)
+                if 'tilda_id' in best_osm and best_osm['tilda_id']:
+                    variant["tilda_ids"] = str(best_osm['tilda_id'])
+                else:
+                    variant["tilda_ids"] = None
+                
                 # Übertrage Prioritätswerte falls vorhanden (mit Kandidaten-Liste)
                 set_priority_values(variant, best_osm, segment_angle, candidates_priorities)
             else:
@@ -942,6 +977,12 @@ def create_directional_segment_variants_optimized(seg_dict: dict, target_candida
                         variant[attr] = None
                 for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
                     variant[attr] = None
+                
+                # Initialisiere tilda_ids
+                variant["tilda_ids"] = None
+                
+                # Initialisiere tilda_ids
+                variant["tilda_ids"] = None
                 
                 # Setze Prioritätswerte - auch wenn kein Kandidat übernommen wird, 
                 # schreibe die Prioritäten des besten Kandidaten (für Debugging)
@@ -1022,6 +1063,8 @@ def create_directional_segment_variants_from_matched_tilda_ways(seg_dict: dict, 
             # Zusätzliche OSM-Attribute für Debugging/Referenz auf None setzen
             for attr in FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES:
                 variant[attr] = None
+            # Initialisiere tilda_ids
+            variant["tilda_ids"] = None
             
             # Setze Prioritätswerte auf 0 da keine Kandidaten vorhanden  
             set_priority_values(variant, None, segment_angle)
