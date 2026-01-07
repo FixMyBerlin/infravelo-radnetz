@@ -14,9 +14,10 @@ This tool compares two GeoJSON files based on `element_nr` and `ri` (composite k
    - **DELETED**: Features in OLD but not in NEW
    - **MODIFIED**: Features in both with changed properties or geometry
 3. **Merging**: DELETE + ADD pairs with the same `element_nr` and `ri` are merged into MODIFIED entries
-4. **Splitting**: Output is split into two categories:
+4. **Splitting**: Output is split into three categories:
    - **fuehr**: Features where `fuehr` property changed
-   - **properties**: Features where other (non-fuehr) properties changed
+   - **breite**: Features where the `breite` property changed (separate diff file)
+   - **properties**: Features where other (non-fuehr, non-breite) properties changed
 5. **Output**: Generates both GeoJSON and CSV formats for each category
 
 For MODIFIED features:
@@ -44,13 +45,15 @@ By default, outputs are written to `diffing/result/`. You can specify a custom o
 
 ## Output Files
 
-The tool generates 5 files in the output directory:
+The tool generates 7 files in the output directory:
 
 1. **`diff_fuehr.geojson`**: GeoJSON with features where `fuehr` property changed
 2. **`diff_fuehr.csv`**: CSV version (geometry omitted, includes TILDA links)
-3. **`diff_properties.geojson`**: GeoJSON with features where other properties changed
-4. **`diff_properties.csv`**: CSV version (geometry omitted, includes TILDA links)
-5. **`report.md`**: Summary report with statistics and file information
+3. **`diff_breite.geojson`**: GeoJSON with features where `breite` property changed
+4. **`diff_breite.csv`**: CSV version (geometry omitted, includes TILDA links)
+5. **`diff_properties.geojson`**: GeoJSON with features where other properties changed
+6. **`diff_properties.csv`**: CSV version (geometry omitted, includes TILDA links)
+7. **`report.md`**: Summary report with statistics and file information
 
 **Property Format:**
 - ADDED: Properties with `_NEW` suffix

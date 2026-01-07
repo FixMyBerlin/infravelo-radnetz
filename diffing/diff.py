@@ -760,9 +760,72 @@ def write_diff_geojson(diff_features, output_path):
     logging.info(f"Written {len(diff_features)} diff features to {output_path}")
 
 
+def filter_features_by_attribute(diff_features, attribute_name):
+    """Filter features that have changes in a specific attribute.
+    
+    Args:
+        diff_features: List of all diff features
+        attribute_name: Name of the attribute to filter by (e.g., 'fuehr', 'breite')
+    
+    Returns:
+        List of features where the specified attribute changed
+    """
+    filtered_features = []
+    
+    for feature in diff_features:
+        props = feature['properties']
+        action = props.get('_diff_action')
+        
+        # Check if the target attribute changed
+        attribute_changed = f'{attribute_name}_OLD' in props or f'{attribute_name}_NEW' in props
+        
+        if attribute_changed:
+            filtered_features.append(feature)
+    
+    return filtered_features
+
+
+def filter_features_excluding_attributes(diff_features, excluded_attributes):
+    """Filter features that have changes in properties other than the excluded attributes.
+    
+    Args:
+        diff_features: List of all diff features
+        excluded_attributes: List of attribute names to exclude (e.g., ['fuehr', 'breite'])
+    
+    Returns:
+        List of features where properties other than excluded attributes changed
+    """
+    filtered_features = []
+    
+    for feature in diff_features:
+        props = feature['properties']
+        action = props.get('_diff_action')
+        
+        # Check if any other (non-excluded) properties changed
+        other_changed = False
+        for key in props.keys():
+            if key not in ['_diff_action', 'element_nr', 'ri', '_geometry_hash', '_geometry_OLD',
+                          'stroke', 'stroke-opacity', 'stroke-width', 'fill', 'fill-opacity']:
+                # Extract base property name
+                base_key = key
+                if key.endswith('_OLD') or key.endswith('_NEW'):
+                    base_key = key[:-4]
+                
+                # Check if this property is not in the excluded list
+                if base_key not in excluded_attributes:
+                    other_changed = True
+                    break
+        
+        if other_changed:
+            filtered_features.append(feature)
+    
+    return filtered_features
+
+
 def write_report(stats, changed_property_keys, old_file, new_file,
-                 diff_fuehr_path, diff_properties_path, diff_fuehr_csv_path,
-                 diff_properties_csv_path, report_path, execution_time):
+                 diff_fuehr_path, diff_breite_path, diff_properties_path,
+                 diff_fuehr_csv_path, diff_breite_csv_path, diff_properties_csv_path,
+                 report_path, execution_time):
     """Write markdown report."""
     logging.info(f"Writing report: {report_path}")
 
@@ -785,6 +848,10 @@ def write_report(stats, changed_property_keys, old_file, new_file,
         f.write(f"  - Modified: {get_file_mtime(diff_fuehr_path)}\n")
         f.write(f"- **diff_fuehr.csv:** `{diff_fuehr_csv_path}`\n")
         f.write(f"  - Modified: {get_file_mtime(diff_fuehr_csv_path)}\n")
+        f.write(f"- **diff_breite.geojson:** `{diff_breite_path}`\n")
+        f.write(f"  - Modified: {get_file_mtime(diff_breite_path)}\n")
+        f.write(f"- **diff_breite.csv:** `{diff_breite_csv_path}`\n")
+        f.write(f"  - Modified: {get_file_mtime(diff_breite_csv_path)}\n")
         f.write(f"- **diff_properties.geojson:** `{diff_properties_path}`\n")
         f.write(f"  - Modified: {get_file_mtime(diff_properties_path)}\n")
         f.write(f"- **diff_properties.csv:** `{diff_properties_csv_path}`\n")
@@ -858,61 +925,39 @@ def main():
             old_indexed, new_indexed
         )
 
-        # Split features into fuehr and properties diffs
-        fuehr_features = []
-        properties_features = []
-
-        for feature in diff_features:
-            props = feature['properties']
-            action = props.get('_diff_action')
-
-            # Check if fuehr changed
-            fuehr_changed = 'fuehr_OLD' in props or 'fuehr_NEW' in props
-
-            # Check if other (non-fuehr) properties changed
-            other_changed = False
-            for key in props.keys():
-                if key not in ['_diff_action', 'element_nr', '_geometry_hash', '_geometry_OLD']:
-                    # Extract base property name
-                    base_key = key
-                    if key.endswith('_OLD') or key.endswith('_NEW'):
-                        base_key = key[:-4]
-                    if base_key != 'fuehr':
-                        other_changed = True
-                        break
-
-            # ADDED and DELETED features go to both if fuehr is present
-            if action in ['ADDED', 'DELETED']:
-                if fuehr_changed:
-                    fuehr_features.append(feature)
-                if other_changed or not fuehr_changed:
-                    properties_features.append(feature)
-            elif action == 'MODIFIED':
-                if fuehr_changed:
-                    fuehr_features.append(feature)
-                if other_changed:
-                    properties_features.append(feature)
+        # Split features into fuehr, breite, and properties diffs using modular functions
+        logging.info("Splitting features by attribute changes...")
+        fuehr_features = filter_features_by_attribute(diff_features, 'fuehr')
+        breite_features = filter_features_by_attribute(diff_features, 'breite')
+        properties_features = filter_features_excluding_attributes(diff_features, ['fuehr', 'breite'])
 
         # Output paths
         diff_fuehr_path = os.path.join(args.output_dir, 'diff_fuehr.geojson')
+        diff_breite_path = os.path.join(args.output_dir, 'diff_breite.geojson')
         diff_properties_path = os.path.join(args.output_dir, 'diff_properties.geojson')
         diff_fuehr_csv_path = os.path.join(args.output_dir, 'diff_fuehr.csv')
+        diff_breite_csv_path = os.path.join(args.output_dir, 'diff_breite.csv')
         diff_properties_csv_path = os.path.join(args.output_dir, 'diff_properties.csv')
         report_path = os.path.join(args.output_dir, 'report.md')
 
         # Write outputs
         write_diff_geojson(fuehr_features, diff_fuehr_path)
+        write_diff_geojson(breite_features, diff_breite_path)
         write_diff_geojson(properties_features, diff_properties_path)
         write_diff_csv(fuehr_features, diff_fuehr_csv_path)
+        write_diff_csv(breite_features, diff_breite_csv_path)
         write_diff_csv(properties_features, diff_properties_csv_path)
         write_report(stats, changed_property_keys, args.old_file, args.new_file,
-                    diff_fuehr_path, diff_properties_path, diff_fuehr_csv_path,
-                    diff_properties_csv_path, report_path, execution_time)
+                    diff_fuehr_path, diff_breite_path, diff_properties_path,
+                    diff_fuehr_csv_path, diff_breite_csv_path, diff_properties_csv_path,
+                    report_path, execution_time)
 
         logging.info("=" * 60)
         logging.info("✔ Diff completed successfully!")
         logging.info(f"  - Diff fuehr GeoJSON: {diff_fuehr_path} ({len(fuehr_features)} features)")
         logging.info(f"  - Diff fuehr CSV: {diff_fuehr_csv_path} ({len(fuehr_features)} features)")
+        logging.info(f"  - Diff breite GeoJSON: {diff_breite_path} ({len(breite_features)} features)")
+        logging.info(f"  - Diff breite CSV: {diff_breite_csv_path} ({len(breite_features)} features)")
         logging.info(f"  - Diff properties GeoJSON: {diff_properties_path} ({len(properties_features)} features)")
         logging.info(f"  - Diff properties CSV: {diff_properties_csv_path} ({len(properties_features)} features)")
         logging.info(f"  - Report: {report_path}")
