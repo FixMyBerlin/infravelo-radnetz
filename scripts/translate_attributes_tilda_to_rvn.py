@@ -670,8 +670,9 @@ def translate_tilda_attributes(gdf: gpd.GeoDataFrame, data_source: str) -> gpd.G
         pflicht = determine_pflicht(row, data_source)
         result_gdf.loc[result_gdf.index[idx-1], "pflicht"] = pflicht
         
-        # Breite (direkt aus width übernommen)
-        breite = parse_width(row.get("width"))
+        # Breite (width_effective falls vorhanden, sonst width)
+        width_value = row.get("width_effective") if pd.notna(row.get("width_effective")) else row.get("width")
+        breite = parse_width(width_value)
         result_gdf.loc[result_gdf.index[idx-1], "breite"] = breite
         
         # Oberflächenmaterial
