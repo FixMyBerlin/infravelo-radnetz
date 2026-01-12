@@ -30,6 +30,11 @@ sys.path.append(str(Path(__file__).parent.parent / 'processing'))
 from helpers.globals import DEFAULT_CRS
 from helpers.clipping import clip_to_region
 
+# ANSI Farb-Codes
+ORANGE = '\033[38;5;214m'
+RED = '\033[91m'
+RESET = '\033[0m'
+
 # Logging konfigurieren
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -75,7 +80,7 @@ def load_converted_bikelanes(file_path):
     logger.info(f"Lade Daten aus {file_path}")
     
     if not Path(file_path).exists():
-        logger.error(f"FEHLER: Datei nicht gefunden: {file_path}")
+        logger.error(f"{RED}❌ FEHLER: Datei nicht gefunden: {file_path}{RESET}")
         sys.exit(1)
     
     try:
@@ -83,7 +88,7 @@ def load_converted_bikelanes(file_path):
         logger.info(f"Daten geladen: {len(gdf)} Features")
         return gdf
     except Exception as e:
-        logger.error(f"Fehler beim Laden der Daten: {e}")
+        logger.error(f"{RED}❌ Fehler beim Laden der Daten: {e}{RESET}")
         sys.exit(1)
 
 
@@ -122,7 +127,7 @@ def validate_null_values(gdf, attributes):
     for attr in attributes:
         # Prüfe, ob Attribut existiert
         if attr not in gdf_to_validate.columns:
-            logger.warning(f"⚠ WARNUNG: Attribut '{attr}' nicht gefunden in den Daten!")
+            logger.warning(f"{ORANGE}⚠️ WARNUNG: Attribut '{attr}' nicht gefunden in den Daten!{RESET}")
             all_valid = False
             continue
         
@@ -138,7 +143,7 @@ def validate_null_values(gdf, attributes):
             if null_count > 0:
                 all_valid = False
                 total_null_count += null_count
-                logger.warning(f"⚠ WARNUNG: Attribut '{attr}' hat {null_count} NULL-Werte (nur bei Nicht-Mischverkehr)!")
+                logger.warning(f"{ORANGE}⚠️ WARNUNG: Attribut '{attr}' hat {null_count} NULL-Werte (nur bei Nicht-Mischverkehr)!{RESET}")
                 
                 # Zeige erste Beispiele
                 null_indices = gdf_to_check[null_mask].index[:5].tolist()
@@ -161,7 +166,7 @@ def validate_null_values(gdf, attributes):
             if null_count > 0:
                 all_valid = False
                 total_null_count += null_count
-                logger.warning(f"⚠ WARNUNG: Attribut '{attr}' hat {null_count} NULL-Werte!")
+                logger.warning(f"{ORANGE}⚠️ WARNUNG: Attribut '{attr}' hat {null_count} NULL-Werte!{RESET}")
                 
                 # Zeige erste Beispiele
                 null_indices = gdf_to_validate[null_mask].index[:5].tolist()
@@ -208,7 +213,7 @@ def validate_keine_radinfra_has_null_values(gdf):
     ]
     
     if 'fuehr' not in gdf.columns:
-        logger.warning("⚠ WARNUNG: Attribut 'fuehr' nicht gefunden!")
+        logger.warning("{ORANGE}⚠️ WARNUNG: Attribut 'fuehr' nicht gefunden!{RESET}")
         return False
     
     # Filtere Features mit 'Keine Radinfrastruktur vorhanden'
@@ -226,7 +231,7 @@ def validate_keine_radinfra_has_null_values(gdf):
     
     for attr in expected_null_attributes:
         if attr not in keine_radinfra_gdf.columns:
-            logger.warning(f"⚠ WARNUNG: Attribut '{attr}' nicht gefunden in den Daten!")
+            logger.warning(f"{ORANGE}⚠️ WARNUNG: Attribut '{attr}' nicht gefunden in den Daten!{RESET}")
             all_valid = False
             continue
         
@@ -237,7 +242,7 @@ def validate_keine_radinfra_has_null_values(gdf):
         if non_null_count > 0:
             all_valid = False
             total_non_null_count += non_null_count
-            logger.warning(f"⚠ WARNUNG: Attribut '{attr}' hat {non_null_count} NICHT-NULL-Werte bei 'Keine Radinfrastruktur vorhanden'!")
+            logger.warning(f"{ORANGE}⚠️ WARNUNG: Attribut '{attr}' hat {non_null_count} NICHT-NULL-Werte bei 'Keine Radinfrastruktur vorhanden'!{RESET}")
             
             # Zeige erste Beispiele mit den Werten
             non_null_features = keine_radinfra_gdf[non_null_mask].head(5)
@@ -301,7 +306,7 @@ def validate_todo_values(gdf, attributes):
             if todo_count > 0:
                 all_valid = False
                 total_todo_count += todo_count
-                logger.warning(f"⚠ WARNUNG: Attribut '{attr}' hat {todo_count} Einträge mit 'TODO'!")
+                logger.warning(f"{ORANGE}⚠️ WARNUNG: Attribut '{attr}' hat {todo_count} Einträge mit 'TODO'!{RESET}")
                 
                 # Zeige erste Beispiele mit den Werten
                 todo_features = gdf_to_validate[todo_mask].head(5)
@@ -338,7 +343,7 @@ def validate_element_nr_unknown(gdf):
     logger.info("Prüfe auf UNKNOWN-Substring in element_nr...")
     
     if 'element_nr' not in gdf.columns:
-        logger.warning("⚠ WARNUNG: Attribut 'element_nr' nicht gefunden!")
+        logger.warning("{ORANGE}⚠️ WARNUNG: Attribut 'element_nr' nicht gefunden!{RESET}")
         return False
     
     # Suche nach UNKNOWN (case-insensitive)
@@ -346,7 +351,7 @@ def validate_element_nr_unknown(gdf):
     unknown_count = unknown_mask.sum()
     
     if unknown_count > 0:
-        logger.warning(f"⚠ WARNUNG: element_nr hat {unknown_count} Einträge mit 'UNKNOWN'!")
+        logger.warning(f"{ORANGE}⚠️ WARNUNG: element_nr hat {unknown_count} Einträge mit 'UNKNOWN'!{RESET}")
         
         # Zeige erste Beispiele mit den Werten
         unknown_features = gdf[unknown_mask].head(5)
@@ -384,7 +389,7 @@ def validate_duplicate_tilda_id_for_opposite_directions(gdf):
     missing_columns = [col for col in required_columns if col not in gdf.columns]
     
     if missing_columns:
-        logger.warning(f"⚠ WARNUNG: Fehlende Spalten für diese Validierung: {', '.join(missing_columns)}")
+        logger.warning(f"{ORANGE}⚠️ WARNUNG: Fehlende Spalten für diese Validierung: {', '.join(missing_columns)}{RESET}")
         return True  # Keine Validierung möglich, aber kein Fehler
     
     # Filtere nur Einrichtungsverkehr-Features
@@ -424,7 +429,7 @@ def validate_duplicate_tilda_id_for_opposite_directions(gdf):
                 })
     
     if problematic_elements:
-        logger.warning(f"⚠ WARNUNG: {len(problematic_elements)} element_nr mit doppelter tilda_id für entgegengesetzte Richtungen gefunden!")
+        logger.warning(f"{ORANGE}⚠️ WARNUNG: {len(problematic_elements)} element_nr mit doppelter tilda_id für entgegengesetzte Richtungen gefunden!{RESET}")
         
         # Zeige erste Beispiele
         for item in problematic_elements[:5]:
@@ -458,7 +463,7 @@ def validate_missing_attributes(gdf, attributes):
     missing_attributes = [attr for attr in attributes if attr not in gdf.columns]
     
     if missing_attributes:
-        logger.warning("⚠ WARNUNG: Folgende erforderliche Attribute fehlen:")
+        logger.warning("{ORANGE}⚠️ WARNUNG: Folgende erforderliche Attribute fehlen:{RESET}")
         for attr in missing_attributes:
             logger.warning(f"  - {attr}")
         return False
@@ -619,7 +624,7 @@ def main():
         # Wenn geclippte Datei nicht existiert, lade Standard-Datei und clippe dynamisch
         if not input_file.exists():
             fallback_file = Path("output/snapping_with_overrides.fgb")
-            logger.warning(f"⚠ Geclippte Datei nicht gefunden: {input_file}")
+            logger.warning(f"{ORANGE}⚠️ Geclippte Datei nicht gefunden: {input_file}{RESET}")
             logger.info(f"→ Lade Standard-Datei und clippe auf Region '{args.clip}'")
             input_file = fallback_file
             needs_clipping = True
@@ -657,7 +662,7 @@ def main():
         logger.info(f"  {len(gdf)} Features geprüft")
         logger.info(f"  {len(ATTRIBUTES_TO_VALIDATE)} Attribute geprüft")
     else:
-        logger.warning("⚠ PRÜFUNG ABGESCHLOSSEN: Es wurden Probleme gefunden!")
+        logger.warning("{ORANGE}⚠️ PRÜFUNG ABGESCHLOSSEN: Es wurden Probleme gefunden!{RESET}")
         logger.warning("Bitte prüfen Sie die Hinweise und Warnungen oben und beheben Sie ggf. die Daten.")
     logger.info("=" * 80)
     

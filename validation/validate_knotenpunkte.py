@@ -18,6 +18,11 @@ import geopandas as gpd
 import pandas as pd
 from pathlib import Path
 
+# ANSI Farb-Codes
+ORANGE = '\033[38;5;214m'
+RED = '\033[91m'
+RESET = '\033[0m'
+
 # Logging konfigurieren
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -57,7 +62,7 @@ def load_knotenpunkte(file_path):
         logger.info(f"Verfügbare Spalten: {list(gdf.columns)}")
         return gdf
     except Exception as e:
-        logger.error(f"Fehler beim Laden der Daten: {e}")
+        logger.error(f"{RED}❌ FEHLER: Fehler beim Laden der Daten: {e}{RESET}")
         sys.exit(1)
 
 
@@ -75,8 +80,8 @@ def validate_pflichtfelder_bei_betrachtung(gdf):
     
     # Prüfe, ob KP_Nichtbetrachten-Spalte existiert
     if 'KP_Nichtbetrachten' not in gdf.columns:
-        logger.error("FEHLER: Spalte 'KP_Nichtbetrachten' nicht gefunden!")
-        logger.error(f"Verfügbare Spalten: {list(gdf.columns)}")
+        logger.error(f"{RED}❌ FEHLER: Spalte 'KP_Nichtbetrachten' nicht gefunden!{RESET}")
+        logger.error(f"{RED}Verfügbare Spalten: {list(gdf.columns)}{RESET}")
         return False
     
     # Filtere Knotenpunkte, die betrachtet werden sollen (KP_Nichtbetrachten == 0)
@@ -95,7 +100,7 @@ def validate_pflichtfelder_bei_betrachtung(gdf):
     for feld in PFLICHTFELDER_BEI_BETRACHTUNG:
         # Prüfe, ob Feld existiert
         if feld not in gdf.columns:
-            logger.warning(f"⚠ WARNUNG: Pflichtfeld '{feld}' nicht in den Daten gefunden!")
+            logger.warning(f"{ORANGE}⚠️ WARNUNG: Pflichtfeld '{feld}' nicht in den Daten gefunden!{RESET}")
             all_valid = False
             continue
         
@@ -106,20 +111,20 @@ def validate_pflichtfelder_bei_betrachtung(gdf):
         if null_count > 0:
             all_valid = False
             total_null_count += null_count
-            logger.warning(f"⚠ WARNUNG: Pflichtfeld '{feld}' hat {null_count} NULL-Werte bei zu betrachtenden Knotenpunkten!")
+            logger.warning(f"{ORANGE}⚠️ WARNUNG: Pflichtfeld '{feld}' hat {null_count} NULL-Werte bei zu betrachtenden Knotenpunkten!{RESET}")
             
             # Zeige erste Beispiele
             null_indices = gdf_zu_betrachten[null_mask].index[:5].tolist()
-            logger.warning(f"  Beispiel-Indizes: {null_indices}")
+            logger.warning(f"{ORANGE}  Beispiel-Indizes: {null_indices}{RESET}")
             
             if null_count > 5:
-                logger.warning(f"  ... und {null_count - 5} weitere NULL-Werte")
+                logger.warning(f"{ORANGE}  ... und {null_count - 5} weitere NULL-Werte{RESET}")
         else:
             logger.info(f"✓ Pflichtfeld '{feld}': Keine NULL-Werte")
     
     if not all_valid:
-        logger.warning("-" * 80)
-        logger.warning(f"Gesamt: {total_null_count} NULL-Werte in Pflichtfeldern gefunden")
+        logger.warning(f"{ORANGE}-" * 80 + f"{RESET}")
+        logger.warning(f"{ORANGE}Gesamt: {total_null_count} NULL-Werte in Pflichtfeldern gefunden{RESET}")
     else:
         logger.info("✓ Alle Pflichtfelder sind bei zu betrachtenden Knotenpunkten ausgefüllt!")
     
@@ -136,7 +141,7 @@ def main():
     input_file = Path("output/knotenpunkte_mit_id_und_bezirken.geojson")
     
     if not input_file.exists():
-        logger.error(f"FEHLER: Datei nicht gefunden: {input_file}")
+        logger.error(f"{RED}❌ FEHLER: Datei nicht gefunden: {input_file}{RESET}")
         sys.exit(1)
     
     # Lade Daten
@@ -152,8 +157,8 @@ def main():
     if all(validation_results):
         logger.info("✓ VALIDIERUNG ERFOLGREICH: Alle Prüfungen bestanden!")
     else:
-        logger.warning("⚠ VALIDIERUNG FEHLGESCHLAGEN: Es wurden Probleme gefunden!")
-        logger.warning("Bitte überprüfen Sie die Warnungen oben und korrigieren Sie die Daten.")
+        logger.warning(f"{ORANGE}⚠️ VALIDIERUNG FEHLGESCHLAGEN: Es wurden Probleme gefunden!{RESET}")
+        logger.warning(f"{ORANGE}Bitte überprüfen Sie die Warnungen oben und korrigieren Sie die Daten.{RESET}")
     logger.info("=" * 80)
     
     return 0 if all(validation_results) else 1

@@ -505,7 +505,7 @@ def main():
         logger.info("=== Anreicherung erfolgreich abgeschlossen ===")
         
     except Exception as e:
-        logger.error(f"Fehler beim Ausführen des Skripts: {str(e)}")
+        logger.error(f"{\033[91m}❌ Fehler beim Ausführen des Skripts: {str(e)}{\033[0m}")
         raise
 
 

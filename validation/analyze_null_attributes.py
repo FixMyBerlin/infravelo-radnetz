@@ -10,6 +10,11 @@ import geopandas as gpd
 import pandas as pd
 from pathlib import Path
 
+# ANSI Farb-Codes
+ORANGE = '\033[38;5;214m'
+RED = '\033[91m'
+RESET = '\033[0m'
+
 # Zu prüfende Attribute
 ATTRIBUTES_TO_CHECK = ["fuehr", "ofm", "protek", "pflicht", "breite", "farbe", "ri", "verkehrsri", "trennstreifen"]
 

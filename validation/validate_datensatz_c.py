@@ -29,6 +29,11 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent / 'processing'))
 from helpers.globals import DEFAULT_CRS
 
+# ANSI Farb-Codes
+ORANGE = '\033[38;5;214m'
+RED = '\033[91m'
+RESET = '\033[0m'
+
 # Logging konfigurieren
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -81,7 +86,7 @@ def load_aggregated_rvn(file_path, layer=None):
         logger.info(f"Lade Daten aus {file_path}")
     
     if not Path(file_path).exists():
-        logger.error(f"FEHLER: Datei nicht gefunden: {file_path}")
+        logger.error(f"{RED}❌ FEHLER: Datei nicht gefunden: {file_path}{RESET}")
         sys.exit(1)
     
     try:
@@ -92,7 +97,7 @@ def load_aggregated_rvn(file_path, layer=None):
         logger.info(f"Daten geladen: {len(gdf)} Features")
         return gdf
     except Exception as e:
-        logger.error(f"Fehler beim Laden der Daten: {e}")
+        logger.error(f"{RED}❌ Fehler beim Laden der Daten: {e}{RESET}")
         sys.exit(1)
 
 
@@ -131,7 +136,7 @@ def validate_null_values(gdf, attributes):
     for attr in attributes:
         # Prüfe, ob Attribut existiert
         if attr not in gdf_to_validate.columns:
-            logger.warning(f"⚠ WARNUNG: Attribut '{attr}' nicht gefunden in den Daten!")
+            logger.warning(f"{ORANGE}⚠️ WARNUNG: Attribut '{attr}' nicht gefunden in den Daten!{RESET}")
             all_valid = False
             continue
         
@@ -147,7 +152,7 @@ def validate_null_values(gdf, attributes):
             if null_count > 0:
                 all_valid = False
                 total_null_count += null_count
-                logger.warning(f"⚠ WARNUNG: Attribut '{attr}' hat {null_count} NULL-Werte (nur bei Nicht-Mischverkehr)!")
+                logger.warning(f"{ORANGE}⚠️ WARNUNG: Attribut '{attr}' hat {null_count} NULL-Werte (nur bei Nicht-Mischverkehr)!{RESET}")
                 
                 # Zeige erste Beispiele
                 null_features = gdf_to_check[null_mask].head(5)
@@ -171,7 +176,7 @@ def validate_null_values(gdf, attributes):
             if null_count > 0:
                 all_valid = False
                 total_null_count += null_count
-                logger.warning(f"⚠ WARNUNG: Attribut '{attr}' hat {null_count} NULL-Werte!")
+                logger.warning(f"{ORANGE}⚠️ WARNUNG: Attribut '{attr}' hat {null_count} NULL-Werte!{RESET}")
                 
                 # Zeige erste Beispiele
                 null_features = gdf_to_validate[null_mask].head(5)
@@ -219,7 +224,7 @@ def validate_keine_radinfra_has_null_values(gdf):
     ]
     
     if 'fuehr' not in gdf.columns:
-        logger.warning("⚠ WARNUNG: Attribut 'fuehr' nicht gefunden!")
+        logger.warning("{ORANGE}⚠️ WARNUNG: Attribut 'fuehr' nicht gefunden!{RESET}")
         return False
     
     # Filtere Features mit 'Keine Radinfrastruktur vorhanden'
@@ -237,7 +242,7 @@ def validate_keine_radinfra_has_null_values(gdf):
     
     for attr in expected_null_attributes:
         if attr not in keine_radinfra_gdf.columns:
-            logger.warning(f"⚠ WARNUNG: Attribut '{attr}' nicht gefunden in den Daten!")
+            logger.warning(f"{ORANGE}⚠️ WARNUNG: Attribut '{attr}' nicht gefunden in den Daten!{RESET}")
             all_valid = False
             continue
         
@@ -248,7 +253,7 @@ def validate_keine_radinfra_has_null_values(gdf):
         if non_null_count > 0:
             all_valid = False
             total_non_null_count += non_null_count
-            logger.warning(f"⚠ WARNUNG: Attribut '{attr}' hat {non_null_count} NICHT-NULL-Werte bei 'Keine Radinfrastruktur vorhanden'!")
+            logger.warning(f"{ORANGE}⚠️ WARNUNG: Attribut '{attr}' hat {non_null_count} NICHT-NULL-Werte bei 'Keine Radinfrastruktur vorhanden'!{RESET}")
             
             # Zeige erste Beispiele mit den Werten
             non_null_features = keine_radinfra_gdf[non_null_mask].head(5)
@@ -313,7 +318,7 @@ def validate_todo_values(gdf, attributes):
             if todo_count > 0:
                 all_valid = False
                 total_todo_count += todo_count
-                logger.warning(f"⚠ WARNUNG: Attribut '{attr}' hat {todo_count} Einträge mit 'TODO'!")
+                logger.warning(f"{ORANGE}⚠️ WARNUNG: Attribut '{attr}' hat {todo_count} Einträge mit 'TODO'!{RESET}")
                 
                 # Zeige erste Beispiele mit den Werten
                 todo_features = gdf_to_validate[todo_mask].head(5)
@@ -350,7 +355,7 @@ def validate_element_nr_unknown(gdf):
     logger.info("Prüfe auf UNKNOWN-Substring in element_nr...")
     
     if 'element_nr' not in gdf.columns:
-        logger.warning("⚠ WARNUNG: Attribut 'element_nr' nicht gefunden!")
+        logger.warning("{ORANGE}⚠️ WARNUNG: Attribut 'element_nr' nicht gefunden!{RESET}")
         return False
     
     # Suche nach UNKNOWN (case-insensitive)
@@ -358,7 +363,7 @@ def validate_element_nr_unknown(gdf):
     unknown_count = unknown_mask.sum()
     
     if unknown_count > 0:
-        logger.warning(f"⚠ WARNUNG: element_nr hat {unknown_count} Einträge mit 'UNKNOWN'!")
+        logger.warning(f"{ORANGE}⚠️ WARNUNG: element_nr hat {unknown_count} Einträge mit 'UNKNOWN'!{RESET}")
         
         # Zeige erste Beispiele mit den Werten
         unknown_features = gdf[unknown_mask].head(5)
@@ -390,7 +395,7 @@ def validate_missing_attributes(gdf, attributes):
     missing_attributes = [attr for attr in attributes if attr not in gdf.columns]
     
     if missing_attributes:
-        logger.warning("⚠ WARNUNG: Folgende erforderliche Attribute fehlen:")
+        logger.warning("{ORANGE}⚠️ WARNUNG: Folgende erforderliche Attribute fehlen:{RESET}")
         for attr in missing_attributes:
             logger.warning(f"  - {attr}")
         return False
@@ -428,7 +433,7 @@ def main():
         logger.info("Modus: Vollständiger Datensatz")
     
     if not input_file.exists():
-        logger.error(f"FEHLER: Datei nicht gefunden: {input_file}")
+        logger.error(f"{RED}❌ FEHLER: Datei nicht gefunden: {input_file}{RESET}")
         logger.error("Hinweis: Führen Sie zuerst die Aggregation aus (execute_processing.sh)")
         sys.exit(1)
     
@@ -446,7 +451,7 @@ def main():
         try:
             gdf = load_aggregated_rvn(input_file, layer=layer)
         except Exception as e:
-            logger.error(f"Fehler beim Laden des Layers '{layer}': {e}")
+            logger.error(f"{RED}❌ Fehler beim Laden des Layers '{layer}': {e}{RESET}")
             all_validation_results.append(False)
             continue
         
@@ -484,7 +489,7 @@ def main():
         logger.info(f"  {len(ATTRIBUTES_TO_VALIDATE)} Attribute geprüft")
         logger.info(f"  {len(layers)} Layer geprüft")
     else:
-        logger.warning("⚠ PRÜFUNG ABGESCHLOSSEN: Es wurden Probleme gefunden!")
+        logger.warning("{ORANGE}⚠️ PRÜFUNG ABGESCHLOSSEN: Es wurden Probleme gefunden!{RESET}")
         logger.warning("Bitte prüfen Sie die Hinweise und Warnungen oben und beheben Sie ggf. die Daten.")
     logger.info("=" * 80)
     

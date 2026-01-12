@@ -28,6 +28,11 @@ from pathlib import Path
 from shapely.geometry import LineString, MultiLineString
 import logging
 
+# ANSI Farb-Codes
+ORANGE = '\033[38;5;214m'
+RED = '\033[91m'
+RESET = '\033[0m'
+
 # Logging konfigurieren
 logging.basicConfig(
     level=logging.INFO,
@@ -204,7 +209,7 @@ def main():
     # Datei einlesen
     logger.info(f"Lade Datei: {input_file}")
     if not input_file.exists():
-        logger.error(f"Datei nicht gefunden: {input_file}")
+        logger.error(f"{RED}❌ Datei nicht gefunden: {input_file}{RESET}")
         return
     
     gdf = gpd.read_file(input_file)
@@ -277,7 +282,7 @@ def main():
     logger.info(f"Lade Snapping-Datei: {snapping_file}")
     
     if not snapping_file.exists():
-        logger.error(f"Snapping-Datei nicht gefunden: {snapping_file}")
+        logger.error(f"{RED}❌ Snapping-Datei nicht gefunden: {snapping_file}{RESET}")
         return
     
     gdf_snapping = gpd.read_file(snapping_file)

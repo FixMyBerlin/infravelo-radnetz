@@ -20,6 +20,11 @@ from pathlib import Path
 import geopandas as gpd
 import pandas as pd
 
+# ANSI Farb-Codes
+ORANGE = '\033[38;5;214m'
+RED = '\033[91m'
+RESET = '\033[0m'
+
 # =============================================================================
 # KONFIGURATION
 # =============================================================================

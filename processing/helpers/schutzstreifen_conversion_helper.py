@@ -389,7 +389,7 @@ def merge_segment_geometries(geometries):
             merged = linemerge(lines)
             return merged
     except Exception as e:
-        logger.warning(f"Fehler beim Merger von Geometrien: {e}")
+        logger.warning(f"{\033[38;5;214m}Fehler beim Merger von Geometrien: {e}{\033[0m}")
         # Fallback: MultiLineString aus allen verfügbaren LineStrings
         lines = []
         for geom in geometries:
