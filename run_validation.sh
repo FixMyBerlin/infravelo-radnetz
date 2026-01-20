@@ -69,10 +69,20 @@ else
     PYTHON="python3"
 fi
 
+# Log-Verzeichnis und Datei erstellen
+LOG_DIR="validation/output"
+mkdir -p "$LOG_DIR"
+LOG_FILE="$LOG_DIR/validation_$(date +%Y%m%d_%H%M%S).log"
+
+# Funktion zum Loggen mit tee
+exec > >(tee -a "$LOG_FILE") 2>&1
+
 echo ""
 echo -e "${BLUE}=================================================================================${NC}"
 echo -e "${BLUE}                         VALIDIERUNG STARTEN                                     ${NC}"
 echo -e "${BLUE}=================================================================================${NC}"
+echo ""
+echo "📝 Log-Datei: $LOG_FILE"
 echo ""
 
 if [[ -n "$CLIP_REGION" ]]; then

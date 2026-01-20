@@ -105,6 +105,16 @@ source "$PROJECT_ROOT/.venv/bin/activate"
 # Setze PYTHONPATH damit die helper Module gefunden werden
 export PYTHONPATH="$PROJECT_ROOT/processing:$PYTHONPATH"
 
+# Log-Verzeichnis und Datei erstellen
+LOG_DIR="$PROJECT_ROOT/output/logs"
+mkdir -p "$LOG_DIR"
+LOG_FILE="$LOG_DIR/process_tilda_data_$(date +%Y%m%d_%H%M%S).log"
+
+# Funktion zum Loggen mit tee
+exec > >(tee -a "$LOG_FILE") 2>&1
+
+echo "📝 Log-Datei: $LOG_FILE"
+
 # Prüfe ob das clip_tilda_data.py Skript existiert
 if [ ! -f "$CLIP_SCRIPT" ]; then
     echo "❌ Fehler: clip_tilda_data.py wurde nicht gefunden: $CLIP_SCRIPT"

@@ -201,6 +201,17 @@ fi
 echo "🔧 Aktiviere virtuelles Environment..."
 source .venv/bin/activate
 
+# Log-Verzeichnis und Datei erstellen
+LOG_DIR="output/logs"
+mkdir -p "$LOG_DIR"
+LOG_FILE="$LOG_DIR/execute_processing_$(date +%Y%m%d_%H%M%S).log"
+
+# Funktion zum Loggen mit tee
+exec > >(tee -a "$LOG_FILE") 2>&1
+
+echo "📝 Log-Datei: $LOG_FILE"
+echo ""
+
 if [[ -n "$CLIP_REGION" && -n "$VIEW" ]]; then
     echo "❌ --clip und --view dürfen nicht kombiniert werden"
     exit 1
