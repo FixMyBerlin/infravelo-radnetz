@@ -87,7 +87,7 @@ def load_bus_stops(path, return_gdf=True):
         GeoDataFrame oder str: Bus-Haltestellen-Daten oder Pfad
     """
     if not os.path.exists(path):
-        logger.error(f"{\033[91m}❌ Bus-Haltestellen-Datei nicht gefunden: {path}{\033[0m}")
+        logger.error(f"\033[91m❌ Bus-Haltestellen-Datei nicht gefunden: {path}\033[0m")
         return gpd.GeoDataFrame() if return_gdf else None
     
     if return_gdf:

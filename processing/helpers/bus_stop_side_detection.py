@@ -62,7 +62,7 @@ def get_line_direction_vector(geometry, at_position=0.5):
         return (dx, dy)
         
     except Exception as e:
-        logger.warning(f"{\033[38;5;214m}Fehler beim Ermitteln des Richtungsvektors: {e}{\033[0m}")
+        logger.warning(f"\033[38;5;214mFehler beim Ermitteln des Richtungsvektors: {e}\033[0m")
         return None
 
 
@@ -212,5 +212,5 @@ def filter_bus_stops_by_side(schutzstreifen_row, bus_stops_gdf, buffer_distance=
         return filtered_stops
         
     except Exception as e:
-        logger.warning(f"{\033[38;5;214m}Fehler beim Filtern von Bushaltestellen nach Seite: {e}{\033[0m}")
+        logger.warning(f"\033[38;5;214mFehler beim Filtern von Bushaltestellen nach Seite: {e}\033[0m")
         return bus_stops_gdf.iloc[0:0]  # Leeres GeoDataFrame

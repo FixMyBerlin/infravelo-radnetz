@@ -54,7 +54,7 @@ def load_snapping_network(file_path):
         logger.info(f"Verfügbare Spalten: {list(gdf.columns)}")
         return gdf
     except Exception as e:
-        logger.error(f"{\033[91m}❌ Fehler beim Laden der Daten: {e}{\033[0m}")
+        logger.error(f"\033[91m❌ Fehler beim Laden der Daten: {e}\033[0m")
         sys.exit(1)
 
 def filter_schutzstreifen(gdf):
