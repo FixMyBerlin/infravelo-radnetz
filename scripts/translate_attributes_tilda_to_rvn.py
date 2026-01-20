@@ -24,6 +24,7 @@ import os
 from pathlib import Path
 from datetime import datetime
 import geopandas as gpd
+import pandas as pd
 from helpers.globals import DEFAULT_CRS
 from start_snapping import CONFIG_BUFFER_DEFAULT
 from helpers.progressbar import print_progressbar
