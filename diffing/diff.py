@@ -193,11 +193,17 @@ def load_and_index_geojson(filepath):
     return indexed, gdf
 
 
-def merge_delete_add_pairs(diff_features, stats, changed_property_keys):
+def merge_delete_add_pairs(diff_features, stats, changed_property_keys, feature_id_counter):
     """Merge DELETE + ADD pairs with same element_nr into MODIFIED entries.
 
     When a feature is deleted and then added with the same element_nr,
     treat it as MODIFIED instead of separate DELETE + ADD actions.
+    
+    Args:
+        feature_id_counter: Counter for generating IDs for features without tilda_id
+    
+    Returns:
+        Tuple of (merged_features, stats, updated_counter)
     """
     # Group features by element_nr
     by_element_nr = {}
@@ -316,6 +322,12 @@ def merge_delete_add_pairs(diff_features, stats, changed_property_keys):
                         base_key = key[:-4]
                     changed_property_keys[base_key] = changed_property_keys.get(base_key, 0) + 1
 
+                # Extract tilda_id for the feature id (use NEW value from add_base, or generate one)
+                feature_id = add_base.get('tilda_id')
+                if feature_id is None:
+                    feature_id = f"generated_{feature_id_counter}"
+                    feature_id_counter += 1
+                modified_props['id'] = feature_id
                 merged_features.append({
                     'type': 'Feature',
                     'properties': modified_props,
@@ -338,7 +350,7 @@ def merge_delete_add_pairs(diff_features, stats, changed_property_keys):
             final_features.append(feature)
     final_features.extend(merged_features)
 
-    return final_features, stats
+    return final_features, stats, feature_id_counter
 
 
 def create_diff_features(old_indexed, new_indexed):
@@ -351,6 +363,7 @@ def create_diff_features(old_indexed, new_indexed):
         'unchanged': 0
     }
     changed_property_keys = {}  # Dictionary to track counts per property key
+    feature_id_counter = 1  # Counter for features without tilda_id
 
     # Find all (element_nr, ri) composite keys and sort for deterministic ordering
     all_keys = sorted(set(old_indexed.keys()) | set(new_indexed.keys()))
@@ -380,6 +393,12 @@ def create_diff_features(old_indexed, new_indexed):
             new_props['_diff_action'] = 'ADDED'
             # Simplify geometry before adding
             simplified_geom = simplify_geometry(new_row.geometry, tolerance_meters=5)
+            # Extract tilda_id for the feature id (use NEW value, or generate one)
+            feature_id = props.get('tilda_id')
+            if feature_id is None:
+                feature_id = f"generated_{feature_id_counter}"
+                feature_id_counter += 1
+            new_props['id'] = feature_id
             diff_features.append({
                 'type': 'Feature',
                 'properties': new_props,
@@ -404,6 +423,12 @@ def create_diff_features(old_indexed, new_indexed):
             old_props['_diff_action'] = 'DELETED'
             # Simplify geometry before adding
             simplified_geom = simplify_geometry(old_row.geometry, tolerance_meters=5)
+            # Extract tilda_id for the feature id (use OLD value, or generate one)
+            feature_id = props.get('tilda_id')
+            if feature_id is None:
+                feature_id = f"generated_{feature_id_counter}"
+                feature_id_counter += 1
+            old_props['id'] = feature_id
             diff_features.append({
                 'type': 'Feature',
                 'properties': old_props,
@@ -463,6 +488,12 @@ def create_diff_features(old_indexed, new_indexed):
 
                     # Simplify geometry before adding
                     simplified_new_geom = simplify_geometry(new_row.geometry, tolerance_meters=5)
+                    # Extract tilda_id for the feature id (prefer NEW value, or generate one)
+                    feature_id = new_props.get('tilda_id')
+                    if feature_id is None:
+                        feature_id = f"generated_{feature_id_counter}"
+                        feature_id_counter += 1
+                    props['id'] = feature_id
                     diff_features.append({
                         'type': 'Feature',
                         'properties': props,
@@ -476,7 +507,9 @@ def create_diff_features(old_indexed, new_indexed):
                 stats['unchanged'] += 1
 
     # Post-process: merge DELETE + ADD pairs with same element_nr into MODIFIED
-    diff_features, stats = merge_delete_add_pairs(diff_features, stats, changed_property_keys)
+    diff_features, stats, feature_id_counter = merge_delete_add_pairs(
+        diff_features, stats, changed_property_keys, feature_id_counter
+    )
 
     return diff_features, stats, changed_property_keys
 
