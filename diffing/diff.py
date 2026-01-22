@@ -27,6 +27,13 @@ import geopandas as gpd
 from shapely.geometry import mapping, shape
 from shapely import wkt
 
+# Configuration: properties and prefixes to exclude from diffing
+# Adjust these values here to change diff behavior across the module.
+EXCLUDED_PROPERTIES = {'afid', 'tilda_link', 'path', 'fid', 'layer'}
+# When comparing properties (old vs new), also exclude 'element_nr'
+COMPARE_EXCLUDED_PROPERTIES = EXCLUDED_PROPERTIES | {'element_nr'}
+EXCLUDED_PREFIXES = ['prio_', 'angle_', 'value_']
+
 
 def setup_logging():
     """Configure logging."""
@@ -108,9 +115,9 @@ def compare_properties(old_props, new_props):
     changed = {}
     all_keys = set(old_props.keys()) | set(new_props.keys())
 
-    # Properties to exclude from diffing
-    excluded_properties = {'element_nr', 'afid', 'tilda_link'}
-    excluded_prefixes = ['prio_', 'angle_', 'value_']
+    # Use module-level exclusion configuration
+    excluded_properties = COMPARE_EXCLUDED_PROPERTIES
+    excluded_prefixes = EXCLUDED_PREFIXES
 
     for key in all_keys:
         # Skip excluded properties
@@ -379,9 +386,9 @@ def create_diff_features(old_indexed, new_indexed):
             # ADDED
             stats['added'] += 1
             props = dict(new_row.drop('geometry'))
-            # Remove excluded properties
-            excluded_properties = {'afid', 'tilda_link'}
-            excluded_prefixes = ['prio_', 'angle_', 'value_']
+            # Remove excluded properties (from global config)
+            excluded_properties = EXCLUDED_PROPERTIES
+            excluded_prefixes = EXCLUDED_PREFIXES
             # Add _NEW postfix to all properties (except element_nr, ri, and _diff_action)
             new_props = {}
             for k, v in props.items():
@@ -409,9 +416,9 @@ def create_diff_features(old_indexed, new_indexed):
             # DELETED
             stats['deleted'] += 1
             props = dict(old_row.drop('geometry'))
-            # Remove excluded properties
-            excluded_properties = {'afid', 'tilda_link'}
-            excluded_prefixes = ['prio_', 'angle_', 'value_']
+            # Remove excluded properties (from global config)
+            excluded_properties = EXCLUDED_PROPERTIES
+            excluded_prefixes = EXCLUDED_PREFIXES
             # Add _OLD postfix to all properties (except element_nr, ri, and _diff_action)
             old_props = {}
             for k, v in props.items():
@@ -631,7 +638,8 @@ def write_diff_csv(diff_features, output_path):
 
     # Remove geometry-related keys and style keys
     excluded_keys = {'_geometry_hash', '_geometry_OLD', 'stroke', 'stroke-opacity',
-                     'stroke-width', 'fill', 'fill-opacity'}
+                     'stroke-width', 'fill', 'fill-opacity', 'path', 'fid', 'layer',
+                     'path_OLD', 'path_NEW', 'fid_OLD', 'fid_NEW', 'layer_OLD', 'layer_NEW'}
     filtered_keys = [k for k in all_keys if k not in excluded_keys]
 
     # Sort keys using the same order as GeoJSON properties:
@@ -733,22 +741,6 @@ def write_diff_geojson(diff_features, output_path):
             # Keep _geometry_OLD even if it's a dict (it's always valid)
             if v is not None or k == '_geometry_OLD':
                 cleaned_props[k] = v
-
-        # Add style properties based on diff action and ri value
-        diff_action = cleaned_props.get('_diff_action')
-        ri = cleaned_props.get('ri', 0)
-
-        # Set stroke color based on action
-        if diff_action == 'ADDED':
-            cleaned_props['stroke'] = '#0000FF'  # blue
-        elif diff_action == 'DELETED':
-            cleaned_props['stroke'] = '#FF0000'  # red
-        elif diff_action == 'MODIFIED':
-            cleaned_props['stroke'] = '#000000'  # black
-
-        # Set stroke style properties
-        cleaned_props['stroke-opacity'] = 1.0
-        cleaned_props['stroke-width'] = 2
 
         # Sort properties according to specified order
         sorted_props = sort_properties(cleaned_props)
