@@ -26,6 +26,7 @@ processing/              # Core Python pipeline scripts (start_matching.py, star
   helpers/               # Reusable geo utilities (globals.py, snapping_calculations.py, district_assignment.py)
   matching/              # Matching-specific logic (orthogonal_filter.py, manual_interventions.py)
 scripts/                 # Preparatory scripts (assign_element_nr_to_rvn.py, filter_bus_stops_on_rvn.py)
+validation/              # Analysis and debugging scripts for QA purposes (debug_segment_conversion.py, analyze_schutzstreifen_at_intersections.py)
 inspector/               # React/TypeScript QA web app with MapLibre
 output/                  # Generated intermediate and final geodata (matched/, snapping/, aggregated_rvn_final.gpkg)
 output-last-run/         # Backup of previous run's final files
@@ -71,6 +72,7 @@ python3 -m venv .venv && source .venv/bin/activate && pip install -r requirement
 - Structure code into focused functions (<100 lines)
 - Remove unused imports
 - Update requirements.txt for new dependencies
+- **Place analysis and debugging scripts in `validation/` directory** (not in processing/helpers/)
 
 **Common helper usage:**
 ```python

@@ -14,7 +14,7 @@ Diese Funktion konvertiert bestimmte Führungsformen an Knotenpunkten zu "Kreuzu
 
 Bedingungen für Konvertierung:
 1. Knotenpunkt hat KP_Nichtbetrachten = 0 (wird betrachtet)
-2. Segment liegt mindestens 70% innerhalb vom Radius um Knotenpunkt
+2. Segment liegt mindestens 60% innerhalb vom Radius um Knotenpunkt
 3. Segment ist kürzer als 50m
 4. Segment hat eine der relevanten Führungsformen
 
@@ -48,10 +48,10 @@ CONVERTIBLE_FUEHRUNGSFORMEN = [
 ]
 
 # Radius um Knotenpunkte in Metern
-DEFAULT_BUFFER_RADIUS = 25.0
+DEFAULT_BUFFER_RADIUS = 30.0
 
 # Mindestanteil des Segments der im Buffer liegen muss (0.0 - 1.0)
-DEFAULT_MIN_OVERLAP_RATIO = 0.7  # 70%
+DEFAULT_MIN_OVERLAP_RATIO = 0.6  # 60%
 
 # Maximale Segmentlänge für Konvertierung in Metern
 DEFAULT_MAX_SEGMENT_LENGTH = 50.0
@@ -136,7 +136,7 @@ def convert_segments_near_intersections(
         gdf: GeoDataFrame mit Radnetz-Segmenten (muss 'fuehr' Spalte haben)
         knotenpunkte_gdf: GeoDataFrame mit Knotenpunkten (muss 'KP_Nichtbetrachten' haben)
         buffer_radius: Radius um Knotenpunkte in Metern (Standard: DEFAULT_BUFFER_RADIUS)
-        min_overlap_ratio: Mindestanteil des Segments im Buffer (Standard: 0.7 = 70%)
+        min_overlap_ratio: Mindestanteil des Segments im Buffer (Standard: 0.6 = 60%)
         max_segment_length: Maximale Segmentlänge für Konvertierung in Metern (Standard: 50m)
         output_label: Label für konvertierte Segmente
         
@@ -193,8 +193,9 @@ def convert_segments_near_intersections(
     logger.info(f"\nErstelle {buffer_radius}m Puffer um {len(active_knotenpunkte)} Knotenpunkte...")
     kp_buffers = active_knotenpunkte.copy()
     kp_buffers['buffer_geom'] = kp_buffers.geometry.buffer(buffer_radius)
+    kp_buffers['kp_point'] = kp_buffers.geometry  # Behalte Original-Punkt für Distanzsuche
     
-    # Spatial Index für effiziente Suche
+    # Spatial Index für effiziente Suche - Index auf Punkt-Geometrien für Distanzsuche
     kp_spatial_idx = kp_buffers.sindex
     
     # Speichere Radius-Flächen für Visualisierung (optional)
@@ -211,7 +212,9 @@ def convert_segments_near_intersections(
         segment_length = row['segment_length']
         
         # Finde potentielle Knotenpunkte in der Nähe (mit Spatial Index)
-        possible_matches_idx = list(kp_spatial_idx.intersection(segment_geom.bounds))
+        # Nutze nearest() mit Distanz-Limit, um alle KPs im Radius zu finden
+        # Dies findet sowohl Intersection als auch Contains-Fälle
+        possible_matches_idx = list(kp_spatial_idx.query(segment_geom, predicate='dwithin', distance=buffer_radius))
         
         if not possible_matches_idx:
             continue
@@ -260,10 +263,9 @@ def convert_segments_near_intersections(
     if not os.path.exists(radius_output_path):
         logger.info(f"\nErstelle Radius-Flächen-Datei: {radius_output_path}")
         radius_gdf = kp_buffers.copy()
-        # Setze buffer_geom als Geometrie
+        # Setze buffer_geom als Geometrie für Export
         radius_gdf = radius_gdf.set_geometry('buffer_geom')
-        radius_gdf = radius_gdf.drop(columns=['geometry'])
-        radius_gdf = radius_gdf.rename_geometry('geometry')
+        radius_gdf = radius_gdf.drop(columns=['geometry', 'kp_point'])
         
         # Stelle sicher, dass Verzeichnis existiert
         os.makedirs(os.path.dirname(radius_output_path), exist_ok=True)
