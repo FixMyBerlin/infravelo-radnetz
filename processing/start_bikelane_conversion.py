@@ -161,6 +161,7 @@ def process_bikelane_conversion(input_path, output_path, clip_region=None, data_
         
         # Zähle relevante Segmente vor Konvertierung
         segments_before = len(gdf)
+        kreuzungsweg_before = len(gdf[gdf['fuehr'] == 'Kreuzungsweg (Konvertiert)'])
         
         gdf = convert_segments_near_intersections(
             gdf=gdf,
@@ -168,8 +169,13 @@ def process_bikelane_conversion(input_path, output_path, clip_region=None, data_
         )
         
         segments_after = len(gdf)
+        kreuzungsweg_after = len(gdf[gdf['fuehr'] == 'Kreuzungsweg (Konvertiert)'])
+        converted_knotenpunkte = kreuzungsweg_after - kreuzungsweg_before
+        
+        logging.info(f"✔  Segmente zu 'Kreuzungsweg (Konvertiert)' konvertiert: {converted_knotenpunkte}")
+        
         if segments_before != segments_after:
-            logging.warning(f"Anzahl Segmente hat sich geändert: {segments_before} → {segments_after}")
+            logging.info(f"   Anzahl Segmente geändert: {segments_before} → {segments_after} (Δ {segments_after - segments_before} durch MultiLineString-Auflösung)")
         
     except FileNotFoundError:
         logging.warning(f"Knotenpunkte-Datei '{knotenpunkte_path}' nicht gefunden; fahre fort ohne Knotenpunkt-Konvertierung")
@@ -205,7 +211,13 @@ def process_bikelane_conversion(input_path, output_path, clip_region=None, data_
     logging.info(f"  → (Kurze) Schutzstreifen an Kreuzungen zu Mischverkehr: {converted_mixed}")
     logging.info(f"  Gesamt konvertierte Schutzstreifen: {total_converted}")
     logging.info(f"  Verbleibende Schutzstreifen: {schutzstreifen_final}")
-    logging.info(f"  + Weitere Konvertierungen an Knotenpunkten (siehe oben)")
+    logging.info(f"")
+    logging.info(f"WEITERE KONVERTIERUNGEN:")
+    try:
+        kreuzungsweg_count = len(gdf[gdf['fuehr'] == 'Kreuzungsweg (Konvertiert)'])
+        logging.info(f"  Segmente zu 'Kreuzungsweg (Konvertiert)': {kreuzungsweg_count}")
+    except:
+        logging.info(f"  Segmente zu 'Kreuzungsweg (Konvertiert)': (siehe Log oben)")
     logging.info("=" * 60)
 
 

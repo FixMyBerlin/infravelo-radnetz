@@ -48,7 +48,7 @@ CONVERTIBLE_FUEHRUNGSFORMEN = [
 ]
 
 # Radius um Knotenpunkte in Metern
-DEFAULT_BUFFER_RADIUS = 30.0
+DEFAULT_BUFFER_RADIUS = 25.0
 
 # Mindestanteil des Segments der im Buffer liegen muss (0.0 - 1.0)
 DEFAULT_MIN_OVERLAP_RATIO = 0.6  # 60%
@@ -167,7 +167,58 @@ def convert_segments_near_intersections(
     logger.info(f"Minimale Überlappung: {min_overlap_ratio * 100}%")
     logger.info(f"Maximale Segmentlänge: {max_segment_length}m")
     
-    # Filtere Segmente: nur konvertierbare Führungsformen und < 50m
+    # WICHTIG: Löse MultiLineStrings ZUERST auf, bevor Längenfilter angewendet wird
+    # Grund: Ein 100m MultiLineString kann einen 4m Teil haben, der konvertiert werden sollte!
+    logger.info(f"\nLöse MultiLineStrings in einzelne Teile auf (VOR Längenfilter)...")
+    
+    # Filtere nur nach Führungsform, nicht nach Länge
+    fuehr_mask = result_gdf['fuehr'].isin(CONVERTIBLE_FUEHRUNGSFORMEN)
+    fuehr_candidates = result_gdf[fuehr_mask].copy()
+    logger.info(f"Segmente mit konvertierbaren Führungsformen: {len(fuehr_candidates)}")
+    
+    multiline_count = (fuehr_candidates.geometry.geom_type == 'MultiLineString').sum()
+    logger.info(f"  Davon MultiLineStrings: {multiline_count}")
+    
+    # Sammle neue Zeilen für aufgelöste MultiLineStrings
+    rows_to_remove = []
+    rows_to_add = []
+    
+    for idx, row in fuehr_candidates.iterrows():
+        if row.geometry.geom_type == 'MultiLineString':
+            # Löse MultiLineString in einzelne LineStrings auf
+            for part_idx, line_geom in enumerate(row.geometry.geoms):
+                # Kopiere alle Attribute und ersetze nur die Geometrie
+                new_row = row.copy()
+                new_row.geometry = line_geom
+                
+                # Füge Info hinzu, dass dies ein aufgelöster Teil ist
+                if 'Kommentar' not in new_row or pd.isna(new_row['Kommentar']) or str(new_row['Kommentar']).strip() == '':
+                    new_row['Kommentar'] = f'MultiLineString aufgelöst (Teil {part_idx + 1}/{len(row.geometry.geoms)})'
+                else:
+                    new_row['Kommentar'] = str(new_row['Kommentar']) + f'; MultiLineString aufgelöst (Teil {part_idx + 1}/{len(row.geometry.geoms)})'
+                
+                rows_to_add.append((idx, new_row))
+            
+            rows_to_remove.append(idx)
+    
+    # Entferne Original-MultiLineStrings aus result_gdf
+    if len(rows_to_remove) > 0:
+        result_gdf = result_gdf.drop(index=rows_to_remove)
+    
+    # Füge aufgelöste Teile zu result_gdf hinzu
+    if len(rows_to_add) > 0:
+        # Erstelle neue GeoDataFrame aus aufgelösten Teilen
+        new_rows_gdf = gpd.GeoDataFrame(
+            [row for _, row in rows_to_add],
+            crs=result_gdf.crs
+        )
+        # WICHTIG: Reset index für neue Zeilen, um Duplikate zu vermeiden
+        new_rows_gdf = new_rows_gdf.reset_index(drop=True)
+        result_gdf = pd.concat([result_gdf, new_rows_gdf], ignore_index=True)
+        
+        logger.info(f"  {len(rows_to_remove)} MultiLineStrings in {len(rows_to_add)} Teile aufgelöst")
+    
+    # JETZT erst Längenfilter anwenden auf alle Segmente (inkl. aufgelöste Teile)
     result_gdf['segment_length'] = result_gdf.geometry.length
     
     candidate_mask = (
@@ -176,7 +227,7 @@ def convert_segments_near_intersections(
     )
     
     candidates = result_gdf[candidate_mask].copy()
-    logger.info(f"\nSegmente mit relevanten Führungsformen < {max_segment_length}m: {len(candidates)}")
+    logger.info(f"\nKandidaten nach Führungsform + Längenfilter < {max_segment_length}m: {len(candidates)}")
     
     if len(candidates) == 0:
         logger.info("Keine Kandidaten gefunden - keine Konvertierung notwendig")
