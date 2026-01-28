@@ -50,6 +50,13 @@ MIN_SIGNIFICANT_LENGTH = 50.0
 # Minimale Breitenänderung für Signifikanz (in Metern)
 MIN_SIGNIFICANT_WIDTH_CHANGE = 0.3
 
+# Attribute die bei "Keine Radinfrastruktur vorhanden" auf NULL gesetzt werden
+# (analog zu FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES in start_snapping.py, ohne 'ri' und 'fuehr')
+NULL_ATTRIBUTES_KEINE_RADINFRA = [
+    'ofm', 'protek', 'pflicht', 'breite', 'farbe', 
+    'verkehrsri', 'trennstreifen', 'nutz_beschr', 'Kommentar'
+]
+
 # Attribute für regelbasierte Aggregation
 LONGEST_SECTION_ATTRIBUTES = [
     "bezirk", "fuehr", "pflicht", "ofm", "farbe", "protek"
@@ -842,29 +849,21 @@ def process(input_path, output_path, crs, clip_region=None, data_dir="./data", a
     result_gdf = reorder_aggregated_columns(result_gdf)
 
     # ---------- NULL-Werte für "Keine Radinfrastruktur vorhanden" setzen ---
-    logging.info("Setze pflicht und breite auf NULL bei 'Keine Radinfrastruktur vorhanden'...")
+    logging.info("Setze alle relevanten Attribute auf NULL bei 'Keine Radinfrastruktur vorhanden'...")
     if 'fuehr' in result_gdf.columns:
         keine_radinfra_mask = result_gdf['fuehr'] == 'Keine Radinfrastruktur vorhanden'
         keine_radinfra_count = keine_radinfra_mask.sum()
         
         if keine_radinfra_count > 0:
-            # Zähle wie viele Änderungen durchgeführt werden
-            pflicht_changes = 0
-            breite_changes = 0
-            
-            if 'pflicht' in result_gdf.columns:
-                pflicht_changes = (keine_radinfra_mask & result_gdf['pflicht'].notna()).sum()
-                result_gdf.loc[keine_radinfra_mask, 'pflicht'] = None
-            
-            if 'breite' in result_gdf.columns:
-                breite_changes = (keine_radinfra_mask & result_gdf['breite'].notna()).sum()
-                result_gdf.loc[keine_radinfra_mask, 'breite'] = None
-            
             logging.info(f"  {keine_radinfra_count} Features mit 'Keine Radinfrastruktur vorhanden' gefunden")
-            if pflicht_changes > 0:
-                logging.info(f"  → pflicht: {pflicht_changes} Werte auf NULL gesetzt")
-            if breite_changes > 0:
-                logging.info(f"  → breite: {breite_changes} Werte auf NULL gesetzt")
+            
+            # Setze alle Attribute auf NULL und zähle Änderungen
+            for attr in NULL_ATTRIBUTES_KEINE_RADINFRA:
+                if attr in result_gdf.columns:
+                    attr_changes = (keine_radinfra_mask & result_gdf[attr].notna()).sum()
+                    if attr_changes > 0:
+                        result_gdf.loc[keine_radinfra_mask, attr] = None
+                        logging.info(f"  → {attr}: {attr_changes} Werte auf NULL gesetzt")
         else:
             logging.info("  Keine Features mit 'Keine Radinfrastruktur vorhanden' gefunden")
     else:
