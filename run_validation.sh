@@ -140,6 +140,9 @@ run_validation "Datensatz B (Konvertierte Radverkehrsanlagen)" "validation/valid
 # 4. Datensatz C - Aggregierte RVN-Daten
 run_validation "Datensatz C (Aggregierte RVN-Daten)" "validation/validate_datensatz_c.py" "$CLIP_ARG"
 
+# 5. Duplicate Ways - Überprüfung auf doppelte Wege in exclude/include Dateien
+run_validation "Duplicate Ways (exclude/include Überschneidungen)" "validation/analyze_check_duplicate_ways.py"
+
 # ============================================================================
 # Zusammenfassung
 # ============================================================================
