@@ -5,7 +5,7 @@ schutzstreifen_conversion_helper.py
 --------------------------------------------------------------------
 Gemeinsame Funktionen für die Konvertierung von Schutzstreifen zu Radfahrstreifen.
 
-Diese Funktionen werden von convert_schutzstreifen.py, convert_schutzstreifen_kreuzungen.py
+Diese Funktionen werden von convert_schutzstreifen.py, convert_schutzstreifen_at_bus_stops.py
 und anderen Schutzstreifen-bezogenen Modulen verwendet. Sie berücksichtigen dabei immer 
 die Fahrtrichtung (ri-Attribut) für korrekte Konvertierungen.
 

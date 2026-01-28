@@ -667,45 +667,24 @@ def normalize_radfahrstreifen_types(gdf):
 
 def normalize_mischverkehr_types(gdf):
     """
-    Vereinheitlicht alle Varianten von Mischverkehr zu einem einzigen Typ.
+    Entfernt die Breite bei allen Mischverkehr-Kanten nach der Aggregation.
     
-    Konvertiert folgende Typen:
-    - "Mischverkehr (OSM:Schutzstreifen)" → "Mischverkehr mit motorisiertem Verkehr"
-    - "Mischverkehr mit motorisiertem Verkehr" bleibt unverändert
-    
-    WICHTIG: Entfernt auch die Breite bei allen Mischverkehr-Kanten nach der Aggregation,
-    da Mischverkehr keine Breitenangabe haben soll.
+    WICHTIG: Mischverkehr-Kanten sollen keine Breitenangabe haben.
+    Dies ist notwendig, da bei der Aggregation die Breite von anderen Segmenten 
+    übernommen werden könnte.
     
     Args:
         gdf: GeoDataFrame mit aggregierten Kanten
         
     Returns:
-        GeoDataFrame mit vereinheitlichten Mischverkehr-Typen (ohne Breite)
+        GeoDataFrame ohne Breite bei Mischverkehr-Kanten
     """
     if 'fuehr' not in gdf.columns:
-        logging.warning("Spalte 'fuehr' nicht gefunden - überspringe Normalisierung der Mischverkehr-Typen")
+        logging.warning("Spalte 'fuehr' nicht gefunden - überspringe Mischverkehr-Verarbeitung")
         return gdf
     
     # Arbeite mit einer Kopie
     gdf = gdf.copy()
-    
-    # Definiere die zu normalisierenden Mischverkehr-Varianten
-    mischverkehr_variant = "Mischverkehr (OSM:Schutzstreifen)"
-    
-    # Zähle Vorkommen vor der Konvertierung
-    count = (gdf['fuehr'] == mischverkehr_variant).sum()
-    
-    # Konvertiere Variante zu "Mischverkehr mit motorisiertem Verkehr"
-    if count > 0:
-        logging.info("Vereinheitliche Mischverkehr-Typen:")
-        logging.info(f"  - {count}× '{mischverkehr_variant}' → 'Mischverkehr mit motorisiertem Verkehr'")
-        gdf.loc[gdf['fuehr'] == mischverkehr_variant, 'fuehr'] = 'Mischverkehr mit motorisiertem Verkehr'
-        
-        # Zähle Gesamtzahl nach Normalisierung
-        total_mischverkehr = (gdf['fuehr'] == 'Mischverkehr mit motorisiertem Verkehr').sum()
-        logging.info(f"Gesamt nach Normalisierung: {total_mischverkehr}× 'Mischverkehr mit motorisiertem Verkehr'")
-    else:
-        logging.info("Keine Mischverkehr-Varianten zur Normalisierung gefunden")
     
     # WICHTIG: Entferne Breite bei ALLEN Mischverkehr-Kanten nach der Aggregation
     # Dies ist notwendig, da bei der Aggregation die Breite von anderen Segmenten übernommen werden könnte

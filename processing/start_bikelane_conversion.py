@@ -6,8 +6,7 @@ start_bikelane_conversion.py
 Konvertiert Schutzstreifen zu anderen Infrastrukturtypen basierend auf verschiedenen Kriterien:
 1. Schutzstreifen an Bushaltestellen werden zu Radfahrstreifen konvertiert
 2. Kurze Schutzstreifen (< 50m) an Radfahrstreifen werden zu Radfahrstreifen konvertiert
-3. Kurze Schutzstreifen (< 50m) an Mischverkehr werden zu Mischverkehr konvertiert
-4. Kurze Segmente an Knotenpunkten werden zu Kreuzungswegen konvertiert
+3. Kurze Segmente an Knotenpunkten werden zu Kreuzungswegen konvertiert
 
 Dies ist ein eigenständiger Verarbeitungsschritt zwischen Snapping und finaler Aggregation.
 
@@ -33,7 +32,6 @@ from helpers.convert_schutzstreifen_at_bus_stops import (
     convert_schutzstreifen_at_bus_stops_with_gdf,
     load_bus_stops as load_bus_stops_from_path,
 )
-from helpers.convert_schutzstreifen_kreuzungen import convert_schutzstreifen_at_mixed_traffic
 from helpers.convert_segments_near_intersections import convert_segments_near_intersections
 
 
@@ -136,21 +134,7 @@ def process_bikelane_conversion(input_path, output_path, clip_region=None, data_
     converted_short = schutzstreifen_after_bus_stops - schutzstreifen_after_short
     logging.info(f"Kurze Schutzstreifen zu Radfahrstreifen konvertiert: {converted_short}")
     
-    # ---------- Schutzstreifen-Konvertierung 3: An Mischverkehr ------------
-    logging.info("Konvertiere kurze Schutzstreifen an Mischverkehr zu Mischverkehr...")
-    
-    gdf = convert_schutzstreifen_at_mixed_traffic(
-        gdf,
-        length_threshold=50.0,
-        tolerance=1.0
-    )
-    
-    # Zähle Schutzstreifen nach der dritten Konvertierung
-    schutzstreifen_after_mixed = len(gdf[gdf['fuehr'] == 'Schutzstreifen'])
-    converted_mixed = schutzstreifen_after_short - schutzstreifen_after_mixed
-    logging.info(f"Kurze Schutzstreifen zu Mischverkehr konvertiert: {converted_mixed}")
-    
-    # ---------- Führungsformen-Konvertierung 4: An Knotenpunkten -----------
+    # ---------- Führungsformen-Konvertierung 3: An Knotenpunkten -----------
     logging.info("Konvertiere kurze Segmente an Knotenpunkten zu Kreuzungswegen...")
     
     # Lade Knotenpunkte-Datei
@@ -208,7 +192,6 @@ def process_bikelane_conversion(input_path, output_path, clip_region=None, data_
     logging.info(f"  Schutzstreifen initial: {schutzstreifen_initial}")
     logging.info(f"  → An Bushaltestellen zu Radfahrstreifen: {converted_bus_stops}")
     logging.info(f"  → Kurze Schutzstreifen zu Radfahrstreifen: {converted_short}")
-    logging.info(f"  → (Kurze) Schutzstreifen an Kreuzungen zu Mischverkehr: {converted_mixed}")
     logging.info(f"  Gesamt konvertierte Schutzstreifen: {total_converted}")
     logging.info(f"  Verbleibende Schutzstreifen: {schutzstreifen_final}")
     logging.info(f"")

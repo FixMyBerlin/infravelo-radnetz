@@ -42,7 +42,6 @@ Ordnet OSM-Wege räumlich dem Radvorrangsnetz zu. Wendet Filter an (Orthogonalit
 Konvertiert Schutzstreifen unter bestimmten Bedingungen:
 - An Bushaltestellen → Radfahrstreifen (nur rechte Seite, benachbart zu Radfahrstreifen)
 - Kurze Segmente (<50m) → Radfahrstreifen (benachbart zu Radfahrstreifen)
-- Kurze Segmente (<50m) → Mischverkehr (benachbart zu Mischverkehr)
 - Kurze Segmente an Knotenpunkten → Kreuzungswege
 
 **Ausgabe**: `output/snapping_converted_bikelanes.fgb`
