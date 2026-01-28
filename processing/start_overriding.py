@@ -552,8 +552,7 @@ def apply_text_overrides(network_gdf, text_overrides, matched_tilda_gdf):
                     overridden_items.append('Kommentar')
                 
                 override_comment = (
-                    f"Text Override angewendet; "
-                    f"tilda_id: {tilda_id}; "
+                    f"Text Override angewendet (tilda_id: {tilda_id}); "
                     f"Überschrieben: {', '.join(overridden_items)}"
                 )
                 
