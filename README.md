@@ -53,8 +53,11 @@ pip install -r requirements.txt
 # Falls GeoJSONs gewünscht sind
 python ./scripts/convert_to_geojson.py
 
+# Konvertiere die gesonderten Knotenpunkte
+python ./scripts/convert_knotenpunkte.py
+
 # Alle Schritte durchführen
-./process_tilda_data.sh && ./process_rvn.sh && ./execute_processing.sh && python ./scripts/convert_to_geojson.py && python ./scripts/convert_knotenpunkte.py && ./run_validation.sh
+source .venv/bin/activate && ./process_tilda_data.sh && ./process_rvn.sh && ./execute_processing.sh && ./run_validation.sh && python ./scripts/convert_to_geojson.py && ./copy_to_tilda_static.sh
 ```
 
 ## Projekt-Ordnerstruktur
