@@ -11,6 +11,8 @@ Zwei Override-Quellen werden unterstützt:
    - Räumliche Overrides mit Geometrien
    - Override-Geometrie wird auf Netz projiziert
    - Alle betroffenen Segmente bekommen Override-Attribute
+   - tilda_id ist optional: Es reicht Geometrie + Attribute/Kommentar anzugeben
+   - Wenn tilda_id vorhanden: Attribute werden aus matched_tilda_ways nachgeschlagen
 
 2. Text-Overrides (data/override_ways.txt):
    - Format: tilda_id|element_nr|ri|attributes_json
@@ -347,6 +349,7 @@ def apply_geopackage_overrides(network_gdf, override_gdf, matched_tilda_gdf):
         
         # Hole Attribute zum Überschreiben
         override_attributes = {}
+        direct_override_attributes = []  # Track welche Attribute direkt im Override gesetzt sind
         
         # 1. Direkte Attribute aus GeoPackage
         for attr in OVERRIDE_ATTRIBUTES:
@@ -354,10 +357,13 @@ def apply_geopackage_overrides(network_gdf, override_gdf, matched_tilda_gdf):
                 value = override_row[attr]
                 if isinstance(value, str) and value.strip():
                     override_attributes[attr] = value
+                    direct_override_attributes.append(attr)
                 elif not isinstance(value, str):
                     override_attributes[attr] = value
+                    direct_override_attributes.append(attr)
         
         # 2. Falls tilda_id gegeben, hole Attribute aus matched_tilda_ways
+        tilda_override_attributes = []  # Track welche Attribute von tilda_id kommen
         if tilda_id and matched_tilda_gdf is not None:
             tilda_match = matched_tilda_gdf[matched_tilda_gdf['tilda_id'] == tilda_id]
             if not tilda_match.empty:
@@ -368,9 +374,15 @@ def apply_geopackage_overrides(network_gdf, override_gdf, matched_tilda_gdf):
                         value = tilda_row[attr]
                         if value is not None:
                             override_attributes[attr] = value
+                            tilda_override_attributes.append(attr)
         
-        if not override_attributes:
-            logging.debug(f"🔍 GeoPackage-Override {override_idx}: Keine Attribute zum Überschreiben gefunden")
+        # Prüfe ob Kommentar vorhanden ist
+        override_custom_comment = override_row.get('Kommentar')
+        has_comment = override_custom_comment and str(override_custom_comment).strip()
+        
+        # Override nur anwenden wenn entweder Attribute ODER Kommentar vorhanden
+        if not override_attributes and not has_comment:
+            logging.debug(f"🔍 GeoPackage-Override {override_idx}: Keine Attribute oder Kommentar zum Überschreiben gefunden")
             not_applied_count += 1
             continue
         
@@ -398,11 +410,35 @@ def apply_geopackage_overrides(network_gdf, override_gdf, matched_tilda_gdf):
             
             # Füge Kommentar hinzu
             existing_comment = network_gdf.at[seg_idx, 'Kommentar']
-            override_comment = (
-                f"Override angewendet; Quelle: GeoPackage; "
-                f"tilda_id: {tilda_id if tilda_id else 'N/A'}; "
-                f"Attribute: {', '.join(override_attributes.keys())}"
-            )
+            
+            # Generiere Override-Kommentar
+            if override_attributes or has_comment:
+                # Basis-Teil mit optionaler tilda_id in Klammern
+                if tilda_id:
+                    override_parts = [f"GeoPackage Override angewendet (tilda_id: {tilda_id})"]
+                else:
+                    override_parts = ["GeoPackage Override angewendet"]
+                
+                # Zeige was direkt überschrieben wurde
+                if direct_override_attributes:
+                    override_parts.append(f"Direkt: {', '.join(direct_override_attributes)}")
+                
+                # Zeige was von tilda_id kommt
+                if tilda_override_attributes:
+                    override_parts.append(f"Von tilda_id: {', '.join(tilda_override_attributes)}")
+                
+                # Zeige ob Kommentar hinzugefügt wurde
+                if has_comment:
+                    override_parts.append("Kommentar hinzugefügt")
+                
+                override_comment = "; ".join(override_parts)
+                
+                # Füge tatsächlichen Custom-Kommentar hinzu
+                if has_comment:
+                    override_comment = f"{override_comment}; {override_custom_comment}"
+            else:
+                # Sollte nicht vorkommen (durch frühere Prüfung)
+                override_comment = "Override angewendet"
             
             if existing_comment and str(existing_comment).strip():
                 network_gdf.at[seg_idx, 'Kommentar'] = f"{existing_comment}; {override_comment}"
@@ -474,8 +510,13 @@ def apply_text_overrides(network_gdf, text_overrides, matched_tilda_gdf):
             else:
                 logging.warning(f"⚠️  Text-Override element_nr={element_nr}, ri={ri}: tilda_id={tilda_id} nicht in matched_tilda_ways gefunden")
         
-        if not override_attributes:
-            logging.debug(f"🔍 Text-Override element_nr={element_nr}, ri={ri}: Keine Attribute zum Überschreiben gefunden")
+        # Prüfe ob Kommentar vorhanden ist
+        text_custom_comment = direct_attributes.get('Kommentar')
+        has_comment = text_custom_comment and str(text_custom_comment).strip()
+        
+        # Override nur anwenden wenn entweder Attribute ODER Kommentar vorhanden
+        if not override_attributes and not has_comment:
+            logging.debug(f"🔍 Text-Override element_nr={element_nr}, ri={ri}: Keine Attribute oder Kommentar zum Überschreiben gefunden")
             not_applied_count += 1
             continue
         
@@ -502,11 +543,26 @@ def apply_text_overrides(network_gdf, text_overrides, matched_tilda_gdf):
             
             # Füge Kommentar hinzu
             existing_comment = network_gdf.at[seg_idx, 'Kommentar']
-            override_comment = (
-                f"Override angewendet; Quelle: Text; "
-                f"tilda_id: {tilda_id}; "
-                f"Attribute: {', '.join(override_attributes.keys())}"
-            )
+            
+            # Generiere Override-Kommentar
+            if override_attributes or has_comment:
+                # Liste der überschriebenen Dinge
+                overridden_items = list(override_attributes.keys())
+                if has_comment:
+                    overridden_items.append('Kommentar')
+                
+                override_comment = (
+                    f"Text Override angewendet; "
+                    f"tilda_id: {tilda_id}; "
+                    f"Überschrieben: {', '.join(overridden_items)}"
+                )
+                
+                # Füge tatsächlichen Custom-Kommentar hinzu
+                if has_comment:
+                    override_comment = f"{override_comment}; {text_custom_comment}"
+            else:
+                # Sollte nicht vorkommen (durch frühere Prüfung)
+                override_comment = "Override angewendet"
             
             if existing_comment and str(existing_comment).strip():
                 network_gdf.at[seg_idx, 'Kommentar'] = f"{existing_comment}; {override_comment}"
