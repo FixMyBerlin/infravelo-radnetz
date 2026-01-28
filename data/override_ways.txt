@@ -50,7 +50,5 @@
 
 way/24969047|33570023_33570042.02|0|{"force_match": true}
 # TODO als geometrie
-way/857983579|40560017_40560016.03|0|{"force_match": true}
-way/857983579|40560017_40560016.03|1|{"force_match": true}
 way/702557463|37540060_38530031.01|0|{"force_match": true}
 way/30188083|46510030_46510031.01|0|{"force_match": true}
