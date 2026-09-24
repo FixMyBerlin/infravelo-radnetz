@@ -1,0 +1,41 @@
+[package]
+name = "map-matching"
+version = "0.1.0"
+edition = "2024"
+description = "HMM-/Viterbi-basiertes Map-Matching von TILDA-Wegen auf das Radvorrangsnetz (Detailnetz)"
+license = "AGPL-3.0-only"
+publish = false
+
+[lib]
+name = "map_matching"
+path = "src/lib.rs"
+
+[[bin]]
+name = "map-matching"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+chrono = "0.4"
+clap = { version = "4.6", features = ["derive"] }
+gdal = { git = "https://github.com/georust/gdal", branch = "master" }
+geo = "0.33"
+indicatif = { version = "0.18", features = ["rayon"] }
+rayon = "1.12"
+rstar = "0.13"
+rustc-hash = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+toml = "1"
+tracing = "0.1"
+tracing-appender = "0.2"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+
+[profile.release]
+debug = 1
+lto = "thin"
+codegen-units = 4
+
+[profile.dev.package."*"]
+opt-level = 2

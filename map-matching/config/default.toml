@@ -1,0 +1,150 @@
+# =============================================================================
+# Konfiguration für das HMM-/Viterbi-Map-Matching (TILDA -> RVN/Detailnetz)
+# =============================================================================
+# Alle Pfade sind relativ zu `paths.root`; `paths.root` selbst ist relativ zum
+# Verzeichnis dieser Datei. Einzelne Werte lassen sich per CLI überschreiben:
+#   map-matching run --set hmm.sigma_distance_m=6.5 --set trace.sample_interval_m=4
+
+[paths]
+root = "../.."
+network = "output/rvn/vorrangnetz_details_combined_rvn.fgb"
+districts = "data/Berlin Bezirke.gpkg"
+output_dir = "output/map-matching"
+reference = "output/reference-legacy/snapping_network_enriched.fgb"
+reference_secondary = "output/reference-legacy/aggregated_rvn_final.gpkg"
+# Nur für die Auswertung (welche Abweichungen gehen auf manuelle Eingriffe zurück).
+# Diese Listen werden im Matching NICHT verwendet.
+manual_way_lists = ["data/exclude_ways.txt", "data/include_ways.txt"]
+manual_element_lists = ["data/opposite_edge_overwrite_element_nr.txt"]
+
+[[paths.tilda]]
+data_source = "bikelanes"
+path = "output/TILDA-translated/TILDA Bikelanes Translated.fgb"
+
+[[paths.tilda]]
+data_source = "streets"
+path = "output/TILDA-translated/TILDA Streets Translated.fgb"
+
+[[paths.tilda]]
+data_source = "paths"
+path = "output/TILDA-translated/TILDA Paths Translated.fgb"
+
+[paths.clip_regions]
+neukoelln = "data/Bezirk Neukölln Grenze.fgb"
+norden = "data/Berlin_Gebiet_Norden.gpkg"
+sueden = "data/Berlin_Gebiet_Süden.gpkg"
+
+# -----------------------------------------------------------------------------
+[network]
+# Endpunkte innerhalb dieser Toleranz gelten als identischer Knoten.
+# Rein numerisch (Gleitkomma-Rauschen), KEIN Reparatur-Snapping.
+node_tolerance_m = 0.01
+# Offene Enden mit einem Nachbarn bis zu dieser Distanz werden im
+# Topologie-Report als "Lücke" statt als "freies Ende" klassifiziert.
+gap_report_m = 10.0
+
+# -----------------------------------------------------------------------------
+[trace]
+# "single": jeder TILDA-Weg ist eine eigene Trace.
+strategy = "single"
+# Abstand der Beobachtungen entlang eines TILDA-Wegs (Anfang/Ende immer enthalten).
+sample_interval_m = 5.0
+# Halbe Fensterbreite zur Bestimmung des lokalen Kurses einer Beobachtung.
+heading_window_m = 2.0
+
+# -----------------------------------------------------------------------------
+[hmm]
+# Suchradius für Kandidaten-Kanten um jede Beobachtung.
+candidate_radius_m = 25.0
+# Maximale Anzahl Kandidaten (gerichtete Kanten) pro Beobachtung (Beam).
+max_candidates = 8
+# Emission: Gauß über den Abstand Beobachtung <-> Kante.
+sigma_distance_m = 7.0
+# Emission: von-Mises-artiger Kurs-Term  kappa * (cos(dtheta) - 1).
+heading_kappa = 3.0
+# Emission: Strafe, wenn eine Einrichtungs-RVA nicht rechts der Fahrtrichtung liegt.
+side_penalty = 1.5
+# Seiten-Term erst ab diesem Abstand zur Mittellinie (darunter unzuverlässig).
+side_min_distance_m = 1.5
+# Emission: Strafe bei abweichendem Straßennamen (beide Namen vorhanden).
+name_mismatch_penalty = 0.5
+# Null-Zustand ("nicht auf dem RVN"): konstante log-Emission.
+null_log_emission = -4.5
+# Strafe für jeden Wechsel in den bzw. aus dem Null-Zustand.
+null_switch_penalty = 2.0
+# Übergang: log p = -|d_route - d_trace| / beta
+beta_m = 4.0
+# Toleriertes Rückwärtsrauschen der Projektion auf derselben Kante.
+backward_tolerance_m = 3.0
+# Routing-Limit pro Schritt: d_trace * factor + extra.
+route_limit_factor = 3.0
+route_limit_extra_m = 40.0
+
+# -----------------------------------------------------------------------------
+[assemble]
+# Teilsegmente kürzer als dieser Wert werden dem längeren Nachbarn zugeschlagen.
+min_segment_length_m = 3.0
+# Unbelegte Lücken zwischen zwei Intervallen bis zu dieser Länge werden geschlossen.
+gap_fill_m = 6.0
+# Unbelegte Stücke an Kantenenden bis zu dieser Länge werden vom Nachbarn übernommen.
+end_fill_m = 8.0
+no_infra_fuehr = "Keine Radinfrastruktur vorhanden"
+mixed_traffic_fuehr = "Mischverkehr mit motorisiertem Verkehr"
+# Attribute, deren Gleichheit über das Verschmelzen benachbarter Teilsegmente entscheidet.
+merge_attributes = ["fuehr", "ofm", "protek", "pflicht", "breite", "farbe", "verkehrsri", "trennstreifen", "nutz_beschr", "Kommentar"]
+# Attribute, die vom gewinnenden TILDA-Weg in die Ausgabe übernommen werden.
+transfer_attributes = [
+  "fuehr", "pflicht", "breite", "ofm", "farbe", "protek", "trennstreifen", "nutz_beschr", "Kommentar", "verkehrsri",
+  "tilda_id", "tilda_name", "tilda_oneway", "tilda_category", "tilda_traffic_sign",
+  "tilda_mapillary", "tilda_mapillary_traffic_sign", "tilda_mapillary_backward", "tilda_mapillary_forward", "tilda_width_source",
+]
+
+# -----------------------------------------------------------------------------
+# Regel-Engine: Auswahl, welcher TILDA-Weg ein Kantenstück bekommt.
+# 1. `prefer`-Regeln: Liegen Gewinner- und Verlierer-Prädikat gleichzeitig vor,
+#    wird der Verlierer verworfen.
+# 2. `tiers`: Der erste passende Tier bestimmt den Rang (kleiner = besser).
+# 3. Innerhalb eines Tiers gewinnt die höhere HMM-Güte.
+# Prädikate (alle Felder optional, UND-verknüpft):
+#   data_source, fuehr, category_prefix: Listen (ODER innerhalb der Liste)
+#   traffic_sign_any: mind. eines der Zeichen vorhanden
+#   traffic_sign_none: keines der Zeichen vorhanden
+[[rules.prefer]]
+name = "Bussonderfahrstreifen vor unbeschildertem Hochbordradweg"
+winner = { fuehr = ["Bussonderfahrstreifen mit Radverkehr frei (Z245 mit Z1022‐10)", "Radfahrstreifen mit Linienverkehr frei (Z237 mit Z1026-32)"] }
+loser = { fuehr = ["Radweg"], traffic_sign_none = ["237", "240", "241"] }
+
+[[rules.tiers]]
+name = "RVA"
+rank = 1
+when = { fuehr = [
+  "Radfahrstreifen",
+  "Radfahrstreifen mit Linienverkehr frei (Z237 mit Z1026-32)",
+  "Bussonderfahrstreifen mit Radverkehr frei (Z245 mit Z1022‐10)",
+  "Geschützter Radfahrstreifen",
+  "Schutzstreifen",
+  "Fahrradstraße /-zone (Z 244)",
+  "Radweg",
+  "Gemeinsamer Geh- und Radweg mit Z240",
+  "Gehweg mit Zusatzzeichen \"Radverkehr frei\" (Z239 mit Z1022-10)",
+  "Fußgängerzone \"Radverkehr frei\" (Z242 mit Z1022-10)",
+  "Kreuzungsweg",
+  "[TODO] Klärung notwendig",
+] }
+
+[[rules.tiers]]
+name = "Mischverkehr"
+rank = 2
+when = { fuehr = ["Mischverkehr mit motorisiertem Verkehr"] }
+
+[[rules.tiers]]
+name = "Sonstige Wege"
+rank = 3
+when = {}
+
+# -----------------------------------------------------------------------------
+[eval]
+# Attribute, deren längengewichtete Übereinstimmung ausgewertet wird.
+attributes = ["fuehr", "verkehrsri", "pflicht", "breite", "ofm", "farbe", "protek", "trennstreifen", "nutz_beschr", "tilda_id"]
+# Maximaler Abstand eines Referenz-Stützpunkts zur Kante für die lineare Referenzierung.
+max_projection_distance_m = 2.0
