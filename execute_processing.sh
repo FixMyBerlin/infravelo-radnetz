@@ -5,8 +5,7 @@
 # Es sichert finale Dateien vom vorherigen Lauf in output-last-run/
 #
 # Verarbeitungsschritte:
-# 1. OSM-Wege mit Radvorrangsnetz matchen
-# 2. Snapping und Attribut-Übernahme  
+# 1.+2. HMM-Map-Matching (Rust, map-matching/) – ersetzt Matching + Snapping
 # 3. Schutzstreifen-Konvertierung
 # 4. Finale Aggregation
 # 5. Qualitätssicherungstests
@@ -294,82 +293,42 @@ echo ""
 
 echo "🔄 Starte Verarbeitungsprozess..."
 
-# Schritt 1: Matching
-if [[ $START_STEP -le 1 ]]; then
-    echo "🔍 Schritt 1/4: OSM-Wege mit Radvorrangsnetz matchen..."
-    STEP1_START=$(date +%s)
-    
-    # Erstelle Backups statt Dateien zu löschen
-    echo "  💾 Erstelle Backups der vorhandenen Dateien..."
-    if [ -d "${BASE_OUT_DIR}/matching" ]; then
-        for file in ${BASE_OUT_DIR}/matching/osm_*_in_buffering.fgb \
-                    ${BASE_OUT_DIR}/matching/osm_*_manual_interventions.fgb \
-                    ${BASE_OUT_DIR}/matching/osm_*_orthogonal_all_ways.fgb \
-                    ${BASE_OUT_DIR}/matching/osm_*_orthogonal_removed.fgb; do
-            create_backup "$file"
-        done
-    fi
-    for file in ${BASE_OUT_DIR}/matched/matched_tilda_*.fgb \
-                ${BASE_OUT_DIR}/matched/matched_tilda_*.txt; do
-        create_backup "$file"
-    done
-    
-    if [[ -n "$CLIP_REGION" ]]; then
-        ./.venv/bin/python processing/start_matching.py --clip "$CLIP_REGION"
-    elif [[ -n "$VIEW" ]]; then
-        ./.venv/bin/python processing/start_matching.py --view "$VIEW"
-    else
-        ./.venv/bin/python processing/start_matching.py
-    fi
-    if [ $? -ne 0 ]; then
-        echo "❌ Fehler in Schritt 1: start_matching.py"
-        exit 1
-    fi
-    
-    # Lösche Backups nach erfolgreichem Abschluss
-    cleanup_backups
-    show_elapsed_time $STEP1_START "Schritt 1"
-    echo "✅ Schritt 1 abgeschlossen."
-    echo ""
-else
-    echo "⏭️  Überspringe Schritt 1 (OSM-Wege Matching)"
-    echo ""
-fi
-
-# Schritt 2: Snapping
+# Schritt 1+2: HMM-Map-Matching (Rust, ersetzt das bisherige Matching + Snapping)
+# Die alten Python-Skripte liegen unter legacy/ und werden nicht mehr verwendet.
 if [[ $START_STEP -le 2 ]]; then
-    echo "📍 Schritt 2/4: Snapping und Attribut-Übernahme..."
-    STEP2_START=$(date +%s)
-    
-    # Erstelle Backups statt Dateien zu löschen
-    echo "  💾 Erstelle Backups der vorhandenen Dateien..."
-    if [ -d "${BASE_OUT_DIR}/snapping" ]; then
-        for file in ${BASE_OUT_DIR}/snapping/rvn-segmented*.fgb \
-                    ${BASE_OUT_DIR}/snapping/osm_candidates_per_edge*.txt; do
-            create_backup "$file"
-        done
-    fi
-    create_backup "${BASE_OUT_DIR}/snapping_network_enriched${SUFFIX}.fgb"
-    
-    if [[ -n "$CLIP_REGION" ]]; then
-        ./.venv/bin/python processing/start_snapping.py --clip "$CLIP_REGION"
-    elif [[ -n "$VIEW" ]]; then
-        ./.venv/bin/python processing/start_snapping.py --view "$VIEW"
-    else
-        ./.venv/bin/python processing/start_snapping.py
-    fi
-    if [ $? -ne 0 ]; then
-        echo "❌ Fehler in Schritt 2: start_snapping.py"
+    echo "🧭 Schritt 1-2/4: HMM-Map-Matching (Rust, map-matching/)..."
+    STEP1_START=$(date +%s)
+
+    if ! command -v cargo >/dev/null 2>&1; then
+        echo "❌ Fehler: cargo (Rust) nicht gefunden"
         exit 1
     fi
-    
-    # Lösche Backups nach erfolgreichem Abschluss
+    if [[ -n "$VIEW" ]]; then
+        echo "❌ --view wird vom Rust-Matching nicht unterstützt (nutze: cargo run --release -- run --bbox minx,miny,maxx,maxy)"
+        exit 1
+    fi
+
+    create_backup "${BASE_OUT_DIR}/snapping_network_enriched${SUFFIX}.fgb"
+
+    MM_ARGS=(run)
+    if [[ -n "$CLIP_REGION" ]]; then
+        MM_ARGS+=(--clip "$CLIP_REGION")
+    fi
+    (cd map-matching && cargo run --release --quiet -- "${MM_ARGS[@]}")
+    if [ $? -ne 0 ]; then
+        echo "❌ Fehler in Schritt 1-2: map-matching"
+        exit 1
+    fi
+
+    # Ergebnis für die Python-Folgeschritte bereitstellen
+    cp "output/map-matching/network_enriched_hmm${SUFFIX}.fgb" "${BASE_OUT_DIR}/snapping_network_enriched${SUFFIX}.fgb"
+
     cleanup_backups
-    show_elapsed_time $STEP2_START "Schritt 2"
-    echo "✅ Schritt 2 abgeschlossen."
+    show_elapsed_time $STEP1_START "Schritt 1-2"
+    echo "✅ Schritt 1-2 abgeschlossen."
     echo ""
 else
-    echo "⏭️  Überspringe Schritt 2 (Snapping und Attribut-Übernahme)"
+    echo "⏭️  Überspringe Schritt 1-2 (HMM-Map-Matching)"
     echo ""
 fi
 

@@ -32,9 +32,12 @@ pip install -r requirements.txt
 # Die Verarbeitungs-Schritte müssen in dieser Reihenfolge ausgeführt werden
 ./process_tilda_data.sh
 
-./.venv/bin/python processing/start_matching.py
-./.venv/bin/python processing/start_snapping.py
-./.venv/bin/python processing/start_aggregation.py --input ./output/snapping_converted_bikelanes.fgb
+# Matching + Snapping: HMM-/Viterbi-Map-Matching in Rust (siehe map-matching/README.md)
+(cd map-matching && cargo run --release -- run)
+cp output/map-matching/network_enriched_hmm.fgb output/snapping_network_enriched.fgb
+./.venv/bin/python processing/start_bikelane_conversion.py
+./.venv/bin/python processing/start_overriding.py
+./.venv/bin/python processing/start_aggregation.py --input ./output/snapping_with_overrides.fgb
 ```
 
 ```sh
@@ -65,10 +68,12 @@ source .venv/bin/activate && ./process_tilda_data.sh && ./process_rvn.sh && ./ex
 - `data/` – Eingangsdaten wie Detailnetz, Radvorrangsnetz und weitere Geodaten
 - `data-raw-tilda/` – Rohdaten aus den TILDA-Exporten (bikelanes, roads, roadsPathClasses)
 - `inspector/` – Code zu Web-basiertes Tool zur Qualitätssicherung der verarbeiteten Daten
+- `map-matching/` – Rust-Backend: HMM-/Viterbi-Map-Matching der TILDA-Wege auf das RVN (ersetzt Matching + Snapping)
+- `legacy/` – bisherige Python-Skripte für Matching und Snapping (nicht mehr verwendet)
 - `output/` – Alle durch die Verarbeitungsskripte erzeugten Ausgabedateien
 - `output-bbox/` – Ausgabedateien beschränkt auf einen bestimmten (`--view`) Bounding-Box-Bereich
 - `output-last-run/` – Backup der Ausgabedateien vom letzten Verarbeitungslauf
-- `processing/` – Zentrale Python-Skripte für Matching, Snapping und Aggregation der Geodaten
+- `processing/` – Python-Skripte für Konvertierung, Overrides und Aggregation der Geodaten
 - `scripts/` – Hilfs- und Wrapper-Skripte zur Automatisierung der Verarbeitung
 - `validation/` – Skripte und Daten zur Validierung der Ergebnisse
 
@@ -77,9 +82,8 @@ source .venv/bin/activate && ./process_tilda_data.sh && ./process_rvn.sh && ./ex
 Dieses Projekt überführt Fahrrad-Infrastrukturdaten aus OpenStreetMap (aufbereitet durch TILDA) in das strukturierte Berliner Detailnetz. Als Datenquellen dienen das Radvorrangsnetz (RVN), die TILDA-Exporte und das Berliner Straßennetz-Detailnetz. Die Verarbeitung erfolgt in mehreren automatisierten Schritten:
 
 1. **TILDA-Datenaufbereitung** (`process_tilda_data.sh`): Übersetzung und Anreicherung der TILDA-Rohdaten mit zusätzlichen Attributen und Kategorisierungen
-2. **Matching** (`start_matching.py`): Auswahl von OSM-Ways entlang von des Radvorrangsnetzes. Außerdem Anwendung von manuellen Einschlüssen und Ausschlüssen von Wege über OSM-ID.
-3. **Snapping** (`start_snapping.py`): Geometrische Anpassung der OSM-Daten an die Detailnetz-Geometrie, sodass die Fahrrad-Infrastruktur exakt auf den Detailnetz-Kanten liegt.
-4. **Aggregation** (`start_aggregation.py`): Zusammenführung mehrerer OSM-Ways auf einer Detailnetz-Kante zu einem einzigen Feature mit konsolidierten Attributen.
+2. **Map-Matching** (`map-matching/`, Rust): Die TILDA-Wege werden per Hidden Markov Model und Viterbi auf die gerichteten RVN-Kanten gematcht. Jede Kante wird nach den Routen-Anteilen aufgeteilt und übernimmt die TILDA-Attribute. Das ersetzt das frühere Matching und Snapping (`legacy/`).
+3. **Aggregation** (`start_aggregation.py`): Zusammenführung mehrerer OSM-Ways auf einer Detailnetz-Kante zu einem einzigen Feature mit konsolidierten Attributen.
 
 Zusätzliche Skripte verarbeiten Knotenpunkte, Ampeln, Bushaltestellen und weitere Netzwerkelemente, welche in die Datensätze direkt oder indirekt einfließen. Das Wrapper-Skript `execute_processing.sh` führt alle Schritte automatisiert aus und unterstützt optionales Clipping auf bestimmte Regionen (Neukölln, Norden, Süden). Der Web-Inspector ermöglicht die visuelle Qualitätssicherung der Ergebnisse durch interaktive Kartendarstellung und Filterung nach Attributen.
 

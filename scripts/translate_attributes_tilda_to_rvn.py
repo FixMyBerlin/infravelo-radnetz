@@ -26,7 +26,7 @@ from datetime import datetime
 import geopandas as gpd
 import pandas as pd
 from helpers.globals import DEFAULT_CRS
-from start_snapping import CONFIG_BUFFER_DEFAULT
+from helpers.globals import RVN_BUFFER_METERS
 from helpers.progressbar import print_progressbar
 from helpers.traffic_signs import has_traffic_sign
 from helpers.width_parser import parse_width
@@ -110,7 +110,7 @@ CONFIG_REMOVE_TILDA_ATTRIBUTES = [
 _rvn_buffer_cache = None
 
 
-def load_rvn_buffer(data_dir: str, crs: int, buffer_distance: float = CONFIG_BUFFER_DEFAULT) -> gpd.GeoDataFrame:
+def load_rvn_buffer(data_dir: str, crs: int, buffer_distance: float = RVN_BUFFER_METERS) -> gpd.GeoDataFrame:
     """
     Lädt das Radvorrangsnetz und erstellt einen Buffer um alle Linien.
     Das Ergebnis wird gecached um mehrfaches Laden zu vermeiden.
@@ -118,7 +118,7 @@ def load_rvn_buffer(data_dir: str, crs: int, buffer_distance: float = CONFIG_BUF
     Args:
         data_dir: Verzeichnis mit den Eingabedateien
         crs: Ziel-Koordinatensystem
-        buffer_distance: Puffergröße in Metern (default: CONFIG_BUFFER_DEFAULT)
+        buffer_distance: Puffergröße in Metern (default: RVN_BUFFER_METERS)
     
     Returns:
         GeoDataFrame mit gepuffertem RVN als einzelnes Polygon
