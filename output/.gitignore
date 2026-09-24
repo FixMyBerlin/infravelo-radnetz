@@ -8,3 +8,8 @@ osm_candidates_per_edge*
 *.csv
 .~lock*
 *.backup
+# Ausgaben des Rust-Map-Matchings (Ergebnisse, Debug, Evaluationsberichte, Summaries)
+map-matching/
+# Gesicherte Legacy-Referenz und QGIS-Vergleichsordner
+reference-legacy/
+vergleich-qgis/
