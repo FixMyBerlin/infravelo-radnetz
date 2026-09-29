@@ -1,2 +1,7 @@
 *.gpkg-shm
 *.gpkg-wal
+
+# Lokale Geodaten (nicht versioniert)
+netzquellen/
+Berlin Straßenabschnitte Detailnetz *.fgb
+Berlin Verbindungspunkte Detailnetz.fgb

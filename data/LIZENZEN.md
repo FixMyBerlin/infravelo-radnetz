@@ -48,6 +48,13 @@ Angabe der Lizenzen der in diesem Ordner enthaltenen Geodaten und Herkunft der D
 
 Gleiche Lizenzangaben, aber Anpasungen: Extrakt aus `Berlin Bezirke.gpkg`
 
+## Berlin Verbindungspunkte Detailnetz.fgb
+
+* **Lizenz:** dl-zero-de/2.0
+* **Urheber:** © Senatsverwaltung für Mobilität, Verkehr, Klimaschutz und Umwelt Berlin
+* **Anpassung:** Layer `detailnetz:a_verbindungspunkte` (alle Verbindungspunkte, Stand 2026-09-29)
+* Export von https://daten.berlin.de/datensaetze/detailnetz-berlin-wfs-4f2045ef
+
 ## Verbindungspunkte im RVN.gpkg
 
 * **Lizenz:** dl-zero-de/2.0

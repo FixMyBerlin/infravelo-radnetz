@@ -27,7 +27,7 @@ OUTPUT:
 
 import geopandas as gpd
 import pandas as pd
-from shapely.geometry import Point
+from shapely.geometry import MultiLineString, Point
 
 
 def remove_duplicate_nodes(nodes_gdf):
@@ -168,6 +168,46 @@ def assign_node_ids(nodes_path, segments_path, output_path):
     print(f"\nLade Straßenabschnitte von {segments_path}")
     segments_gdf = gpd.read_file(segments_path)
 
+    nodes_gdf = assign_node_ids_to_points(nodes_gdf, segments_gdf)
+
+    # Speichern der Ergebnisse
+    print(f"Speichere aktualisierte Knotenpunkte nach {output_path}")
+    nodes_gdf.to_file(output_path, driver='GPKG')
+
+    print("Skript erfolgreich abgeschlossen.")
+    print(f"Zusammenfassung: {len(nodes_gdf)} Knotenpunkte verarbeitet.")
+    print(f"{nodes_gdf['Knotenpunkt‐ID'].notna().sum()} Knotenpunkte haben eine Knotenpunkt‐ID erhalten.")
+    print("-----------------------------------------------------")
+
+
+def _line_start(line):
+    """Startpunkt einer LineString oder MultiLineString (erste Teillinie)."""
+    if isinstance(line, MultiLineString):
+        line = line.geoms[0]
+    return Point(line.coords[0])
+
+
+def _line_end(line):
+    """Endpunkt einer LineString oder MultiLineString (letzte Teillinie)."""
+    if isinstance(line, MultiLineString):
+        line = line.geoms[-1]
+    return Point(line.coords[-1])
+
+
+def assign_node_ids_to_points(nodes_gdf, segments_gdf):
+    """
+    Ordnet Verbindungspunkten die Knotenpunkt‐ID aus beginnt_bei_vp / endet_bei_vp
+    der Straßenabschnitte zu, deren Start- bzw. Endpunkt auf dem Verbindungspunkt liegt.
+
+    Args:
+        nodes_gdf (GeoDataFrame): Verbindungspunkte
+        segments_gdf (GeoDataFrame): Straßenabschnitte mit beginnt_bei_vp und endet_bei_vp
+
+    Returns:
+        GeoDataFrame: Verbindungspunkte mit Spalte 'Knotenpunkt‐ID'
+    """
+    nodes_gdf = nodes_gdf.copy()
+
     # Sicherstellen, dass die CRS übereinstimmen
     if nodes_gdf.crs != segments_gdf.crs:
         print("CRS stimmen nicht überein. Projiziere Knotenpunkte auf das CRS der Segmente.")
@@ -175,11 +215,11 @@ def assign_node_ids(nodes_path, segments_path, output_path):
 
     # Extrahieren der Start- und Endpunkte der Segmente
     start_points = segments_gdf.copy()
-    start_points['geometry'] = segments_gdf.geometry.apply(lambda line: Point(line.coords[0]))
+    start_points['geometry'] = segments_gdf.geometry.apply(_line_start)
     start_points['Knotenpunkt‐ID'] = start_points['beginnt_bei_vp']
-    
+
     end_points = segments_gdf.copy()
-    end_points['geometry'] = segments_gdf.geometry.apply(lambda line: Point(line.coords[-1]))
+    end_points['geometry'] = segments_gdf.geometry.apply(_line_end)
     end_points['Knotenpunkt‐ID'] = end_points['endet_bei_vp']
 
     # Kombinieren der Start- und Endpunkte
@@ -207,16 +247,7 @@ def assign_node_ids(nodes_path, segments_path, output_path):
     
     # Umbenennen der Spalte für die Ausgabe
     nodes_gdf['Knotenpunkt‐ID'] = joined_gdf['Knotenpunkt‐ID']
-
-
-    # Speichern der Ergebnisse
-    print(f"Speichere aktualisierte Knotenpunkte nach {output_path}")
-    nodes_gdf.to_file(output_path, driver='GPKG')
-
-    print("Skript erfolgreich abgeschlossen.")
-    print(f"Zusammenfassung: {len(nodes_gdf)} Knotenpunkte verarbeitet.")
-    print(f"{nodes_gdf['Knotenpunkt‐ID'].notna().sum()} Knotenpunkte haben eine Knotenpunkt‐ID erhalten.")
-    print("-----------------------------------------------------")
+    return nodes_gdf
 
 
 if __name__ == '__main__':

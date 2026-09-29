@@ -106,9 +106,10 @@ def find_node_at_point(point, nodes_gdf, tolerance=NODE_SEARCH_TOLERANCE):
     """
     # Erstelle einen Buffer um den Punkt
     point_buffer = point.buffer(tolerance)
-    
-    # Finde alle Knotenpunkte innerhalb des Buffers
-    intersecting_nodes = nodes_gdf[nodes_gdf.geometry.intersects(point_buffer)]
+
+    # Finde alle Knotenpunkte innerhalb des Buffers (über den räumlichen Index)
+    candidates = nodes_gdf.sindex.query(point_buffer, predicate='intersects')
+    intersecting_nodes = nodes_gdf.iloc[candidates]
     
     if len(intersecting_nodes) > 0:
         # Nimm den nächstgelegenen Knotenpunkt
@@ -199,11 +200,12 @@ def assign_element_numbers(rvn_gdf, nodes_gdf):
         nodes_gdf (GeoDataFrame): Knotenpunkte mit IDs (inkl. virtueller Knotenpunkte)
         
     Returns:
-        GeoDataFrame: Anreichertes Radvorrangsnetz mit element_nr
+        GeoDataFrame: Anreichertes Radvorrangsnetz mit element_nr (Index zurückgesetzt)
     """
     logging.info("Starte Zuweisung der Element-Nummern (optimiert)...")
-    
-    # Kopiere das DataFrame
+
+    # Positionen und Index-Labels müssen übereinstimmen (iloc und loc werden gemischt genutzt)
+    rvn_gdf = rvn_gdf.reset_index(drop=True)
     result_gdf = rvn_gdf.copy()
     
     # Initialisiere neue Spalten
