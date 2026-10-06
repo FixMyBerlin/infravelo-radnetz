@@ -47,6 +47,21 @@ In `ren-network/output/`:
 - `ren_netz_vereinheitlicht.geojson`: dasselbe Netz in WGS84, z. B. für [play.placemark.io](https://play.placemark.io)
 - `element_nr_nicht_im_detailnetz.csv`: Kanten, deren `element_nr` im Detailnetz fehlt
 
+## Prüfliste doppelter Kanten
+
+`audit_double_edges.py` sucht Kanten, die denselben Weg doppelt abbilden. Es entfernt nichts; was nach der Prüfung wegfallen soll, kommt in `ausschluss_element_nr.csv`.
+
+```bash
+python ren-network/audit_double_edges.py
+```
+
+| `typ` | Bedeutung |
+|---|---|
+| `ueberlappend` | Zwei Kanten liegen aufeinander: mindestens 50 % der einen im Abstand von 3 m zur anderen |
+| `parallel_zum_radverkehrsnetz` | Eine Kante ohne Radverkehrsnetz verläuft zu mindestens 80 % im Abstand von 20 m neben Kanten des Radverkehrsnetzes |
+
+Ausgabe in `output/ren-network/`: `doppelte_kanten.csv` (eine Zeile je Fund mit Kandidat, Partnerkanten, Anteil, `gleiches_knotenpaar`) und `doppelte_kanten.geojson` (Kandidaten und Partner mit Fundnummer `nr` und `rolle`).
+
 ## Attribute
 
 Nummern nach Anhang "Attribut mit Ausprägungen".
