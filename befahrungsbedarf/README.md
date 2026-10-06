@@ -20,10 +20,10 @@ python befahrungsbedarf/build.py
 | Mapillary-Fotos berücksichtigt | **2024-04-05** bis 2026-10-05 |
 | OSM-Stand des Mapillary-Abgleichs | 2026-10-03 |
 | TILDA-Export | bikelanes_2026-10-05.fgb |
-| Netz | 2867.8 km |
-| Wege am Netz | 58747 Wege, 5208.1 km |
-| Befahrungsbedarf | 8122 Wege, 1044.1 km |
-| davon Priorität 1 / 2 / 3 | 185.0 / 330.3 / 528.8 km |
+| Netz | 2872.6 km |
+| Wege am Netz | 58798 Wege, 5218.6 km |
+| Befahrungsbedarf | 8137 Wege, 1048.1 km |
+| davon Priorität 1 / 2 / 3 | 185.3 / 332.9 / 529.9 km |
 <!-- stand:end -->
 
 Das Startdatum der Mapillary-Fotos wandert mit jedem Abgleich weiter (siehe [Fotos](#fotos)). Wir dürfen Fotos ab 2024 verwenden; liegt das Startdatum in 2024 oder später, ist das erfüllt.
