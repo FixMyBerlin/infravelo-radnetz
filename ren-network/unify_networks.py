@@ -87,6 +87,11 @@ MISSING_REPORT_PATH = OUTPUT_DIR / "element_nr_nicht_im_detailnetz.csv"
 # Reihenfolge bestimmt, aus welcher Quelle die Geometrie übernommen wird
 SOURCE_PRIORITY = ["radverkehrsnetz", "radschnellverbindungen", "hauptstrassennetz"]
 
+# Deckt eine Quelle nur einen Teil der Kante ab (z.B. das Radverkehrsnetz, das
+# vor dem Knotenpunkt abbiegt), gewinnt die Quelle mit der vollständigen
+# Geometrie. Bis zu dieser Differenz gelten Geometrien als gleich lang.
+GEOMETRY_LENGTH_TOLERANCE_M = 10
+
 # Rang der Radverkehrsnetz-Ausprägungen (höher gewinnt bei Konflikten)
 RVN_VORRANG = "Radvorrangnetz"
 RVN_ERGAENZUNG = "Radergänzungsnetz"
@@ -115,6 +120,7 @@ FINAL_COLUMNS = [
     "hauptverkehrsstrasse",
     "strassenklasse",
     "netz_quellen",
+    "netz_quellen_teilweise",
     "in_detailnetz",
     "geometry",
 ]
@@ -309,8 +315,16 @@ def merge_by_element_nr(sources):
 
     rows = []
     multi_part_groups = 0
+    partial_geometry_groups = 0
     for element_nr, group in keyed.groupby("element_nr", sort=False):
-        best_prio = group["prio"].min()
+        # Geometrie aus der Quelle mit höchster Priorität, die die Kante vollständig abdeckt
+        length_by_prio = group.geometry.length.groupby(group["prio"]).sum()
+        complete = length_by_prio[length_by_prio >= length_by_prio.max() - GEOMETRY_LENGTH_TOLERANCE_M]
+        best_prio = complete.index.min()
+        if best_prio != group["prio"].min():
+            partial_geometry_groups += 1
+        # Quellen, die nur einen Teil der Kante abdecken
+        partial_sources = sorted(set(group.loc[~group["prio"].isin(complete.index), "netz"]))
         parts = list(group.loc[group["prio"] == best_prio, "geometry"])
         if len(parts) > 1:
             multi_part_groups += 1
@@ -322,6 +336,7 @@ def merge_by_element_nr(sources):
             "strassenname": _first_valid(ordered["strassenname"].iloc[::-1]),
             "strassenklasse": _first_valid(ordered["strassenklasse"].iloc[::-1]),
             "netz_quellen": ";".join(sorted(set(group["netz"]))),
+            "netz_quellen_teilweise": ";".join(partial_sources) or None,
             "element_nr_berechnet": "ja" if group["element_nr_berechnet"].any() else "nein",
         })
 
@@ -334,13 +349,15 @@ def merge_by_element_nr(sources):
             "strassenname": row["strassenname"],
             "strassenklasse": row["strassenklasse"],
             "netz_quellen": row["netz"],
+            "netz_quellen_teilweise": None,
         })
 
     merged = gpd.GeoDataFrame(rows, geometry="geometry", crs=f"EPSG:{DEFAULT_CRS}")
     logging.info(
         f"Zusammengeführt: {len(keyed)} + {len(unkeyed)} Quellkanten -> {len(merged)} Kanten "
         f"({merged['element_nr'].notna().sum()} mit element_nr, {len(unkeyed)} ohne). "
-        f"element_nr mit mehreren Teilgeometrien in derselben Quelle: {multi_part_groups}"
+        f"element_nr mit mehreren Teilgeometrien in derselben Quelle: {multi_part_groups}. "
+        f"Geometrie aus nachrangiger Quelle, weil die vorrangige nur einen Teil abdeckt: {partial_geometry_groups}"
     )
     return merged
 
@@ -430,7 +447,7 @@ def write_missing_report(network):
 
 def log_summary(network):
     logging.info(f"Kanten gesamt: {len(network)}, Länge {network['laenge_m'].sum() / 1000:.1f} km")
-    for column in ["radverkehrsnetz", "hauptverkehrsstrasse", "netz_quellen", "in_detailnetz",
+    for column in ["radverkehrsnetz", "hauptverkehrsstrasse", "netz_quellen", "netz_quellen_teilweise", "in_detailnetz",
                    "element_nr_berechnet"]:
         logging.info(f"{column}: {network[column].value_counts(dropna=False).to_dict()}")
     for column in ["element_nr", "von_knoten", "bis_knoten", "bezirksnummer", "strassenname"]:
