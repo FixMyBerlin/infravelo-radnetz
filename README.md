@@ -45,6 +45,31 @@ Die Verarbeitung von 2025 mit dem Python-Matching und -Snapping ist im Tag `rvn-
 git worktree add ../radnetz-rvn-2025 rvn-final-state
 ```
 
+## Projekt-Ordnerstruktur
+
+- `data/` – Eingangsdaten wie Detailnetz, Radvorrangsnetz und weitere Geodaten
+- `data-raw-tilda/` – Rohdaten aus den TILDA-Exporten (bikelanes, roads, roadsPathClasses)
+- `inspector/` – Code zu Web-basiertes Tool zur Qualitätssicherung der verarbeiteten Daten
+- `befahrungsbedarf/` – Eigenständige Auswertung: OSM-Wege am REN+-Netz ohne aktuelle Fotos (Befahrungsbedarf)
+- `map-matching/` – Rust-Backend: HMM-/Viterbi-Map-Matching der TILDA-Wege auf das RVN (ersetzt Matching + Snapping)
+- `legacy/` – bisherige Python-Skripte für Matching und Snapping (nicht mehr verwendet)
+- `output/` – Alle durch die Verarbeitungsskripte erzeugten Ausgabedateien
+- `output-bbox/` – Ausgabedateien beschränkt auf einen bestimmten (`--view`) Bounding-Box-Bereich
+- `output-last-run/` – Backup der Ausgabedateien vom letzten Verarbeitungslauf
+- `processing/` – Python-Skripte für Konvertierung, Overrides und Aggregation der Geodaten
+- `scripts/` – Hilfs- und Wrapper-Skripte zur Automatisierung der Verarbeitung
+- `validation/` – Skripte und Daten zur Validierung der Ergebnisse
+
+## Das Projekt
+
+Dieses Projekt überführt Fahrrad-Infrastrukturdaten aus OpenStreetMap (aufbereitet durch TILDA) in das strukturierte Berliner Detailnetz. Als Datenquellen dienen das Radvorrangsnetz (RVN), die TILDA-Exporte und das Berliner Straßennetz-Detailnetz. Die Verarbeitung erfolgt in mehreren automatisierten Schritten:
+
+1. **TILDA-Datenaufbereitung** (`process_tilda_data.sh`): Übersetzung und Anreicherung der TILDA-Rohdaten mit zusätzlichen Attributen und Kategorisierungen
+2. **Map-Matching** (`map-matching/`, Rust): Die TILDA-Wege werden per Hidden Markov Model und Viterbi auf die gerichteten RVN-Kanten gematcht. Jede Kante wird nach den Routen-Anteilen aufgeteilt und übernimmt die TILDA-Attribute. Das ersetzt das frühere Matching und Snapping (`legacy/`).
+3. **Aggregation** (`start_aggregation.py`): Zusammenführung mehrerer OSM-Ways auf einer Detailnetz-Kante zu einem einzigen Feature mit konsolidierten Attributen.
+
+Zusätzliche Skripte verarbeiten Knotenpunkte, Ampeln, Bushaltestellen und weitere Netzwerkelemente, welche in die Datensätze direkt oder indirekt einfließen. Das Wrapper-Skript `execute_processing.sh` führt alle Schritte automatisiert aus und unterstützt optionales Clipping auf bestimmte Regionen (Neukölln, Norden, Süden). Der Web-Inspector ermöglicht die visuelle Qualitätssicherung der Ergebnisse durch interaktive Kartendarstellung und Filterung nach Attributen.
+
 ## Lizenzen
 
 Der Quellcode der Verarbeitungsskripte und des Inspectors steht unter der AGPL-3.0-Lizenz. Details findest du in der Datei [LICENSE](./LICENSE).

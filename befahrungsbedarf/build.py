@@ -1,0 +1,281 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+build.py
+--------
+Ermittelt die OSM-Wege (TILDA) entlang des REN+-Netzes, für die neue Fotos
+aufgenommen werden müssen (Befahrungsbedarf).
+
+Eingabe (befahrungsbedarf/data/, siehe download_data.sh):
+- ren_netz_vereinheitlicht.gpkg  (Ausgabe von ren-network/unify_networks.py)
+- bikelanes.fgb, roads.fgb, roadsPathClasses.fgb  (TILDA-Export)
+
+Ausgabe (befahrungsbedarf/output/):
+- befahrungsbedarf.geojson  Wege mit Befahrungsbedarf
+- wege_am_netz.geojson      alle Wege am Netz inkl. Klassifizierung
+- statistik.json            Kilometer je Klasse und Datenstände
+
+Zusätzlich wird der Abschnitt "Stand des letzten Laufs" in der README.md aktualisiert.
+
+Verwendung:
+    python befahrungsbedarf/build.py
+"""
+
+import json
+import logging
+import sys
+from datetime import datetime
+from pathlib import Path
+
+import geopandas as gpd
+import pandas as pd
+import shapely
+
+logging.basicConfig(stream=sys.stdout, level=logging.INFO,
+                    format='%(asctime)s - %(levelname)s - %(message)s')
+
+BASE_DIR = Path(__file__).resolve().parent
+DATA_DIR = BASE_DIR / 'data'
+OUTPUT_DIR = BASE_DIR / 'output'
+
+CRS = 'EPSG:25833'
+
+# Ein Weg liegt "am Netz", wenn mindestens MIN_SHARE seiner Länge im Puffer um
+# die Netzkanten liegt. Der Puffer hängt von der Straßenklasse der Kante ab
+# (Attribut strassenklasse): Er deckt rund 95 % der Radwege im Seitenraum
+# ab, gemessen am Abstand der TILDA-Radwege zur Netzkante je Klasse.
+BUFFER_M_BY_CLASS = {'0': 22, 'I': 22, 'II': 20, 'III': 15, 'IV': 12, 'V': 10}
+BUFFER_M_DEFAULT = 10  # Kanten ohne Straßenklasse, meist eigenständige Wege
+MIN_SHARE = 0.5
+# Kürzere Wege entfallen: Sie machen die Hälfte der Wege, aber kaum Länge aus.
+MIN_LENGTH_M = 20
+
+# Vereinfachung der Ausgabegeometrie (Douglas-Peucker, in Metern)
+SIMPLIFY_M = 1.0
+
+# Der Mapillary-Abgleich (vizsim) zählt Sequenzen der letzten 30 Monate vor
+# dem Verarbeitungstag (freshness_lookback_months in dessen config/default.toml).
+MAPILLARY_LOOKBACK_MONTHS = 30
+
+README_PATH = BASE_DIR / 'README.md'
+README_START = '<!-- stand:start -->'
+README_END = '<!-- stand:end -->'
+
+# Reihenfolge = Priorität beim Entfernen doppelter IDs zwischen den Layern
+LAYERS = ['bikelanes', 'roads', 'roadsPathClasses']
+
+# --- Regeln: Ist der Weg auf den Kfz-Befahrungsfotos (2025) sichtbar? ---------
+# Befahren wurden öffentliche Straßen, keine Zufahrten/Wirtschaftswege und
+# keine Privatstraßen. Führungen auf der Fahrbahn sind sichtbar, Führungen im
+# Seitenraum nur unsicher (parkende Fahrzeuge), eigenständige Wege gar nicht.
+
+# roads: Straßenklassen ohne Kfz-Befahrung (Präfix-Vergleich)
+ROADS_NOT_DRIVEN_PREFIXES = ('service', 'pedestrian', 'track')
+
+# roadsPathClasses: Querungen liegen auf der Fahrbahn
+PATHS_ON_CARRIAGEWAY = {'footway_crossing', 'cycleway_crossing', 'footway_cycleway_crossing'}
+
+# bikelanes: Kategorien auf der Fahrbahn
+BIKELANES_ON_CARRIAGEWAY_PREFIXES = (
+    'cyclewayOnHighway', 'sharedBusLane', 'sharedMotorVehicleLane', 'bicycleRoad', 'crossing',
+)
+# bikelanes: eigenständige Führungen abseits der Fahrbahn
+BIKELANES_ISOLATED = {'pedestrianAreaBicycleYes'}
+BIKELANES_ISOLATED_SUFFIX = '_isolated'
+
+NETWORK_COLUMNS = ['element_nr', 'radverkehrsnetz', 'strassenklasse', 'bezirksnummer', 'strassenname']
+WAY_COLUMNS = ['id', 'osm_id', 'quelle', 'road', 'category', 'name', 'lifecycle', 'operator_type',
+               'mapillary_coverage', 'geometry']
+
+
+def load_network() -> gpd.GeoDataFrame:
+    """Lädt das Netz und legt die Pufferbreite je Kante fest."""
+    network = gpd.read_file(DATA_DIR / 'ren_netz_vereinheitlicht.gpkg').to_crs(CRS)
+    network['puffer_m'] = network['strassenklasse'].map(BUFFER_M_BY_CLASS).fillna(BUFFER_M_DEFAULT)
+    logging.info(f'Netz: {len(network)} Kanten, {network.length.sum() / 1000:.0f} km')
+    return network
+
+
+def load_ways() -> gpd.GeoDataFrame:
+    """Lädt die drei TILDA-Layer in ein gemeinsames Schema."""
+    frames = []
+    for layer in LAYERS:
+        path = DATA_DIR / f'{layer}.fgb'
+        logging.info(f'Lade {path.name}')
+        gdf = gpd.read_file(path).to_crs(CRS)
+        gdf['quelle'] = layer
+        for column in WAY_COLUMNS:
+            if column not in gdf.columns:
+                gdf[column] = None
+        frames.append(gdf[WAY_COLUMNS])
+    ways = gpd.GeoDataFrame(pd.concat(frames, ignore_index=True), crs=CRS)
+    # Eigenständige Wege stehen in mehreren Layern; der erste Layer gewinnt.
+    ways = ways.drop_duplicates(subset='id', keep='first').reset_index(drop=True)
+    logging.info(f'{len(ways)} TILDA-Wege geladen')
+    return ways
+
+
+def select_ways_along_network(ways: gpd.GeoDataFrame, network: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    """Behält Wege, die zu mindestens MIN_SHARE im Puffer um das Netz liegen."""
+    buffers = gpd.GeoDataFrame(geometry=network.buffer(network['puffer_m']).values, crs=CRS)
+    pairs = gpd.sjoin(ways[['geometry']], buffers, predicate='intersects')
+    # Je Weg die berührten Puffer vereinigen und den Längenanteil darin messen
+    merged = (
+        pd.Series(buffers.geometry.values[pairs['index_right'].values], index=pairs.index)
+        .groupby(level=0)
+        .agg(shapely.union_all)
+    )
+    candidates = ways.loc[merged.index].copy()
+    inside = shapely.length(shapely.intersection(candidates.geometry.values, merged.values))
+    candidates['anteil_am_netz'] = (inside / candidates.length).round(2)
+    selected = candidates[
+        (candidates['anteil_am_netz'] >= MIN_SHARE) & (candidates.length >= MIN_LENGTH_M)
+    ].copy()
+    logging.info(f'{len(selected)} Wege am Netz '
+                 f'(Anteil im Puffer >= {MIN_SHARE}, Länge >= {MIN_LENGTH_M} m)')
+    return selected
+
+
+def add_network_attributes(ways: gpd.GeoDataFrame, network: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    """Übernimmt die Attribute der Netzkante, die dem Wegmittelpunkt am nächsten liegt."""
+    midpoints = gpd.GeoDataFrame(geometry=ways.geometry.interpolate(0.5, normalized=True), crs=CRS)
+    nearest = gpd.sjoin_nearest(midpoints, network[NETWORK_COLUMNS + ['geometry']], how='left')
+    nearest = nearest[~nearest.index.duplicated(keep='first')]
+    return ways.join(nearest[NETWORK_COLUMNS])
+
+
+def classify_car_imagery(row) -> str:
+    """ja / unsicher / nein: Sichtbarkeit auf den Kfz-Befahrungsfotos."""
+    road = row['road'] or ''
+    if row['operator_type'] == 'private':
+        return 'nein'
+
+    if row['quelle'] == 'roads':
+        return 'nein' if road.startswith(ROADS_NOT_DRIVEN_PREFIXES) else 'ja'
+
+    if row['quelle'] == 'roadsPathClasses':
+        return 'ja' if road in PATHS_ON_CARRIAGEWAY else 'nein'
+
+    category = row['category'] or ''
+    if category in BIKELANES_ISOLATED or category.endswith(BIKELANES_ISOLATED_SUFFIX):
+        return 'nein'
+    if category.startswith(BIKELANES_ON_CARRIAGEWAY_PREFIXES):
+        return 'nein' if road.startswith(ROADS_NOT_DRIVEN_PREFIXES) else 'ja'
+    return 'unsicher'
+
+
+def classify_need(row) -> pd.Series:
+    """
+    Befahrungsbedarf und Priorität.
+    Kein Bedarf: auf Kfz-Fotos sichtbar oder Mapillary-Panoramen vorhanden.
+    Priorität 1: gar keine Fotos, 2: nur unsichere Kfz-Fotos, 3: nur Mapillary-Fotos ohne Panorama.
+    """
+    car = row['kfz_bild']
+    mapillary = row['mapillary_coverage']
+    if car == 'ja':
+        return pd.Series(['nein', None, 'Kfz-Befahrung 2025'])
+    if mapillary == 'pano':
+        return pd.Series(['nein', None, 'Mapillary-Panoramen'])
+    if mapillary == 'regular':
+        return pd.Series(['ja', 3, 'nur Mapillary-Fotos ohne Panorama'])
+    if car == 'unsicher':
+        return pd.Series(['ja', 2, 'Seitenraum, Sichtbarkeit auf Kfz-Fotos unsicher'])
+    return pd.Series(['ja', 1, 'keine Fotos'])
+
+
+def km_by(ways: gpd.GeoDataFrame, column: str) -> dict:
+    grouped = ways.groupby(ways[column].astype('object').fillna('keine'))['laenge_m'].sum() / 1000
+    return {str(key): round(value, 1) for key, value in grouped.items()}
+
+
+def read_json(path: Path):
+    return json.loads(path.read_text()) if path.exists() else None
+
+
+def mapillary_window(ml_data_from: str | None) -> dict | None:
+    """Zeitraum der berücksichtigten Mapillary-Fotos für diesen Datenstand."""
+    if not ml_data_from:
+        return None
+    until = pd.Timestamp(ml_data_from).tz_localize(None).normalize()
+    since = until - pd.DateOffset(months=MAPILLARY_LOOKBACK_MONTHS)
+    return {'von': since.date().isoformat(), 'bis': until.date().isoformat()}
+
+
+def update_readme(statistik: dict):
+    """Schreibt Datenstände und Kennzahlen des Laufs in die README.md."""
+    stand = statistik['datenstand']
+    fotos = stand['mapillary_fotos'] or {'von': 'unbekannt', 'bis': 'unbekannt'}
+    tilda = (stand['tilda_export'] or {}).get('bikelanes', 'unbekannt')
+    bedarf = statistik['befahrungsbedarf']
+    prio = bedarf['km_je_prioritaet']
+    lines = [
+        '| | |',
+        '|---|---|',
+        f"| Lauf | {statistik['erstellt'][:10]} |",
+        f"| Mapillary-Fotos berücksichtigt | **{fotos['von']}** bis {fotos['bis']} |",
+        f"| OSM-Stand des Mapillary-Abgleichs | {(stand['osm_mapillary_abgleich'] or 'unbekannt')[:10]} |",
+        f"| TILDA-Export | {tilda} |",
+        f"| Netz | {statistik['netz_km']} km |",
+        f"| Wege am Netz | {statistik['wege_am_netz']['anzahl']} Wege, {statistik['wege_am_netz']['km']} km |",
+        f"| Befahrungsbedarf | {bedarf['anzahl']} Wege, {bedarf['km']} km |",
+        f"| davon Priorität 1 / 2 / 3 | {prio.get('1', 0)} / {prio.get('2', 0)} / {prio.get('3', 0)} km |",
+    ]
+    readme = README_PATH.read_text()
+    start = readme.index(README_START) + len(README_START)
+    end = readme.index(README_END)
+    README_PATH.write_text(readme[:start] + '\n' + '\n'.join(lines) + '\n' + readme[end:])
+
+
+def main():
+    OUTPUT_DIR.mkdir(exist_ok=True)
+
+    network = load_network()
+
+    ways = select_ways_along_network(load_ways(), network)
+    ways = add_network_attributes(ways, network)
+
+    ways['laenge_m'] = ways.length.round(1)
+    ways['kfz_bild'] = ways.apply(classify_car_imagery, axis=1)
+    ways[['bedarf', 'prioritaet', 'grund']] = ways.apply(classify_need, axis=1)
+    ways['prioritaet'] = ways['prioritaet'].astype('Int64')
+
+    needed = ways[ways['bedarf'] == 'ja']
+    ml_data_from = (read_json(DATA_DIR / 'ml_metadata.json') or {}).get('ml_data_from')
+    statistik = {
+        'erstellt': datetime.now().isoformat(timespec='seconds'),
+        'parameter': {'buffer_m_by_class': BUFFER_M_BY_CLASS, 'buffer_m_default': BUFFER_M_DEFAULT,
+                      'min_length_m': MIN_LENGTH_M, 'simplify_m': SIMPLIFY_M},
+        'datenstand': {
+            'tilda_export': read_json(DATA_DIR / 'tilda_export.json'),
+            'mapillary': ml_data_from,
+            'mapillary_fotos': mapillary_window(ml_data_from),
+            'osm_mapillary_abgleich': (read_json(DATA_DIR / 'osm_metadata.json') or {}).get('osm_data_from'),
+        },
+        'netz_km': round(network.length.sum() / 1000, 1),
+        'wege_am_netz': {'anzahl': len(ways), 'km': round(ways['laenge_m'].sum() / 1000, 1)},
+        'befahrungsbedarf': {
+            'anzahl': len(needed),
+            'km': round(needed['laenge_m'].sum() / 1000, 1),
+            'km_je_prioritaet': km_by(needed, 'prioritaet'),
+            'km_je_quelle': km_by(needed, 'quelle'),
+            'km_je_road': km_by(needed, 'road'),
+            'km_je_radverkehrsnetz': km_by(needed, 'radverkehrsnetz'),
+        },
+        'km_je_kfz_bild': km_by(ways, 'kfz_bild'),
+        'km_je_mapillary_coverage': km_by(ways, 'mapillary_coverage'),
+    }
+    (OUTPUT_DIR / 'statistik.json').write_text(json.dumps(statistik, indent=2, ensure_ascii=False))
+    update_readme(statistik)
+
+    outputs = [('wege_am_netz', ways), ('befahrungsbedarf', ways[ways['bedarf'] == 'ja'])]
+    for name, gdf in outputs:
+        gdf = gdf.set_geometry(gdf.geometry.simplify(SIMPLIFY_M)).to_crs('EPSG:4326')
+        path = OUTPUT_DIR / f'{name}.geojson'
+        gdf.to_file(path, driver='GeoJSON', COORDINATE_PRECISION=6)
+        logging.info(f'{path.name}: {len(gdf)} Features')
+
+    logging.info(json.dumps(statistik['befahrungsbedarf'], indent=2, ensure_ascii=False))
+
+
+if __name__ == '__main__':
+    main()
