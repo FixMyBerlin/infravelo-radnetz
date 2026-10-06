@@ -11,7 +11,7 @@ Netzknoten und braucht einen Vorverarbeitungsschritt. Das Attribut
 'routen_fernradweg' wird deshalb leer angelegt.
 
 Fehlende element_nr werden aus den Knotenpunkten an den Kantenenden berechnet
-(scripts/assign_element_nr_to_rvn.py): Liegt an einem Ende kein Knotenpunkt,
+(processing/scripts/assign_element_nr_to_rvn.py): Liegt an einem Ende kein Knotenpunkt,
 wird entlang verbundener Kanten derselben Quelle weitergesucht. Verbindet das
 Detailnetz dieselben zwei Knotenpunkte, wird dessen element_nr übernommen,
 sonst entsteht von_bis.01. Kanten, an deren Enden kein Knotenpunkt gefunden
@@ -21,16 +21,29 @@ Pro element_nr entsteht eine Kante.
 
 Ergänzende Daten (Straßenname, Straßenklasse) kommen aus dem Detailnetz.
 
+Autobahnen und ihre Zubringer gehören nicht zum Netz: Kanten des
+Hauptstraßennetzes, die im Detailnetz als Autobahn geführt sind
+(strassenklasse2 AUBA/AUTO), werden vor dem Zusammenführen entfernt. Gehört
+dieselbe Kante auch zum Radverkehrsnetz oder zu einer Radschnellverbindung,
+bleibt sie über diese Quelle erhalten.
+
+Einzelne Kanten, die diese Regel nicht erfasst, stehen mit Begründung in
+ren-network/ausschluss_element_nr.csv und werden aus allen Quellen entfernt.
+
 INPUT:
 - data/netzquellen/radverkehrsnetz.gpkg
 - data/netzquellen/hauptstrassennetz.gpkg
 - data/netzquellen/radschnellverbindungen.gpkg
 - data/Berlin Straßenabschnitte Detailnetz.fgb
+  (liegt ein neuerer Stand als "Berlin Straßenabschnitte Detailnetz <Datum>.fgb"
+  daneben, wird der jüngste verwendet)
 - data/Berlin Verbindungspunkte Detailnetz.fgb
 - data/Berlin Bezirke.gpkg
+- ren-network/ausschluss_element_nr.csv
 
 OUTPUT:
 - ren-network/output/ren_netz_vereinheitlicht.gpkg (Layer: ren_netz)
+- ren-network/output/ren_netz_vereinheitlicht.geojson (WGS84, z.B. für play.placemark.io)
 - ren-network/output/element_nr_nicht_im_detailnetz.csv
 """
 
@@ -58,6 +71,8 @@ except ImportError:
 
 SOURCES_DIR = ROOT / "data" / "netzquellen"
 DETAILNETZ_PATH = ROOT / "data" / "Berlin Straßenabschnitte Detailnetz.fgb"
+# Lokale, nicht versionierte Stände mit Datum im Namen haben Vorrang
+DETAILNETZ_DATED_GLOB = "Berlin Straßenabschnitte Detailnetz *.fgb"
 VERBINDUNGSPUNKTE_PATH = ROOT / "data" / "Berlin Verbindungspunkte Detailnetz.fgb"
 # Spaltenname aus assign_node_ids / assign_element_nr_to_rvn (mit U+2010 als Bindestrich)
 NODE_ID_COLUMN = "Knotenpunkt‐ID"
@@ -65,6 +80,8 @@ DISTRICTS_PATH = ROOT / "data" / "Berlin Bezirke.gpkg"
 OUTPUT_DIR = ROOT / "ren-network" / "output"
 OUTPUT_PATH = OUTPUT_DIR / "ren_netz_vereinheitlicht.gpkg"
 OUTPUT_LAYER = "ren_netz"
+EXCLUSIONS_PATH = Path(__file__).resolve().parent / "ausschluss_element_nr.csv"
+GEOJSON_PATH = OUTPUT_PATH.with_suffix(".geojson")
 MISSING_REPORT_PATH = OUTPUT_DIR / "element_nr_nicht_im_detailnetz.csv"
 
 # Reihenfolge bestimmt, aus welcher Quelle die Geometrie übernommen wird
@@ -78,6 +95,9 @@ RVN_RANK = {RVN_VORRANG: 2, RVN_ERGAENZUNG: 1}
 
 # Straßenstufen I bis III sind Hauptverkehrsstraßen
 HAUPTVERKEHRSSTRASSEN_KLASSEN = {"I", "II", "III"}
+
+# strassenklasse2 im Detailnetz: Autobahn inkl. Zubringer und Anschlussstellen
+AUTOBAHN_KLASSEN = {"AUBA", "AUTO"}
 
 ELEMENT_NR_PATTERN = r"^(\d+)_(\d+)\.\d+$"
 
@@ -93,6 +113,7 @@ FINAL_COLUMNS = [
     "radverkehrsnetz",
     "routen_fernradweg",
     "hauptverkehrsstrasse",
+    "strassenklasse",
     "netz_quellen",
     "in_detailnetz",
     "geometry",
@@ -155,11 +176,29 @@ def load_sources():
 
 
 def load_detailnetz():
-    detail = gpd.read_file(DETAILNETZ_PATH, columns=[
-        "element_nr", "strassenname", "strassenklasse1", "beginnt_bei_vp", "endet_bei_vp"])
+    dated = sorted(DETAILNETZ_PATH.parent.glob(DETAILNETZ_DATED_GLOB))
+    path = dated[-1] if dated else DETAILNETZ_PATH
+    logging.info(f"Detailnetz: {path.name}")
+    detail = gpd.read_file(path, columns=[
+        "element_nr", "strassenname", "strassenklasse1", "strassenklasse2", "beginnt_bei_vp", "endet_bei_vp"])
     if detail.crs is None or detail.crs.to_epsg() != DEFAULT_CRS:
         detail = detail.to_crs(f"EPSG:{DEFAULT_CRS}")
     return detail
+
+
+def remove_motorways(sources, detail):
+    """Entfernt Autobahnen und Zubringer aus dem Hauptstraßennetz."""
+    motorway_element_nr = set(detail.loc[detail["strassenklasse2"].isin(AUTOBAHN_KLASSEN), "element_nr"])
+    is_motorway = (sources["netz"] == "hauptstrassennetz") & sources["element_nr"].isin(motorway_element_nr)
+    logging.info(f"hauptstrassennetz: {is_motorway.sum()} Autobahn-Kanten entfernt "
+                 f"({sources.loc[is_motorway].geometry.length.sum() / 1000:.1f} km)")
+
+    remaining = sources.loc[~is_motorway].reset_index(drop=True)
+    kept_elsewhere = sorted(set(remaining["element_nr"].dropna()) & motorway_element_nr)
+    if kept_elsewhere:
+        logging.warning(f"{len(kept_elsewhere)} Autobahn-Kanten bleiben über Radverkehrsnetz oder "
+                        f"Radschnellverbindungen im Netz: {kept_elsewhere}")
+    return remaining
 
 
 def load_nodes(detail):
@@ -170,6 +209,19 @@ def load_nodes(detail):
     nodes[NODE_ID_COLUMN] = nodes[NODE_ID_COLUMN].astype(str)
     logging.info(f"Verbindungspunkte mit Knotenpunkt-ID: {len(nodes)}/{len(points)}")
     return nodes
+
+
+def remove_excluded(sources):
+    """Entfernt die manuell gepflegten Kanten aus ausschluss_element_nr.csv."""
+    exclusions = pd.read_csv(EXCLUSIONS_PATH, dtype=str)
+    is_excluded = sources["element_nr"].isin(exclusions["element_nr"])
+    logging.info(f"Ausschlussliste: {is_excluded.sum()} Quellkanten entfernt "
+                 f"({sources.loc[is_excluded].geometry.length.sum() / 1000:.1f} km), "
+                 f"Gründe: {exclusions['grund'].value_counts().to_dict()}")
+    unknown = sorted(set(exclusions["element_nr"]) - set(sources["element_nr"].dropna()))
+    if unknown:
+        logging.warning(f"{len(unknown)} element_nr der Ausschlussliste kommen in keiner Quelle vor: {unknown}")
+    return sources.loc[~is_excluded].reset_index(drop=True)
 
 
 def _detailnetz_by_node_pair(detail):
@@ -390,6 +442,8 @@ def log_summary(network):
 def main():
     sources = load_sources()
     detail = load_detailnetz()
+    sources = remove_motorways(sources, detail)
+    sources = remove_excluded(sources)
     sources = assign_missing_element_nr(sources, detail, load_nodes(detail))
     network = merge_by_element_nr(sources)
     network = add_detailnetz_attributes(network, detail)
@@ -401,6 +455,8 @@ def main():
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     network.to_file(OUTPUT_PATH, layer=OUTPUT_LAYER, driver="GPKG")
     logging.info(f"Geschrieben: {OUTPUT_PATH}")
+    network.to_crs("EPSG:4326").to_file(GEOJSON_PATH, driver="GeoJSON", COORDINATE_PRECISION=6)
+    logging.info(f"Geschrieben: {GEOJSON_PATH}")
     write_missing_report(network)
 
 

@@ -13,27 +13,38 @@ python ren-network/unify_networks.py
 | `data/netzquellen/radverkehrsnetz.gpkg` | Radvorrang- und Ergänzungsnetz |
 | `data/netzquellen/radschnellverbindungen.gpkg` | Radschnellverbindungen |
 | `data/netzquellen/hauptstrassennetz.gpkg` | Hauptstraßennetz |
-| `data/Berlin Straßenabschnitte Detailnetz.fgb` | Straßenname, Straßenklasse, Knotenpunkt-IDs |
+| `data/Berlin Straßenabschnitte Detailnetz.fgb` | Straßenname, Straßenklasse, Autobahn-Kennung, Knotenpunkt-IDs |
 | `data/Berlin Verbindungspunkte Detailnetz.fgb` | Knotenpunkte für die Berechnung fehlender `element_nr` |
 | `data/Berlin Bezirke.gpkg` | Bezirksnummer |
+
+Die Dateien in `data/netzquellen/` und die Verbindungspunkte sind nicht versioniert. Liegt neben dem versionierten Detailnetz ein neuerer Stand mit Datum im Namen (`Berlin Straßenabschnitte Detailnetz <Datum>.fgb`, ebenfalls nicht versioniert), wird der jüngste verwendet. Beide Detailnetz-Layer kommen aus dem [WFS Detailnetz Berlin](https://daten.berlin.de/datensaetze/detailnetz-berlin-wfs-4f2045ef):
+
+```bash
+cd data
+ogr2ogr -f FlatGeobuf "Berlin Verbindungspunkte Detailnetz.fgb" "WFS:https://gdi.berlin.de/services/wfs/detailnetz" "detailnetz:a_verbindungspunkte"
+ogr2ogr -f FlatGeobuf -nlt MULTILINESTRING "Berlin Straßenabschnitte Detailnetz $(date +%F).fgb" "WFS:https://gdi.berlin.de/services/wfs/detailnetz" "detailnetz:c_strassenabschnitte"
+```
 
 Noch nicht enthalten: Touristisches Radnetz (Radfernwege), da ohne `element_nr` und Netzknoten.
 
 ## Ablauf
 
 1. **Laden** der drei Netze in ein gemeinsames Schema (EPSG:25833).
-2. **Fehlende `element_nr` berechnen** (`processing/scripts/assign_element_nr_to_rvn.py`): Knotenpunkte (Verbindungspunkte mit ID über `processing/scripts/assign_node_ids.py`) an den Kantenenden suchen, ohne Knotenpunkt entlang verbundener Kanten derselben Quelle weitersuchen. Verbindet das Detailnetz dieselben Knoten, wird dessen `element_nr` übernommen (richtungsunabhängig, bei mehreren die geometrisch nächste), sonst `von_bis.01`. Ohne Knotenpunkt an beiden Enden bleibt die Kante ohne `element_nr`.
-3. **Zusammenführen** zu einer Kante pro `element_nr`. Geometrie aus der Quelle mit höchster Priorität (Radverkehrsnetz > Radschnellverbindungen > Hauptstraßennetz), `radverkehrsnetz` nach höchstem Rang (Vorrang > Ergänzung). Kanten ohne `element_nr` bleiben einzeln.
-4. **Detailnetz**: Straßenname und -klasse über `element_nr` ergänzen; Abweichungen zum Hauptstraßennetz werden geloggt.
-5. **Netzknoten** `von_knoten`/`bis_knoten` aus der `element_nr` (`von_bis.NN`).
-6. **Bezirk** nach größtem räumlichen Anteil.
-7. **Abschluss**: Länge, Hauptverkehrsstraße (nur Hauptstraßennetz mit Klasse I–III), `lfd_nr`.
+2. **Autobahnen entfernen**: Kanten des Hauptstraßennetzes, die im Detailnetz als Autobahn geführt sind (`strassenklasse2` = `AUBA` oder `AUTO`, inkl. Zubringer und Anschlussstellen), entfallen. Gehört dieselbe Kante auch zum Radverkehrsnetz oder zu einer Radschnellverbindung, bleibt sie über diese Quelle erhalten und wird im Log aufgelistet.
+3. **Ausschlussliste**: Kanten aus [`ausschluss_element_nr.csv`](./ausschluss_element_nr.csv) (`element_nr`, `grund`, `strassenname`) entfallen aus allen Quellen. Dort stehen Kanten, die die Autobahn-Regel nicht erfasst, z. B. der Tunnel Tiergarten.
+4. **Fehlende `element_nr` berechnen** (`processing/scripts/assign_element_nr_to_rvn.py`): Knotenpunkte (Verbindungspunkte mit ID über `processing/scripts/assign_node_ids.py`) an den Kantenenden suchen, ohne Knotenpunkt entlang verbundener Kanten derselben Quelle weitersuchen. Verbindet das Detailnetz dieselben Knoten, wird dessen `element_nr` übernommen (richtungsunabhängig, bei mehreren die geometrisch nächste), sonst `von_bis.01`. Ohne Knotenpunkt an beiden Enden bleibt die Kante ohne `element_nr`.
+5. **Zusammenführen** zu einer Kante pro `element_nr`. Geometrie aus der Quelle mit höchster Priorität (Radverkehrsnetz > Radschnellverbindungen > Hauptstraßennetz), `radverkehrsnetz` nach höchstem Rang (Vorrang > Ergänzung). Kanten ohne `element_nr` bleiben einzeln.
+6. **Detailnetz**: Straßenname und -klasse über `element_nr` ergänzen; Abweichungen zum Hauptstraßennetz werden geloggt.
+7. **Netzknoten** `von_knoten`/`bis_knoten` aus der `element_nr` (`von_bis.NN`).
+8. **Bezirk** nach größtem räumlichen Anteil.
+9. **Abschluss**: Länge, Hauptverkehrsstraße (nur Hauptstraßennetz mit Klasse I–III), `lfd_nr`.
 
 ## Ausgabe
 
 In `ren-network/output/`:
 
 - `ren_netz_vereinheitlicht.gpkg` (Layer `ren_netz`)
+- `ren_netz_vereinheitlicht.geojson`: dasselbe Netz in WGS84, z. B. für [play.placemark.io](https://play.placemark.io)
 - `element_nr_nicht_im_detailnetz.csv`: Kanten, deren `element_nr` im Detailnetz fehlt
 
 ## Attribute
@@ -55,4 +66,4 @@ Nummern nach Anhang "Attribut mit Ausprägungen".
 | 11 | Hauptverkehrsstraße | `hauptverkehrsstrasse` | ✓ |
 | 12–24 | Radverkehrsführung, Oberfläche, Protektion, Zustand, Kommentar | – | nach Matching |
 
-Zusätzlich: `netz_quellen` (beteiligte Quellen), `in_detailnetz` (ja/nein), `element_nr_berechnet` (ja/nein).
+Zusätzlich: `strassenklasse` (Straßenstufe 0–V aus Hauptstraßennetz bzw. Detailnetz), `netz_quellen` (beteiligte Quellen), `in_detailnetz` (ja/nein), `element_nr_berechnet` (ja/nein).
