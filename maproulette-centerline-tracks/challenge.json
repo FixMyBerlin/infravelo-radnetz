@@ -1,0 +1,19 @@
+{
+  "name": "Berlin: Radwege im Seitenraum separat erfassen",
+  "parent": null,
+  "remoteGeoJson": null,
+  "enabled": false,
+  "description": "Wir wollen detaillierte Daten zur Radinfrastruktur erfassen. Das ist sauberer und einfacher, wenn Radinfrastruktur im Seitenraum separat erfasst ist. Daher wollen wir sie im Rahmen dieser Kampagne prüfen und separieren, wo das sinnvoll ist.\n\nMehr zum Projekt unter https://wiki.openstreetmap.org/wiki/Organised_Editing/Activities/Berlin_Radinfrastruktur_(Erg%C3%A4nzungsnetz)",
+  "instruction": "## Kontext {{title}}\n\nPrüfe die Daten an dieser Stelle für jede Seite. Dort, wo Daten als separate Geometrie erfasst werden können, sind diese umzubauen.\n\n{{task_markdown}}\n\n(Letzte Aktualisierung der Aufgabe: {{task_updated_at}})\n(Letzte Aktualisierung der Daten: {{data_updated_at}})",
+  "infoLink": "https://wiki.openstreetmap.org/wiki/Organised_Editing/Activities/Berlin_Radinfrastruktur_(Erg%C3%A4nzungsnetz)",
+  "checkinComment": "Radinfrastruktur im Seitenraum separat erfasst #maproulette",
+  "checkinSource": "",
+  "difficulty": 2,
+  "defaultPriority": 0,
+  "defaultBasemap": -1,
+  "defaultBasemapId": "",
+  "overpassTargetType": null,
+  "tags": "highway",
+  "presets": [],
+  "taskStyles": []
+}
