@@ -30,8 +30,8 @@ INPUT:
 - data/Berlin Bezirke.gpkg
 
 OUTPUT:
-- output/ren-network/ren_netz_vereinheitlicht.gpkg (Layer: ren_netz)
-- output/ren-network/element_nr_nicht_im_detailnetz.csv
+- ren-network/output/ren_netz_vereinheitlicht.gpkg (Layer: ren_netz)
+- ren-network/output/element_nr_nicht_im_detailnetz.csv
 """
 
 import logging
@@ -45,7 +45,7 @@ from shapely.geometry import LineString, MultiLineString
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(ROOT / "processing"))
-sys.path.append(str(ROOT / "scripts"))
+sys.path.append(str(ROOT / "processing" / "scripts"))
 
 from assign_element_nr_to_rvn import assign_element_numbers  # noqa: E402
 from assign_node_ids import assign_node_ids_to_points  # noqa: E402
@@ -62,9 +62,10 @@ VERBINDUNGSPUNKTE_PATH = ROOT / "data" / "Berlin Verbindungspunkte Detailnetz.fg
 # Spaltenname aus assign_node_ids / assign_element_nr_to_rvn (mit U+2010 als Bindestrich)
 NODE_ID_COLUMN = "Knotenpunkt‐ID"
 DISTRICTS_PATH = ROOT / "data" / "Berlin Bezirke.gpkg"
-OUTPUT_PATH = ROOT / "output" / "ren-network" / "ren_netz_vereinheitlicht.gpkg"
+OUTPUT_DIR = ROOT / "ren-network" / "output"
+OUTPUT_PATH = OUTPUT_DIR / "ren_netz_vereinheitlicht.gpkg"
 OUTPUT_LAYER = "ren_netz"
-MISSING_REPORT_PATH = ROOT / "output" / "ren-network" / "element_nr_nicht_im_detailnetz.csv"
+MISSING_REPORT_PATH = OUTPUT_DIR / "element_nr_nicht_im_detailnetz.csv"
 
 # Reihenfolge bestimmt, aus welcher Quelle die Geometrie übernommen wird
 SOURCE_PRIORITY = ["radverkehrsnetz", "radschnellverbindungen", "hauptstrassennetz"]
