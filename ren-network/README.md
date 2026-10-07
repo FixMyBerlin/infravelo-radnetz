@@ -16,6 +16,7 @@ python ren-network/unify_networks.py
 | `data/Berlin Straßenabschnitte Detailnetz.fgb` | Straßenname, Straßenklasse, Autobahn-Kennung, Knotenpunkt-IDs |
 | `data/Berlin Verbindungspunkte Detailnetz.fgb` | Knotenpunkte für die Berechnung fehlender `element_nr` |
 | `data/Berlin Bezirke.gpkg` | Bezirksnummer |
+| `data/netzquellen/ergebnis_2025_datensatz_c.geojson.gz` | Ergebnis der Bearbeitung 2025 (Radvorrangnetz), `aggregated_rvn_final` aus `tilda-static-data` (`region-infravelo/infravelo-datensatz-c-fortlaufend`) |
 
 Die Dateien in `data/netzquellen/` und die Verbindungspunkte sind nicht versioniert. Liegt neben dem versionierten Detailnetz ein neuerer Stand mit Datum im Namen (`Berlin Straßenabschnitte Detailnetz <Datum>.fgb`, ebenfalls nicht versioniert), wird der jüngste verwendet. Beide Detailnetz-Layer kommen aus dem [WFS Detailnetz Berlin](https://daten.berlin.de/datensaetze/detailnetz-berlin-wfs-4f2045ef):
 
@@ -37,7 +38,8 @@ Noch nicht enthalten: Touristisches Radnetz (Radfernwege), da ohne `element_nr` 
 6. **Detailnetz**: Straßenname und -klasse über `element_nr` ergänzen; Abweichungen zum Hauptstraßennetz werden geloggt.
 7. **Netzknoten** `von_knoten`/`bis_knoten` aus der `element_nr` (`von_bis.NN`).
 8. **Bezirk** nach größtem räumlichen Anteil.
-9. **Abschluss**: Länge, Hauptverkehrsstraße (nur Hauptstraßennetz mit Klasse I–III), `lfd_nr`.
+9. **Bearbeitet 2025**: Kanten, deren `element_nr` im Ergebnis 2025 steht, bekommen `bearbeitet_2025 = ja`. Ohne passende `element_nr` gilt eine Kante als bearbeitet, wenn mindestens 80 % ihrer Länge im 5-m-Puffer um die Kanten des Ergebnisses liegen (die Nummern haben sich seit 2025 teilweise geändert).
+10. **Abschluss**: Länge, Hauptverkehrsstraße (nur Hauptstraßennetz mit Klasse I–III), `lfd_nr`.
 
 ## Ausgabe
 
@@ -45,6 +47,8 @@ In `ren-network/output/`:
 
 - `ren_netz_vereinheitlicht.gpkg` (Layer `ren_netz`)
 - `ren_netz_vereinheitlicht.geojson`: dasselbe Netz in WGS84, z. B. für [play.placemark.io](https://play.placemark.io)
+- `ren_netz_kartierung.gpkg` und `.geojson`: das Netz für die Kartierung, also das Gesamtnetz ohne die Kanten mit `bearbeitet_2025 = ja`
+- `bearbeitet_2025_abweichungen.csv`: Kanten zur Prüfung des Abgleichs mit 2025 (nur über die Geometrie gefunden, `element_nr` an anderer Stelle, nicht mehr im Netz, heutiges Radvorrangnetz ohne Bearbeitung 2025)
 - `element_nr_nicht_im_detailnetz.csv`: Kanten, deren `element_nr` im Detailnetz fehlt
 
 ## Maskierung
@@ -91,4 +95,4 @@ Nummern nach Anhang "Attribut mit Ausprägungen".
 | 11 | Hauptverkehrsstraße | `hauptverkehrsstrasse` | ✓ |
 | 12–24 | Radverkehrsführung, Oberfläche, Protektion, Zustand, Kommentar | – | nach Matching |
 
-Zusätzlich: `strassenklasse` (Straßenstufe 0–V aus Hauptstraßennetz bzw. Detailnetz), `netz_quellen` (beteiligte Quellen), `netz_quellen_teilweise` (Quellen, die nur einen Teil der Kante abdecken; `radverkehrsnetz` gilt dann nicht für die ganze Kante), `in_detailnetz` (ja/nein), `element_nr_berechnet` (ja/nein).
+Zusätzlich: `strassenklasse` (Straßenstufe 0–V aus Hauptstraßennetz bzw. Detailnetz), `netz_quellen` (beteiligte Quellen), `netz_quellen_teilweise` (Quellen, die nur einen Teil der Kante abdecken; `radverkehrsnetz` gilt dann nicht für die ganze Kante), `in_detailnetz` (ja/nein), `bearbeitet_2025` (ja/nein), `element_nr_berechnet` (ja/nein).

@@ -19,6 +19,10 @@ wird, bleiben ohne element_nr einzeln erhalten.
 
 Pro element_nr entsteht eine Kante.
 
+Kanten, die 2025 schon bearbeitet wurden (Ergebnisdatensatz C des
+Radvorrangnetzes), bekommen bearbeitet_2025 = ja. Das Kartierungs-Netz ist das
+Gesamtnetz ohne diese Kanten.
+
 Ergänzende Daten (Straßenname, Straßenklasse) kommen aus dem Detailnetz.
 
 Autobahnen und ihre Zubringer gehören nicht zum Netz: Kanten des
@@ -40,13 +44,19 @@ INPUT:
 - data/Berlin Verbindungspunkte Detailnetz.fgb
 - data/Berlin Bezirke.gpkg
 - ren-network/ausschluss_element_nr.csv
+- data/netzquellen/ergebnis_2025_datensatz_c.geojson.gz
+  (aggregated_rvn_final aus tilda-static-data, infravelo-datensatz-c-fortlaufend)
 
 OUTPUT:
 - ren-network/output/ren_netz_vereinheitlicht.gpkg (Layer: ren_netz)
 - ren-network/output/ren_netz_vereinheitlicht.geojson (WGS84, z.B. für play.placemark.io)
+- ren-network/output/ren_netz_kartierung.gpkg / .geojson (ohne bearbeitet_2025 = ja)
 - ren-network/output/element_nr_nicht_im_detailnetz.csv
+- ren-network/output/bearbeitet_2025_abweichungen.csv
 """
 
+import gzip
+import io
 import logging
 import sys
 from pathlib import Path
@@ -81,8 +91,10 @@ OUTPUT_DIR = ROOT / "ren-network" / "output"
 OUTPUT_PATH = OUTPUT_DIR / "ren_netz_vereinheitlicht.gpkg"
 OUTPUT_LAYER = "ren_netz"
 EXCLUSIONS_PATH = Path(__file__).resolve().parent / "ausschluss_element_nr.csv"
-GEOJSON_PATH = OUTPUT_PATH.with_suffix(".geojson")
 MISSING_REPORT_PATH = OUTPUT_DIR / "element_nr_nicht_im_detailnetz.csv"
+RESULT_2025_PATH = ROOT / "data" / "netzquellen" / "ergebnis_2025_datensatz_c.geojson.gz"
+MAPPING_NETWORK_PATH = OUTPUT_DIR / "ren_netz_kartierung.gpkg"
+RESULT_2025_REPORT_PATH = OUTPUT_DIR / "bearbeitet_2025_abweichungen.csv"
 
 # Reihenfolge bestimmt, aus welcher Quelle die Geometrie übernommen wird
 SOURCE_PRIORITY = ["radverkehrsnetz", "radschnellverbindungen", "hauptstrassennetz"]
@@ -104,6 +116,11 @@ HAUPTVERKEHRSSTRASSEN_KLASSEN = {"I", "II", "III"}
 # strassenklasse2 im Detailnetz: Autobahn inkl. Zubringer und Anschlussstellen
 AUTOBAHN_KLASSEN = {"AUBA", "AUTO"}
 
+# Kanten ohne passende element_nr gelten als 2025 bearbeitet, wenn dieser Anteil
+# ihrer Länge im Puffer um die Kanten des Ergebnisses 2025 liegt
+RESULT_2025_BUFFER_M = 5
+RESULT_2025_MIN_SHARE = 0.8
+
 ELEMENT_NR_PATTERN = r"^(\d+)_(\d+)\.\d+$"
 
 FINAL_COLUMNS = [
@@ -122,6 +139,7 @@ FINAL_COLUMNS = [
     "netz_quellen",
     "netz_quellen_teilweise",
     "in_detailnetz",
+    "bearbeitet_2025",
     "geometry",
 ]
 
@@ -438,6 +456,52 @@ def finalize(network):
     return network[FINAL_COLUMNS]
 
 
+def add_bearbeitet_2025(network):
+    """Markiert Kanten, die im Ergebnis 2025 stehen: über die element_nr, sonst über die Geometrie."""
+    with gzip.open(RESULT_2025_PATH) as file:
+        result = gpd.read_file(io.BytesIO(file.read())).to_crs(network.crs)
+    element_nrs = set(result["element_nr"].dropna())
+    by_element_nr = network["element_nr"].isin(element_nrs)
+
+    buffers = result.geometry.buffer(RESULT_2025_BUFFER_M)
+    share = pd.Series(0.0, index=network.index)
+    for index, geom in network.geometry.items():
+        nearby = buffers.iloc[buffers.sindex.query(geom, predicate="intersects")]
+        if len(nearby):
+            share[index] = geom.intersection(nearby.union_all()).length / geom.length
+    by_geometry = ~by_element_nr & (share >= RESULT_2025_MIN_SHARE)
+
+    network = network.copy()
+    network["bearbeitet_2025"] = (by_element_nr | by_geometry).map({True: "ja", False: "nein"})
+    logging.info(f"2025 bearbeitet: {by_element_nr.sum()} Kanten über element_nr, {by_geometry.sum()} über die Geometrie, "
+                 f"{network.loc[by_element_nr | by_geometry].geometry.length.sum() / 1000:.1f} km")
+
+    # Abweichungen zur Prüfung: gleiche element_nr an anderer Stelle, nur geometrisch
+    # gefunden, heutiges Radvorrangnetz ohne Bearbeitung 2025
+    grund = pd.Series(None, index=network.index, dtype=object)
+    grund[(network["radverkehrsnetz"] == RVN_VORRANG) & ~(by_element_nr | by_geometry)] = "Radvorrangnetz, 2025 nicht bearbeitet"
+    grund[by_geometry] = "nur über Geometrie gefunden"
+    grund[by_element_nr & (share < 0.5)] = "element_nr 2025 an anderer Stelle"
+    report = network.loc[grund.notna(), ["element_nr", "strassenname", "radverkehrsnetz", "netz_quellen"]].copy()
+    report["laenge_m"] = network.geometry.length.round(1)
+    report["anteil_im_ergebnis_2025"] = share.round(2)
+    report["grund"] = grund
+    missing = sorted(element_nrs - set(network["element_nr"].dropna()))
+    report = pd.concat([report, pd.DataFrame({"element_nr": missing, "grund": "2025 bearbeitet, element_nr nicht mehr im Netz"})])
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    report.to_csv(RESULT_2025_REPORT_PATH, index=False)
+    logging.info(f"Abweichungen zum Ergebnis 2025: {report['grund'].value_counts().to_dict()}: {RESULT_2025_REPORT_PATH}")
+    return network
+
+
+def write_network(network, path):
+    network.to_file(path, layer=OUTPUT_LAYER, driver="GPKG")
+    logging.info(f"Geschrieben: {path}")
+    geojson_path = path.with_suffix(".geojson")
+    network.to_crs("EPSG:4326").to_file(geojson_path, driver="GeoJSON", COORDINATE_PRECISION=6)
+    logging.info(f"Geschrieben: {geojson_path}")
+
+
 def write_missing_report(network):
     """Schreibt alle Kanten, deren element_nr nicht im Detailnetz vorkommt, in eine CSV."""
     missing = network.loc[network["in_detailnetz"] == "nein", MISSING_REPORT_COLUMNS]
@@ -448,7 +512,7 @@ def write_missing_report(network):
 def log_summary(network):
     logging.info(f"Kanten gesamt: {len(network)}, Länge {network['laenge_m'].sum() / 1000:.1f} km")
     for column in ["radverkehrsnetz", "hauptverkehrsstrasse", "netz_quellen", "netz_quellen_teilweise", "in_detailnetz",
-                   "element_nr_berechnet"]:
+                   "element_nr_berechnet", "bearbeitet_2025"]:
         logging.info(f"{column}: {network[column].value_counts(dropna=False).to_dict()}")
     for column in ["element_nr", "von_knoten", "bis_knoten", "bezirksnummer", "strassenname"]:
         logging.info(f"{column}: {network[column].isna().sum()} ohne Wert")
@@ -466,14 +530,15 @@ def main():
     network = add_detailnetz_attributes(network, detail)
     network = add_nodes(network)
     network = add_district(network)
+    network = add_bearbeitet_2025(network)
     network = finalize(network)
     log_summary(network)
 
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    network.to_file(OUTPUT_PATH, layer=OUTPUT_LAYER, driver="GPKG")
-    logging.info(f"Geschrieben: {OUTPUT_PATH}")
-    network.to_crs("EPSG:4326").to_file(GEOJSON_PATH, driver="GeoJSON", COORDINATE_PRECISION=6)
-    logging.info(f"Geschrieben: {GEOJSON_PATH}")
+    write_network(network, OUTPUT_PATH)
+    mapping_network = network[network["bearbeitet_2025"] == "nein"]
+    logging.info(f"Kartierungs-Netz: {len(mapping_network)} Kanten, {mapping_network['laenge_m'].sum() / 1000:.1f} km")
+    write_network(mapping_network, MAPPING_NETWORK_PATH)
     write_missing_report(network)
 
 
