@@ -26,7 +26,7 @@ erhalten. Die Dateien für Netlify in public/ zeigen immer den letzten Lauf.
 
 INPUT:
 - data/bikelanes.fgb (TILDA-Export "bikelanes")
-- data/ren_netz_vereinheitlicht.gpkg (Layer: ren_netz)
+- data/ren_netz_gesamt.gpkg (Layer: ren_netz)
 
 OUTPUT:
 - output/<Datum>/centerline_tracks.geojson
@@ -51,7 +51,7 @@ import shapely
 
 BASE_DIR = Path(__file__).resolve().parent
 BIKELANES_PATH = BASE_DIR / 'data' / 'bikelanes.fgb'
-NETWORK_PATH = BASE_DIR / 'data' / 'ren_netz_vereinheitlicht.gpkg'
+NETWORK_PATH = BASE_DIR / 'data' / 'ren_netz_gesamt.gpkg'
 OUTPUT_DIR = BASE_DIR / 'output'
 PUBLIC_DIR = BASE_DIR / 'public'
 

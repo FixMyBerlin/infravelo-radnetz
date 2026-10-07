@@ -9,7 +9,8 @@ Zwei Wegenden werden verbunden, wenn das zweite in Verlängerung des ersten
 liegt: höchstens MAX_GAP_M entfernt, höchstens MAX_ANGLE_DEG abgeknickt und
 höchstens MAX_LATERAL_M seitlich versetzt. Jedes Ende wird nur einmal
 verbunden; gibt es mehrere Kandidaten, gewinnt die geradeste und nächste
-Fortsetzung. Lücken werden mit einer geraden Linie geschlossen. Strecken
+Fortsetzung. Lücken werden mit einer geraden Linie geschlossen. An der
+Straßen-Mittellinie erfasste Wege kommen schon auf ihre Seite versetzt an. Strecken
 unter MIN_LENGTH_M entfallen danach.
 
 Wird von build.py aufgerufen.
@@ -56,11 +57,6 @@ def _end_directions(geom) -> tuple[np.ndarray, np.ndarray]:
     return start / np.hypot(*start), end / np.hypot(*end)
 
 
-def _way_side(way_id: str) -> str:
-    side = way_id.rsplit('/', 1)[-1]
-    return side if side in ('left', 'right') else ''
-
-
 def find_links(ways: gpd.GeoDataFrame) -> list[tuple[int, int]]:
     """
     Sucht die Verbindungen zwischen Wegenden. Ein Ende ist 2 * Wegposition + 0
@@ -70,7 +66,6 @@ def find_links(ways: gpd.GeoDataFrame) -> list[tuple[int, int]]:
     points = np.array([xy for way in coords for xy in (way[0], way[-1])])
     directions = np.array([d for geom in ways.geometry for d in _end_directions(geom)])
     groups = ways['prioritaet'].map(PRIORITY_GROUPS).to_numpy()
-    sides = ways['id'].map(_way_side).to_numpy()
 
     tree = shapely.STRtree(shapely.points(points))
     first, second = tree.query(shapely.points(points), predicate='dwithin', distance=MAX_GAP_M)
@@ -89,12 +84,10 @@ def find_links(ways: gpd.GeoDataFrame) -> list[tuple[int, int]]:
             forward_a, forward_b = gap @ directions[a], -gap @ directions[b]
             lateral = max(abs(directions[a][0] * gap[1] - directions[a][1] * gap[0]),
                           abs(directions[b][0] * gap[1] - directions[b][1] * gap[0]))
-            if forward_a <= 0 or forward_b <= 0 or lateral > MAX_LATERAL_M:
+            # Versetzte Wege schließen seitlich leicht verschoben an: bis TOUCHING_M Überlappung
+            if forward_a < -TOUCHING_M or forward_b < -TOUCHING_M or lateral > MAX_LATERAL_M:
                 continue
-        # Links und rechts an der Mittellinie erfasste Wege liegen aufeinander:
-        # dieselbe Seite fortsetzen
-        side_change = 10 if sides[a // 2] != sides[b // 2] else 0
-        candidates.append((distance + angle / 3 + side_change, a, b))
+        candidates.append((distance + angle / 3, a, b))
 
     # Beste Fortsetzung zuerst; jedes Ende nur einmal, keine Ringe
     parent = list(range(len(ways)))
@@ -190,7 +183,7 @@ def merge_lines(ways: gpd.GeoDataFrame, simplify_m: float) -> tuple[gpd.GeoDataF
         })
     lines = gpd.GeoDataFrame(rows, crs=ways.crs)
     lines['laenge_m'] = lines.length.round(1)
-    # Links und rechts an der Mittellinie erfasste Wege ergeben dieselben OSM-IDs
+    # Linke und rechte Seite derselben Straße haben dieselben OSM-IDs
     duplicate_number = lines.groupby('id').cumcount()
     lines.loc[duplicate_number > 0, 'id'] += '-' + (duplicate_number[duplicate_number > 0] + 1).astype(str)
     lines['befahrung_links_markdown'] = lines.geometry.to_crs('EPSG:4326').map(_links_markdown)

@@ -45,8 +45,8 @@ Noch nicht enthalten: Touristisches Radnetz (Radfernwege), da ohne `element_nr` 
 
 In `ren-network/output/`:
 
-- `ren_netz_vereinheitlicht.gpkg` (Layer `ren_netz`)
-- `ren_netz_vereinheitlicht.geojson`: dasselbe Netz in WGS84, z. B. für [play.placemark.io](https://play.placemark.io)
+- `ren_netz_gesamt.gpkg` (Layer `ren_netz`)
+- `ren_netz_gesamt.geojson`: dasselbe Netz in WGS84, z. B. für [play.placemark.io](https://play.placemark.io)
 - `ren_netz_kartierung.gpkg` und `.geojson`: das Netz für die Kartierung, also das Gesamtnetz ohne die Kanten mit `bearbeitet_2025 = ja`
 - `bearbeitet_2025_abweichungen.csv`: Kanten zur Prüfung des Abgleichs mit 2025 (nur über die Geometrie gefunden, `element_nr` an anderer Stelle, nicht mehr im Netz, heutiges Radvorrangnetz ohne Bearbeitung 2025)
 - `element_nr_nicht_im_detailnetz.csv`: Kanten, deren `element_nr` im Detailnetz fehlt

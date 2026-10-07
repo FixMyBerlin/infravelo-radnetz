@@ -12,7 +12,7 @@ region-berlin/radverkehrsnetz-vorrangnetz-mask), dort in QGIS erstellt:
 Puffer 25 m, Differenz zu Berlin, vereinfachen.
 
 INPUT:
-- ren-network/output/ren_netz_vereinheitlicht.gpkg
+- ren-network/output/ren_netz_gesamt.gpkg
 - data/Berlin Bezirke.gpkg
 
 OUTPUT:
@@ -25,7 +25,7 @@ from pathlib import Path
 import geopandas as gpd
 
 ROOT = Path(__file__).resolve().parent.parent
-NETWORK_PATH = ROOT / "ren-network" / "output" / "ren_netz_vereinheitlicht.gpkg"
+NETWORK_PATH = ROOT / "ren-network" / "output" / "ren_netz_gesamt.gpkg"
 DISTRICTS_PATH = ROOT / "data" / "Berlin Bezirke.gpkg"
 OUTPUT_PATH = NETWORK_PATH.with_name("ren_netz_maske.geojson")
 

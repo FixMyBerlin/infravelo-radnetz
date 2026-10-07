@@ -15,7 +15,7 @@ Optionen: `--start-district` (Standard: Neukölln), `--simplify` (Toleranz der V
 | Datei | Inhalt |
 |---|---|
 | `accounts.txt` | Ein Account pro Zeile |
-| `data/ren_netz_vereinheitlicht.gpkg` | Vereinheitlichtes REN+-Netz (Layer `ren_netz`), Symlink; verteilt wird nur das Kartierungs-Netz (`bearbeitet_2025 = nein`) |
+| `data/ren_netz_gesamt.gpkg` | Vereinheitlichtes REN+-Netz (Layer `ren_netz`), Symlink; verteilt wird nur das Kartierungs-Netz (`bearbeitet_2025 = nein`) |
 | `data/lor_plr_2021.geojson` | [LOR-Planungsräume 2021](https://gdi.berlin.de/services/wfs/lor_2021), Layer `a_lor_plr_2021` |
 
 `data/` ist nicht versioniert.

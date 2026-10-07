@@ -7,12 +7,12 @@ Ermittelt die OSM-Wege (TILDA) entlang des REN+-Netzes, für die neue Fotos
 aufgenommen werden müssen (Befahrungsbedarf).
 
 Eingabe (befahrungsbedarf/data/, siehe download_data.sh):
-- ren_netz_vereinheitlicht.gpkg  (Ausgabe von ren-network/unify_networks.py)
+- ren_netz_gesamt.gpkg  (Ausgabe von ren-network/unify_networks.py)
 - bikelanes.fgb, roads.fgb, roadsPathClasses.fgb  (TILDA-Export)
 
 Ausgabe (befahrungsbedarf/output/):
 - befahrungsbedarf.geojson  Wege mit Befahrungsbedarf
-- wege_am_netz.geojson      alle Wege am Netz inkl. Klassifizierung
+- pruefung_einzelwege.geojson      alle Wege am Netz inkl. Klassifizierung
 - befahrung_strecken.geojson  Wege mit Befahrungsbedarf, zu Strecken verbunden (merge_lines.py)
 - entfernt_kurz.geojson     Strecken, die nach dem Verbinden zu kurz sind
 - statistik.json            Kilometer je Klasse und Datenstände
@@ -106,12 +106,12 @@ BIKELANES_ISOLATED_SUFFIX = '_isolated'
 
 NETWORK_COLUMNS = ['element_nr', 'radverkehrsnetz', 'strassenklasse', 'bezirksnummer', 'strassenname']
 WAY_COLUMNS = ['id', 'osm_id', 'quelle', 'road', 'category', 'name', 'lifecycle', 'operator_type',
-               'traffic_sign', 'mapillary_coverage', 'geometry']
+               'traffic_sign', 'offset', 'mapillary_coverage', 'geometry']
 
 
 def load_network() -> gpd.GeoDataFrame:
     """Lädt das Netz und legt die Pufferbreite je Kante fest."""
-    network = gpd.read_file(DATA_DIR / 'ren_netz_vereinheitlicht.gpkg').to_crs(CRS)
+    network = gpd.read_file(DATA_DIR / 'ren_netz_gesamt.gpkg').to_crs(CRS)
     # Kartierungs-Netz: Kanten, die 2025 schon bearbeitet wurden, entfallen
     network = network[network['bearbeitet_2025'] == 'nein'].reset_index(drop=True)
     network['puffer_m'] = network['strassenklasse'].map(BUFFER_M_BY_CLASS).fillna(BUFFER_M_DEFAULT)
@@ -269,6 +269,24 @@ def find_ways_beside_bus_lane(ways: gpd.GeoDataFrame) -> pd.Series:
     return beside
 
 
+def offset_to_side(ways: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    """
+    Versetzt an der Mittellinie erfasste Wege um 'offset' (+ links / - rechts in
+    OSM-Richtung) auf ihre Straßenseite. Linke Seiten werden umgedreht und laufen
+    dann in Fahrtrichtung. So bleibt sichtbar, ob eine oder beide Seiten zu befahren sind.
+    """
+    ways = ways.copy()
+    side = ways['id'].map(side_of_way)
+    for index in ways.index[side.notna() & ways['offset'].notna()]:
+        geom = ways.geometry[index]
+        moved = shapely.simplify(geom, SIMPLIFY_M).offset_curve(float(ways.at[index, 'offset']), join_style='mitre')
+        # Schlägt das Versetzen fehl (z.B. bei engen Schleifen), bleibt die Mittellinie
+        if moved.is_empty or moved.geom_type != 'LineString':
+            moved = geom
+        ways.at[index, 'geometry'] = moved.reverse() if side[index] == 'left' else moved
+    return ways
+
+
 def km_by(ways: gpd.GeoDataFrame, column: str) -> dict:
     grouped = ways.groupby(ways[column].astype('object').fillna('keine'))['laenge_m'].sum() / 1000
     return {str(key): round(value, 1) for key, value in grouped.items()}
@@ -332,7 +350,7 @@ def main():
     ways['prioritaet'] = ways['prioritaet'].astype('Int64')
 
     needed = ways[ways['bedarf'] == 'ja']
-    lines, short_lines = merge_lines(needed, SIMPLIFY_M)
+    lines, short_lines = merge_lines(offset_to_side(needed), SIMPLIFY_M)
     ml_data_from = (read_json(DATA_DIR / 'ml_metadata.json') or {}).get('ml_data_from')
     statistik = {
         'erstellt': datetime.now().isoformat(timespec='seconds'),
@@ -371,7 +389,7 @@ def main():
     (OUTPUT_DIR / 'statistik.json').write_text(json.dumps(statistik, indent=2, ensure_ascii=False))
     update_readme(statistik)
 
-    outputs = [('wege_am_netz', ways), ('befahrungsbedarf', ways[ways['bedarf'] == 'ja'])]
+    outputs = [('pruefung_einzelwege', ways), ('befahrungsbedarf', ways[ways['bedarf'] == 'ja'])]
     for name, gdf in outputs:
         gdf = gdf.set_geometry(gdf.geometry.simplify(SIMPLIFY_M)).to_crs('EPSG:4326')
         path = OUTPUT_DIR / f'{name}.geojson'

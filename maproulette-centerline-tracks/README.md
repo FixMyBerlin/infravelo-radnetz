@@ -15,7 +15,7 @@ Der Ordner ist unabhängig von der restlichen Pipeline. `data/` ist nicht versio
 | Datei | Inhalt |
 |---|---|
 | `data/bikelanes.fgb` | TILDA-Export `bikelanes` für Berlin |
-| `data/ren_netz_vereinheitlicht.gpkg` | Vereinheitlichtes REN+-Netz (Layer `ren_netz`); verwendet wird nur das Kartierungs-Netz (`bearbeitet_2025 = nein`) |
+| `data/ren_netz_gesamt.gpkg` | Vereinheitlichtes REN+-Netz (Layer `ren_netz`); verwendet wird nur das Kartierungs-Netz (`bearbeitet_2025 = nein`) |
 
 ## Ablauf
 

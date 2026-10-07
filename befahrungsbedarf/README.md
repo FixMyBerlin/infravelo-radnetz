@@ -25,8 +25,8 @@ python befahrungsbedarf/build.py
 | Befahrungsbedarf | 5927 Wege, 788.6 km |
 | davon Priorität 1 / 2 / 3 | 143.1 / 293.4 / 352.1 km |
 | Wegen Busspur mit Radfreigabe entfallen | 21 Wege, 3.3 km |
-| Strecken zum Befahren | 2766 Strecken, 781.8 km, Median 151 m |
-| Strecken unter 30 m entfernt | 594 Strecken, 14.4 km |
+| Strecken zum Befahren | 2813 Strecken, 781.7 km, Median 149 m |
+| Strecken unter 30 m entfernt | 598 Strecken, 14.5 km |
 <!-- stand:end -->
 
 Das Startdatum der Mapillary-Fotos wandert mit jedem Abgleich weiter (siehe [Fotos](#fotos)). Wir dürfen Fotos ab 2024 verwenden; liegt das Startdatum in 2024 oder später, ist das erfüllt.
@@ -35,7 +35,7 @@ Das Startdatum der Mapillary-Fotos wandert mit jedem Abgleich weiter (siehe [Fot
 
 | Datei | Inhalt | Herkunft |
 |---|---|---|
-| `ren_netz_vereinheitlicht.gpkg` | REN+-Netz; verwendet wird nur das Kartierungs-Netz (`bearbeitet_2025 = nein`) | Ausgabe von [`ren-network/unify_networks.py`](../ren-network/README.md) |
+| `ren_netz_gesamt.gpkg` | REN+-Netz; verwendet wird nur das Kartierungs-Netz (`bearbeitet_2025 = nein`) | Ausgabe von [`ren-network/unify_networks.py`](../ren-network/README.md) |
 | `bikelanes.fgb`, `roads.fgb`, `roadsPathClasses.fgb` | TILDA-Wege für die Berlin-Bounding-Box | TILDA-Export, `download_data.sh` |
 | `tilda_export.json`, `ml_metadata.json`, `osm_metadata.json` | Datenstände | `download_data.sh` |
 
@@ -103,8 +103,9 @@ Wird später mehr Beschilderung erfasst, entfallen weniger Wege.
 
 `merge_lines.py` verbindet die Wege mit Bedarf, damit beim Befahren zusammenhängende Strecken statt vieler kurzer Stücke entstehen. Die Schwellen stehen oben im Skript.
 
+1. **Auf die Straßenseite versetzen**: An der Mittellinie erfasste Radwege (`way/123/cycleway/left`) liegen in TILDA auf der Mittellinie, links und rechts also aufeinander. Sie werden um `offset` (halbe Straßenbreite) zur Seite versetzt, damit sichtbar ist, ob eine oder beide Seiten befahren werden müssen. Linke Seiten laufen danach in Fahrtrichtung.
 1. **Fortsetzung suchen**: Zwei Wegenden werden verbunden, wenn das zweite in Verlängerung des ersten liegt: höchstens 20 m entfernt, höchstens 30° abgeknickt und höchstens 5 m seitlich versetzt (damit die Straßenseite nicht wechselt).
-2. **Eindeutig**: Jedes Ende wird nur einmal verbunden. Bei mehreren Kandidaten gewinnt die nächste und geradeste Fortsetzung, bevorzugt auf derselben Seite der Mittellinie.
+2. **Eindeutig**: Jedes Ende wird nur einmal verbunden. Bei mehreren Kandidaten gewinnt die nächste und geradeste Fortsetzung.
 3. **Prioritäten**: 1 und 2 (keine Mapillary-Fotos) werden miteinander verbunden, 3 (Fotos ohne Panorama) nur untereinander.
 4. **Lücken** werden mit einer geraden Linie geschlossen, die Strecke wird danach vereinfacht.
 5. **Kurze Reste**: Strecken unter 30 m entfallen, unabhängig von der Priorität (`entfernt_kurz.geojson`).
@@ -113,7 +114,7 @@ Attribute je Strecke:
 
 | Attribut | Inhalt |
 |---|---|
-| `id` | Schlüssel aus erster und letzter OSM-ID und der Anzahl der Wege (`w123-w456-n7`). Links und rechts an der Mittellinie erfasste Wege liegen aufeinander und teilen sich die OSM-IDs; die zweite Strecke bekommt dann `-2` angehängt |
+| `id` | Schlüssel aus erster und letzter OSM-ID und der Anzahl der Wege (`w123-w456-n7`). Linke und rechte Seite derselben Straße teilen sich die OSM-IDs; die zweite Strecke bekommt dann `-2` angehängt |
 | `osm_ids` | OSM-IDs der Wege in Reihenfolge entlang der Strecke, durch Semikolon getrennt |
 | `name` | Straßenname mit dem größten Längenanteil |
 | `prioritaet` | Dringlichste Priorität der Wege (kleinste Zahl) |
@@ -121,7 +122,7 @@ Attribute je Strecke:
 | `laenge_m`, `anzahl_teile` | Länge inkl. geschlossener Lücken, Anzahl der Wege |
 | `befahrung_links_markdown` | Markdown-Links zur Mapillary-Abdeckung (Kartenmitte = Streckenmitte) und zum Routing (Streckenanfang bis -ende) |
 
-Die übrigen Attribute je Weg stehen in `wege_am_netz.geojson`.
+Die übrigen Attribute je Weg stehen in `pruefung_einzelwege.geojson`.
 
 ## Ausgabe (`output/`, nicht versioniert)
 
@@ -130,10 +131,10 @@ Die übrigen Attribute je Weg stehen in `wege_am_netz.geojson`.
 | `befahrung_strecken.geojson` | Strecken zum Befahren: Wege mit `bedarf=ja`, verbunden |
 | `entfernt_kurz.geojson` | Strecken unter 30 m, die nach dem Verbinden entfallen |
 | `befahrungsbedarf.geojson` | Einzelne Wege mit `bedarf=ja` |
-| `wege_am_netz.geojson` | alle Wege am Netz inkl. Klassifizierung |
+| `pruefung_einzelwege.geojson` | alle Wege am Netz inkl. Klassifizierung |
 | `statistik.json` | Kilometer je Klasse, Parameter und Datenstände |
 
-Das Netz selbst als GeoJSON schreibt `ren-network/unify_networks.py` nach `ren-network/output/ren_netz_vereinheitlicht.geojson`.
+Das Netz selbst als GeoJSON schreibt `ren-network/unify_networks.py` nach `ren-network/output/ren_netz_gesamt.geojson`.
 
 Attribute je Weg:
 

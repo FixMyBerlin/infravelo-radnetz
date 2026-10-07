@@ -17,7 +17,7 @@ Zwei Fälle:
   53490017_54490002.01 neben den Kanten des Radergänzungsnetzes.
 
 INPUT:
-- ren-network/output/ren_netz_vereinheitlicht.gpkg
+- ren-network/output/ren_netz_gesamt.gpkg
 
 OUTPUT:
 - ren-network/output/doppelte_kanten.csv      (eine Zeile je Fund)
@@ -33,7 +33,7 @@ import pandas as pd
 import shapely
 
 ROOT = Path(__file__).resolve().parent.parent
-NETWORK_PATH = ROOT / "ren-network" / "output" / "ren_netz_vereinheitlicht.gpkg"
+NETWORK_PATH = ROOT / "ren-network" / "output" / "ren_netz_gesamt.gpkg"
 CSV_PATH = NETWORK_PATH.with_name("doppelte_kanten.csv")
 GEOJSON_PATH = NETWORK_PATH.with_name("doppelte_kanten.geojson")
 

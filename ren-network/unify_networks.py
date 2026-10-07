@@ -48,8 +48,8 @@ INPUT:
   (aggregated_rvn_final aus tilda-static-data, infravelo-datensatz-c-fortlaufend)
 
 OUTPUT:
-- ren-network/output/ren_netz_vereinheitlicht.gpkg (Layer: ren_netz)
-- ren-network/output/ren_netz_vereinheitlicht.geojson (WGS84, z.B. für play.placemark.io)
+- ren-network/output/ren_netz_gesamt.gpkg (Layer: ren_netz)
+- ren-network/output/ren_netz_gesamt.geojson (WGS84, z.B. für play.placemark.io)
 - ren-network/output/ren_netz_kartierung.gpkg / .geojson (ohne bearbeitet_2025 = ja)
 - ren-network/output/element_nr_nicht_im_detailnetz.csv
 - ren-network/output/bearbeitet_2025_abweichungen.csv
@@ -88,7 +88,7 @@ VERBINDUNGSPUNKTE_PATH = ROOT / "data" / "Berlin Verbindungspunkte Detailnetz.fg
 NODE_ID_COLUMN = "Knotenpunkt‐ID"
 DISTRICTS_PATH = ROOT / "data" / "Berlin Bezirke.gpkg"
 OUTPUT_DIR = ROOT / "ren-network" / "output"
-OUTPUT_PATH = OUTPUT_DIR / "ren_netz_vereinheitlicht.gpkg"
+OUTPUT_PATH = OUTPUT_DIR / "ren_netz_gesamt.gpkg"
 OUTPUT_LAYER = "ren_netz"
 EXCLUSIONS_PATH = Path(__file__).resolve().parent / "ausschluss_element_nr.csv"
 MISSING_REPORT_PATH = OUTPUT_DIR / "element_nr_nicht_im_detailnetz.csv"
