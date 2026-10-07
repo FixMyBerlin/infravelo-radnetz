@@ -173,7 +173,7 @@ def clean_properties(row: pd.Series, columns: list) -> dict:
 
 def editor_url(members: gpd.GeoDataFrame) -> str:
     """Link in den Editor: Karte auf der Mitte des längsten Wegs, alle Wege der Gruppe ausgewählt."""
-    longest = members.geometry.loc[members.geometry.length.idxmax()]
+    longest = max(members.geometry, key=lambda geometry: geometry.length)
     center = longest.interpolate(0.5, normalized=True)
     way_ids = ','.join(f"w{osm_id}" for osm_id in sorted(members['osm_id'].unique()))
     return (f"{EDITOR_URL}#disable_features=boundaries"
