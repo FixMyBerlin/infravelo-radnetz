@@ -28,6 +28,7 @@ from datetime import datetime
 from pathlib import Path
 
 import geopandas as gpd
+import numpy as np
 import pandas as pd
 import shapely
 
@@ -49,6 +50,22 @@ BUFFER_M_DEFAULT = 10  # Kanten ohne Straßenklasse, meist eigenständige Wege
 MIN_SHARE = 0.5
 # Kürzere Wege entfallen: Sie machen die Hälfte der Wege, aber kaum Länge aus.
 MIN_LENGTH_M = 20
+
+# --- Regel: Busspur mit Radfreigabe schlägt unbeschilderten Radweg -----------
+# Wie im Abgleich 2025 (processing/map-matching/config/default.toml): Liegt
+# neben einem Radweg ohne Z 237, 240 oder 241 eine Busspur mit Radfreigabe für
+# dieselbe Fahrtrichtung, wird die Busspur erfasst und der Radweg nicht befahren.
+BUS_LANE_PREFIX = 'sharedBusLane'
+BUS_LANE_LOSER_PREFIXES = ('cycleway_adjoining', 'cycleway_isolated', 'footAndCyclewayShared',
+                           'footAndCyclewaySegregated')
+BUS_LANE_LOSER_SIGNS = ('237', '240', '241')
+# Die Busspur liegt in TILDA auf der Straßen-Mittellinie; der Radweg liegt in
+# Fahrtrichtung rechts davon, höchstens so weit entfernt
+BUS_LANE_MAX_DISTANCE_M = 20
+BUS_LANE_MAX_ANGLE_DEG = 30
+BUS_LANE_SAMPLE_M = 5
+# Anteil des Radwegs, neben dem die Busspur verlaufen muss
+BUS_LANE_MIN_SHARE = 0.8
 
 # Vereinfachung der Ausgabegeometrie (Douglas-Peucker, in Metern)
 SIMPLIFY_M = 1.0
@@ -85,12 +102,14 @@ BIKELANES_ISOLATED_SUFFIX = '_isolated'
 
 NETWORK_COLUMNS = ['element_nr', 'radverkehrsnetz', 'strassenklasse', 'bezirksnummer', 'strassenname']
 WAY_COLUMNS = ['id', 'osm_id', 'quelle', 'road', 'category', 'name', 'lifecycle', 'operator_type',
-               'mapillary_coverage', 'geometry']
+               'traffic_sign', 'mapillary_coverage', 'geometry']
 
 
 def load_network() -> gpd.GeoDataFrame:
     """Lädt das Netz und legt die Pufferbreite je Kante fest."""
     network = gpd.read_file(DATA_DIR / 'ren_netz_vereinheitlicht.gpkg').to_crs(CRS)
+    # Kartierungs-Netz: Kanten, die 2025 schon bearbeitet wurden, entfallen
+    network = network[network['bearbeitet_2025'] == 'nein'].reset_index(drop=True)
     network['puffer_m'] = network['strassenklasse'].map(BUFFER_M_BY_CLASS).fillna(BUFFER_M_DEFAULT)
     logging.info(f'Netz: {len(network)} Kanten, {network.length.sum() / 1000:.0f} km')
     return network
@@ -183,6 +202,69 @@ def classify_need(row) -> pd.Series:
     return pd.Series(['ja', 1, 'keine Fotos'])
 
 
+def side_of_way(way_id: str) -> str | None:
+    """Seite eines an der Mittellinie erfassten Wegs (way/123/cycleway/left), sonst None."""
+    side = way_id.rsplit('/', 1)[-1]
+    return side if side in ('left', 'right') else None
+
+
+def has_traffic_sign(value, signs) -> bool:
+    """Prüft, ob ein OSM-traffic_sign-Wert (z.B. "DE:237,1022-10") eines der Zeichen enthält."""
+    tokens = [token.strip().removeprefix('DE:') for token in str(value or '').replace(';', ',').split(',')]
+    return any(token == sign or token.startswith((f'{sign}.', f'{sign}[')) for token in tokens for sign in signs)
+
+
+def _bearings(line, distances):
+    """Richtung der Linie (Grad) an den Positionen distances."""
+    ahead = shapely.get_coordinates(shapely.line_interpolate_point(line, np.minimum(distances + 1, line.length)))
+    behind = shapely.get_coordinates(shapely.line_interpolate_point(line, np.maximum(distances - 1, 0)))
+    return np.degrees(np.arctan2(ahead[:, 1] - behind[:, 1], ahead[:, 0] - behind[:, 0]))
+
+
+def find_ways_beside_bus_lane(ways: gpd.GeoDataFrame) -> pd.Series:
+    """
+    Markiert unbeschilderte Radwege, neben denen eine Busspur mit Radfreigabe
+    für dieselbe Fahrtrichtung verläuft.
+    """
+    category = ways['category'].fillna('')
+    side = ways['id'].map(side_of_way)
+    bus = ways[category.str.startswith(BUS_LANE_PREFIX)]
+    # Busspur in Fahrtrichtung drehen: links erfasste Spuren laufen gegen die OSM-Richtung
+    bus_lines = [geom.reverse() if side[index] == 'left' else geom for index, geom in bus.geometry.items()]
+    bus_tree = shapely.STRtree(bus_lines)
+    bus_sides = set(zip(bus['osm_id'], side[bus.index]))
+
+    unsigned = ~ways['traffic_sign'].map(lambda value: has_traffic_sign(value, BUS_LANE_LOSER_SIGNS))
+    candidates = ways[category.str.startswith(BUS_LANE_LOSER_PREFIXES) & unsigned]
+    beside = pd.Series(False, index=ways.index)
+    for index, geom in candidates.geometry.items():
+        if pd.notna(side[index]):
+            # An der Mittellinie erfasst: dieselbe Straße und Seite wie die Busspur
+            beside[index] = (ways.at[index, 'osm_id'], side[index]) in bus_sides
+            continue
+        distances = np.arange(BUS_LANE_SAMPLE_M / 2, geom.length, BUS_LANE_SAMPLE_M)
+        points = shapely.line_interpolate_point(geom, distances)
+        way_bearings = _bearings(geom, distances)
+        covered = np.zeros(len(points), dtype=bool)
+        for bus_index in bus_tree.query(geom, predicate='dwithin', distance=BUS_LANE_MAX_DISTANCE_M):
+            line = bus_lines[bus_index]
+            along = shapely.line_locate_point(line, points)
+            foot = shapely.get_coordinates(shapely.line_interpolate_point(line, along))
+            bus_bearings = np.radians(_bearings(line, along))
+            offset = shapely.get_coordinates(points) - foot
+            # Kreuzprodukt < 0: Punkt liegt in Fahrtrichtung rechts der Busspur
+            right = np.cos(bus_bearings) * offset[:, 1] - np.sin(bus_bearings) * offset[:, 0] < 0
+            near = np.hypot(offset[:, 0], offset[:, 1]) <= BUS_LANE_MAX_DISTANCE_M
+            # Stirnseitig hinter dem Ende der Busspur zählt nicht als daneben
+            abreast = (along > 0) & (along < line.length)
+            angle = np.abs((way_bearings - np.degrees(bus_bearings) + 90) % 180 - 90)
+            covered |= right & near & abreast & (angle <= BUS_LANE_MAX_ANGLE_DEG)
+        beside[index] = covered.mean() >= BUS_LANE_MIN_SHARE
+    logging.info(f'{beside.sum()} unbeschilderte Radwege neben einer Busspur mit Radfreigabe '
+                 f'({len(bus)} Busspur-Wege am Netz)')
+    return beside
+
+
 def km_by(ways: gpd.GeoDataFrame, column: str) -> dict:
     grouped = ways.groupby(ways[column].astype('object').fillna('keine'))['laenge_m'].sum() / 1000
     return {str(key): round(value, 1) for key, value in grouped.items()}
@@ -237,6 +319,8 @@ def main():
     ways['laenge_m'] = ways.length.round(1)
     ways['kfz_bild'] = ways.apply(classify_car_imagery, axis=1)
     ways[['bedarf', 'prioritaet', 'grund']] = ways.apply(classify_need, axis=1)
+    beside_bus_lane = find_ways_beside_bus_lane(ways) & (ways['bedarf'] == 'ja')
+    ways.loc[beside_bus_lane, ['bedarf', 'prioritaet', 'grund']] = ['nein', None, 'Busspur mit Radfreigabe']
     ways['prioritaet'] = ways['prioritaet'].astype('Int64')
 
     needed = ways[ways['bedarf'] == 'ja']
@@ -256,6 +340,8 @@ def main():
         'befahrungsbedarf': {
             'anzahl': len(needed),
             'km': round(needed['laenge_m'].sum() / 1000, 1),
+            'entfallen_wegen_busspur': {'anzahl': int(beside_bus_lane.sum()),
+                                        'km': round(ways.loc[beside_bus_lane, 'laenge_m'].sum() / 1000, 1)},
             'km_je_prioritaet': km_by(needed, 'prioritaet'),
             'km_je_quelle': km_by(needed, 'quelle'),
             'km_je_road': km_by(needed, 'road'),

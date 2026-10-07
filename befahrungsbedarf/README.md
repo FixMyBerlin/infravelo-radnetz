@@ -16,14 +16,14 @@ python befahrungsbedarf/build.py
 <!-- stand:start -->
 | | |
 |---|---|
-| Lauf | 2026-10-06 |
+| Lauf | 2026-10-07 |
 | Mapillary-Fotos berücksichtigt | **2024-04-05** bis 2026-10-05 |
 | OSM-Stand des Mapillary-Abgleichs | 2026-10-03 |
 | TILDA-Export | bikelanes_2026-10-05.fgb |
-| Netz | 2872.6 km |
-| Wege am Netz | 58798 Wege, 5218.6 km |
-| Befahrungsbedarf | 8137 Wege, 1048.1 km |
-| davon Priorität 1 / 2 / 3 | 185.3 / 332.9 / 529.9 km |
+| Netz | 1985.7 km |
+| Wege am Netz | 39081 Wege, 3513.1 km |
+| Befahrungsbedarf | 5927 Wege, 788.6 km |
+| davon Priorität 1 / 2 / 3 | 143.1 / 293.4 / 352.1 km |
 <!-- stand:end -->
 
 Das Startdatum der Mapillary-Fotos wandert mit jedem Abgleich weiter (siehe [Fotos](#fotos)). Wir dürfen Fotos ab 2024 verwenden; liegt das Startdatum in 2024 oder später, ist das erfüllt.
@@ -32,7 +32,7 @@ Das Startdatum der Mapillary-Fotos wandert mit jedem Abgleich weiter (siehe [Fot
 
 | Datei | Inhalt | Herkunft |
 |---|---|---|
-| `ren_netz_vereinheitlicht.gpkg` | Netz, das befahren werden muss | Ausgabe von [`ren-network/unify_networks.py`](../ren-network/README.md) |
+| `ren_netz_vereinheitlicht.gpkg` | REN+-Netz; verwendet wird nur das Kartierungs-Netz (`bearbeitet_2025 = nein`) | Ausgabe von [`ren-network/unify_networks.py`](../ren-network/README.md) |
 | `bikelanes.fgb`, `roads.fgb`, `roadsPathClasses.fgb` | TILDA-Wege für die Berlin-Bounding-Box | TILDA-Export, `download_data.sh` |
 | `tilda_export.json`, `ml_metadata.json`, `osm_metadata.json` | Datenstände | `download_data.sh` |
 
@@ -48,7 +48,7 @@ Das Startdatum der Mapillary-Fotos wandert mit jedem Abgleich weiter (siehe [Fot
 1. **Laden** der drei TILDA-Layer. Wege, die in mehreren Layern stehen, werden einmal übernommen (bikelanes vor roads vor roadsPathClasses).
 2. **Wege am Netz**: Ein Weg bleibt, wenn mindestens 50 % seiner Länge im Puffer um die Netzkanten liegen (Pufferbreiten siehe unten). Wege unter 20 m entfallen. Die Richtung wird nicht geprüft, Querungen und kurze Stücke von Seitenstraßen bleiben also enthalten.
 3. **Netzattribute** der Kante, die dem Wegmittelpunkt am nächsten liegt.
-4. **Klassifizierung** nach den Regeln unten.
+4. **Klassifizierung** nach den Regeln unten, danach die Busspur-Regel.
 5. **Ausgabe** als GeoJSON (WGS84), Geometrie mit 1 m Toleranz vereinfacht.
 
 Die Stellschrauben (`BUFFER_M_BY_CLASS`, `MIN_SHARE`, `MIN_LENGTH_M`, `SIMPLIFY_M`) und die Regel-Listen stehen oben in `build.py`.
@@ -85,6 +85,16 @@ Die Breiten sind gemessen: Sie decken je Klasse rund 95 % der TILDA-Radwege im S
 | `ja` | 2 | `kfz_bild=unsicher` und keine Mapillary-Fotos |
 | `ja` | 3 | nur Mapillary-Fotos ohne Panorama (`regular`) |
 
+### Busspur mit Radfreigabe
+
+Wie im Abgleich 2025 gewinnt eine Busspur mit Radfreigabe (`sharedBusLane*`) gegen einen unbeschilderten Radweg daneben: Die Busspur wird erfasst, der Radweg muss nicht befahren werden (`bedarf = nein`, `grund = Busspur mit Radfreigabe`).
+
+- **Radweg**: `cycleway_adjoining*`, `cycleway_isolated`, `footAndCyclewayShared*`, `footAndCyclewaySegregated*` ohne Z 237, 240 oder 241 in `traffic_sign`.
+- **An der Mittellinie erfasst**: dieselbe Seite desselben OSM-Wegs wie die Busspur.
+- **Separat erfasst**: mindestens 80 % des Radwegs liegen in Fahrtrichtung rechts der Busspur, höchstens 20 m von der Straßen-Mittellinie entfernt und höchstens 30° dazu gedreht. Der Straßenname wird nicht verglichen, weil separate Wege oft keinen tragen.
+
+Wird später mehr Beschilderung erfasst, entfallen weniger Wege.
+
 ## Ausgabe (`output/`, nicht versioniert)
 
 | Datei | Inhalt |
@@ -120,6 +130,7 @@ Stand 2026-10-06.
 - **Kfz-Befahrung 2025**: Befahren wurden öffentliche Straßen, keine Zufahrten, Wirtschaftswege oder Privatstraßen. Führungen direkt auf der Fahrbahn sind auf den Fotos sichtbar. Im Seitenraum (z. B. Hochbordradweg, gemeinsamer Geh- und Radweg) hängt die Sicht von parkenden Fahrzeugen ab, deshalb `unsicher` und Priorität 2.
 - **Querungen** gelten als sichtbar, weil sie auf der Fahrbahn liegen.
 - **Kaum Filter nach Wegeart**: Auch Gehwege, Pfade und Treppen bleiben enthalten. Dort kann neue Radinfrastruktur entstehen, z. B. ein neuer Radweg im Park.
+- **Nur das Kartierungs-Netz**: Kanten, die 2025 schon bearbeitet wurden (Radvorrangnetz), entfallen seit 2026-10-07. Für sie liegen Fotos und Daten vor.
 - **Autobahnen gehören nicht zum Netz**: Das Hauptstraßennetz enthält rund 230 km Autobahn und Zubringer. Sie werden seit 2026-10-06 schon in `ren-network/unify_networks.py` entfernt, damit alle Auswertungen dasselbe bereinigte Netz nutzen.
 - **Puffer nach Straßenklasse** statt einheitlich 25 m, um Wege zu vermeiden, die nur neben der Straße liegen.
 - **Wege unter 20 m entfallen**: Das war die Hälfte der Wege mit Bedarf, aber nur 9 % der Länge (vor allem kurze Gehwegstücke und Treppen).

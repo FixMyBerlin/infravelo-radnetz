@@ -39,6 +39,7 @@ OUTPUT:
 import argparse
 import json
 import logging
+import re
 import shutil
 import sys
 from datetime import datetime
@@ -69,6 +70,13 @@ SIDEWALK_CATEGORIES = {
     'footAndCyclewayShared_adjoining',
 }
 
+# Busspur mit Radfreigabe schlägt unbeschilderten Radweg (wie im Abgleich 2025):
+# Liegt auf derselben Seite desselben OSM-Wegs eine Busspur mit Radfreigabe und
+# hat der Radweg kein Z 237, 240 oder 241, muss er nicht nachgezeichnet werden.
+BUS_LANE_PREFIX = 'sharedBusLane'
+BUS_LANE_LOSER_PREFIXES = ('cycleway_adjoining', 'footAndCyclewayShared', 'footAndCyclewaySegregated')
+BUS_LANE_LOSER_SIGNS = re.compile(r'(^|[,;])\s*(DE:)?(237|240|241)([.\[,;]|$)')
+
 # Attribute, die neben id und Gruppe in die MapRoulette-Aufgaben übernommen werden
 MAPROULETTE_PROPERTIES = ['category', 'name', 'road', 'traffic_sign', 'width', 'oneway', 'surface']
 
@@ -94,6 +102,16 @@ def filter_centerline_tracks(bikelanes: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     tracks = bikelanes[is_track | is_signed_sidewalk].copy()
     # Die Seite steht nur in der id, z. B. way/4068011/cycleway/left
     tracks['side'] = tracks['id'].str.split('/').str[-1]
+
+    bus_lanes = bikelanes[bikelanes['category'].fillna('').str.startswith(BUS_LANE_PREFIX)]
+    bus_sides = set(zip(bus_lanes['osm_id'], bus_lanes['id'].str.split('/').str[-1]))
+    unsigned = ~tracks['traffic_sign'].fillna('').str.contains(BUS_LANE_LOSER_SIGNS)
+    beside_bus_lane = (
+        tracks['category'].str.startswith(BUS_LANE_LOSER_PREFIXES) & unsigned
+        & pd.Series(list(zip(tracks['osm_id'], tracks['side'])), index=tracks.index).isin(bus_sides)
+    )
+    logging.info(f"{beside_bus_lane.sum()} unbeschilderte Radwege neben einer Busspur mit Radfreigabe entfallen")
+    tracks = tracks[~beside_bus_lane]
     # Sind auf einer Seite Radweg und Gehweg erfasst, reicht eine Linie: beide werden
     # in derselben Aufgabe bearbeitet. 'cycleway' sortiert vor 'sidewalk' und bleibt.
     tracks = tracks.sort_values('prefix').drop_duplicates(['osm_id', 'side'])
@@ -279,6 +297,8 @@ def main():
     logging.info(f"Lade {BIKELANES_PATH.name} und {NETWORK_PATH.name}")
     bikelanes = gpd.read_file(BIKELANES_PATH).to_crs(CRS_METRIC)
     network = gpd.read_file(NETWORK_PATH).to_crs(CRS_METRIC)
+    # Kartierungs-Netz: Kanten, die 2025 schon bearbeitet wurden, entfallen
+    network = network[network['bearbeitet_2025'] == 'nein']
 
     tracks = filter_centerline_tracks(bikelanes)
     tracks = filter_along_network(tracks, network, args.buffer, args.min_share)

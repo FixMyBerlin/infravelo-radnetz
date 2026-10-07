@@ -140,6 +140,7 @@ FINAL_COLUMNS = [
     "netz_quellen_teilweise",
     "in_detailnetz",
     "bearbeitet_2025",
+    "element_nr_2025",
     "geometry",
 ]
 
@@ -465,14 +466,19 @@ def add_bearbeitet_2025(network):
 
     buffers = result.geometry.buffer(RESULT_2025_BUFFER_M)
     share = pd.Series(0.0, index=network.index)
+    nearest_element_nr = pd.Series(None, index=network.index, dtype=object)
     for index, geom in network.geometry.items():
         nearby = buffers.iloc[buffers.sindex.query(geom, predicate="intersects")]
         if len(nearby):
             share[index] = geom.intersection(nearby.union_all()).length / geom.length
+            # Die Kante von 2025, die den größten Teil abdeckt
+            nearest_element_nr[index] = result["element_nr"][nearby.intersection(geom).length.idxmax()]
     by_geometry = ~by_element_nr & (share >= RESULT_2025_MIN_SHARE)
 
     network = network.copy()
     network["bearbeitet_2025"] = (by_element_nr | by_geometry).map({True: "ja", False: "nein"})
+    # Nummer der Kante im Ergebnis 2025; weicht bei geometrisch gefundenen Kanten von element_nr ab
+    network["element_nr_2025"] = network["element_nr"].where(by_element_nr, nearest_element_nr.where(by_geometry))
     logging.info(f"2025 bearbeitet: {by_element_nr.sum()} Kanten über element_nr, {by_geometry.sum()} über die Geometrie, "
                  f"{network.loc[by_element_nr | by_geometry].geometry.length.sum() / 1000:.1f} km")
 
@@ -482,12 +488,12 @@ def add_bearbeitet_2025(network):
     grund[(network["radverkehrsnetz"] == RVN_VORRANG) & ~(by_element_nr | by_geometry)] = "Radvorrangnetz, 2025 nicht bearbeitet"
     grund[by_geometry] = "nur über Geometrie gefunden"
     grund[by_element_nr & (share < 0.5)] = "element_nr 2025 an anderer Stelle"
-    report = network.loc[grund.notna(), ["element_nr", "strassenname", "radverkehrsnetz", "netz_quellen"]].copy()
+    report = network.loc[grund.notna(), ["element_nr", "element_nr_2025", "strassenname", "radverkehrsnetz", "netz_quellen"]].copy()
     report["laenge_m"] = network.geometry.length.round(1)
     report["anteil_im_ergebnis_2025"] = share.round(2)
     report["grund"] = grund
     missing = sorted(element_nrs - set(network["element_nr"].dropna()))
-    report = pd.concat([report, pd.DataFrame({"element_nr": missing, "grund": "2025 bearbeitet, element_nr nicht mehr im Netz"})])
+    report = pd.concat([report, pd.DataFrame({"element_nr_2025": missing, "grund": "2025 bearbeitet, element_nr nicht mehr im Netz"})])
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     report.to_csv(RESULT_2025_REPORT_PATH, index=False)
     logging.info(f"Abweichungen zum Ergebnis 2025: {report['grund'].value_counts().to_dict()}: {RESULT_2025_REPORT_PATH}")

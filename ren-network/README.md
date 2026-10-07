@@ -38,7 +38,7 @@ Noch nicht enthalten: Touristisches Radnetz (Radfernwege), da ohne `element_nr` 
 6. **Detailnetz**: Straßenname und -klasse über `element_nr` ergänzen; Abweichungen zum Hauptstraßennetz werden geloggt.
 7. **Netzknoten** `von_knoten`/`bis_knoten` aus der `element_nr` (`von_bis.NN`).
 8. **Bezirk** nach größtem räumlichen Anteil.
-9. **Bearbeitet 2025**: Kanten, deren `element_nr` im Ergebnis 2025 steht, bekommen `bearbeitet_2025 = ja`. Ohne passende `element_nr` gilt eine Kante als bearbeitet, wenn mindestens 80 % ihrer Länge im 5-m-Puffer um die Kanten des Ergebnisses liegen (die Nummern haben sich seit 2025 teilweise geändert).
+9. **Bearbeitet 2025**: Kanten, deren `element_nr` im Ergebnis 2025 steht, bekommen `bearbeitet_2025 = ja`. Ohne passende `element_nr` gilt eine Kante als bearbeitet, wenn mindestens 80 % ihrer Länge im 5-m-Puffer um die Kanten des Ergebnisses liegen (die Nummern haben sich seit 2025 teilweise geändert). `element_nr_2025` nennt die Nummer der Kante im Ergebnis 2025; bei geometrisch gefundenen Kanten ist es die Kante, die den größten Teil abdeckt.
 10. **Abschluss**: Länge, Hauptverkehrsstraße (nur Hauptstraßennetz mit Klasse I–III), `lfd_nr`.
 
 ## Ausgabe
@@ -95,4 +95,4 @@ Nummern nach Anhang "Attribut mit Ausprägungen".
 | 11 | Hauptverkehrsstraße | `hauptverkehrsstrasse` | ✓ |
 | 12–24 | Radverkehrsführung, Oberfläche, Protektion, Zustand, Kommentar | – | nach Matching |
 
-Zusätzlich: `strassenklasse` (Straßenstufe 0–V aus Hauptstraßennetz bzw. Detailnetz), `netz_quellen` (beteiligte Quellen), `netz_quellen_teilweise` (Quellen, die nur einen Teil der Kante abdecken; `radverkehrsnetz` gilt dann nicht für die ganze Kante), `in_detailnetz` (ja/nein), `bearbeitet_2025` (ja/nein), `element_nr_berechnet` (ja/nein).
+Zusätzlich: `strassenklasse` (Straßenstufe 0–V aus Hauptstraßennetz bzw. Detailnetz), `netz_quellen` (beteiligte Quellen), `netz_quellen_teilweise` (Quellen, die nur einen Teil der Kante abdecken; `radverkehrsnetz` gilt dann nicht für die ganze Kante), `in_detailnetz` (ja/nein), `bearbeitet_2025` (ja/nein), `element_nr_2025` (Nummer im Ergebnis 2025, weicht bei geänderten Nummern von `element_nr` ab), `element_nr_berechnet` (ja/nein).

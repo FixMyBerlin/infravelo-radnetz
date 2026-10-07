@@ -15,7 +15,7 @@ Der Ordner ist unabhängig von der restlichen Pipeline. `data/` ist nicht versio
 | Datei | Inhalt |
 |---|---|
 | `data/bikelanes.fgb` | TILDA-Export `bikelanes` für Berlin |
-| `data/ren_netz_vereinheitlicht.gpkg` | Vereinheitlichtes REN+-Netz (Layer `ren_netz`) |
+| `data/ren_netz_vereinheitlicht.gpkg` | Vereinheitlichtes REN+-Netz (Layer `ren_netz`); verwendet wird nur das Kartierungs-Netz (`bearbeitet_2025 = nein`) |
 
 ## Ablauf
 
@@ -23,6 +23,7 @@ Der Ordner ist unabhängig von der restlichen Pipeline. `data/` ist nicht versio
    - `prefix = cycleway` mit Kategorie `cycleway_adjoining`, `footAndCyclewaySegregated_adjoining` oder `footAndCyclewayShared_adjoining`
    - `prefix = sidewalk` mit Kategorie `footwayBicycleYes_adjoining` oder `footAndCyclewayShared_adjoining`, nur wenn ein Verkehrszeichen erfasst ist
    - Nicht enthalten: Führungen auf der Fahrbahn, geschützte Radfahrstreifen, Kreuzungsstücke
+   - Nicht enthalten: unbeschilderte Radwege (ohne Z 237, 240, 241), wenn auf derselben Seite desselben OSM-Wegs eine Busspur mit Radfreigabe erfasst ist. Wie im Abgleich 2025 gewinnt dann die Busspur. Das trifft nur selten zu, weil Busspur und Radweg an der Mittellinie meist nicht gleichzeitig erfasst sind.
 2. **Filter auf das Netz.** Wege, die zum Mindestanteil im Puffer um das Netz liegen.
 3. **Gruppierung.** Wege mit gleichem Straßennamen, die über gemeinsame Endpunkte zusammenhängen, bilden eine Gruppe. Linke und rechte Seite einer Straße liegen in derselben Gruppe.
 4. **Versatz.** Die Geometrie wird um `offset` (halbe Straßenbreite, + links / − rechts) von der Mittellinie zur Seite versetzt und vereinfacht. Linke Seiten laufen danach gegen die OSM-Richtung, also in Fahrtrichtung.
