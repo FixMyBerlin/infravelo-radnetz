@@ -55,7 +55,7 @@ In `ren-network/output/`:
 python ren-network/create_mask.py
 ```
 
-Ausgabe: `output/ren-network/ren_netz_maske.geojson` (WGS84, ein MultiPolygon). Nach jeder Änderung am Netz neu erzeugen.
+Ausgabe: `ren-network/output/ren_netz_maske.geojson` (WGS84, ein MultiPolygon). Nach jeder Änderung am Netz neu erzeugen.
 
 ## Prüfliste doppelter Kanten
 
@@ -70,7 +70,7 @@ python ren-network/audit_double_edges.py
 | `ueberlappend` | Zwei Kanten liegen aufeinander: mindestens 50 % der einen im Abstand von 3 m zur anderen |
 | `parallel_zum_radverkehrsnetz` | Eine Kante ohne Radverkehrsnetz verläuft zu mindestens 80 % im Abstand von 20 m neben Kanten des Radverkehrsnetzes |
 
-Ausgabe in `output/ren-network/`: `doppelte_kanten.csv` (eine Zeile je Fund mit Kandidat, Partnerkanten, Anteil, `gleiches_knotenpaar`) und `doppelte_kanten.geojson` (Kandidaten und Partner mit Fundnummer `nr` und `rolle`).
+Ausgabe in `ren-network/output/`: `doppelte_kanten.csv` (eine Zeile je Fund mit Kandidat, Partnerkanten, Anteil, `gleiches_knotenpaar`) und `doppelte_kanten.geojson` (Kandidaten und Partner mit Fundnummer `nr` und `rolle`).
 
 ## Attribute
 

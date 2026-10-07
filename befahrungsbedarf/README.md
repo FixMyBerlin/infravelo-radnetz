@@ -93,7 +93,7 @@ Die Breiten sind gemessen: Sie decken je Klasse rund 95 % der TILDA-Radwege im S
 | `wege_am_netz.geojson` | alle Wege am Netz inkl. Klassifizierung |
 | `statistik.json` | Kilometer je Klasse, Parameter und Datenstände |
 
-Das Netz selbst als GeoJSON schreibt `ren-network/unify_networks.py` nach `output/ren-network/ren_netz_vereinheitlicht.geojson`.
+Das Netz selbst als GeoJSON schreibt `ren-network/unify_networks.py` nach `ren-network/output/ren_netz_vereinheitlicht.geojson`.
 
 Attribute je Weg:
 

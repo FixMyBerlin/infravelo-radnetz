@@ -11,7 +11,7 @@
 # ATLAS_API_KEY_PRODUCTION in der .env des tilda-geo Repos (TILDA_GEO_REPO).
 #
 # Das Netz (ren_netz_vereinheitlicht.gpkg) wird nicht geladen, sondern aus
-# output/ren-network/ kopiert, falls es dort liegt.
+# ren-network/output/ kopiert, falls es dort liegt.
 #
 # Verwendung: ./befahrungsbedarf/download_data.sh
 
@@ -48,10 +48,10 @@ echo "⬇️  Datenstände Mapillary-Abgleich"
 curl -fsSL --retry 3 -o "$DATA_DIR/ml_metadata.json" "https://data.vizsim.de/mapillary_coverage/ml_metadata.json"
 curl -fsSL --retry 3 -o "$DATA_DIR/osm_metadata.json" "https://data.vizsim.de/mapillary_coverage/osm_metadata.json"
 
-NETWORK="$SCRIPT_DIR/../output/ren-network/ren_netz_vereinheitlicht.gpkg"
+NETWORK="$SCRIPT_DIR/../ren-network/output/ren_netz_vereinheitlicht.gpkg"
 if [ -f "$NETWORK" ]; then
     cp "$NETWORK" "$DATA_DIR/"
-    echo "📋 Netz aus output/ren-network/ kopiert"
+    echo "📋 Netz aus ren-network/output/ kopiert"
 elif [ ! -f "$DATA_DIR/ren_netz_vereinheitlicht.gpkg" ]; then
     echo "⚠️  $DATA_DIR/ren_netz_vereinheitlicht.gpkg fehlt (siehe ren-network/README.md)" >&2
 fi
