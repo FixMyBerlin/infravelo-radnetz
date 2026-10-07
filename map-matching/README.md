@@ -1,7 +1,7 @@
 # map-matching – HMM-/Viterbi-Map-Matching TILDA → RVN
 
-Ersetzt das bisherige Matching (`start_matching.py`) und Snapping (`start_snapping.py`),
-die jetzt unter [`legacy/`](../legacy/) liegen. Das Ergebnis ist eine segmentierte Kantendatei
+Ersetzt das bisherige Python-Matching und -Snapping der 2025er-Pipeline (archiviert im Tag
+`rvn-final-state`). Das Ergebnis ist eine segmentierte Kantendatei
 im Format von `snapping_network_enriched.fgb`. Die Python-Folgeschritte (Konvertierung, Overrides,
 Aggregation) können sie direkt weiterverwenden.
 

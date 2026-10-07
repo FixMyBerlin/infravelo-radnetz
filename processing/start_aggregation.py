@@ -51,7 +51,7 @@ MIN_SIGNIFICANT_LENGTH = 50.0
 MIN_SIGNIFICANT_WIDTH_CHANGE = 0.3
 
 # Attribute die bei "Keine Radinfrastruktur vorhanden" auf NULL gesetzt werden
-# (analog zu FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES in start_snapping.py, ohne 'ri' und 'fuehr')
+# (Segment-Attribute ohne 'ri' und 'fuehr')
 NULL_ATTRIBUTES_KEINE_RADINFRA = [
     'ofm', 'protek', 'pflicht', 'breite', 'farbe', 
     'verkehrsri', 'trennstreifen', 'nutz_beschr', 'Kommentar'
@@ -109,8 +109,6 @@ AGGREGATED_COLUMN_ORDER = [
     "nutz_beschr",            # 17. nutzungsbeschränkung
     "Kommentar",              # 18. Kommentar
 ]
-
-# Spaltenreihenfolge wird jetzt in start_snapping.py als Datenvorbereitung behandelt
 
 
 # --------------------------------------------------------- Hilfsfunktionen --

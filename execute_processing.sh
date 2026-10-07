@@ -5,27 +5,24 @@
 # Es sichert finale Dateien vom vorherigen Lauf in output-last-run/
 #
 # Verarbeitungsschritte:
-# 1.+2. HMM-Map-Matching (Rust, map-matching/) – ersetzt Matching + Snapping
-# 3. Schutzstreifen-Konvertierung
+# 1.+2. HMM-Map-Matching (Rust, map-matching/)
+# 3. Schutzstreifen-Konvertierung und Overrides
 # 4. Finale Aggregation
-# 5. Qualitätssicherungstests
 #
 # Dateiverwaltung:
 # - Finale Dateien (snapping_converted_bikelanes*, aggregated_rvn_final*) werden in output-last-run/ gesichert
 # - Temporäre Dateien werden vor dem entsprechenden Verarbeitungsschritt gelöscht
 # - Zwischendateien bleiben zwischen Schritten erhalten (für --start-step Funktionalität)
 #
-# Verwendung: ./execute_processing.sh [--clip <region> | --view z/lat/lon] [--start-step <1-5>] [--clean-cache]
+# Verwendung: ./execute_processing.sh [--clip <region> | --view z/lat/lon] [--start-step <1-4>] [--clean-cache]
 # 
 # Argumente:
 #   --clip <region>     Regionaler Zuschnitt: neukoelln, norden oder sueden
 #   --view z/lat/lon     Viewport Zuschnitt (WGS84, z.B. 18/52.488306/13.425140) – schreibt nach output-bbox
-#   --start-step <1-5>  Startet die Verarbeitung ab dem angegebenen Schritt
-#                       1: OSM-Wege Matching
-#                       2: Snapping und Attribut-Übernahme
-#                       3: Schutzstreifen-Konvertierung
+#   --start-step <1-4>  Startet die Verarbeitung ab dem angegebenen Schritt
+#                       1-2: HMM-Map-Matching
+#                       3: Schutzstreifen-Konvertierung und Overrides
 #                       4: Finale Aggregation
-#                       5: Qualitätssicherungstests
 #   --clean-cache       Vollständige Bereinigung aller Cache-Dateien vor der Verarbeitung
 # 
 # Voraussetzung: Python venv ist bereits erstellt und requirements.txt wurde installiert
@@ -293,8 +290,7 @@ echo ""
 
 echo "🔄 Starte Verarbeitungsprozess..."
 
-# Schritt 1+2: HMM-Map-Matching (Rust, ersetzt das bisherige Matching + Snapping)
-# Die alten Python-Skripte liegen unter legacy/ und werden nicht mehr verwendet.
+# Schritt 1+2: HMM-Map-Matching (Rust)
 if [[ $START_STEP -le 2 ]]; then
     echo "🧭 Schritt 1-2/4: HMM-Map-Matching (Rust, map-matching/)..."
     STEP1_START=$(date +%s)
@@ -414,44 +410,6 @@ else
     echo ""
 fi
 
-# Schritt 5: Qualitätssicherungstests
-# if [[ $START_STEP -le 5 ]]; then
-#     if [[ -n "$VIEW" ]]; then
-#         echo "🧪 Schritt 5/5: Überspringe Qualitätssicherungstests bei Viewport-Verarbeitung"
-#         echo "   ℹ️  Tests werden bei --view Parameter nicht ausgeführt (kleine Datenmenge nicht repräsentativ)"
-#         STEP5_START=$(date +%s)
-#         STEP5_DURATION=0
-#         echo "⏱️  Schritt 5 dauerte: ${STEP5_DURATION}s"
-#         echo "✅ Schritt 5 übersprungen."
-#     else
-#         echo "🧪 Schritt 5/5: Führe Qualitätssicherungstests durch..."
-#         STEP5_START=$(date +%s)
-        
-#         if [[ -n "$CLIP_REGION" ]]; then
-#             ./.venv/bin/python testing/run_tests.py --clip "$CLIP_REGION"
-#         else
-#             ./.venv/bin/python testing/run_tests.py
-#         fi
-        
-#         if [ $? -ne 0 ]; then
-#             echo "❌ Qualitätssicherungstests fehlgeschlagen!"
-#             echo "   Die Verarbeitung wurde zwar abgeschlossen, aber die erwarteten"
-#             echo "   Attributwerte stimmen nicht mit den Test-Definitionen überein."
-#             echo "   Bitte überprüfen Sie die Ausgabe der Tests und die Verarbeitung."
-#             # Beende Script mit Fehlercode
-#             exit 1
-#         fi
-        
-#         show_elapsed_time $STEP5_START "Schritt 5"
-#         echo "✅ Schritt 5 abgeschlossen."
-#     fi
-#     echo ""
-# else
-#     echo "⏭️  Überspringe Schritt 5 (Qualitätssicherungstests)"
-#     echo ""
-# fi
-# echo ""
-
 # Deaktiviere Fehler-Trap bei erfolgreichem Abschluss
 trap - ERR EXIT
 
@@ -472,10 +430,10 @@ else
     echo "   - output/aggregated_rvn_final.gpkg"
     echo "   - output/snapping_converted_bikelanes.fgb"
 fi
-echo "   - output/matched/ (gematchte OSM-Wege)"
+echo "   - output/map-matching/ (Ergebnisse und Reports des Map-Matchings)"
 echo "   - output-last-run/ (gesicherte Dateien vom vorherigen Lauf)"
 echo ""
 echo "🔍 Für QA-Zwecke:"
 echo "   - Verwende den Inspector: cd inspector && npm run dev"
-echo "   - Oder öffne das QGIS Projekt: QGIS/QGIS QA Processing.qgz"
-echo "   - Führe manuelle Tests durch: python testing/run_tests.py [--clip neukoelln|norden|sueden]"
+echo "   - Oder öffne das QGIS Projekt: QGIS QA Processing.qgz"
+echo "   - Führe die Validierung durch: ./run_validation.sh [--clip neukoelln|norden|sueden]"

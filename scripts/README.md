@@ -2,14 +2,6 @@
 
 Diese Scripts sind vorbereitende Schritte vor der Prozessierung, aber teilweise unabhängig von dieser. Die folgende Beschreibung ordnet die Scripts in der korrekten Verarbeitungsreihenfolge und zeigt deren Abhängigkeiten.
 
-## 🔧 Initiales Setup
-
-Um die benötigten Zwischen-Ordner für Ausgaben zu erstellen, sollte einmalig das Setup-Skript ausgeführt werden:
-
-```bash
-python scripts/setup.py
-```
-
 ## 📁 Datenvorverarbeitung (Unabhängig)
 
 ### TILDA-Daten vorbereiten
@@ -52,50 +44,23 @@ Das [`enrich_rvn_with_detailnetz.py`](./enrich_rvn_with_detailnetz.py) fügt feh
 
 ## 🚍 OSM-Daten Integration
 
-### LSA-Punkte aus OSM
-Das [`consolidated_osm_traffic_signals.py`](./consolidated_osm_traffic_signals.py) lädt Lichtsignalanlagen aus OpenStreetMap und konsolidiert sie im 35m-Radius für die Erfassung an Knotenpunkten.
-
-- **Input**: OpenStreetMap (automatisch)
-- **Output**: `output/traffic_signals/consolidated_traffic_signals.gpkg`
-
 ### Bushaltestellen auf RVN filtern
 Das [`filter_bus_stops_on_rvn.py`](./filter_bus_stops_on_rvn.py) filtert Bushaltestellen, die sich auf dem Radvorrangsnetz befinden (15m Puffer).
 
 - **Input**: `data/Stop-Positions-Bus-OSM.fgb`, `output/matching/vorrangnetz_buffered_15m_round.fgb`
 - **Output**: `output/bus_stops_on_rvn.fgb`
 
-## 📊 Analyse-Scripts (nach Hauptverarbeitung)
-
-### Kurze Schutzstreifen analysieren  
-Das [`analyze_short_schutzstreifen.py`](./analyze_short_schutzstreifen.py) identifiziert und analysiert kurze Schutzstreifen (<50m) und deren angrenzende Führungsformen.
-
-- **Input**: `output/berlin_snapping_network_enriched.fgb`, `output/bus_stops_on_rvn.fgb`
-- **Output**: Verschiedene CSV- und FGB-Dateien in `output/analysis/`
-
-### Snapping-Kandidaten analysieren
-Das [`analyze_snapping_candidates.py`](./analyze_snapping_candidates.py) analysiert TILDA-Kandidaten für spezifische SFIDs und zeigt detaillierte Prioritätsinformationen.
-
-- **Input**: `output/snapping_network_enriched.fgb`, `output/matched/matched_tilda_ways.fgb`
-- **Output**: Textdatei mit Kandidatenanalyse
-
 ## 📤 Export-Scripts
 
 ### GeoJSON-Konvertierung
 Das [`convert_to_geojson.py`](./convert_to_geojson.py) konvertiert Geodateien (GeoPackage, FlatGeoBuf) in GeoJSON-Format (WGS84).
-
-### RVN nach Bezirken extrahieren
-Das [`extract_rvn_by_bezirk.py`](./extract_rvn_by_bezirk.py) extrahiert das Radvorrangsnetz für jeden Berliner Bezirk als separate GeoJSON-Dateien.
-
-- **Input**: `data/Berlin Radvorrangsnetz.fgb`, `data/Berlin Bezirke.gpkg`
-- **Output**: `scripts/output/rvn_by_bezirk/{bezirk_name}.geojson`
 
 ## ⚡ Verarbeitungsreihenfolge (Zusammenfassung)
 
 Für die vollständige Verarbeitung sollten die Scripts in dieser Reihenfolge ausgeführt werden:
 
 ```bash
-# 1. Setup und Datenvorverarbeitung
-python scripts/setup.py
+# 1. Datenvorverarbeitung
 ./process_tilda_data.sh
 python scripts/assign_node_ids.py
 
@@ -107,8 +72,6 @@ python scripts/assign_node_ids.py
 
 # 4. Nachgelagerte Analysen (optional)
 python scripts/filter_bus_stops_on_rvn.py
-python scripts/analyze_short_schutzstreifen.py
-python scripts/analyze_snapping_candidates.py
 
 # 5. Export (optional)
 python scripts/convert_to_geojson.py

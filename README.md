@@ -69,7 +69,6 @@ source .venv/bin/activate && ./process_tilda_data.sh && ./process_rvn.sh && ./ex
 - `data-raw-tilda/` – Rohdaten aus den TILDA-Exporten (bikelanes, roads, roadsPathClasses)
 - `inspector/` – Code zu Web-basiertes Tool zur Qualitätssicherung der verarbeiteten Daten
 - `map-matching/` – Rust-Backend: HMM-/Viterbi-Map-Matching der TILDA-Wege auf das RVN (ersetzt Matching + Snapping)
-- `legacy/` – bisherige Python-Skripte für Matching und Snapping (nicht mehr verwendet)
 - `output/` – Alle durch die Verarbeitungsskripte erzeugten Ausgabedateien
 - `output-bbox/` – Ausgabedateien beschränkt auf einen bestimmten (`--view`) Bounding-Box-Bereich
 - `output-last-run/` – Backup der Ausgabedateien vom letzten Verarbeitungslauf
@@ -82,7 +81,7 @@ source .venv/bin/activate && ./process_tilda_data.sh && ./process_rvn.sh && ./ex
 Dieses Projekt überführt Fahrrad-Infrastrukturdaten aus OpenStreetMap (aufbereitet durch TILDA) in das strukturierte Berliner Detailnetz. Als Datenquellen dienen das Radvorrangsnetz (RVN), die TILDA-Exporte und das Berliner Straßennetz-Detailnetz. Die Verarbeitung erfolgt in mehreren automatisierten Schritten:
 
 1. **TILDA-Datenaufbereitung** (`process_tilda_data.sh`): Übersetzung und Anreicherung der TILDA-Rohdaten mit zusätzlichen Attributen und Kategorisierungen
-2. **Map-Matching** (`map-matching/`, Rust): Die TILDA-Wege werden per Hidden Markov Model und Viterbi auf die gerichteten RVN-Kanten gematcht. Jede Kante wird nach den Routen-Anteilen aufgeteilt und übernimmt die TILDA-Attribute. Das ersetzt das frühere Matching und Snapping (`legacy/`).
+2. **Map-Matching** (`map-matching/`, Rust): Die TILDA-Wege werden per Hidden Markov Model und Viterbi auf die gerichteten RVN-Kanten gematcht. Jede Kante wird nach den Routen-Anteilen aufgeteilt und übernimmt die TILDA-Attribute. Das ersetzt das frühere Matching und Snapping der 2025er-Pipeline (Tag `rvn-final-state`).
 3. **Aggregation** (`start_aggregation.py`): Zusammenführung mehrerer OSM-Ways auf einer Detailnetz-Kante zu einem einzigen Feature mit konsolidierten Attributen.
 
 Zusätzliche Skripte verarbeiten Knotenpunkte, Ampeln, Bushaltestellen und weitere Netzwerkelemente, welche in die Datensätze direkt oder indirekt einfließen. Das Wrapper-Skript `execute_processing.sh` führt alle Schritte automatisiert aus und unterstützt optionales Clipping auf bestimmte Regionen (Neukölln, Norden, Süden). Der Web-Inspector ermöglicht die visuelle Qualitätssicherung der Ergebnisse durch interaktive Kartendarstellung und Filterung nach Attributen.

@@ -1,6 +1,6 @@
 # Verarbeitungsskripte
 
-Das Processing-System verarbeitet TILDA-Rohdaten zu finalen Radvorrangnetz-Daten in 5 Schritten.
+Das Processing-System verarbeitet TILDA-Rohdaten zu finalen Radvorrangnetz-Daten in 4 Schritten.
 
 Das System nutzt Zwischendateien zur Beschleunigung, was zu **Caching-Problemen** führen kann. Bei Problemen: `output`-Ordner löschen oder `--clean-cache` verwenden.
 
@@ -21,22 +21,15 @@ Schneidet TILDA-Rohdaten (`data-raw-tilda/`) auf Berlin zu und übersetzt Attrib
 ### 2. Hauptverarbeitung
 
 ```bash
-./execute_processing.sh [--clip neukoelln|norden|sueden] [--start-step 1-5] [--clean-cache]
+./execute_processing.sh [--clip neukoelln|norden|sueden] [--start-step 1-4] [--clean-cache]
 ```
 
 ## Verarbeitungsschritte
 
-### Schritt 1: Matching (`start_matching.py`)
-Ordnet OSM-Wege räumlich dem Radvorrangsnetz zu. Wendet Filter an (Orthogonalität, manuelle Ein-/Ausschlüsse).
+### Schritt 1-2: Map-Matching (`map-matching/`, Rust)
+Matcht die TILDA-Wege per Hidden Markov Model und Viterbi auf die gerichteten RVN-Kanten, teilt jede Kante nach den Routen-Anteilen auf und überträgt die TILDA-Attribute. Details in [map-matching/README.md](../map-matching/README.md).
 
-**Ausgabe**: `output/matched/matched_tilda_ways.fgb`
-
-### Schritt 2: Snapping (`start_snapping.py`)
-Überträgt TILDA-Attribute richtungsgenau auf topologisches Straßennetz. Segmentiert Netz in 2,5m-Abschnitte, matcht TILDA-Wege im Puffer (30m), bestimmt Fahrtrichtung (`ri=0`/`ri=1`) per Winkelvergleich, merged identische Segmente zurück.
-
-**Besonderheit Kreisverkehre**: Bei geschlossenen Ringen (Start = Ende) wird Tangente am nächsten Punkt berechnet statt direkter Winkel.
-
-**Ausgabe**: `output/snapping_network_enriched.fgb`
+**Ausgabe**: `output/map-matching/network_enriched_hmm.fgb`, von `execute_processing.sh` nach `output/snapping_network_enriched.fgb` kopiert
 
 ### Schritt 3: Schutzstreifen-Konvertierung (`start_bikelane_conversion.py`)
 Konvertiert Schutzstreifen unter bestimmten Bedingungen:
@@ -58,21 +51,14 @@ Aggregiert Segmente nach `element_nr` + `ri` (Fahrtrichtung). Regelbasiert: län
 
 ## Python-Skripte im Überblick
 
-- **`start_matching.py`**: Schritt 1 - OSM-Matching mit Filtern
-- **`start_snapping.py`**: Schritt 2 - Richtungsgerechtes Snapping
 - **`start_bikelane_conversion.py`**: Schritt 3 - Schutzstreifen-Konvertierung
 - **`start_overriding.py`**: Schritt 3b - Override-Anwendung
 - **`start_aggregation.py`**: Schritt 4 - Finale Aggregation
 
 ### Helper-Module (`helpers/`)
 - `globals.py`: Konstanten (CRS, Pfade)
-- `snapping_calculations.py`: Winkelberechnungen, Richtungserkennung
 - `district_assignment.py`: Bezirkszuweisung
 - `clipping.py`: Regionale/Viewport-Zuschnitte
 - `convert_*.py`: Schutzstreifen-Konvertierungslogik
 - `override_edges.py`: Override-Verarbeitung
 
-### Matching-Module (`matching/`)
-- `orthogonal_filter.py`: Verwirft Segmente mit falscher Ausrichtung zum RVN
-- `manual_interventions.py`: Lädt `exclude_ways.txt` / `include_ways.txt`
-- `difference.py`: Berechnet Straßen ohne Radinfrastruktur
