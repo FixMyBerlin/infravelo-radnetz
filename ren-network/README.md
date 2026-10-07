@@ -53,13 +53,13 @@ In `ren-network/output/`:
 
 ## Maskierung
 
-`create_mask.py` erzeugt die Maskierung für die Karte: die Fläche Berlins ohne einen 25-m-Puffer um das Netz, auf 7 m vereinfacht. Sie entspricht der Maskierung des Radvorrangnetzes von 2025 in `tilda-static-data` (`region-berlin/radverkehrsnetz-vorrangnetz-mask`), die damals in QGIS entstand.
+`create_mask.py` erzeugt je eine Maskierung für das Gesamtnetz und das Kartierungs-Netz: die Fläche Berlins ohne einen 25-m-Puffer um das Netz, auf 7 m vereinfacht. Sie entspricht der Maskierung des Radvorrangnetzes von 2025 in `tilda-static-data` (`region-berlin/radverkehrsnetz-vorrangnetz-mask`), die damals in QGIS entstand.
 
 ```bash
 python ren-network/create_mask.py
 ```
 
-Ausgabe: `ren-network/output/ren_netz_maske.geojson` (WGS84, ein MultiPolygon). Nach jeder Änderung am Netz neu erzeugen.
+Ausgabe: `ren-network/output/ren_netz_gesamt_maske.geojson` und `ren_netz_kartierung_maske.geojson` (WGS84, je ein MultiPolygon). Nach jeder Änderung am Netz neu erzeugen.
 
 ## Prüfliste doppelter Kanten
 
