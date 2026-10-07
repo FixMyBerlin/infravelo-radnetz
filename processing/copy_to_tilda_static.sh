@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+# Alle Pfade sind relativ zu processing/
+cd "$(dirname "$0")"
+
 # Script to copy processed GeoJSON files to tilda-static-data repository
 # and update the updatedAt field in meta.ts files
 
@@ -46,7 +49,7 @@ else
 fi
 
 # Define relative paths
-TILDA_STATIC_BASE="../tilda-static-data/geojson/region-berlin"
+TILDA_STATIC_BASE="../../tilda-static-data/geojson/region-berlin"
 
 # File mappings: source -> destination
 declare -A FILE_MAP=(

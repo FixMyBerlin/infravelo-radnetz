@@ -351,7 +351,7 @@ def main():
     )
     
     # Pfade
-    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     input_file = os.path.join(base_dir, 'output', 'snapping_network_enriched.fgb')
     knotenpunkte_file = os.path.join(base_dir, 'data-raw-tilda', 'knotenpunkte_mit_id_und_bezirken.gpkg')
     output_file = os.path.join(base_dir, 'output', 'snapping_converted_at_intersections.fgb')

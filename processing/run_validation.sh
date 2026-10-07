@@ -23,6 +23,11 @@
 
 set -e  # Script bei Fehlern beenden
 
+# Alle Pfade sind relativ zu processing/
+cd "$(dirname "$0")"
+# Virtuelles Environment liegt im Projekt-Root
+VENV="$(cd .. && pwd)/.venv"
+
 # Farben für die Ausgabe
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -63,8 +68,8 @@ declare -a PASSED_VALIDATIONS=()
 declare -a FAILED_VALIDATIONS=()
 
 # Python-Executable bestimmen
-if [ -f ".venv/bin/python" ]; then
-    PYTHON=".venv/bin/python"
+if [ -f "$VENV/bin/python" ]; then
+    PYTHON="$VENV/bin/python"
 else
     PYTHON="python3"
 fi

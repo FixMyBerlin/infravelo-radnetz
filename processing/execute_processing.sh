@@ -30,6 +30,11 @@
 
 set -e  # Script bei Fehlern beenden
 
+# Alle Pfade sind relativ zu processing/
+cd "$(dirname "$0")"
+# Virtuelles Environment liegt im Projekt-Root
+VENV="$(cd .. && pwd)/.venv"
+
 # Array für Backup-Dateien
 declare -a BACKUP_FILES=()
 
@@ -184,9 +189,9 @@ if [[ -n "$CLIP_REGION" ]]; then
 fi
 
 # Prüfe ob .venv existiert
-if [ ! -d ".venv" ]; then
-    echo "❌ Fehler: .venv Verzeichnis nicht gefunden!"
-    echo "Bitte erstelle zuerst die virtuelle Umgebung mit:"
+if [ ! -d "$VENV" ]; then
+    echo "❌ Fehler: .venv Verzeichnis im Projekt-Root nicht gefunden!"
+    echo "Bitte erstelle zuerst im Projekt-Root die virtuelle Umgebung mit:"
     echo "python3 -m venv .venv"
     echo "source .venv/bin/activate"
     echo "pip install -r requirements.txt"
@@ -195,7 +200,7 @@ fi
 
 # Aktiviere virtuelles Environment automatisch
 echo "🔧 Aktiviere virtuelles Environment..."
-source .venv/bin/activate
+source "$VENV/bin/activate"
 
 # Log-Verzeichnis und Datei erstellen
 LOG_DIR="output/logs"
@@ -221,19 +226,6 @@ else
 fi
 
 echo "🚀 Starte infraVelo Radnetz Verarbeitungsprozess ab Schritt $START_STEP..."
-
-# Wechsle ins Hauptverzeichnis des Projekts
-cd "$(dirname "$0")"
-
-# Prüfe ob .venv existiert
-if [ ! -d ".venv" ]; then
-    echo "❌ Fehler: .venv Verzeichnis nicht gefunden!"
-    echo "Bitte erstelle zuerst die virtuelle Umgebung mit:"
-    echo "python3 -m venv .venv"
-    echo "source .venv/bin/activate"
-    echo "pip install -r requirements.txt"
-    exit 1
-fi
 
 # Sichere finale Ausgabedateien von vorherigem Lauf in output-last-run
 echo "💾 Sichere finale Dateien von vorherigem Lauf..."
@@ -338,11 +330,11 @@ if [[ $START_STEP -le 3 ]]; then
     create_backup "${BASE_OUT_DIR}/snapping_converted_bikelanes${SUFFIX}.fgb"
     
     if [[ -n "$CLIP_REGION" ]]; then
-        ./.venv/bin/python processing/start_bikelane_conversion.py --clip "$CLIP_REGION"
+        "$VENV/bin/python" start_bikelane_conversion.py --clip "$CLIP_REGION"
     elif [[ -n "$VIEW" ]]; then
-        ./.venv/bin/python processing/start_bikelane_conversion.py --view "$VIEW"
+        "$VENV/bin/python" start_bikelane_conversion.py --view "$VIEW"
     else
-        ./.venv/bin/python processing/start_bikelane_conversion.py
+        "$VENV/bin/python" start_bikelane_conversion.py
     fi
     if [ $? -ne 0 ]; then
         echo "❌ Fehler in Schritt 3: start_bikelane_conversion.py"
@@ -360,11 +352,11 @@ if [[ $START_STEP -le 3 ]]; then
     STEP3B_START=$(date +%s)
     echo "  - Wende Overrides auf konvertierte Bikelanes an..."
     if [[ -n "$CLIP_REGION" ]]; then
-        ./.venv/bin/python processing/start_overriding.py --clip "$CLIP_REGION"
+        "$VENV/bin/python" start_overriding.py --clip "$CLIP_REGION"
     elif [[ -n "$VIEW" ]]; then
-        ./.venv/bin/python processing/start_overriding.py --view "$VIEW"
+        "$VENV/bin/python" start_overriding.py --view "$VIEW"
     else
-        ./.venv/bin/python processing/start_overriding.py
+        "$VENV/bin/python" start_overriding.py
     fi
     if [ $? -ne 0 ]; then
         echo "❌ Fehler in Schritt 3b: start_overriding.py"
@@ -389,11 +381,11 @@ if [[ $START_STEP -le 4 ]]; then
     create_backup "${BASE_OUT_DIR}/aggregated_rvn_final${SUFFIX}.fgb"
     
     if [[ -n "$CLIP_REGION" ]]; then
-        ./.venv/bin/python processing/start_aggregation.py --clip "$CLIP_REGION" --input "./output/snapping_with_overrides_${CLIP_REGION}.fgb"
+        "$VENV/bin/python" start_aggregation.py --clip "$CLIP_REGION" --input "./output/snapping_with_overrides_${CLIP_REGION}.fgb"
     elif [[ -n "$VIEW" ]]; then
-        ./.venv/bin/python processing/start_aggregation.py --view "$VIEW" --input ./output-bbox/snapping_with_overrides_view.fgb
+        "$VENV/bin/python" start_aggregation.py --view "$VIEW" --input ./output-bbox/snapping_with_overrides_view.fgb
     else
-        ./.venv/bin/python processing/start_aggregation.py --input ./output/snapping_with_overrides.fgb
+        "$VENV/bin/python" start_aggregation.py --input ./output/snapping_with_overrides.fgb
     fi
     if [ $? -ne 0 ]; then
         echo "❌ Fehler in Schritt 4: start_aggregation.py"

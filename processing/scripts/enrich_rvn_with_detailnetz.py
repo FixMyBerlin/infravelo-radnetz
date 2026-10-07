@@ -23,7 +23,7 @@ from pathlib import Path
 from shapely.geometry import MultiLineString
 
 # Pfad zur processing-Verzeichnis hinzufügen
-processing_path = Path(__file__).parent.parent / "processing"
+processing_path = Path(__file__).parent.parent
 sys.path.append(str(processing_path))
 
 try:

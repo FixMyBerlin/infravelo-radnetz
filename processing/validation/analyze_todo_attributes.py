@@ -23,7 +23,7 @@ RESET = '\033[0m'
 
 # Füge processing-Verzeichnis zum Python-Pfad hinzu
 script_dir = Path(__file__).parent
-processing_dir = script_dir.parent / "processing"
+processing_dir = script_dir.parent
 sys.path.insert(0, str(processing_dir))
 
 # Importiere die Attributlisten aus start_snapping.py

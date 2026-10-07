@@ -83,15 +83,16 @@ fi
 # Variablen definieren
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$SCRIPT_DIR"
+VENV="$(cd "$PROJECT_ROOT/.." && pwd)/.venv"
 CLIP_SCRIPT="$PROJECT_ROOT/scripts/clip_tilda_data.py"
 INPUT_DIR="$PROJECT_ROOT/data-raw-tilda"
 OUTPUT_DIR="$PROJECT_ROOT/data"
 CLIP_FEATURES="$PROJECT_ROOT/data/Berlin Bezirke.gpkg"
 
 # Prüfe ob .venv existiert
-if [ ! -d ".venv" ]; then
-    echo "❌ Fehler: .venv Verzeichnis nicht gefunden!"
-    echo "Bitte erstelle zuerst die virtuelle Umgebung mit:"
+if [ ! -d "$VENV" ]; then
+    echo "❌ Fehler: .venv Verzeichnis im Projekt-Root nicht gefunden!"
+    echo "Bitte erstelle zuerst im Projekt-Root die virtuelle Umgebung mit:"
     echo "python3 -m venv .venv"
     echo "source .venv/bin/activate"
     echo "pip install -r requirements.txt"
@@ -100,10 +101,10 @@ fi
 
 # Aktiviere virtuelles Environment automatisch
 echo "🔧 Aktiviere virtuelles Environment..."
-source "$PROJECT_ROOT/.venv/bin/activate"
+source "$VENV/bin/activate"
 
 # Setze PYTHONPATH damit die helper Module gefunden werden
-export PYTHONPATH="$PROJECT_ROOT/processing:$PYTHONPATH"
+export PYTHONPATH="$PROJECT_ROOT:$PYTHONPATH"
 
 # Log-Verzeichnis und Datei erstellen
 LOG_DIR="$PROJECT_ROOT/output/logs"

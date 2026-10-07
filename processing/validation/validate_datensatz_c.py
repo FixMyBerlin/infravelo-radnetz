@@ -26,7 +26,7 @@ import pandas as pd
 from pathlib import Path
 
 # Import der Helper aus processing
-sys.path.append(str(Path(__file__).parent.parent / 'processing'))
+sys.path.append(str(Path(__file__).parent.parent))
 from helpers.globals import DEFAULT_CRS
 
 # ANSI Farb-Codes

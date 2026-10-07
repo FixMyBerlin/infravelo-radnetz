@@ -591,7 +591,7 @@ def main():
     )
 
     # Pfade
-    project_dir = Path(__file__).parent.parent
+    project_dir = Path(__file__).parent
     output_dir = project_dir / "output"
     snapping_dir = output_dir / "snapping"
     matched_dir = output_dir / "matched"

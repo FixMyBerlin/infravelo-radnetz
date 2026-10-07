@@ -345,7 +345,7 @@ def analyze_schutzstreifen_coverage(
 
 def main():
     """Hauptfunktion"""
-    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     
     # Pfade - nutze die vorhandenen regionalen Dateien
     input_file = os.path.join(base_dir, 'output', 'snapping_with_overrides.fgb')
