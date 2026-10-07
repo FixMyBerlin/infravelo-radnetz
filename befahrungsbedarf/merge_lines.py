@@ -38,9 +38,10 @@ DIRECTION_SAMPLE_M = 10
 # Ab diesem Abstand gelten zwei Enden als Lücke und nicht als gemeinsamer Punkt
 TOUCHING_M = 0.5
 
-# Wege verschiedener Gruppen werden nicht verbunden: 1 und 2 haben keine
-# Mapillary-Fotos, 3 hat Fotos ohne Panorama und ist eine Nachbesserung.
-PRIORITY_GROUPS = {1: 'ohne_fotos', 2: 'ohne_fotos', 3: 'ohne_panorama'}
+# Wege aller Prioritäten werden verbunden. Ausnahme: Ein zusammenhängendes
+# Stück derselben Priorität ab dieser Länge bleibt eine eigene Strecke, damit
+# lange Abschnitte mit geringerer Dringlichkeit getrennt geplant werden können.
+SEPARATE_FROM_M = {2: 2000, 3: 1000}
 
 LINKS_ZOOM = 16
 MAPILLARY_MAP_URL = 'https://www.osm-verkehrswende.org/mapillary/map/?map={map}&anzeige=current_all'
@@ -57,15 +58,15 @@ def _end_directions(geom) -> tuple[np.ndarray, np.ndarray]:
     return start / np.hypot(*start), end / np.hypot(*end)
 
 
-def find_links(ways: gpd.GeoDataFrame) -> list[tuple[int, int]]:
+def find_links(ways: gpd.GeoDataFrame, groups: np.ndarray) -> list[tuple[int, int]]:
     """
-    Sucht die Verbindungen zwischen Wegenden. Ein Ende ist 2 * Wegposition + 0
-    (Anfang) bzw. + 1 (Ende). Rückgabe: Paare verbundener Enden.
+    Sucht die Verbindungen zwischen Wegenden; verbunden werden nur Wege derselben
+    Gruppe. Ein Ende ist 2 * Wegposition + 0 (Anfang) bzw. + 1 (Ende).
+    Rückgabe: Paare verbundener Enden.
     """
     coords = [shapely.get_coordinates(geom) for geom in ways.geometry]
     points = np.array([xy for way in coords for xy in (way[0], way[-1])])
     directions = np.array([d for geom in ways.geometry for d in _end_directions(geom)])
-    groups = ways['prioritaet'].map(PRIORITY_GROUPS).to_numpy()
 
     tree = shapely.STRtree(shapely.points(points))
     first, second = tree.query(shapely.points(points), predicate='dwithin', distance=MAX_GAP_M)
@@ -134,6 +135,22 @@ def _chains(way_count: int, links: list[tuple[int, int]]) -> list[list[tuple[int
     return chains
 
 
+def _merge_groups(ways: gpd.GeoDataFrame) -> np.ndarray:
+    """
+    Gruppe je Weg: Lange Stücke einer Priorität (SEPARATE_FROM_M) bleiben unter
+    sich, alle übrigen Wege dürfen miteinander verbunden werden.
+    """
+    priorities = ways['prioritaet'].to_numpy()
+    lengths = ways.geometry.length.to_numpy()
+    groups = np.full(len(ways), 'gemischt', dtype=object)
+    for chain in _chains(len(ways), find_links(ways, priorities)):
+        members = [way for way, _ in chain]
+        priority = priorities[members[0]]
+        if lengths[members].sum() >= SEPARATE_FROM_M.get(priority, np.inf):
+            groups[members] = f'prio_{priority}_lang'
+    return groups
+
+
 def _german(value: float) -> str:
     return f'{value:.2f}'.replace('.', ',')
 
@@ -162,7 +179,7 @@ def merge_lines(ways: gpd.GeoDataFrame, simplify_m: float) -> tuple[gpd.GeoDataF
     entfernten kürzeren Strecken, beide im CRS der Eingabe.
     """
     ways = ways.reset_index(drop=True)
-    links = find_links(ways)
+    links = find_links(ways, _merge_groups(ways))
     rows = []
     for chain in _chains(len(ways), links):
         parts = ways.iloc[[way for way, _ in chain]]

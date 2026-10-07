@@ -25,8 +25,8 @@ python befahrungsbedarf/build.py
 | Befahrungsbedarf | 5927 Wege, 788.6 km |
 | davon Priorität 1 / 2 / 3 | 143.1 / 293.4 / 352.1 km |
 | Wegen Busspur mit Radfreigabe entfallen | 21 Wege, 3.3 km |
-| Strecken zum Befahren | 2813 Strecken, 781.7 km, Median 149 m |
-| Strecken unter 30 m entfernt | 598 Strecken, 14.5 km |
+| Strecken zum Befahren | 2682 Strecken, 782.8 km, Median 158 m |
+| Strecken unter 30 m entfernt | 579 Strecken, 14.0 km |
 <!-- stand:end -->
 
 Das Startdatum der Mapillary-Fotos wandert mit jedem Abgleich weiter (siehe [Fotos](#fotos)). Wir dürfen Fotos ab 2024 verwenden; liegt das Startdatum in 2024 oder später, ist das erfüllt.
@@ -106,7 +106,7 @@ Wird später mehr Beschilderung erfasst, entfallen weniger Wege.
 1. **Auf die Straßenseite versetzen**: An der Mittellinie erfasste Radwege (`way/123/cycleway/left`) liegen in TILDA auf der Mittellinie, links und rechts also aufeinander. Sie werden um `offset` (halbe Straßenbreite) zur Seite versetzt, damit sichtbar ist, ob eine oder beide Seiten befahren werden müssen. Linke Seiten laufen danach in Fahrtrichtung.
 1. **Fortsetzung suchen**: Zwei Wegenden werden verbunden, wenn das zweite in Verlängerung des ersten liegt: höchstens 20 m entfernt, höchstens 30° abgeknickt und höchstens 5 m seitlich versetzt (damit die Straßenseite nicht wechselt).
 2. **Eindeutig**: Jedes Ende wird nur einmal verbunden. Bei mehreren Kandidaten gewinnt die nächste und geradeste Fortsetzung.
-3. **Prioritäten**: 1 und 2 (keine Mapillary-Fotos) werden miteinander verbunden, 3 (Fotos ohne Panorama) nur untereinander.
+3. **Prioritäten**: Wege aller Prioritäten werden verbunden. Ausnahme: Ein zusammenhängendes Stück mit Priorität 3 ab 1 km oder mit Priorität 2 ab 2 km bleibt eine eigene Strecke. `prioritaet_stats` nennt die Kilometer je Priorität.
 4. **Lücken** werden mit einer geraden Linie geschlossen, die Strecke wird danach vereinfacht.
 5. **Kurze Reste**: Strecken unter 30 m entfallen, unabhängig von der Priorität (`entfernt_kurz.geojson`).
 
