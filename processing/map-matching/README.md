@@ -7,11 +7,13 @@ Aggregation) können sie direkt weiterverwenden.
 
 ## Verwendung
 
+Alle Datenpfade in `config/default.toml` sind relativ zu `processing/`.
+
 ```sh
-cd map-matching
+cd processing/map-matching
 cargo build --release
 
-# Ganz Berlin (schreibt output/map-matching/network_enriched_hmm.fgb)
+# Ganz Berlin (schreibt processing/output/map-matching/network_enriched_hmm.fgb)
 cargo run --release -- run
 
 # Region + Debug-Layer + direkte Evaluation gegen die Referenz

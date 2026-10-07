@@ -2,6 +2,8 @@
 
 Diese Scripts sind vorbereitende Schritte vor der Prozessierung, aber teilweise unabhängig von dieser. Die folgende Beschreibung ordnet die Scripts in der korrekten Verarbeitungsreihenfolge und zeigt deren Abhängigkeiten.
 
+Alle Aufrufe erfolgen aus `processing/` heraus, mit aktiviertem `.venv` aus dem Projekt-Root. Pfade wie `data/` und `output/` sind relativ zu `processing/`.
+
 ## 📁 Datenvorverarbeitung (Unabhängig)
 
 ### TILDA-Daten vorbereiten

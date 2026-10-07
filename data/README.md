@@ -18,7 +18,7 @@ Diese Dateien werden nicht von Skripten generiert und müssen manuell aktualisie
 
 ## Generierte Dateien (durch `process_tilda_data.sh`)
 
-Diese Dateien werden durch `./process_tilda_data.sh` aus den Rohdaten in `data-raw-tilda/` erzeugt:
+Diese Dateien werden durch `processing/process_tilda_data.sh` aus den Rohdaten in `processing/data-raw-tilda/` erzeugt:
 
 - `TILDA Radwege Berlin.fgb` – Auf Berlin zugeschnittene Radwege aus TILDA, basierend auf OpenStreetMap.
 - `TILDA Straßen Berlin.fgb` – Auf Berlin zugeschnittene Straßen aus TILDA, basierend auf OpenStreetMap.

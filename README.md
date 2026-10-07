@@ -2,89 +2,48 @@
 
 Dieses Projekt hat zum Ziel, bereits verarbeitete Fahrrad-Geodaten aus [TILDA](https://tilda-geo.de/) (basierend auf OpenStreetMap) in das Berliner [Detailnetz](https://gdi.berlin.de/geonetwork/geonetwork/api/records/cf374cd3-d0b8-3e6a-92c3-75e18dd595a1) zu überführen.
 
-## QA Inspector
-Der Inspector dient der Qualitätssicherung (QA).
+## Ordnerstruktur
 
-Starte den Inspector mit:
+Jeder Ordner ist für eine Aufgabe zuständig und hat eine eigene README.
+
+- [`processing/`](./processing/README.md) – Pipeline TILDA → Radvorrangnetz: TILDA- und RVN-Aufbereitung, Map-Matching (Rust), Schutzstreifen-Konvertierung, Overrides, Aggregation, Validierung. Mit eigenen Outputs.
+- [`ren-network/`](./ren-network/README.md) – Einheitliches Netz für REN+ aus Radverkehrsnetz, Hauptstraßennetz und Radschnellverbindungen.
+- [`inspector/`](./inspector/README.md) – Web-Tool zur Qualitätssicherung der verarbeiteten Daten.
+- [`data/`](./data/README.md) – Gemeinsame Eingangsdaten (Detailnetz, Radvorrangsnetz, Bezirke, manuelle Listen).
+
+## Setup
+
+Python-Abhängigkeiten werden in einem gemeinsamen virtuellen Environment im Projekt-Root installiert:
+
 ```sh
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+Für das Map-Matching wird zusätzlich Rust (`cargo`) benötigt.
+
+## Schnellstart
+
+```sh
+# Komplette Verarbeitung (Details in processing/README.md)
+cd processing
+./process_tilda_data.sh && ./process_rvn.sh && ./execute_processing.sh && ./run_validation.sh
+
+# REN+-Netz erzeugen
+python ren-network/unify_networks.py
+
+# QA Inspector
 cd inspector && npm run dev
 ```
 
-Alternativ kannst das QGIS-Projekt `QGIS QA Processing.qgz` verwendet werden, das die verschiedenen Ausgabedateien visualisiert.
+## Stand 2025 (Radvorrangnetz)
 
-## RVN Prozessierung
-
-Das Verarbeitungsscript nutzt Python und mehrere Bibliotheken.
-
-Es empfiehlt sich, ein virtuelles Python-Environment (`venv`) anzulegen und die Abhängigkeiten aus `requirements.txt` zu installieren.
-
-Nach dem Erstellen des Environments führe folgende Befehle in der Projekt-Root aus:
-```sh
-# Falls noch nicht vorhanden: venv anlegen
-python3 -m venv .venv
-
-# In einer neuen Shell das venv aktivieren
-source .venv/bin/activate
-
-# Abhängigkeiten installieren
-pip install -r requirements.txt
-
-# Die Verarbeitungs-Schritte müssen in dieser Reihenfolge ausgeführt werden
-./process_tilda_data.sh
-
-# Matching + Snapping: HMM-/Viterbi-Map-Matching in Rust (siehe map-matching/README.md)
-(cd map-matching && cargo run --release -- run)
-cp output/map-matching/network_enriched_hmm.fgb output/snapping_network_enriched.fgb
-./.venv/bin/python processing/start_bikelane_conversion.py
-./.venv/bin/python processing/start_overriding.py
-./.venv/bin/python processing/start_aggregation.py --input ./output/snapping_with_overrides.fgb
-```
+Die Verarbeitung von 2025 mit dem Python-Matching und -Snapping ist im Tag `rvn-final-state` archiviert:
 
 ```sh
-# Kurzvariante zur Ausführung aller Schritte für ein bestimmtes Gebiet:
-# --clip <region>  Clips alle Daten auf eine Region (neukoelln, norden, sueden)
-
-# Vorher ausführbar machen: chmod +x execute_processing.sh
-# TILDA Daten müssen in ./data-raw-tilda liegen
-./process_tilda_data.sh
-./process_rvn.sh
-./execute_processing.sh
-
-# Alle drei hintereinander
-./process_tilda_data.sh && ./process_rvn.sh && ./execute_processing.sh
-
-# Falls GeoJSONs gewünscht sind
-python ./scripts/convert_to_geojson.py
-
-# Konvertiere die gesonderten Knotenpunkte
-python ./scripts/convert_knotenpunkte.py
-
-# Alle Schritte durchführen
-source .venv/bin/activate && ./process_tilda_data.sh && ./process_rvn.sh && ./execute_processing.sh && ./run_validation.sh && python ./scripts/convert_to_geojson.py && ./copy_to_tilda_static.sh
+git worktree add ../radnetz-rvn-2025 rvn-final-state
 ```
-
-## Projekt-Ordnerstruktur
-
-- `data/` – Eingangsdaten wie Detailnetz, Radvorrangsnetz und weitere Geodaten
-- `data-raw-tilda/` – Rohdaten aus den TILDA-Exporten (bikelanes, roads, roadsPathClasses)
-- `inspector/` – Code zu Web-basiertes Tool zur Qualitätssicherung der verarbeiteten Daten
-- `map-matching/` – Rust-Backend: HMM-/Viterbi-Map-Matching der TILDA-Wege auf das RVN (ersetzt Matching + Snapping)
-- `output/` – Alle durch die Verarbeitungsskripte erzeugten Ausgabedateien
-- `output-bbox/` – Ausgabedateien beschränkt auf einen bestimmten (`--view`) Bounding-Box-Bereich
-- `output-last-run/` – Backup der Ausgabedateien vom letzten Verarbeitungslauf
-- `processing/` – Python-Skripte für Konvertierung, Overrides und Aggregation der Geodaten
-- `scripts/` – Hilfs- und Wrapper-Skripte zur Automatisierung der Verarbeitung
-- `validation/` – Skripte und Daten zur Validierung der Ergebnisse
-
-## Das Projekt
-
-Dieses Projekt überführt Fahrrad-Infrastrukturdaten aus OpenStreetMap (aufbereitet durch TILDA) in das strukturierte Berliner Detailnetz. Als Datenquellen dienen das Radvorrangsnetz (RVN), die TILDA-Exporte und das Berliner Straßennetz-Detailnetz. Die Verarbeitung erfolgt in mehreren automatisierten Schritten:
-
-1. **TILDA-Datenaufbereitung** (`process_tilda_data.sh`): Übersetzung und Anreicherung der TILDA-Rohdaten mit zusätzlichen Attributen und Kategorisierungen
-2. **Map-Matching** (`map-matching/`, Rust): Die TILDA-Wege werden per Hidden Markov Model und Viterbi auf die gerichteten RVN-Kanten gematcht. Jede Kante wird nach den Routen-Anteilen aufgeteilt und übernimmt die TILDA-Attribute. Das ersetzt das frühere Matching und Snapping der 2025er-Pipeline (Tag `rvn-final-state`).
-3. **Aggregation** (`start_aggregation.py`): Zusammenführung mehrerer OSM-Ways auf einer Detailnetz-Kante zu einem einzigen Feature mit konsolidierten Attributen.
-
-Zusätzliche Skripte verarbeiten Knotenpunkte, Ampeln, Bushaltestellen und weitere Netzwerkelemente, welche in die Datensätze direkt oder indirekt einfließen. Das Wrapper-Skript `execute_processing.sh` führt alle Schritte automatisiert aus und unterstützt optionales Clipping auf bestimmte Regionen (Neukölln, Norden, Süden). Der Web-Inspector ermöglicht die visuelle Qualitätssicherung der Ergebnisse durch interaktive Kartendarstellung und Filterung nach Attributen.
 
 ## Lizenzen
 
@@ -92,4 +51,4 @@ Der Quellcode der Verarbeitungsskripte und des Inspectors steht unter der AGPL-3
 
 Die verwendeten Roh-Geodaten sind pro Datei lizenziert, siehe [data/LIZENZEN.md](./data/LIZENZEN.md) (Deutsch).
 
-Die durch die Skripte erzeugten Geodaten sind in [output/LIZENZEN.md](./output/LIZENZEN.md) (Deutsch) beschrieben. Die erzeugten Dateien sind nicht im Repository enthalten, lassen sich aber aus den Rohdaten reproduzieren.
+Die durch die Skripte erzeugten Geodaten sind in [processing/output/LIZENZEN.md](./processing/output/LIZENZEN.md) (Deutsch) beschrieben. Die erzeugten Dateien sind nicht im Repository enthalten, lassen sich aber aus den Rohdaten reproduzieren.
