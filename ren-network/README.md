@@ -47,6 +47,16 @@ In `ren-network/output/`:
 - `ren_netz_vereinheitlicht.geojson`: dasselbe Netz in WGS84, z. B. für [play.placemark.io](https://play.placemark.io)
 - `element_nr_nicht_im_detailnetz.csv`: Kanten, deren `element_nr` im Detailnetz fehlt
 
+## Maskierung
+
+`create_mask.py` erzeugt die Maskierung für die Karte: die Fläche Berlins ohne einen 25-m-Puffer um das Netz, auf 7 m vereinfacht. Sie entspricht der Maskierung des Radvorrangnetzes von 2025 in `tilda-static-data` (`region-berlin/radverkehrsnetz-vorrangnetz-mask`), die damals in QGIS entstand.
+
+```bash
+python ren-network/create_mask.py
+```
+
+Ausgabe: `output/ren-network/ren_netz_maske.geojson` (WGS84, ein MultiPolygon). Nach jeder Änderung am Netz neu erzeugen.
+
 ## Prüfliste doppelter Kanten
 
 `audit_double_edges.py` sucht Kanten, die denselben Weg doppelt abbilden. Es entfernt nichts; was nach der Prüfung wegfallen soll, kommt in `ausschluss_element_nr.csv`.
