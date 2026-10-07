@@ -13,6 +13,8 @@ Eingabe (befahrungsbedarf/data/, siehe download_data.sh):
 Ausgabe (befahrungsbedarf/output/):
 - befahrungsbedarf.geojson  Wege mit Befahrungsbedarf
 - wege_am_netz.geojson      alle Wege am Netz inkl. Klassifizierung
+- befahrung_strecken.geojson  Wege mit Befahrungsbedarf, zu Strecken verbunden (merge_lines.py)
+- entfernt_kurz.geojson     Strecken, die nach dem Verbinden zu kurz sind
 - statistik.json            Kilometer je Klasse und Datenstände
 
 Zusätzlich wird der Abschnitt "Stand des letzten Laufs" in der README.md aktualisiert.
@@ -31,6 +33,8 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 import shapely
+
+from merge_lines import MAX_ANGLE_DEG, MAX_GAP_M, MAX_LATERAL_M, MIN_LENGTH_M as MIN_LINE_LENGTH_M, merge_lines
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
@@ -289,6 +293,7 @@ def update_readme(statistik: dict):
     fotos = stand['mapillary_fotos'] or {'von': 'unbekannt', 'bis': 'unbekannt'}
     tilda = (stand['tilda_export'] or {}).get('bikelanes', 'unbekannt')
     bedarf = statistik['befahrungsbedarf']
+    strecken = statistik['strecken']
     prio = bedarf['km_je_prioritaet']
     lines = [
         '| | |',
@@ -301,6 +306,9 @@ def update_readme(statistik: dict):
         f"| Wege am Netz | {statistik['wege_am_netz']['anzahl']} Wege, {statistik['wege_am_netz']['km']} km |",
         f"| Befahrungsbedarf | {bedarf['anzahl']} Wege, {bedarf['km']} km |",
         f"| davon Priorität 1 / 2 / 3 | {prio.get('1', 0)} / {prio.get('2', 0)} / {prio.get('3', 0)} km |",
+        f"| Wegen Busspur mit Radfreigabe entfallen | {bedarf['entfallen_wegen_busspur']['anzahl']} Wege, {bedarf['entfallen_wegen_busspur']['km']} km |",
+        f"| Strecken zum Befahren | {strecken['anzahl']} Strecken, {strecken['km']} km, Median {strecken['median_m']} m |",
+        f"| Strecken unter {MIN_LINE_LENGTH_M} m entfernt | {strecken['entfernt_kurz']['anzahl']} Strecken, {strecken['entfernt_kurz']['km']} km |",
     ]
     readme = README_PATH.read_text()
     start = readme.index(README_START) + len(README_START)
@@ -324,11 +332,14 @@ def main():
     ways['prioritaet'] = ways['prioritaet'].astype('Int64')
 
     needed = ways[ways['bedarf'] == 'ja']
+    lines, short_lines = merge_lines(needed, SIMPLIFY_M)
     ml_data_from = (read_json(DATA_DIR / 'ml_metadata.json') or {}).get('ml_data_from')
     statistik = {
         'erstellt': datetime.now().isoformat(timespec='seconds'),
         'parameter': {'buffer_m_by_class': BUFFER_M_BY_CLASS, 'buffer_m_default': BUFFER_M_DEFAULT,
-                      'min_length_m': MIN_LENGTH_M, 'simplify_m': SIMPLIFY_M},
+                      'min_length_m': MIN_LENGTH_M, 'simplify_m': SIMPLIFY_M,
+                      'strecken': {'max_gap_m': MAX_GAP_M, 'max_angle_deg': MAX_ANGLE_DEG,
+                                   'max_lateral_m': MAX_LATERAL_M, 'min_length_m': MIN_LINE_LENGTH_M}},
         'datenstand': {
             'tilda_export': read_json(DATA_DIR / 'tilda_export.json'),
             'mapillary': ml_data_from,
@@ -347,6 +358,13 @@ def main():
             'km_je_road': km_by(needed, 'road'),
             'km_je_radverkehrsnetz': km_by(needed, 'radverkehrsnetz'),
         },
+        'strecken': {
+            'anzahl': len(lines),
+            'km': round(lines['laenge_m'].sum() / 1000, 1),
+            'median_m': round(lines['laenge_m'].median()),
+            'km_je_prioritaet': km_by(lines, 'prioritaet'),
+            'entfernt_kurz': {'anzahl': len(short_lines), 'km': round(short_lines['laenge_m'].sum() / 1000, 1)},
+        },
         'km_je_kfz_bild': km_by(ways, 'kfz_bild'),
         'km_je_mapillary_coverage': km_by(ways, 'mapillary_coverage'),
     }
@@ -360,6 +378,13 @@ def main():
         gdf.to_file(path, driver='GeoJSON', COORDINATE_PRECISION=6)
         logging.info(f'{path.name}: {len(gdf)} Features')
 
+    # Strecken sind schon vereinfacht
+    for name, gdf in [('befahrung_strecken', lines), ('entfernt_kurz', short_lines)]:
+        path = OUTPUT_DIR / f'{name}.geojson'
+        gdf.to_crs('EPSG:4326').to_file(path, driver='GeoJSON', COORDINATE_PRECISION=6)
+        logging.info(f'{path.name}: {len(gdf)} Features')
+
+    logging.info(json.dumps(statistik['strecken'], indent=2, ensure_ascii=False))
     logging.info(json.dumps(statistik['befahrungsbedarf'], indent=2, ensure_ascii=False))
 
 

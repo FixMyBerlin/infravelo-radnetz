@@ -24,6 +24,9 @@ python befahrungsbedarf/build.py
 | Wege am Netz | 39081 Wege, 3513.1 km |
 | Befahrungsbedarf | 5927 Wege, 788.6 km |
 | davon Priorität 1 / 2 / 3 | 143.1 / 293.4 / 352.1 km |
+| Wegen Busspur mit Radfreigabe entfallen | 21 Wege, 3.3 km |
+| Strecken zum Befahren | 2766 Strecken, 781.8 km, Median 151 m |
+| Strecken unter 30 m entfernt | 594 Strecken, 14.4 km |
 <!-- stand:end -->
 
 Das Startdatum der Mapillary-Fotos wandert mit jedem Abgleich weiter (siehe [Fotos](#fotos)). Wir dürfen Fotos ab 2024 verwenden; liegt das Startdatum in 2024 oder später, ist das erfüllt.
@@ -49,7 +52,8 @@ Das Startdatum der Mapillary-Fotos wandert mit jedem Abgleich weiter (siehe [Fot
 2. **Wege am Netz**: Ein Weg bleibt, wenn mindestens 50 % seiner Länge im Puffer um die Netzkanten liegen (Pufferbreiten siehe unten). Wege unter 20 m entfallen. Die Richtung wird nicht geprüft, Querungen und kurze Stücke von Seitenstraßen bleiben also enthalten.
 3. **Netzattribute** der Kante, die dem Wegmittelpunkt am nächsten liegt.
 4. **Klassifizierung** nach den Regeln unten, danach die Busspur-Regel.
-5. **Ausgabe** als GeoJSON (WGS84), Geometrie mit 1 m Toleranz vereinfacht.
+5. **Strecken**: Wege mit Bedarf werden zu möglichst langen, geraden Strecken verbunden, kurze Reste entfallen (siehe [Strecken](#strecken)).
+6. **Ausgabe** als GeoJSON (WGS84), Geometrie mit 1 m Toleranz vereinfacht.
 
 Die Stellschrauben (`BUFFER_M_BY_CLASS`, `MIN_SHARE`, `MIN_LENGTH_M`, `SIMPLIFY_M`) und die Regel-Listen stehen oben in `build.py`.
 
@@ -95,11 +99,37 @@ Wie im Abgleich 2025 gewinnt eine Busspur mit Radfreigabe (`sharedBusLane*`) geg
 
 Wird später mehr Beschilderung erfasst, entfallen weniger Wege.
 
+## Strecken
+
+`merge_lines.py` verbindet die Wege mit Bedarf, damit beim Befahren zusammenhängende Strecken statt vieler kurzer Stücke entstehen. Die Schwellen stehen oben im Skript.
+
+1. **Fortsetzung suchen**: Zwei Wegenden werden verbunden, wenn das zweite in Verlängerung des ersten liegt: höchstens 20 m entfernt, höchstens 30° abgeknickt und höchstens 5 m seitlich versetzt (damit die Straßenseite nicht wechselt).
+2. **Eindeutig**: Jedes Ende wird nur einmal verbunden. Bei mehreren Kandidaten gewinnt die nächste und geradeste Fortsetzung, bevorzugt auf derselben Seite der Mittellinie.
+3. **Prioritäten**: 1 und 2 (keine Mapillary-Fotos) werden miteinander verbunden, 3 (Fotos ohne Panorama) nur untereinander.
+4. **Lücken** werden mit einer geraden Linie geschlossen, die Strecke wird danach vereinfacht.
+5. **Kurze Reste**: Strecken unter 30 m entfallen, unabhängig von der Priorität (`entfernt_kurz.geojson`).
+
+Attribute je Strecke:
+
+| Attribut | Inhalt |
+|---|---|
+| `id` | Schlüssel aus erster und letzter OSM-ID und der Anzahl der Wege (`w123-w456-n7`). Links und rechts an der Mittellinie erfasste Wege liegen aufeinander und teilen sich die OSM-IDs; die zweite Strecke bekommt dann `-2` angehängt |
+| `osm_ids` | OSM-IDs der Wege in Reihenfolge entlang der Strecke, durch Semikolon getrennt |
+| `name` | Straßenname mit dem größten Längenanteil |
+| `prioritaet` | Dringlichste Priorität der Wege (kleinste Zahl) |
+| `prioritaet_stats` | Aufteilung, z. B. `3,00 km, davon 1,00 km Prio 1, 2,00 km Prio 2` |
+| `laenge_m`, `anzahl_teile` | Länge inkl. geschlossener Lücken, Anzahl der Wege |
+| `befahrung_links_markdown` | Markdown-Links zur Mapillary-Abdeckung (Kartenmitte = Streckenmitte) und zum Routing (Streckenanfang bis -ende) |
+
+Die übrigen Attribute je Weg stehen in `wege_am_netz.geojson`.
+
 ## Ausgabe (`output/`, nicht versioniert)
 
 | Datei | Inhalt |
 |---|---|
-| `befahrungsbedarf.geojson` | Wege mit `bedarf=ja` |
+| `befahrung_strecken.geojson` | Strecken zum Befahren: Wege mit `bedarf=ja`, verbunden |
+| `entfernt_kurz.geojson` | Strecken unter 30 m, die nach dem Verbinden entfallen |
+| `befahrungsbedarf.geojson` | Einzelne Wege mit `bedarf=ja` |
 | `wege_am_netz.geojson` | alle Wege am Netz inkl. Klassifizierung |
 | `statistik.json` | Kilometer je Klasse, Parameter und Datenstände |
 
