@@ -8,6 +8,7 @@ Jeder Ordner ist für eine Aufgabe zuständig und hat eine eigene README.
 
 - [`processing/`](./processing/README.md) – Pipeline TILDA → Radvorrangnetz: TILDA- und RVN-Aufbereitung, Map-Matching (Rust), Schutzstreifen-Konvertierung, Overrides, Aggregation, Validierung. Mit eigenen Outputs.
 - [`ren-network/`](./ren-network/README.md) – Einheitliches Netz für REN+ aus Radverkehrsnetz, Hauptstraßennetz und Radschnellverbindungen.
+- [`knotenpunkte/`](./knotenpunkte/README.md) – Knotenpunkt-Datensatz für alle REN+-Knoten, Abgleich mit der Lieferung 2025, Übergabe an Knotenpunkt-App und ML.
 - [`befahrungsbedarf/`](./befahrungsbedarf/README.md) – OSM-Wege am REN+-Netz ohne aktuelle Fotos, die neu befahren werden müssen.
 - [`maproulette-centerline-tracks/`](./maproulette-centerline-tracks/README.md) – Aufgabenliste für MapRoulette: Radwege, die an der Straßen-Mittellinie erfasst sind.
 - [`mapping-zuteilung/`](./mapping-zuteilung/README.md) – Aufteilung des REN+-Netzes auf die Mapping-Accounts.
@@ -35,6 +36,9 @@ cd processing
 
 # REN+-Netz erzeugen
 python ren-network/unify_networks.py
+
+# Knotenpunkte erzeugen
+python knotenpunkte/download_lsa.py && python knotenpunkte/build_knotenpunkte.py
 
 # QA Inspector
 cd inspector && npm run dev

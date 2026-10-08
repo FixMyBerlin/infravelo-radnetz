@@ -12,7 +12,7 @@ Diese Dateien werden nicht von Skripten generiert und müssen manuell aktualisie
 - `Berlin_Gebiet_Süden.gpkg` – Gebietsgrenze für die Verarbeitung der südlichen Bezirke von Berlin.
 - `Bezirk Neukölln Grenze.fgb` – Bezirksgrenze von Neukölln für gezielte Testverarbeitung.
 - `Verbindungspunkte im RVN.gpkg` – Verbindungspunkte aus dem Radvorrangnetz/Detailnetz zur Netzwerkanalyse.
-- `Virtuelle-Knotenpunkte.gpkg` – Manuell erstellte Knotenpunkte zur Ergänzung der Netzwerktopologie.
+- `Virtuelle-Knotenpunkte.gpkg` – Manuell erstellte Knotenpunkte zur Ergänzung der Netzwerktopologie. Wird für neue virtuelle Knoten im [Knotenpunkt-Datensatz](../knotenpunkte/README.md) ergänzt.
 - `OSM-highway=bus_stop.geojson` – Bushaltestellen aus OpenStreetMap für Konvertierungen von Schutzstreifen.
 - `Stop-Positions-Bus-OSM.fgb` – Bushaltestellen-Positionen aus OpenStreetMap als FlatGeobuf.
 
