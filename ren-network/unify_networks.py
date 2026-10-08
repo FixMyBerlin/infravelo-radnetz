@@ -19,9 +19,11 @@ wird, bleiben ohne element_nr einzeln erhalten.
 
 Pro element_nr entsteht eine Kante.
 
-Kanten, die 2025 schon bearbeitet wurden (Ergebnisdatensatz C des
-Radvorrangnetzes), bekommen bearbeitet_2025 = ja. Das Kartierungs-Netz ist das
-Gesamtnetz ohne diese Kanten.
+Jede Kante wird über die Geometrie mit der Lieferung 2025 verglichen
+(Ergebnisdatensatz C des Radvorrangnetzes): bearbeitet_2025 = ja, teilweise
+oder nein. Das Kartierungs-Netz ist das Gesamtnetz ohne die Kanten mit "ja";
+teilweise gelieferte Kanten bleiben als Ganzes enthalten und tragen einen
+Hinweis (hinweis_2025).
 
 Ergänzende Daten (Straßenname, Straßenklasse) kommen aus dem Detailnetz.
 
@@ -116,10 +118,16 @@ HAUPTVERKEHRSSTRASSEN_KLASSEN = {"I", "II", "III"}
 # strassenklasse2 im Detailnetz: Autobahn inkl. Zubringer und Anschlussstellen
 AUTOBAHN_KLASSEN = {"AUBA", "AUTO"}
 
-# Kanten ohne passende element_nr gelten als 2025 bearbeitet, wenn dieser Anteil
-# ihrer Länge im Puffer um die Kanten des Ergebnisses 2025 liegt
+# Abgleich mit der Lieferung 2025 über die Geometrie: Eine Kante gilt als
+# geliefert, soweit sie im Puffer um die Kanten der Lieferung liegt.
 RESULT_2025_BUFFER_M = 5
-RESULT_2025_MIN_SHARE = 0.8
+# bearbeitet_2025 = ja: mindestens dieser Anteil geliefert und höchstens so viele Meter offen
+RESULT_2025_DONE_SHARE = 0.9
+RESULT_2025_MAX_OPEN_M = 100
+# bearbeitet_2025 = teilweise: mindestens dieser Anteil und diese Länge geliefert.
+# Kürzere Überdeckungen sind Berührungen an Kreuzungen.
+RESULT_2025_PARTLY_SHARE = 0.2
+RESULT_2025_MIN_OVERLAP_M = 30
 
 ELEMENT_NR_PATTERN = r"^(\d+)_(\d+)\.\d+$"
 
@@ -140,7 +148,9 @@ FINAL_COLUMNS = [
     "netz_quellen_teilweise",
     "in_detailnetz",
     "bearbeitet_2025",
+    "anteil_2025",
     "element_nr_2025",
+    "hinweis_2025",
     "geometry",
 ]
 
@@ -458,45 +468,75 @@ def finalize(network):
 
 
 def add_bearbeitet_2025(network):
-    """Markiert Kanten, die im Ergebnis 2025 stehen: über die element_nr, sonst über die Geometrie."""
+    """
+    Vergleicht jede Kante über die Geometrie mit der Lieferung 2025 (Datensatz C).
+    bearbeitet_2025: ja (fast vollständig geliefert), teilweise oder nein.
+    Maßgeblich ist die Geometrie, nicht die element_nr: Nummern haben sich seit
+    2025 geändert, und manche Nummer liegt heute an anderer Stelle.
+    """
     with gzip.open(RESULT_2025_PATH) as file:
         result = gpd.read_file(io.BytesIO(file.read())).to_crs(network.crs)
+    result = result.drop_duplicates(["element_nr", "ri"]).reset_index(drop=True)
     element_nrs = set(result["element_nr"].dropna())
-    by_element_nr = network["element_nr"].isin(element_nrs)
+    same_element_nr = network["element_nr"].isin(element_nrs)
 
     buffers = result.geometry.buffer(RESULT_2025_BUFFER_M)
-    share = pd.Series(0.0, index=network.index)
-    nearest_element_nr = pd.Series(None, index=network.index, dtype=object)
+    covered_m = pd.Series(0.0, index=network.index)
+    element_nr_2025 = pd.Series(None, index=network.index, dtype=object)
     for index, geom in network.geometry.items():
         nearby = buffers.iloc[buffers.sindex.query(geom, predicate="intersects")]
         if len(nearby):
-            share[index] = geom.intersection(nearby.union_all()).length / geom.length
-            # Die Kante von 2025, die den größten Teil abdeckt
-            nearest_element_nr[index] = result["element_nr"][nearby.intersection(geom).length.idxmax()]
-    by_geometry = ~by_element_nr & (share >= RESULT_2025_MIN_SHARE)
+            covered_m[index] = geom.intersection(nearby.union_all()).length
+            # Kanten von 2025, die ein nennenswertes Stück abdecken, längstes zuerst
+            overlap = nearby.intersection(geom).length.groupby(result["element_nr"]).max().sort_values(ascending=False)
+            overlap = overlap[overlap >= RESULT_2025_MIN_OVERLAP_M]
+            if len(overlap):
+                element_nr_2025[index] = ";".join(overlap.index)
+    length = network.geometry.length
+    share = covered_m / length
+
+    done = (share >= RESULT_2025_DONE_SHARE) & (length - covered_m <= RESULT_2025_MAX_OPEN_M)
+    partly = ~done & (share >= RESULT_2025_PARTLY_SHARE) & (covered_m >= RESULT_2025_MIN_OVERLAP_M)
+    status = pd.Series("nein", index=network.index).mask(partly, "teilweise").mask(done, "ja")
+
+    def note(index):
+        percent, meters = f"{share[index]:.0%}".replace("%", " %"), f"{covered_m[index]:.0f} m"
+        moved = "Die element_nr stand in der Lieferung 2025, lag dort aber an anderer Stelle"
+        if partly[index]:
+            text = (f"Teilweise 2025 geliefert: {percent} der Kante ({meters}) liegen auf Kanten der Lieferung 2025 "
+                    f"({element_nr_2025[index].replace(';', ', ')}). Die Kante bleibt als Ganzes im Kartierungs-Netz, "
+                    "weil der Rest noch nicht bearbeitet wurde.")
+            return f"{moved} oder war kürzer. {text}" if same_element_nr[index] else text
+        if done[index] and isinstance(element_nr_2025[index], str) and element_nr_2025[index] != network.at[index, "element_nr"]:
+            return f"2025 unter anderer Nummer geliefert: {element_nr_2025[index].replace(';', ', ')}."
+        if not done[index] and same_element_nr[index]:
+            return (f"{moved} (Überdeckung {percent}). Die Kante gilt deshalb als nicht bearbeitet "
+                    "und bleibt im Kartierungs-Netz.")
+        return None
 
     network = network.copy()
-    network["bearbeitet_2025"] = (by_element_nr | by_geometry).map({True: "ja", False: "nein"})
-    # Nummer der Kante im Ergebnis 2025; weicht bei geometrisch gefundenen Kanten von element_nr ab
-    network["element_nr_2025"] = network["element_nr"].where(by_element_nr, nearest_element_nr.where(by_geometry))
-    logging.info(f"2025 bearbeitet: {by_element_nr.sum()} Kanten über element_nr, {by_geometry.sum()} über die Geometrie, "
-                 f"{network.loc[by_element_nr | by_geometry].geometry.length.sum() / 1000:.1f} km")
+    network["bearbeitet_2025"] = status
+    network["anteil_2025"] = share.round(2)
+    # Nummern der Kanten in der Lieferung 2025, die diese Kante abdecken
+    network["element_nr_2025"] = element_nr_2025.where(done | partly)
+    network["hinweis_2025"] = [note(index) for index in network.index]
+    for value in ["ja", "teilweise", "nein"]:
+        logging.info(f"bearbeitet_2025 = {value}: {(status == value).sum()} Kanten, "
+                     f"{length[status == value].sum() / 1000:.1f} km, davon geliefert {covered_m[status == value].sum() / 1000:.1f} km")
 
-    # Abweichungen zur Prüfung: gleiche element_nr an anderer Stelle, nur geometrisch
-    # gefunden, heutiges Radvorrangnetz ohne Bearbeitung 2025
-    grund = pd.Series(None, index=network.index, dtype=object)
-    grund[(network["radverkehrsnetz"] == RVN_VORRANG) & ~(by_element_nr | by_geometry)] = "Radvorrangnetz, 2025 nicht bearbeitet"
-    grund[by_geometry] = "nur über Geometrie gefunden"
-    grund[by_element_nr & (share < 0.5)] = "element_nr 2025 an anderer Stelle"
-    report = network.loc[grund.notna(), ["element_nr", "element_nr_2025", "strassenname", "radverkehrsnetz", "netz_quellen"]].copy()
-    report["laenge_m"] = network.geometry.length.round(1)
-    report["anteil_im_ergebnis_2025"] = share.round(2)
+    # Prüfliste: alle Kanten mit Hinweis, neues Radvorrangnetz und entfallene Nummern
+    grund = network["hinweis_2025"].copy()
+    new_priority = (network["radverkehrsnetz"] == RVN_VORRANG) & (status == "nein") & grund.isna()
+    grund[new_priority] = "Radvorrangnetz, aber nicht Teil der Lieferung 2025."
+    report = network.loc[grund.notna(), ["element_nr", "element_nr_2025", "bearbeitet_2025", "anteil_2025",
+                                         "strassenname", "radverkehrsnetz", "netz_quellen"]].copy()
+    report["laenge_m"] = length.round(1)
     report["grund"] = grund
-    missing = sorted(element_nrs - set(network["element_nr"].dropna()))
-    report = pd.concat([report, pd.DataFrame({"element_nr_2025": missing, "grund": "2025 bearbeitet, element_nr nicht mehr im Netz"})])
+    missing = sorted(element_nrs - set(network["element_nr"].dropna()) - set(";".join(element_nr_2025.dropna()).split(";")))
+    report = pd.concat([report, pd.DataFrame({"element_nr_2025": missing, "grund": "2025 geliefert, heute nicht mehr im Netz."})])
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     report.to_csv(RESULT_2025_REPORT_PATH, index=False)
-    logging.info(f"Abweichungen zum Ergebnis 2025: {report['grund'].value_counts().to_dict()}: {RESULT_2025_REPORT_PATH}")
+    logging.info(f"Prüfliste zur Lieferung 2025: {len(report)} Zeilen: {RESULT_2025_REPORT_PATH}")
     return network
 
 
@@ -542,7 +582,7 @@ def main():
 
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     write_network(network, OUTPUT_PATH)
-    mapping_network = network[network["bearbeitet_2025"] == "nein"]
+    mapping_network = network[network["bearbeitet_2025"] != "ja"]
     logging.info(f"Kartierungs-Netz: {len(mapping_network)} Kanten, {mapping_network['laenge_m'].sum() / 1000:.1f} km")
     write_network(mapping_network, MAPPING_NETWORK_PATH)
     write_missing_report(network)

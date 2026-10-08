@@ -298,7 +298,7 @@ def main():
     bikelanes = gpd.read_file(BIKELANES_PATH).to_crs(CRS_METRIC)
     network = gpd.read_file(NETWORK_PATH).to_crs(CRS_METRIC)
     # Kartierungs-Netz: Kanten, die 2025 schon bearbeitet wurden, entfallen
-    network = network[network['bearbeitet_2025'] == 'nein']
+    network = network[network['bearbeitet_2025'] != 'ja']
 
     tracks = filter_centerline_tracks(bikelanes)
     tracks = filter_along_network(tracks, network, args.buffer, args.min_share)

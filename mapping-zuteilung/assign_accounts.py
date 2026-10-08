@@ -227,7 +227,7 @@ def main():
     logging.info(f"{len(accounts)} Accounts: {', '.join(accounts)}")
     network = gpd.read_file(NETWORK_PATH).to_crs(CRS_METRIC)
     # Kartierungs-Netz: Kanten, die 2025 schon bearbeitet wurden, entfallen
-    network = network[network['bearbeitet_2025'] == 'nein'].reset_index(drop=True)
+    network = network[network['bearbeitet_2025'] != 'ja'].reset_index(drop=True)
     lor = gpd.read_file(LOR_PATH).to_crs(CRS_METRIC)
 
     network = attach_plr(network, lor)

@@ -16,17 +16,17 @@ python befahrungsbedarf/build.py
 <!-- stand:start -->
 | | |
 |---|---|
-| Lauf | 2026-10-07 |
+| Lauf | 2026-10-08 |
 | Mapillary-Fotos berücksichtigt | **2024-04-05** bis 2026-10-05 |
 | OSM-Stand des Mapillary-Abgleichs | 2026-10-03 |
 | TILDA-Export | bikelanes_2026-10-05.fgb |
-| Netz | 1985.7 km |
-| Wege am Netz | 39081 Wege, 3513.1 km |
-| Befahrungsbedarf | 5927 Wege, 788.6 km |
-| davon Priorität 1 / 2 / 3 | 143.1 / 293.4 / 352.1 km |
+| Netz | 1996.4 km |
+| Wege am Netz | 39257 Wege, 3531.6 km |
+| Befahrungsbedarf | 5970 Wege, 795.0 km |
+| davon Priorität 1 / 2 / 3 | 144.4 / 294.5 / 356.1 km |
 | Wegen Busspur mit Radfreigabe entfallen | 21 Wege, 3.3 km |
-| Strecken zum Befahren | 2682 Strecken, 782.8 km, Median 158 m |
-| Strecken unter 30 m entfernt | 579 Strecken, 14.0 km |
+| Strecken zum Befahren | 2702 Strecken, 789.2 km, Median 159 m |
+| Strecken unter 30 m entfernt | 580 Strecken, 14.0 km |
 <!-- stand:end -->
 
 Das Startdatum der Mapillary-Fotos wandert mit jedem Abgleich weiter (siehe [Fotos](#fotos)). Wir dürfen Fotos ab 2024 verwenden; liegt das Startdatum in 2024 oder später, ist das erfüllt.
@@ -35,7 +35,7 @@ Das Startdatum der Mapillary-Fotos wandert mit jedem Abgleich weiter (siehe [Fot
 
 | Datei | Inhalt | Herkunft |
 |---|---|---|
-| `ren_netz_gesamt.gpkg` | REN+-Netz; verwendet wird nur das Kartierungs-Netz (`bearbeitet_2025 = nein`) | Ausgabe von [`ren-network/unify_networks.py`](../ren-network/README.md) |
+| `ren_netz_gesamt.gpkg` | REN+-Netz; verwendet wird nur das Kartierungs-Netz (`bearbeitet_2025` nicht `ja`) | Ausgabe von [`ren-network/unify_networks.py`](../ren-network/README.md) |
 | `bikelanes.fgb`, `roads.fgb`, `roadsPathClasses.fgb` | TILDA-Wege für die Berlin-Bounding-Box | TILDA-Export, `download_data.sh` |
 | `tilda_export.json`, `ml_metadata.json`, `osm_metadata.json` | Datenstände | `download_data.sh` |
 

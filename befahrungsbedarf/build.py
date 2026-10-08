@@ -113,7 +113,7 @@ def load_network() -> gpd.GeoDataFrame:
     """Lädt das Netz und legt die Pufferbreite je Kante fest."""
     network = gpd.read_file(DATA_DIR / 'ren_netz_gesamt.gpkg').to_crs(CRS)
     # Kartierungs-Netz: Kanten, die 2025 schon bearbeitet wurden, entfallen
-    network = network[network['bearbeitet_2025'] == 'nein'].reset_index(drop=True)
+    network = network[network['bearbeitet_2025'] != 'ja'].reset_index(drop=True)
     network['puffer_m'] = network['strassenklasse'].map(BUFFER_M_BY_CLASS).fillna(BUFFER_M_DEFAULT)
     logging.info(f'Netz: {len(network)} Kanten, {network.length.sum() / 1000:.0f} km')
     return network

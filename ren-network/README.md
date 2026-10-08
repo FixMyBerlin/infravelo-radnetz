@@ -38,7 +38,7 @@ Noch nicht enthalten: Touristisches Radnetz (Radfernwege), da ohne `element_nr` 
 6. **Detailnetz**: Straßenname und -klasse über `element_nr` ergänzen; Abweichungen zum Hauptstraßennetz werden geloggt.
 7. **Netzknoten** `von_knoten`/`bis_knoten` aus der `element_nr` (`von_bis.NN`).
 8. **Bezirk** nach größtem räumlichen Anteil.
-9. **Bearbeitet 2025**: Kanten, deren `element_nr` im Ergebnis 2025 steht, bekommen `bearbeitet_2025 = ja`. Ohne passende `element_nr` gilt eine Kante als bearbeitet, wenn mindestens 80 % ihrer Länge im 5-m-Puffer um die Kanten des Ergebnisses liegen (die Nummern haben sich seit 2025 teilweise geändert). `element_nr_2025` nennt die Nummer der Kante im Ergebnis 2025; bei geometrisch gefundenen Kanten ist es die Kante, die den größten Teil abdeckt.
+9. **Abgleich mit der Lieferung 2025** über die Geometrie (siehe [Lieferung 2025](#lieferung-2025)).
 10. **Abschluss**: Länge, Hauptverkehrsstraße (nur Hauptstraßennetz mit Klasse I–III), `lfd_nr`.
 
 ## Ausgabe
@@ -47,9 +47,27 @@ In `ren-network/output/`:
 
 - `ren_netz_gesamt.gpkg` (Layer `ren_netz`)
 - `ren_netz_gesamt.geojson`: dasselbe Netz in WGS84, z. B. für [play.placemark.io](https://play.placemark.io)
-- `ren_netz_kartierung.gpkg` und `.geojson`: das Netz für die Kartierung, also das Gesamtnetz ohne die Kanten mit `bearbeitet_2025 = ja`
-- `bearbeitet_2025_abweichungen.csv`: Kanten zur Prüfung des Abgleichs mit 2025 (nur über die Geometrie gefunden, `element_nr` an anderer Stelle, nicht mehr im Netz, heutiges Radvorrangnetz ohne Bearbeitung 2025)
+- `ren_netz_kartierung.gpkg` und `.geojson`: das Netz für die Kartierung, also das Gesamtnetz ohne die Kanten mit `bearbeitet_2025 = ja`; teilweise gelieferte Kanten bleiben enthalten
+- `bearbeitet_2025_abweichungen.csv`: Prüfliste zum Abgleich mit der Lieferung 2025
 - `element_nr_nicht_im_detailnetz.csv`: Kanten, deren `element_nr` im Detailnetz fehlt
+
+## Lieferung 2025
+
+Maßgeblich für „schon bearbeitet“ ist, was 2025 geliefert wurde (Datensatz C). Verglichen wird die Geometrie, nicht die `element_nr`: Die Stadt hat das Radvorrangnetz seit 2025 stellenweise geändert, Nummern wurden neu vergeben, und 2025 waren Kanten an virtuellen Knotenpunkten geteilt, die es im heutigen Netz nicht gibt. Eine Kante gilt als geliefert, soweit sie im 5-m-Puffer um die Kanten der Lieferung liegt.
+
+| `bearbeitet_2025` | Bedingung | Im Kartierungs-Netz |
+|---|---|---|
+| `ja` | mindestens 90 % geliefert und höchstens 100 m offen | nein |
+| `teilweise` | mindestens 20 % und 30 m geliefert | ja, als ganze Kante |
+| `nein` | weniger; kurze Überdeckungen sind Berührungen an Kreuzungen | ja |
+
+Kanten werden nicht geteilt. Teilweise gelieferte Kanten bleiben deshalb ganz im Kartierungs-Netz, auch wenn ein Teil davon schon geliefert ist; die virtuellen Knotenpunkte kommen erst später in der Prozessierung. Weitere Spalten:
+
+- `anteil_2025`: gelieferter Anteil der Kante (0–1).
+- `element_nr_2025`: Nummern der Kanten der Lieferung, die mindestens 30 m der Kante abdecken, die längste zuerst, durch Semikolon getrennt.
+- `hinweis_2025`: Erklärung in einem Satz, wenn die Kante vom Normalfall abweicht: teilweise geliefert, unter anderer Nummer geliefert, oder die `element_nr` stand in der Lieferung, lag dort aber an anderer Stelle.
+
+Kanten der Lieferung, die es im heutigen Netz nicht mehr gibt, fehlen im Gesamtnetz und werden von der neuen Prozessierung nicht mehr erzeugt. `bearbeitet_2025_abweichungen.csv` listet alle Kanten mit Hinweis, das neue Radvorrangnetz ohne Lieferung und die entfallenen Nummern.
 
 ## Maskierung
 
@@ -95,4 +113,4 @@ Nummern nach Anhang "Attribut mit Ausprägungen".
 | 11 | Hauptverkehrsstraße | `hauptverkehrsstrasse` | ✓ |
 | 12–24 | Radverkehrsführung, Oberfläche, Protektion, Zustand, Kommentar | – | nach Matching |
 
-Zusätzlich: `strassenklasse` (Straßenstufe 0–V aus Hauptstraßennetz bzw. Detailnetz), `netz_quellen` (beteiligte Quellen), `netz_quellen_teilweise` (Quellen, die nur einen Teil der Kante abdecken; `radverkehrsnetz` gilt dann nicht für die ganze Kante), `in_detailnetz` (ja/nein), `bearbeitet_2025` (ja/nein), `element_nr_2025` (Nummer im Ergebnis 2025, weicht bei geänderten Nummern von `element_nr` ab), `element_nr_berechnet` (ja/nein).
+Zusätzlich: `strassenklasse` (Straßenstufe 0–V aus Hauptstraßennetz bzw. Detailnetz), `netz_quellen` (beteiligte Quellen), `netz_quellen_teilweise` (Quellen, die nur einen Teil der Kante abdecken; `radverkehrsnetz` gilt dann nicht für die ganze Kante), `in_detailnetz` (ja/nein), `bearbeitet_2025` (ja/teilweise/nein), `anteil_2025`, `element_nr_2025`, `hinweis_2025` (siehe [Lieferung 2025](#lieferung-2025)), `element_nr_berechnet` (ja/nein).
