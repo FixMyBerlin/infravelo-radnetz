@@ -1,6 +1,6 @@
 # REN+
 
-`unify_networks.py` führt die Netzquellen zu einem einheitlichen Netz für REN+ zusammen (Zustand vor dem Matching).
+`unify_networks.py` führt die Netzquellen zu einem einheitlichen Netz für REN+ zusammen (Zustand vor dem Matching). Es schreibt zwei Netze: das Gesamtnetz und das Kartierungs-Netz, also das Gesamtnetz ohne die 2025 schon gelieferten Kanten (siehe [Lieferung 2025](#lieferung-2025)).
 
 ```bash
 python ren-network/unify_networks.py
@@ -47,31 +47,74 @@ In `ren-network/output/`:
 
 - `ren_netz_gesamt.gpkg` (Layer `ren_netz`)
 - `ren_netz_gesamt.geojson`: dasselbe Netz in WGS84, z. B. für [play.placemark.io](https://play.placemark.io)
-- `ren_netz_kartierung.gpkg` und `.geojson`: das Netz für die Kartierung, also das Gesamtnetz ohne die Kanten mit `bearbeitet_2025 = ja`; teilweise gelieferte Kanten bleiben enthalten
+- `ren_netz_kartierung.gpkg` und `.geojson`: das Netz für die Kartierung, also das Gesamtnetz ohne die Kanten mit `bearbeitet_2025 = ja`; teilweise gelieferte Kanten bleiben enthalten. Darauf bauen `befahrungsbedarf/`, `maproulette-centerline-tracks/` und `mapping-zuteilung/` auf; sie lesen `ren_netz_gesamt.gpkg` und filtern selbst
 - `bearbeitet_2025_abweichungen.csv`: Prüfliste zum Abgleich mit der Lieferung 2025
 - `element_nr_nicht_im_detailnetz.csv`: Kanten, deren `element_nr` im Detailnetz fehlt
 
 ## Lieferung 2025
 
-Maßgeblich für „schon bearbeitet“ ist, was 2025 geliefert wurde (Datensatz C). Verglichen wird die Geometrie, nicht die `element_nr`: Die Stadt hat das Radvorrangnetz seit 2025 stellenweise geändert, Nummern wurden neu vergeben, und 2025 waren Kanten an virtuellen Knotenpunkten geteilt, die es im heutigen Netz nicht gibt. Eine Kante gilt als geliefert, soweit sie im 5-m-Puffer um die Kanten der Lieferung liegt.
+Das Gesamtnetz enthält auch das Radvorrangnetz, das 2025 schon bearbeitet und an die infraVelo geliefert wurde. Kartiert wird 2026 nur, was damals nicht geliefert wurde. Dafür vergleicht `unify_networks.py` jede Kante mit der Lieferung und schreibt das Kartierungs-Netz als zweite Datei.
 
-| `bearbeitet_2025` | Bedingung | Im Kartierungs-Netz |
-|---|---|---|
-| `ja` | mindestens 90 % geliefert und höchstens 100 m offen | nein |
-| `teilweise` | mindestens 20 % und 30 m geliefert | ja, als ganze Kante |
-| `nein` | weniger; kurze Überdeckungen sind Berührungen an Kreuzungen | ja |
+### Grundsätze
 
-Kanten werden nicht geteilt. Teilweise gelieferte Kanten bleiben deshalb ganz im Kartierungs-Netz, auch wenn ein Teil davon schon geliefert ist; die virtuellen Knotenpunkte kommen erst später in der Prozessierung. Weitere Spalten:
+- **Maßgeblich ist die Lieferung**, also Datensatz C (`infravelo-datensatz-c-fortlaufend`, Stand 29.01.2026), nicht das heutige Radvorrangnetz des Geoportals.
+- **Was geliefert wurde, entfällt** aus dem Kartierungs-Netz.
+- **Was heute im Netz ist, aber nicht geliefert wurde, bleibt**, auch wenn es zum Radvorrangnetz gehört.
+- **Was geliefert wurde, aber heute nicht mehr im Netz ist, fällt weg**: Es steht nicht im Gesamtnetz und wird von der neuen Prozessierung nicht mehr erzeugt.
+- **Auch die Kanten von 2025 werden neu prozessiert.** Der Abgleich bestimmt nur, wo kartiert wird, nicht was geliefert wird.
+
+### Warum über die Geometrie und nicht über die `element_nr`
+
+Die erste Fassung (2026-10-07) markierte eine Kante als bearbeitet, wenn ihre `element_nr` in der Lieferung stand, und nur ersatzweise über die Geometrie. Das war an drei Stellen falsch:
+
+1. **Die Stadt hat das Radvorrangnetz seit 2025 geändert.** Rund 4 km sind neu, rund 1 km ist entfallen. Beispiel Neukölln: 2025 lief das Netz über die Niemetzstraße, heute über Schudomastraße und Braunschweiger Straße. [Ansehen](https://tilda-geo.de/regionen/infravelo/hinweise?config=1wy5p9w.5ount0.6cgu&v=3&map=16.4/52.4727/13.4523&data=infravelo-ren-netz-kartierung,infravelo-datensatz-c-fortlaufend): Die Schudomastraße ist im Kartierungs-Netz, die Niemetzstraße nur in Datensatz C.
+2. **Nummern liegen heute an anderer Stelle.** Bei 25 Kanten steht die `element_nr` in der Lieferung, die Geometrie von damals deckt die heutige Kante aber kaum ab. Über die Nummer wären sie als bearbeitet entfallen, obwohl dort nie kartiert wurde. Beispiel [Clauertstraße](https://tilda-geo.de/regionen/infravelo/hinweise?config=1wy5p9w.5ount0.6cgu&v=3&map=16/52.4259/13.2355&data=infravelo-ren-netz-kartierung,infravelo-datensatz-c-fortlaufend) (`34450008_35440016.01`, 4 % Überdeckung).
+3. **2025 waren Kanten an virtuellen Knotenpunkten geteilt** (Nummern mit `V…`), die es im heutigen Netz nicht gibt. Eine heutige Kante entspricht dann mehreren Kanten der Lieferung mit anderen Nummern. Beispiel [Kante 11636](https://tilda-geo.de/regionen/infravelo/hinweise?config=1wy5p9w.5ount0.6cgu&v=3&map=15.5/52.4831/13.4594&data=infravelo-ren-netz,infravelo-datensatz-c-fortlaufend) (`50490012_50510009.01`): 97 % geliefert, aber unter drei `V…`-Nummern.
+
+### Regel
+
+Eine Kante gilt als geliefert, soweit sie im 5-m-Puffer um die Kanten der Lieferung liegt.
+
+| `bearbeitet_2025` | Bedingung | Im Kartierungs-Netz | Kanten (2026-10-08) |
+|---|---|---|---|
+| `ja` | mindestens 90 % geliefert und höchstens 100 m offen | nein | 5.230, 876 km |
+| `teilweise` | mindestens 20 % und 30 m geliefert | ja, als ganze Kante | 44, 29 km |
+| `nein` | weniger; kurze Überdeckungen sind Berührungen an Kreuzungen | ja | 11.999, 1.967 km |
+
+Die Schwellen stehen als `RESULT_2025_…` oben in `unify_networks.py`.
+
+### Teilweise gelieferte Kanten
+
+**Kanten werden nicht geteilt.** Eine teilweise gelieferte Kante bleibt als Ganzes im Kartierungs-Netz, auch wenn ein Teil davon schon geliefert ist (zusammen rund 15 km). Teilen hieße, die virtuellen Knotenpunkte jetzt schon einzuführen; das soll erst später in der Prozessierung passieren. Bis dahin gilt: lieber eine längere Kante kartieren als einen nicht gelieferten Teil verlieren.
+
+Beispiel [Kante 11601](https://tilda-geo.de/regionen/infravelo/hinweise?config=1wy5p9w.5ount0.6cgu&v=3&map=15/52.4576/13.4616&data=infravelo-ren-netz-kartierung,infravelo-datensatz-c-fortlaufend) (`50470016_51480029.01`, 2.651 m): Im Radverkehrsnetz des Geoportals sind das sechs Abschnitte ohne `elem_nr`, drei im Radvorrangnetz und drei im Ergänzungsnetz. Schritt 4 berechnet für alle dasselbe Knotenpaar, Schritt 5 führt sie zu einer Kante zusammen. Die drei Vorrang-Abschnitte (1.254 m, 47 %) wurden 2025 unter zwei `V…`-Nummern geliefert, die drei Ergänzungs-Abschnitte nicht. Die Kante ist deshalb `teilweise`. Zwei Folgen dieser Zusammenführung sind bekannt und bleiben vorerst so:
+
+- `radverkehrsnetz` nennt den höchsten Rang (hier Radvorrangnetz), obwohl mehr als die Hälfte der Kante Ergänzungsnetz ist. Das betrifft 14 Kanten (rund 20 km).
+- Die Kante ist ein MultiLineString aus mehreren Stücken.
+
+### Spalten und Darstellung
 
 - `anteil_2025`: gelieferter Anteil der Kante (0–1).
 - `element_nr_2025`: Nummern der Kanten der Lieferung, die mindestens 30 m der Kante abdecken, die längste zuerst, durch Semikolon getrennt.
-- `hinweis_2025`: Erklärung in einem Satz, wenn die Kante vom Normalfall abweicht: teilweise geliefert, unter anderer Nummer geliefert, oder die `element_nr` stand in der Lieferung, lag dort aber an anderer Stelle.
+- `hinweis_2025`: ein erklärender Satz, wenn die Kante vom Normalfall abweicht. Drei Fälle: teilweise geliefert (mit Anteil, Metern und den Nummern von 2025), unter anderer Nummer geliefert (228 Kanten), oder die `element_nr` stand in der Lieferung, lag dort aber an anderer Stelle.
 
-Kanten der Lieferung, die es im heutigen Netz nicht mehr gibt, fehlen im Gesamtnetz und werden von der neuen Prozessierung nicht mehr erzeugt. `bearbeitet_2025_abweichungen.csv` listet alle Kanten mit Hinweis, das neue Radvorrangnetz ohne Lieferung und die entfallenen Nummern.
+In TILDA zeigen „REN+ Gesamtnetz“ und „Netz“ (Kategorie „Netz: REN+ Kartierung“) Kanten mit Hinweis, die im Kartierungs-Netz bleiben, mit weiß gestrichelter Mittellinie. Der Hinweis steht beim Klick in den Attributen.
+
+`bearbeitet_2025_abweichungen.csv` listet alle Kanten mit Hinweis, außerdem die 20 Kanten des heutigen Radvorrangnetzes ohne Lieferung und die 12 Nummern der Lieferung, die heute keine Kante mehr abdecken.
+
+### Datensätze in TILDA
+
+| Datensatz | Inhalt |
+|---|---|
+| „Datensatz C - Aggregiert“ | die Lieferung 2025 |
+| „Radvorrangnetz 2025 – Maskierung“ | Maske aus denselben Kanten wie Datensatz C |
+| „Radverkehrsnetz Vorrangnetz“ | heutiger Stand des Geoportals; weicht deshalb stellenweise von Lieferung und Maske ab |
+| „REN+ Gesamtnetz“ mit Maskierung | alle Kanten aus allen Netzquellen |
+| „Netz“ mit „Maskierung“ | das Kartierungs-Netz |
 
 ## Maskierung
 
-`create_mask.py` erzeugt je eine Maskierung für das Gesamtnetz und das Kartierungs-Netz: die Fläche Berlins ohne einen 25-m-Puffer um das Netz, auf 7 m vereinfacht. Sie entspricht der Maskierung des Radvorrangnetzes von 2025 in `tilda-static-data` (`region-berlin/radverkehrsnetz-vorrangnetz-mask`), die damals in QGIS entstand.
+`create_mask.py` erzeugt je eine Maskierung für das Gesamtnetz und das Kartierungs-Netz: die Fläche Berlins ohne einen 25-m-Puffer um das Netz, auf 7 m vereinfacht. Sie entspricht der Maskierung des Radvorrangnetzes von 2025 in `tilda-static-data` (`region-infravelo/radverkehrsnetz-vorrangnetz-mask`). Diese entstand 2025 in QGIS und wird seit 2026-10-08 nach demselben Rezept aus Datensatz C erzeugt.
 
 ```bash
 python ren-network/create_mask.py
