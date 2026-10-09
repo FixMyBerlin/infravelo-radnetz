@@ -26,10 +26,10 @@ python befahrungsbedarf/build.py
 | davon Priorität 1 / 2 / 3 | 140.5 / 294.5 / 348.3 km |
 | Wegen Busspur mit Radfreigabe entfallen | 21 Wege, 3.3 km |
 | Zwischen zwei Richtungsfahrbahnen entfallen | 116 Wege, 11.7 km |
-| Strecken zum Befahren | 1705 Strecken, 769.6 km, Median 273 m |
-| davon über Wege ohne Bedarf verbunden | 115 Strecken, 4.9 km ohne Bedarf |
-| Strecken unter 30 m entfernt | 541 Strecken, 13.1 km |
-| Strecken ohne Radinfrastruktur unter 100 m entfernt | 454 Strecken, 23.1 km |
+| Strecken zum Befahren | 1664 Strecken, 770.6 km, Median 286 m |
+| davon über Wege ohne Bedarf verbunden | 95 Strecken, 4.0 km ohne Bedarf |
+| Strecken unter 30 m entfernt | 533 Strecken, 12.9 km |
+| Strecken ohne Radinfrastruktur unter 100 m entfernt | 453 Strecken, 23.1 km |
 | Strecken quer zum Netz entfernt | 21 Strecken, 1.0 km |
 <!-- stand:end -->
 
@@ -120,7 +120,7 @@ Die Regel trifft auch Uferwege zwischen zwei Uferstraßen (z. B. am Landwehrkana
 `merge_lines.py` verbindet die Wege mit Bedarf, damit beim Befahren zusammenhängende Strecken statt vieler kurzer Stücke entstehen. Die Schwellen stehen oben im Skript.
 
 1. **Auf die Straßenseite versetzen**: An der Mittellinie erfasste Radwege (`way/123/cycleway/left`) liegen in TILDA auf der Mittellinie, links und rechts also aufeinander. Sie werden um `offset` (halbe Straßenbreite) zur Seite versetzt, damit sichtbar ist, ob eine oder beide Seiten befahren werden müssen. Linke Seiten laufen danach in Fahrtrichtung.
-1. **Fortsetzung suchen**: Zwei Wegenden werden verbunden, wenn das zweite in Verlängerung des ersten liegt: höchstens 40 m entfernt, höchstens 30° abgeknickt und höchstens 5 m seitlich versetzt (damit die Straßenseite nicht wechselt). 40 m reichen über eine Einmündung hinweg; mit 20 m blieb z. B. die Pallasstraße an jeder Einmündung getrennt.
+1. **Fortsetzung suchen**: Zwei Wegenden werden verbunden, wenn das zweite in Verlängerung des ersten liegt: höchstens 40 m entfernt, höchstens 30° abgeknickt und höchstens 5 m seitlich versetzt (damit die Straßenseite nicht wechselt). 40 m reichen über eine Einmündung hinweg; mit 20 m blieb z. B. die Pallasstraße an jeder Einmündung getrennt. Die Richtung wird doppelt bestimmt, aus den letzten 10 m und aus den letzten 50 m des Wegs; es reicht, wenn eine von beiden passt. Wege schwenken an Einmündungen oft auf den letzten Metern aus, laufen dahinter aber gerade weiter.
 2. **Eindeutig**: Jedes Ende wird nur einmal verbunden. Bei mehreren Kandidaten gewinnt die nächste und geradeste Fortsetzung.
 2. **Brücken**: Kurze Wege ohne Bedarf (z. B. Querungen an Einmündungen) schließen eine Lücke zwischen zwei Wegen mit Bedarf, wenn sie zusammen höchstens 50 m lang sind. Eine direkte Fortsetzung mit Bedarf geht immer vor. `prioritaet_stats` nennt diese Kilometer als „ohne Bedarf“.
 3. **Prioritäten**: Wege aller Prioritäten werden verbunden. Ausnahme: Ein zusammenhängendes Stück mit Priorität 3 ab 1 km oder mit Priorität 2 ab 2 km bleibt eine eigene Strecke. `prioritaet_stats` nennt die Kilometer je Priorität.

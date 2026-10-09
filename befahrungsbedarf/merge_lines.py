@@ -38,8 +38,11 @@ MAX_LATERAL_M = 5
 MIN_LENGTH_M = 30
 # Wege ohne Bedarf dürfen zwei Wege mit Bedarf verbinden, zusammen bis zu dieser Länge
 BRIDGE_MAX_M = 50
-# Länge des Stücks am Wegende, aus dem die Richtung bestimmt wird
-DIRECTION_SAMPLE_M = 10
+# Längen des Stücks am Wegende, aus dem die Richtung bestimmt wird. Das kurze
+# Stück folgt dem Wegende, das lange dem Hauptverlauf: Wege schwenken an
+# Einmündungen oft auf den letzten Metern aus, laufen dahinter aber gerade weiter.
+# Eine Verbindung gilt, wenn sie mit einer der beiden Richtungen passt.
+DIRECTION_SAMPLES_M = (10, 50)
 # Ab diesem Abstand gelten zwei Enden als Lücke und nicht als gemeinsamer Punkt
 TOUCHING_M = 0.5
 
@@ -54,9 +57,9 @@ ROUTING_URL = ('https://vizsim.de/missing_mapillary_gh-routing/?map={map}&start=
                '&profile=bike_customizable&mapillary_weight=0.2&end={end}')
 
 
-def _end_directions(geom) -> tuple[np.ndarray, np.ndarray]:
+def _end_directions(geom, sample_m: float) -> tuple[np.ndarray, np.ndarray]:
     """Einheitsvektoren, die am Anfang und am Ende aus der Linie herauszeigen."""
-    sample = min(DIRECTION_SAMPLE_M, geom.length)
+    sample = min(sample_m, geom.length)
     points = shapely.get_coordinates(shapely.line_interpolate_point(geom, [0, sample, geom.length - sample, geom.length]))
     start = points[0] - points[1]
     end = points[3] - points[2]
@@ -73,7 +76,25 @@ def find_links(ways: gpd.GeoDataFrame, groups: np.ndarray, bridges_fit_all: bool
     is_bridge = ways['bruecke'].to_numpy()
     coords = [shapely.get_coordinates(geom) for geom in ways.geometry]
     points = np.array([xy for way in coords for xy in (way[0], way[-1])])
-    directions = np.array([d for geom in ways.geometry for d in _end_directions(geom)])
+    directions_by_sample = [np.array([d for geom in ways.geometry for d in _end_directions(geom, sample_m)])
+                            for sample_m in DIRECTION_SAMPLES_M]
+
+    def bend(a, b, directions):
+        """Knick zwischen den Enden a und b in Grad, oder None, wenn b nicht in Verlängerung von a liegt."""
+        # b muss dorthin weiterlaufen, wohin a zeigt
+        angle = np.degrees(np.arccos(np.clip(-directions[a] @ directions[b], -1, 1)))
+        if angle > MAX_ANGLE_DEG:
+            return None
+        gap = points[b] - points[a]
+        if np.hypot(*gap) > TOUCHING_M:
+            # Die Lücke liegt vor beiden Enden und kaum seitlich davon
+            forward_a, forward_b = gap @ directions[a], -gap @ directions[b]
+            lateral = max(abs(directions[a][0] * gap[1] - directions[a][1] * gap[0]),
+                          abs(directions[b][0] * gap[1] - directions[b][1] * gap[0]))
+            # Versetzte Wege schließen seitlich leicht verschoben an: bis TOUCHING_M Überlappung
+            if forward_a < -TOUCHING_M or forward_b < -TOUCHING_M or lateral > MAX_LATERAL_M:
+                return None
+        return angle
 
     tree = shapely.STRtree(shapely.points(points))
     first, second = tree.query(shapely.points(points), predicate='dwithin', distance=MAX_GAP_M)
@@ -84,20 +105,11 @@ def find_links(ways: gpd.GeoDataFrame, groups: np.ndarray, bridges_fit_all: bool
         over_bridge = is_bridge[a // 2] or is_bridge[b // 2]
         if groups[a // 2] != groups[b // 2] and not (bridges_fit_all and over_bridge):
             continue
-        # Knick: b muss dorthin weiterlaufen, wohin a zeigt
-        angle = np.degrees(np.arccos(np.clip(-directions[a] @ directions[b], -1, 1)))
-        if angle > MAX_ANGLE_DEG:
+        angles = [angle for directions in directions_by_sample if (angle := bend(a, b, directions)) is not None]
+        if not angles:
             continue
-        gap = points[b] - points[a]
-        distance = np.hypot(*gap)
-        if distance > TOUCHING_M:
-            # Die Lücke liegt vor beiden Enden und kaum seitlich davon
-            forward_a, forward_b = gap @ directions[a], -gap @ directions[b]
-            lateral = max(abs(directions[a][0] * gap[1] - directions[a][1] * gap[0]),
-                          abs(directions[b][0] * gap[1] - directions[b][1] * gap[0]))
-            # Versetzte Wege schließen seitlich leicht verschoben an: bis TOUCHING_M Überlappung
-            if forward_a < -TOUCHING_M or forward_b < -TOUCHING_M or lateral > MAX_LATERAL_M:
-                continue
+        angle = min(angles)
+        distance = np.hypot(*(points[b] - points[a]))
         # Eine direkte Fortsetzung mit Bedarf geht immer vor dem Weg über eine Brücke
         penalty = MAX_GAP_M + MAX_ANGLE_DEG / 3 if over_bridge else 0
         candidates.append((distance + angle / 3 + penalty, a, b))
