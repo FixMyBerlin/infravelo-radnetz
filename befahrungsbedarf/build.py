@@ -14,7 +14,7 @@ Ausgabe (befahrungsbedarf/output/):
 - befahrungsbedarf.geojson  Wege mit Befahrungsbedarf
 - pruefung_einzelwege.geojson      alle Wege am Netz inkl. Klassifizierung
 - befahrung_strecken.geojson  Wege mit Befahrungsbedarf, zu Strecken verbunden (merge_lines.py)
-- entfernt_kurz.geojson     Strecken, die nach dem Verbinden zu kurz sind
+- entfernt.geojson          Strecken, die nach dem Verbinden entfallen (zu kurz oder quer zum Netz)
 - statistik.json            Kilometer je Klasse und Datenstände
 
 Zusätzlich wird der Abschnitt "Stand des letzten Laufs" in der README.md aktualisiert.
@@ -34,7 +34,8 @@ import numpy as np
 import pandas as pd
 import shapely
 
-from merge_lines import MAX_ANGLE_DEG, MAX_GAP_M, MAX_LATERAL_M, MIN_LENGTH_M as MIN_LINE_LENGTH_M, merge_lines
+from merge_lines import (BRIDGE_MAX_M, MAX_ANGLE_DEG, MAX_GAP_M, MAX_LATERAL_M, MIN_LENGTH_M as MIN_LINE_LENGTH_M,
+                         merge_lines)
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
@@ -70,6 +71,16 @@ BUS_LANE_MAX_ANGLE_DEG = 30
 BUS_LANE_SAMPLE_M = 5
 # Anteil des Radwegs, neben dem die Busspur verlaufen muss
 BUS_LANE_MIN_SHARE = 0.8
+
+# --- Regel: Strecken quer zum Netz entfallen ---------------------------------
+# Eine Strecke läuft an einer Stelle "entlang" des Netzes, wenn sie dort höchstens
+# so weit von der Richtung einer Netzkante in deren Puffer abweicht. Liegt
+# weniger als ALONG_MIN_SHARE der Strecke entlang des Netzes, quert sie es nur.
+ALONG_MAX_ANGLE_DEG = 60
+ALONG_SAMPLE_M = 5
+ALONG_MIN_SHARE = 0.5
+# Auf ihre Straßenseite versetzte Wege liegen etwas weiter von der Kante als ihr Puffer
+ALONG_EXTRA_BUFFER_M = 10
 
 # Vereinfachung der Ausgabegeometrie (Douglas-Peucker, in Metern)
 SIMPLIFY_M = 1.0
@@ -287,6 +298,31 @@ def offset_to_side(ways: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     return ways
 
 
+def share_along_network(lines: gpd.GeoDataFrame, network: gpd.GeoDataFrame) -> np.ndarray:
+    """Anteil je Strecke, der in Richtung einer nahen Netzkante verläuft (siehe ALONG_*)."""
+    # Die Positionen entlang einer Kante brauchen einfache Linien
+    parts = gpd.GeoSeries(shapely.line_merge(network.geometry.values), index=network.index).explode()
+    edges = parts.values
+    buffers = network.loc[parts.index, 'puffer_m'].to_numpy() + ALONG_EXTRA_BUFFER_M
+    tree = shapely.STRtree(edges)
+    shares = []
+    for geom in lines.geometry:
+        distances = np.arange(ALONG_SAMPLE_M / 2, geom.length, ALONG_SAMPLE_M)
+        points = shapely.line_interpolate_point(geom, distances)
+        bearings = _bearings(geom, distances)
+        near_network = np.zeros(len(points), dtype=bool)
+        along = np.zeros(len(points), dtype=bool)
+        for edge_index in tree.query(geom, predicate='dwithin', distance=buffers.max()):
+            edge = edges[edge_index]
+            position = shapely.line_locate_point(edge, points)
+            near = shapely.distance(points, edge) <= buffers[edge_index]
+            angle = np.abs((bearings - _bearings(edge, position) + 90) % 180 - 90)
+            near_network |= near
+            along |= near & (angle <= ALONG_MAX_ANGLE_DEG)
+        shares.append(along.sum() / near_network.sum() if near_network.any() else 1.0)
+    return np.array(shares)
+
+
 def km_by(ways: gpd.GeoDataFrame, column: str) -> dict:
     grouped = ways.groupby(ways[column].astype('object').fillna('keine'))['laenge_m'].sum() / 1000
     return {str(key): round(value, 1) for key, value in grouped.items()}
@@ -326,7 +362,9 @@ def update_readme(statistik: dict):
         f"| davon Priorität 1 / 2 / 3 | {prio.get('1', 0)} / {prio.get('2', 0)} / {prio.get('3', 0)} km |",
         f"| Wegen Busspur mit Radfreigabe entfallen | {bedarf['entfallen_wegen_busspur']['anzahl']} Wege, {bedarf['entfallen_wegen_busspur']['km']} km |",
         f"| Strecken zum Befahren | {strecken['anzahl']} Strecken, {strecken['km']} km, Median {strecken['median_m']} m |",
-        f"| Strecken unter {MIN_LINE_LENGTH_M} m entfernt | {strecken['entfernt_kurz']['anzahl']} Strecken, {strecken['entfernt_kurz']['km']} km |",
+        f"| davon über Wege ohne Bedarf verbunden | {strecken['mit_bruecke']['anzahl']} Strecken, {strecken['mit_bruecke']['km_ohne_bedarf']} km ohne Bedarf |",
+        f"| Strecken unter {MIN_LINE_LENGTH_M} m entfernt | {strecken['entfernt']['kurz']['anzahl']} Strecken, {strecken['entfernt']['kurz']['km']} km |",
+        f"| Strecken quer zum Netz entfernt | {strecken['entfernt']['quer']['anzahl']} Strecken, {strecken['entfernt']['quer']['km']} km |",
     ]
     readme = README_PATH.read_text()
     start = readme.index(README_START) + len(README_START)
@@ -350,14 +388,26 @@ def main():
     ways['prioritaet'] = ways['prioritaet'].astype('Int64')
 
     needed = ways[ways['bedarf'] == 'ja']
-    lines, short_lines = merge_lines(offset_to_side(needed), SIMPLIFY_M)
+    # Kurze Wege ohne Bedarf dürfen Lücken zwischen Wegen mit Bedarf schließen
+    bridges = ways[(ways['bedarf'] == 'nein') & ~beside_bus_lane & (ways['laenge_m'] <= BRIDGE_MAX_M)]
+    lines = merge_lines(offset_to_side(pd.concat([needed.assign(bruecke=False), bridges.assign(bruecke=True)])),
+                        SIMPLIFY_M)
+    lines['grund'] = None
+    lines.loc[share_along_network(lines, network) < ALONG_MIN_SHARE, 'grund'] = 'quer zum Netz'
+    lines.loc[lines['laenge_m'] < MIN_LINE_LENGTH_M, 'grund'] = f'kürzer als {MIN_LINE_LENGTH_M} m'
+    removed_lines = lines[lines['grund'].notna()].reset_index(drop=True)
+    lines = lines[lines['grund'].isna()].drop(columns='grund').reset_index(drop=True)
+    removed = {key: removed_lines[removed_lines['grund'].str.startswith(key)] for key in ('kürzer', 'quer')}
+    with_bridge = lines[lines['prioritaet_stats'].str.contains('ohne Bedarf')]
     ml_data_from = (read_json(DATA_DIR / 'ml_metadata.json') or {}).get('ml_data_from')
     statistik = {
         'erstellt': datetime.now().isoformat(timespec='seconds'),
         'parameter': {'buffer_m_by_class': BUFFER_M_BY_CLASS, 'buffer_m_default': BUFFER_M_DEFAULT,
                       'min_length_m': MIN_LENGTH_M, 'simplify_m': SIMPLIFY_M,
                       'strecken': {'max_gap_m': MAX_GAP_M, 'max_angle_deg': MAX_ANGLE_DEG,
-                                   'max_lateral_m': MAX_LATERAL_M, 'min_length_m': MIN_LINE_LENGTH_M}},
+                                   'max_lateral_m': MAX_LATERAL_M, 'min_length_m': MIN_LINE_LENGTH_M,
+                                   'bridge_max_m': BRIDGE_MAX_M, 'along_max_angle_deg': ALONG_MAX_ANGLE_DEG,
+                                   'along_min_share': ALONG_MIN_SHARE}},
         'datenstand': {
             'tilda_export': read_json(DATA_DIR / 'tilda_export.json'),
             'mapillary': ml_data_from,
@@ -381,7 +431,15 @@ def main():
             'km': round(lines['laenge_m'].sum() / 1000, 1),
             'median_m': round(lines['laenge_m'].median()),
             'km_je_prioritaet': km_by(lines, 'prioritaet'),
-            'entfernt_kurz': {'anzahl': len(short_lines), 'km': round(short_lines['laenge_m'].sum() / 1000, 1)},
+            'mit_bruecke': {
+                'anzahl': len(with_bridge),
+                'km_ohne_bedarf': round(with_bridge['prioritaet_stats'].str.extract(r'([\d,]+) km ohne Bedarf')[0]
+                                        .str.replace(',', '.').astype(float).sum(), 1),
+            },
+            'entfernt': {
+                'kurz': {'anzahl': len(removed['kürzer']), 'km': round(removed['kürzer']['laenge_m'].sum() / 1000, 1)},
+                'quer': {'anzahl': len(removed['quer']), 'km': round(removed['quer']['laenge_m'].sum() / 1000, 1)},
+            },
         },
         'km_je_kfz_bild': km_by(ways, 'kfz_bild'),
         'km_je_mapillary_coverage': km_by(ways, 'mapillary_coverage'),
@@ -397,7 +455,7 @@ def main():
         logging.info(f'{path.name}: {len(gdf)} Features')
 
     # Strecken sind schon vereinfacht
-    for name, gdf in [('befahrung_strecken', lines), ('entfernt_kurz', short_lines)]:
+    for name, gdf in [('befahrung_strecken', lines), ('entfernt', removed_lines)]:
         path = OUTPUT_DIR / f'{name}.geojson'
         gdf.to_crs('EPSG:4326').to_file(path, driver='GeoJSON', COORDINATE_PRECISION=6)
         logging.info(f'{path.name}: {len(gdf)} Features')

@@ -16,7 +16,7 @@ python befahrungsbedarf/build.py
 <!-- stand:start -->
 | | |
 |---|---|
-| Lauf | 2026-10-08 |
+| Lauf | 2026-10-09 |
 | Mapillary-Fotos berücksichtigt | **2024-04-05** bis 2026-10-05 |
 | OSM-Stand des Mapillary-Abgleichs | 2026-10-03 |
 | TILDA-Export | bikelanes_2026-10-05.fgb |
@@ -25,8 +25,10 @@ python befahrungsbedarf/build.py
 | Befahrungsbedarf | 5970 Wege, 795.0 km |
 | davon Priorität 1 / 2 / 3 | 144.4 / 294.5 / 356.1 km |
 | Wegen Busspur mit Radfreigabe entfallen | 21 Wege, 3.3 km |
-| Strecken zum Befahren | 2702 Strecken, 789.2 km, Median 159 m |
-| Strecken unter 30 m entfernt | 580 Strecken, 14.0 km |
+| Strecken zum Befahren | 2139 Strecken, 800.8 km, Median 185 m |
+| davon über Wege ohne Bedarf verbunden | 115 Strecken, 4.9 km ohne Bedarf |
+| Strecken unter 30 m entfernt | 558 Strecken, 13.5 km |
+| Strecken quer zum Netz entfernt | 111 Strecken, 4.5 km |
 <!-- stand:end -->
 
 Das Startdatum der Mapillary-Fotos wandert mit jedem Abgleich weiter (siehe [Fotos](#fotos)). Wir dürfen Fotos ab 2024 verwenden; liegt das Startdatum in 2024 oder später, ist das erfüllt.
@@ -49,7 +51,7 @@ Das Startdatum der Mapillary-Fotos wandert mit jedem Abgleich weiter (siehe [Fot
 ## Ablauf
 
 1. **Laden** der drei TILDA-Layer. Wege, die in mehreren Layern stehen, werden einmal übernommen (bikelanes vor roads vor roadsPathClasses).
-2. **Wege am Netz**: Ein Weg bleibt, wenn mindestens 50 % seiner Länge im Puffer um die Netzkanten liegen (Pufferbreiten siehe unten). Wege unter 20 m entfallen. Die Richtung wird nicht geprüft, Querungen und kurze Stücke von Seitenstraßen bleiben also enthalten.
+2. **Wege am Netz**: Ein Weg bleibt, wenn mindestens 50 % seiner Länge im Puffer um die Netzkanten liegen (Pufferbreiten siehe unten). Wege unter 20 m entfallen. Die Richtung wird hier nicht geprüft; Strecken quer zum Netz entfallen erst nach dem Verbinden (siehe [Strecken](#strecken)).
 3. **Netzattribute** der Kante, die dem Wegmittelpunkt am nächsten liegt.
 4. **Klassifizierung** nach den Regeln unten, danach die Busspur-Regel.
 5. **Strecken**: Wege mit Bedarf werden zu möglichst langen, geraden Strecken verbunden, kurze Reste entfallen (siehe [Strecken](#strecken)).
@@ -104,11 +106,15 @@ Wird später mehr Beschilderung erfasst, entfallen weniger Wege.
 `merge_lines.py` verbindet die Wege mit Bedarf, damit beim Befahren zusammenhängende Strecken statt vieler kurzer Stücke entstehen. Die Schwellen stehen oben im Skript.
 
 1. **Auf die Straßenseite versetzen**: An der Mittellinie erfasste Radwege (`way/123/cycleway/left`) liegen in TILDA auf der Mittellinie, links und rechts also aufeinander. Sie werden um `offset` (halbe Straßenbreite) zur Seite versetzt, damit sichtbar ist, ob eine oder beide Seiten befahren werden müssen. Linke Seiten laufen danach in Fahrtrichtung.
-1. **Fortsetzung suchen**: Zwei Wegenden werden verbunden, wenn das zweite in Verlängerung des ersten liegt: höchstens 20 m entfernt, höchstens 30° abgeknickt und höchstens 5 m seitlich versetzt (damit die Straßenseite nicht wechselt).
+1. **Fortsetzung suchen**: Zwei Wegenden werden verbunden, wenn das zweite in Verlängerung des ersten liegt: höchstens 40 m entfernt, höchstens 30° abgeknickt und höchstens 5 m seitlich versetzt (damit die Straßenseite nicht wechselt). 40 m reichen über eine Einmündung hinweg; mit 20 m blieb z. B. die Pallasstraße an jeder Einmündung getrennt.
 2. **Eindeutig**: Jedes Ende wird nur einmal verbunden. Bei mehreren Kandidaten gewinnt die nächste und geradeste Fortsetzung.
+2. **Brücken**: Kurze Wege ohne Bedarf (z. B. Querungen an Einmündungen) schließen eine Lücke zwischen zwei Wegen mit Bedarf, wenn sie zusammen höchstens 50 m lang sind. Eine direkte Fortsetzung mit Bedarf geht immer vor. `prioritaet_stats` nennt diese Kilometer als „ohne Bedarf“.
 3. **Prioritäten**: Wege aller Prioritäten werden verbunden. Ausnahme: Ein zusammenhängendes Stück mit Priorität 3 ab 1 km oder mit Priorität 2 ab 2 km bleibt eine eigene Strecke. `prioritaet_stats` nennt die Kilometer je Priorität.
 4. **Lücken** werden mit einer geraden Linie geschlossen, die Strecke wird danach vereinfacht.
-5. **Kurze Reste**: Strecken unter 30 m entfallen, unabhängig von der Priorität (`entfernt_kurz.geojson`).
+5. **Kurze Reste**: Strecken unter 30 m entfallen, unabhängig von der Priorität.
+6. **Quer zum Netz**: Strecken, die das Netz nur queren, entfallen. Eine Strecke läuft an einer Stelle entlang des Netzes, wenn sie dort höchstens 60° von der Richtung einer nahen Netzkante abweicht; liegt weniger als die Hälfte der Strecke entlang des Netzes, entfällt sie (`ALONG_*` in `build.py`).
+
+Entfallene Strecken stehen mit dem Attribut `grund` in `entfernt.geojson`.
 
 Attribute je Strecke:
 
@@ -118,7 +124,7 @@ Attribute je Strecke:
 | `osm_ids` | OSM-IDs der Wege in Reihenfolge entlang der Strecke, durch Semikolon getrennt |
 | `name` | Straßenname mit dem größten Längenanteil |
 | `prioritaet` | Dringlichste Priorität der Wege (kleinste Zahl) |
-| `prioritaet_stats` | Aufteilung, z. B. `3,00 km, davon 1,00 km Prio 1, 2,00 km Prio 2` |
+| `prioritaet_stats` | Aufteilung, z. B. `3,05 km, davon 1,00 km Prio 1, 2,00 km Prio 2, 0,05 km ohne Bedarf` |
 | `laenge_m`, `anzahl_teile` | Länge inkl. geschlossener Lücken, Anzahl der Wege |
 | `befahrung_links_markdown` | Markdown-Links zur Mapillary-Abdeckung (Kartenmitte = Streckenmitte) und zum Routing (Streckenanfang bis -ende) |
 
@@ -129,7 +135,7 @@ Die übrigen Attribute je Weg stehen in `pruefung_einzelwege.geojson`.
 | Datei | Inhalt |
 |---|---|
 | `befahrung_strecken.geojson` | Strecken zum Befahren: Wege mit `bedarf=ja`, verbunden |
-| `entfernt_kurz.geojson` | Strecken unter 30 m, die nach dem Verbinden entfallen |
+| `entfernt.geojson` | Strecken, die nach dem Verbinden entfallen, mit `grund` (kürzer als 30 m oder quer zum Netz) |
 | `befahrungsbedarf.geojson` | Einzelne Wege mit `bedarf=ja` |
 | `pruefung_einzelwege.geojson` | alle Wege am Netz inkl. Klassifizierung |
 | `statistik.json` | Kilometer je Klasse, Parameter und Datenstände |

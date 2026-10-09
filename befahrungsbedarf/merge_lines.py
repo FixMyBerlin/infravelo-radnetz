@@ -10,8 +10,11 @@ liegt: höchstens MAX_GAP_M entfernt, höchstens MAX_ANGLE_DEG abgeknickt und
 höchstens MAX_LATERAL_M seitlich versetzt. Jedes Ende wird nur einmal
 verbunden; gibt es mehrere Kandidaten, gewinnt die geradeste und nächste
 Fortsetzung. Lücken werden mit einer geraden Linie geschlossen. An der
-Straßen-Mittellinie erfasste Wege kommen schon auf ihre Seite versetzt an. Strecken
-unter MIN_LENGTH_M entfallen danach.
+Straßen-Mittellinie erfasste Wege kommen schon auf ihre Seite versetzt an.
+
+Kurze Wege ohne Bedarf (Spalte bruecke, z.B. Querungen an Einmündungen) schließen
+Lücken zwischen zwei Wegen mit Bedarf, wenn sie zusammen höchstens BRIDGE_MAX_M
+lang sind. Welche Strecken am Ende entfallen, entscheidet build.py.
 
 Wird von build.py aufgerufen.
 """
@@ -26,13 +29,15 @@ import shapely
 from shapely.geometry import LineString
 
 # Suchweite in Linienrichtung ab dem Wegende
-MAX_GAP_M = 20
+MAX_GAP_M = 40
 # Größter Knick zwischen zwei verbundenen Wegen
 MAX_ANGLE_DEG = 30
 # Größter seitlicher Versatz, damit die Straßenseite nicht wechselt
 MAX_LATERAL_M = 5
 # Kürzere Strecken entfallen nach dem Verbinden
 MIN_LENGTH_M = 30
+# Wege ohne Bedarf dürfen zwei Wege mit Bedarf verbinden, zusammen bis zu dieser Länge
+BRIDGE_MAX_M = 50
 # Länge des Stücks am Wegende, aus dem die Richtung bestimmt wird
 DIRECTION_SAMPLE_M = 10
 # Ab diesem Abstand gelten zwei Enden als Lücke und nicht als gemeinsamer Punkt
@@ -58,12 +63,14 @@ def _end_directions(geom) -> tuple[np.ndarray, np.ndarray]:
     return start / np.hypot(*start), end / np.hypot(*end)
 
 
-def find_links(ways: gpd.GeoDataFrame, groups: np.ndarray) -> list[tuple[int, int]]:
+def find_links(ways: gpd.GeoDataFrame, groups: np.ndarray, bridges_fit_all: bool = False) -> list[tuple[int, int]]:
     """
     Sucht die Verbindungen zwischen Wegenden; verbunden werden nur Wege derselben
-    Gruppe. Ein Ende ist 2 * Wegposition + 0 (Anfang) bzw. + 1 (Ende).
+    Gruppe. Mit bridges_fit_all passen Wege ohne Bedarf (bruecke) zu jeder Gruppe.
+    Ein Ende ist 2 * Wegposition + 0 (Anfang) bzw. + 1 (Ende).
     Rückgabe: Paare verbundener Enden.
     """
+    is_bridge = ways['bruecke'].to_numpy()
     coords = [shapely.get_coordinates(geom) for geom in ways.geometry]
     points = np.array([xy for way in coords for xy in (way[0], way[-1])])
     directions = np.array([d for geom in ways.geometry for d in _end_directions(geom)])
@@ -72,7 +79,10 @@ def find_links(ways: gpd.GeoDataFrame, groups: np.ndarray) -> list[tuple[int, in
     first, second = tree.query(shapely.points(points), predicate='dwithin', distance=MAX_GAP_M)
     candidates = []
     for a, b in zip(first, second):
-        if a >= b or a // 2 == b // 2 or groups[a // 2] != groups[b // 2]:
+        if a >= b or a // 2 == b // 2:
+            continue
+        over_bridge = is_bridge[a // 2] or is_bridge[b // 2]
+        if groups[a // 2] != groups[b // 2] and not (bridges_fit_all and over_bridge):
             continue
         # Knick: b muss dorthin weiterlaufen, wohin a zeigt
         angle = np.degrees(np.arccos(np.clip(-directions[a] @ directions[b], -1, 1)))
@@ -88,7 +98,9 @@ def find_links(ways: gpd.GeoDataFrame, groups: np.ndarray) -> list[tuple[int, in
             # Versetzte Wege schließen seitlich leicht verschoben an: bis TOUCHING_M Überlappung
             if forward_a < -TOUCHING_M or forward_b < -TOUCHING_M or lateral > MAX_LATERAL_M:
                 continue
-        candidates.append((distance + angle / 3, a, b))
+        # Eine direkte Fortsetzung mit Bedarf geht immer vor dem Weg über eine Brücke
+        penalty = MAX_GAP_M + MAX_ANGLE_DEG / 3 if over_bridge else 0
+        candidates.append((distance + angle / 3 + penalty, a, b))
 
     # Beste Fortsetzung zuerst; jedes Ende nur einmal, keine Ringe
     parent = list(range(len(ways)))
@@ -135,19 +147,53 @@ def _chains(way_count: int, links: list[tuple[int, int]]) -> list[list[tuple[int
     return chains
 
 
+def _drop_unused_bridges(ways: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    """
+    Behält von den Wegen ohne Bedarf nur die, die in einer Strecke zwischen zwei
+    Wegen mit Bedarf liegen und dort zusammen höchstens BRIDGE_MAX_M lang sind.
+    """
+    while True:
+        is_bridge = ways['bruecke'].to_numpy()
+        lengths = ways.geometry.length.to_numpy()
+        keep = ~is_bridge
+        for chain in _chains(len(ways), find_links(ways, np.zeros(len(ways)))):
+            run, after_needed = [], False
+            for way, _ in chain:
+                if is_bridge[way]:
+                    run.append(way)
+                    continue
+                if after_needed and run and lengths[run].sum() <= BRIDGE_MAX_M:
+                    keep[run] = True
+                run, after_needed = [], True
+        if keep.all():
+            return ways
+        # Ohne die entfallenen Brücken können sich andere Verbindungen ergeben
+        ways = ways[keep].reset_index(drop=True)
+
+
 def _merge_groups(ways: gpd.GeoDataFrame) -> np.ndarray:
     """
     Gruppe je Weg: Lange Stücke einer Priorität (SEPARATE_FROM_M) bleiben unter
-    sich, alle übrigen Wege dürfen miteinander verbunden werden.
+    sich, alle übrigen Wege dürfen miteinander verbunden werden. Brücken zählen
+    zu dem Stück, das sie fortsetzen.
     """
-    priorities = ways['prioritaet'].to_numpy()
+    is_bridge = ways['bruecke'].to_numpy()
+    priorities = ways['prioritaet'].fillna(0).astype(int).to_numpy()
     lengths = ways.geometry.length.to_numpy()
     groups = np.full(len(ways), 'gemischt', dtype=object)
-    for chain in _chains(len(ways), find_links(ways, priorities)):
-        members = [way for way, _ in chain]
-        priority = priorities[members[0]]
-        if lengths[members].sum() >= SEPARATE_FROM_M.get(priority, np.inf):
-            groups[members] = f'prio_{priority}_lang'
+    for chain in _chains(len(ways), find_links(ways, priorities, bridges_fit_all=True)):
+        runs = []
+        for way, _ in chain:
+            if is_bridge[way]:
+                if runs:
+                    runs[-1][1].append(way)
+            elif runs and runs[-1][0] == priorities[way]:
+                runs[-1][1].append(way)
+            else:
+                runs.append((priorities[way], [way]))
+        for priority, members in runs:
+            if lengths[members].sum() >= SEPARATE_FROM_M.get(priority, np.inf):
+                groups[members] = f'prio_{priority}_lang'
     return groups
 
 
@@ -156,11 +202,13 @@ def _german(value: float) -> str:
 
 
 def _priority_stats(parts: pd.DataFrame) -> str:
-    km = parts.groupby('prioritaet')['laenge_m'].sum() / 1000
-    if len(km) == 1:
-        return f'{_german(km.iloc[0])} km Prio {km.index[0]}'
-    shares = ', '.join(f'{_german(value)} km Prio {priority}' for priority, value in km.items())
-    return f'{_german(km.sum())} km, davon {shares}'
+    km = parts[~parts['bruecke']].groupby('prioritaet')['laenge_m'].sum() / 1000
+    shares = [f'{_german(value)} km Prio {priority}' for priority, value in km.items()]
+    if parts['bruecke'].any():
+        shares.append(f"{_german(parts.loc[parts['bruecke'], 'laenge_m'].sum() / 1000)} km ohne Bedarf")
+    if len(shares) == 1:
+        return shares[0]
+    return f"{_german(parts['laenge_m'].sum() / 1000)} km, davon {', '.join(shares)}"
 
 
 def _links_markdown(line_wgs84) -> str:
@@ -173,15 +221,23 @@ def _links_markdown(line_wgs84) -> str:
             f' · [Routing]({ROUTING_URL.format(map=map_position, start=position(start), end=position(end))})')
 
 
-def merge_lines(ways: gpd.GeoDataFrame, simplify_m: float) -> tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]:
+def merge_lines(ways: gpd.GeoDataFrame, simplify_m: float) -> gpd.GeoDataFrame:
     """
-    Verbindet die Wege zu Strecken. Rückgabe: Strecken ab MIN_LENGTH_M und die
-    entfernten kürzeren Strecken, beide im CRS der Eingabe.
+    Verbindet die Wege zu Strecken, im CRS der Eingabe. Die Spalte bruecke
+    markiert Wege ohne Bedarf, die nur Lücken schließen dürfen.
     """
-    ways = ways.reset_index(drop=True)
+    ways = _drop_unused_bridges(ways.reset_index(drop=True))
+    is_bridge = ways['bruecke'].to_numpy()
     links = find_links(ways, _merge_groups(ways))
     rows = []
     for chain in _chains(len(ways), links):
+        # Brücken am Anfang und Ende einer Strecke verbinden nichts
+        while chain and is_bridge[chain[0][0]]:
+            chain = chain[1:]
+        while chain and is_bridge[chain[-1][0]]:
+            chain = chain[:-1]
+        if not chain:
+            continue
         parts = ways.iloc[[way for way, _ in chain]]
         coords = []
         for way, reverse in chain:
@@ -207,7 +263,6 @@ def merge_lines(ways: gpd.GeoDataFrame, simplify_m: float) -> tuple[gpd.GeoDataF
     lines = lines[['id', 'osm_ids', 'name', 'prioritaet', 'prioritaet_stats', 'laenge_m', 'anzahl_teile',
                    'befahrung_links_markdown', 'geometry']]
 
-    long_enough = lines['laenge_m'] >= MIN_LENGTH_M
-    logging.info(f'{len(ways)} Wege über {len(links)} Verbindungen zu {len(lines)} Strecken verbunden, '
-                 f'{(~long_enough).sum()} unter {MIN_LENGTH_M} m entfernt')
-    return lines[long_enough].reset_index(drop=True), lines[~long_enough].reset_index(drop=True)
+    logging.info(f'{(~is_bridge).sum()} Wege mit Bedarf und {is_bridge.sum()} Brücken '
+                 f'zu {len(lines)} Strecken verbunden')
+    return lines
