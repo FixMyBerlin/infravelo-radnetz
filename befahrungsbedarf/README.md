@@ -22,12 +22,13 @@ python befahrungsbedarf/build.py
 | TILDA-Export | bikelanes_2026-10-05.fgb |
 | Netz | 1996.4 km |
 | Wege am Netz | 39257 Wege, 3531.6 km |
-| Befahrungsbedarf | 5970 Wege, 795.0 km |
-| davon Priorität 1 / 2 / 3 | 144.4 / 294.5 / 356.1 km |
+| Befahrungsbedarf | 5854 Wege, 783.3 km |
+| davon Priorität 1 / 2 / 3 | 140.5 / 294.5 / 348.3 km |
 | Wegen Busspur mit Radfreigabe entfallen | 21 Wege, 3.3 km |
-| Strecken zum Befahren | 2139 Strecken, 800.8 km, Median 185 m |
+| Zwischen zwei Richtungsfahrbahnen entfallen | 116 Wege, 11.7 km |
+| Strecken zum Befahren | 2069 Strecken, 789.2 km, Median 191 m |
 | davon über Wege ohne Bedarf verbunden | 115 Strecken, 4.9 km ohne Bedarf |
-| Strecken unter 30 m entfernt | 558 Strecken, 13.5 km |
+| Strecken unter 30 m entfernt | 541 Strecken, 13.1 km |
 | Strecken quer zum Netz entfernt | 111 Strecken, 4.5 km |
 <!-- stand:end -->
 
@@ -53,7 +54,7 @@ Das Startdatum der Mapillary-Fotos wandert mit jedem Abgleich weiter (siehe [Fot
 1. **Laden** der drei TILDA-Layer. Wege, die in mehreren Layern stehen, werden einmal übernommen (bikelanes vor roads vor roadsPathClasses).
 2. **Wege am Netz**: Ein Weg bleibt, wenn mindestens 50 % seiner Länge im Puffer um die Netzkanten liegen (Pufferbreiten siehe unten). Wege unter 20 m entfallen. Die Richtung wird hier nicht geprüft; Strecken quer zum Netz entfallen erst nach dem Verbinden (siehe [Strecken](#strecken)).
 3. **Netzattribute** der Kante, die dem Wegmittelpunkt am nächsten liegt.
-4. **Klassifizierung** nach den Regeln unten, danach die Busspur-Regel.
+4. **Klassifizierung** nach den Regeln unten, danach die Busspur-Regel und die Regel für Wege zwischen zwei Richtungsfahrbahnen.
 5. **Strecken**: Wege mit Bedarf werden zu möglichst langen, geraden Strecken verbunden, kurze Reste entfallen (siehe [Strecken](#strecken)).
 6. **Ausgabe** als GeoJSON (WGS84), Geometrie mit 1 m Toleranz vereinfacht.
 
@@ -100,6 +101,18 @@ Wie im Abgleich 2025 gewinnt eine Busspur mit Radfreigabe (`sharedBusLane*`) geg
 - **Separat erfasst**: mindestens 80 % des Radwegs liegen in Fahrtrichtung rechts der Busspur, höchstens 20 m von der Straßen-Mittellinie entfernt und höchstens 30° dazu gedreht. Der Straßenname wird nicht verglichen, weil separate Wege oft keinen tragen.
 
 Wird später mehr Beschilderung erfasst, entfallen weniger Wege.
+
+### Zwischen zwei Richtungsfahrbahnen
+
+Bei getrennten Richtungsfahrbahnen liegt die Radinfrastruktur außen. Ein Weg ohne Radinfrastruktur auf dem Mittelstreifen muss deshalb nicht befahren werden (`bedarf = nein`, `grund = zwischen Richtungsfahrbahnen`). Beispiel: der Gehweg [way/1228388287](https://www.openstreetmap.org/way/1228388287) zwischen Engeldamm und Bethaniendamm.
+
+Ein Weg entfällt, wenn alles zutrifft:
+
+- Er hat keine Radinfrastruktur-Kategorie (Gehweg, Pfad, Zufahrt; Radwege auf dem Mittelstreifen bleiben).
+- Mindestens 80 % seiner Länge liegen links einer Einbahn-Fahrbahn in seiner Richtung und links einer Einbahn-Fahrbahn in Gegenrichtung, jeweils höchstens 50 m entfernt und höchstens 30° dazu gedreht.
+- Beide Fahrbahnen geben für ihre linke Seite ausdrücklich keine Radinfrastruktur an (TILDA `bikelane_left = data_no`).
+
+Die Regel trifft auch Uferwege zwischen zwei Uferstraßen (z. B. am Landwehrkanal zwischen Schöneberger Ufer und Reichpietschufer).
 
 ## Strecken
 

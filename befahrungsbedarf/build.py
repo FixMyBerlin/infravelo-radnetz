@@ -72,6 +72,18 @@ BUS_LANE_SAMPLE_M = 5
 # Anteil des Radwegs, neben dem die Busspur verlaufen muss
 BUS_LANE_MIN_SHARE = 0.8
 
+# --- Regel: Wege zwischen zwei Richtungsfahrbahnen entfallen ------------------
+# Bei getrennten Richtungsfahrbahnen liegt die Radinfrastruktur außen. Ein Weg
+# ohne Radinfrastruktur (z.B. Gehweg auf dem Mittelstreifen) entfällt, wenn er
+# zwischen zwei gegenläufigen Einbahn-Fahrbahnen liegt, die für ihre linke Seite
+# ausdrücklich keine Radinfrastruktur angeben (bikelane_left).
+MEDIAN_ONEWAY_VALUES = ('yes', 'yes_dual_carriageway')
+MEDIAN_NO_BIKELANE = 'data_no'
+MEDIAN_MAX_DISTANCE_M = 50
+MEDIAN_MAX_ANGLE_DEG = 30
+MEDIAN_SAMPLE_M = 5
+MEDIAN_MIN_SHARE = 0.8
+
 # --- Regel: Strecken quer zum Netz entfallen ---------------------------------
 # Eine Strecke läuft an einer Stelle "entlang" des Netzes, wenn sie dort höchstens
 # so weit von der Richtung einer Netzkante in deren Puffer abweicht. Liegt
@@ -280,6 +292,41 @@ def find_ways_beside_bus_lane(ways: gpd.GeoDataFrame) -> pd.Series:
     return beside
 
 
+def find_ways_between_carriageways(ways: gpd.GeoDataFrame) -> pd.Series:
+    """Markiert Wege ohne Radinfrastruktur zwischen zwei Richtungsfahrbahnen (siehe MEDIAN_*)."""
+    roads = gpd.read_file(DATA_DIR / 'roads.fgb', columns=['oneway', 'bikelane_left']).to_crs(CRS)
+    roads = roads[roads['oneway'].isin(MEDIAN_ONEWAY_VALUES) & (roads['bikelane_left'] == MEDIAN_NO_BIKELANE)]
+    carriageways = roads.geometry.values
+    tree = shapely.STRtree(carriageways)
+
+    candidates = ways[ways['category'].isna() & ways['id'].map(side_of_way).isna()]
+    between = pd.Series(False, index=ways.index)
+    for index, geom in candidates.geometry.items():
+        distances = np.arange(MEDIAN_SAMPLE_M / 2, geom.length, MEDIAN_SAMPLE_M)
+        points = shapely.line_interpolate_point(geom, distances)
+        way_bearings = np.radians(_bearings(geom, distances))
+        # Links einer Fahrbahn in Wegrichtung und links einer Fahrbahn in Gegenrichtung
+        left_of = {True: np.zeros(len(points), dtype=bool), False: np.zeros(len(points), dtype=bool)}
+        for road_index in tree.query(geom, predicate='dwithin', distance=MEDIAN_MAX_DISTANCE_M):
+            line = carriageways[road_index]
+            along = shapely.line_locate_point(line, points)
+            foot = shapely.get_coordinates(shapely.line_interpolate_point(line, along))
+            road_bearings = np.radians(_bearings(line, along))
+            offset = shapely.get_coordinates(points) - foot
+            # Kreuzprodukt > 0: Punkt liegt in Fahrtrichtung links der Fahrbahn
+            left = np.cos(road_bearings) * offset[:, 1] - np.sin(road_bearings) * offset[:, 0] > 0
+            near = np.hypot(offset[:, 0], offset[:, 1]) <= MEDIAN_MAX_DISTANCE_M
+            abreast = (along > 0) & (along < line.length)
+            turn = np.cos(road_bearings - way_bearings)
+            parallel = np.abs(turn) >= np.cos(np.radians(MEDIAN_MAX_ANGLE_DEG))
+            beside = left & near & abreast & parallel
+            left_of[True] |= beside & (turn > 0)
+            left_of[False] |= beside & (turn < 0)
+        between[index] = (left_of[True] & left_of[False]).mean() >= MEDIAN_MIN_SHARE
+    logging.info(f'{between.sum()} Wege ohne Radinfrastruktur zwischen zwei Richtungsfahrbahnen')
+    return between
+
+
 def offset_to_side(ways: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     """
     Versetzt an der Mittellinie erfasste Wege um 'offset' (+ links / - rechts in
@@ -361,6 +408,7 @@ def update_readme(statistik: dict):
         f"| Befahrungsbedarf | {bedarf['anzahl']} Wege, {bedarf['km']} km |",
         f"| davon Priorität 1 / 2 / 3 | {prio.get('1', 0)} / {prio.get('2', 0)} / {prio.get('3', 0)} km |",
         f"| Wegen Busspur mit Radfreigabe entfallen | {bedarf['entfallen_wegen_busspur']['anzahl']} Wege, {bedarf['entfallen_wegen_busspur']['km']} km |",
+        f"| Zwischen zwei Richtungsfahrbahnen entfallen | {bedarf['entfallen_zwischen_richtungsfahrbahnen']['anzahl']} Wege, {bedarf['entfallen_zwischen_richtungsfahrbahnen']['km']} km |",
         f"| Strecken zum Befahren | {strecken['anzahl']} Strecken, {strecken['km']} km, Median {strecken['median_m']} m |",
         f"| davon über Wege ohne Bedarf verbunden | {strecken['mit_bruecke']['anzahl']} Strecken, {strecken['mit_bruecke']['km_ohne_bedarf']} km ohne Bedarf |",
         f"| Strecken unter {MIN_LINE_LENGTH_M} m entfernt | {strecken['entfernt']['kurz']['anzahl']} Strecken, {strecken['entfernt']['kurz']['km']} km |",
@@ -385,11 +433,14 @@ def main():
     ways[['bedarf', 'prioritaet', 'grund']] = ways.apply(classify_need, axis=1)
     beside_bus_lane = find_ways_beside_bus_lane(ways) & (ways['bedarf'] == 'ja')
     ways.loc[beside_bus_lane, ['bedarf', 'prioritaet', 'grund']] = ['nein', None, 'Busspur mit Radfreigabe']
+    between_carriageways = find_ways_between_carriageways(ways) & (ways['bedarf'] == 'ja')
+    ways.loc[between_carriageways, ['bedarf', 'prioritaet', 'grund']] = ['nein', None, 'zwischen Richtungsfahrbahnen']
     ways['prioritaet'] = ways['prioritaet'].astype('Int64')
 
     needed = ways[ways['bedarf'] == 'ja']
     # Kurze Wege ohne Bedarf dürfen Lücken zwischen Wegen mit Bedarf schließen
-    bridges = ways[(ways['bedarf'] == 'nein') & ~beside_bus_lane & (ways['laenge_m'] <= BRIDGE_MAX_M)]
+    bridges = ways[(ways['bedarf'] == 'nein') & ~beside_bus_lane & ~between_carriageways
+                   & (ways['laenge_m'] <= BRIDGE_MAX_M)]
     lines = merge_lines(offset_to_side(pd.concat([needed.assign(bruecke=False), bridges.assign(bruecke=True)])),
                         SIMPLIFY_M)
     lines['grund'] = None
@@ -421,6 +472,9 @@ def main():
             'km': round(needed['laenge_m'].sum() / 1000, 1),
             'entfallen_wegen_busspur': {'anzahl': int(beside_bus_lane.sum()),
                                         'km': round(ways.loc[beside_bus_lane, 'laenge_m'].sum() / 1000, 1)},
+            'entfallen_zwischen_richtungsfahrbahnen': {
+                'anzahl': int(between_carriageways.sum()),
+                'km': round(ways.loc[between_carriageways, 'laenge_m'].sum() / 1000, 1)},
             'km_je_prioritaet': km_by(needed, 'prioritaet'),
             'km_je_quelle': km_by(needed, 'quelle'),
             'km_je_road': km_by(needed, 'road'),
