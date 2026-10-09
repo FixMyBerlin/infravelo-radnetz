@@ -83,6 +83,7 @@ MAPROULETTE_PROPERTIES = ['category', 'name', 'road', 'traffic_sign', 'width', '
 # iD-Variante, mit der die Kampagne bearbeitet wird
 EDITOR_URL = 'https://deploy-preview-10--tordans-id-experiments.netlify.app/'
 EDITOR_ZOOM = 19
+EDITOR_BACKGROUND = 'Brandenburg-DOP20c'
 
 SIDE_LABELS = {'left': 'links', 'right': 'rechts'}
 
@@ -196,7 +197,7 @@ def editor_url(members: gpd.GeoDataFrame) -> str:
     way_ids = ','.join(f"w{osm_id}" for osm_id in sorted(members['osm_id'].unique()))
     return (f"{EDITOR_URL}#disable_features=boundaries"
             f"&map={EDITOR_ZOOM}/{center.y:.5f}/{center.x:.5f}"
-            f"&locale=en&photo_overlay=mapillary&id={way_ids}")
+            f"&background={EDITOR_BACKGROUND}&locale=en&photo_overlay=mapillary&id={way_ids}")
 
 
 def task_markdown(members: gpd.GeoDataFrame, title: str) -> str:
@@ -319,6 +320,10 @@ def main():
     data_updated_at = datetime.fromtimestamp(BIKELANES_PATH.stat().st_mtime).strftime('%Y-%m-%d')
     run_dir = OUTPUT_DIR / datetime.now().strftime('%Y-%m-%d')
     run_dir.mkdir(parents=True, exist_ok=True)
+    # Link in den Editor je Weg; TILDA zeigt Attribute mit der Endung _markdown als Link an
+    tracks['editor_markdown'] = [
+        f"[Im Editor öffnen]({editor_url(tracks.iloc[[position]])})" for position in range(len(tracks))
+    ]
     geojson_path = run_dir / 'centerline_tracks.geojson'
     tracks.to_file(geojson_path, driver='GeoJSON')
     logging.info(f"GeoJSON geschrieben: {geojson_path}")
