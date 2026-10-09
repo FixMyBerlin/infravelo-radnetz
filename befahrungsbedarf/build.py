@@ -94,6 +94,12 @@ ALONG_MIN_SHARE = 0.5
 # Auf ihre Straßenseite versetzte Wege liegen etwas weiter von der Kante als ihr Puffer
 ALONG_EXTRA_BUFFER_M = 10
 
+# --- Regel: Kurze Strecken ohne Radinfrastruktur entfallen -------------------
+# Strecken nur aus Wegen ohne Radinfrastruktur-Kategorie (Gehwege, Pfade,
+# Treppen, Zufahrten) bleiben erst ab dieser Länge; kürzere sind meist
+# Verbindungsstücke, auf denen keine Radinfrastruktur zu erwarten ist.
+MIN_LINE_LENGTH_WITHOUT_BIKE_INFRA_M = 100
+
 # Vereinfachung der Ausgabegeometrie (Douglas-Peucker, in Metern)
 SIMPLIFY_M = 1.0
 
@@ -412,6 +418,7 @@ def update_readme(statistik: dict):
         f"| Strecken zum Befahren | {strecken['anzahl']} Strecken, {strecken['km']} km, Median {strecken['median_m']} m |",
         f"| davon über Wege ohne Bedarf verbunden | {strecken['mit_bruecke']['anzahl']} Strecken, {strecken['mit_bruecke']['km_ohne_bedarf']} km ohne Bedarf |",
         f"| Strecken unter {MIN_LINE_LENGTH_M} m entfernt | {strecken['entfernt']['kurz']['anzahl']} Strecken, {strecken['entfernt']['kurz']['km']} km |",
+        f"| Strecken ohne Radinfrastruktur unter {MIN_LINE_LENGTH_WITHOUT_BIKE_INFRA_M} m entfernt | {strecken['entfernt']['ohne_radinfra_kurz']['anzahl']} Strecken, {strecken['entfernt']['ohne_radinfra_kurz']['km']} km |",
         f"| Strecken quer zum Netz entfernt | {strecken['entfernt']['quer']['anzahl']} Strecken, {strecken['entfernt']['quer']['km']} km |",
     ]
     readme = README_PATH.read_text()
@@ -445,10 +452,13 @@ def main():
                         SIMPLIFY_M)
     lines['grund'] = None
     lines.loc[share_along_network(lines, network) < ALONG_MIN_SHARE, 'grund'] = 'quer zum Netz'
+    lines.loc[lines['ohne_radinfra'] & (lines['laenge_m'] < MIN_LINE_LENGTH_WITHOUT_BIKE_INFRA_M), 'grund'] = (
+        f'ohne Radinfrastruktur und kürzer als {MIN_LINE_LENGTH_WITHOUT_BIKE_INFRA_M} m')
     lines.loc[lines['laenge_m'] < MIN_LINE_LENGTH_M, 'grund'] = f'kürzer als {MIN_LINE_LENGTH_M} m'
+    lines = lines.drop(columns='ohne_radinfra')
     removed_lines = lines[lines['grund'].notna()].reset_index(drop=True)
     lines = lines[lines['grund'].isna()].drop(columns='grund').reset_index(drop=True)
-    removed = {key: removed_lines[removed_lines['grund'].str.startswith(key)] for key in ('kürzer', 'quer')}
+    removed = {key: removed_lines[removed_lines['grund'].str.startswith(key)] for key in ('kürzer', 'quer', 'ohne')}
     with_bridge = lines[lines['prioritaet_stats'].str.contains('ohne Bedarf')]
     ml_data_from = (read_json(DATA_DIR / 'ml_metadata.json') or {}).get('ml_data_from')
     statistik = {
@@ -493,6 +503,8 @@ def main():
             'entfernt': {
                 'kurz': {'anzahl': len(removed['kürzer']), 'km': round(removed['kürzer']['laenge_m'].sum() / 1000, 1)},
                 'quer': {'anzahl': len(removed['quer']), 'km': round(removed['quer']['laenge_m'].sum() / 1000, 1)},
+                'ohne_radinfra_kurz': {'anzahl': len(removed['ohne']),
+                                       'km': round(removed['ohne']['laenge_m'].sum() / 1000, 1)},
             },
         },
         'km_je_kfz_bild': km_by(ways, 'kfz_bild'),

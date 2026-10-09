@@ -26,10 +26,11 @@ python befahrungsbedarf/build.py
 | davon Priorität 1 / 2 / 3 | 140.5 / 294.5 / 348.3 km |
 | Wegen Busspur mit Radfreigabe entfallen | 21 Wege, 3.3 km |
 | Zwischen zwei Richtungsfahrbahnen entfallen | 116 Wege, 11.7 km |
-| Strecken zum Befahren | 2069 Strecken, 789.2 km, Median 191 m |
+| Strecken zum Befahren | 1705 Strecken, 769.6 km, Median 273 m |
 | davon über Wege ohne Bedarf verbunden | 115 Strecken, 4.9 km ohne Bedarf |
 | Strecken unter 30 m entfernt | 541 Strecken, 13.1 km |
-| Strecken quer zum Netz entfernt | 111 Strecken, 4.5 km |
+| Strecken ohne Radinfrastruktur unter 100 m entfernt | 454 Strecken, 23.1 km |
+| Strecken quer zum Netz entfernt | 21 Strecken, 1.0 km |
 <!-- stand:end -->
 
 Das Startdatum der Mapillary-Fotos wandert mit jedem Abgleich weiter (siehe [Fotos](#fotos)). Wir dürfen Fotos ab 2024 verwenden; liegt das Startdatum in 2024 oder später, ist das erfüllt.
@@ -126,6 +127,7 @@ Die Regel trifft auch Uferwege zwischen zwei Uferstraßen (z. B. am Landwehrkana
 4. **Lücken** werden mit einer geraden Linie geschlossen, die Strecke wird danach vereinfacht.
 5. **Kurze Reste**: Strecken unter 30 m entfallen, unabhängig von der Priorität.
 6. **Quer zum Netz**: Strecken, die das Netz nur queren, entfallen. Eine Strecke läuft an einer Stelle entlang des Netzes, wenn sie dort höchstens 60° von der Richtung einer nahen Netzkante abweicht; liegt weniger als die Hälfte der Strecke entlang des Netzes, entfällt sie (`ALONG_*` in `build.py`).
+7. **Ohne Radinfrastruktur**: Strecken, in denen kein Weg mit Bedarf eine Radinfrastruktur-Kategorie hat (reine Gehwege, Pfade, Treppen, Zufahrten), bleiben erst ab 100 m. Kürzere sind meist Verbindungsstücke, auf denen keine Radinfrastruktur zu erwarten ist.
 
 Entfallene Strecken stehen mit dem Attribut `grund` in `entfernt.geojson`.
 
@@ -148,7 +150,7 @@ Die übrigen Attribute je Weg stehen in `pruefung_einzelwege.geojson`.
 | Datei | Inhalt |
 |---|---|
 | `befahrung_strecken.geojson` | Strecken zum Befahren: Wege mit `bedarf=ja`, verbunden |
-| `entfernt.geojson` | Strecken, die nach dem Verbinden entfallen, mit `grund` (kürzer als 30 m oder quer zum Netz) |
+| `entfernt.geojson` | Strecken, die nach dem Verbinden entfallen, mit `grund` (kürzer als 30 m, quer zum Netz, ohne Radinfrastruktur und kürzer als 100 m) |
 | `befahrungsbedarf.geojson` | Einzelne Wege mit `bedarf=ja` |
 | `pruefung_einzelwege.geojson` | alle Wege am Netz inkl. Klassifizierung |
 | `statistik.json` | Kilometer je Klasse, Parameter und Datenstände |

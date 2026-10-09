@@ -224,7 +224,8 @@ def _links_markdown(line_wgs84) -> str:
 def merge_lines(ways: gpd.GeoDataFrame, simplify_m: float) -> gpd.GeoDataFrame:
     """
     Verbindet die Wege zu Strecken, im CRS der Eingabe. Die Spalte bruecke
-    markiert Wege ohne Bedarf, die nur Lücken schließen dürfen.
+    markiert Wege ohne Bedarf, die nur Lücken schließen dürfen. ohne_radinfra
+    markiert Strecken, in denen kein Weg mit Bedarf eine Radinfrastruktur-Kategorie hat.
     """
     ways = _drop_unused_bridges(ways.reset_index(drop=True))
     is_bridge = ways['bruecke'].to_numpy()
@@ -252,6 +253,7 @@ def merge_lines(ways: gpd.GeoDataFrame, simplify_m: float) -> gpd.GeoDataFrame:
             'prioritaet': int(parts['prioritaet'].min()),
             'prioritaet_stats': _priority_stats(parts),
             'anzahl_teile': len(parts),
+            'ohne_radinfra': bool(parts.loc[~parts['bruecke'], 'category'].isna().all()),
             'geometry': LineString(coords).simplify(simplify_m),
         })
     lines = gpd.GeoDataFrame(rows, crs=ways.crs)
@@ -261,7 +263,7 @@ def merge_lines(ways: gpd.GeoDataFrame, simplify_m: float) -> gpd.GeoDataFrame:
     lines.loc[duplicate_number > 0, 'id'] += '-' + (duplicate_number[duplicate_number > 0] + 1).astype(str)
     lines['befahrung_links_markdown'] = lines.geometry.to_crs('EPSG:4326').map(_links_markdown)
     lines = lines[['id', 'osm_ids', 'name', 'prioritaet', 'prioritaet_stats', 'laenge_m', 'anzahl_teile',
-                   'befahrung_links_markdown', 'geometry']]
+                   'befahrung_links_markdown', 'ohne_radinfra', 'geometry']]
 
     logging.info(f'{(~is_bridge).sum()} Wege mit Bedarf und {is_bridge.sum()} Brücken '
                  f'zu {len(lines)} Strecken verbunden')
