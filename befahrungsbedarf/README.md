@@ -129,7 +129,7 @@ Die Regel trifft auch Uferwege zwischen zwei Uferstraßen (z. B. am Landwehrkana
 6. **Quer zum Netz**: Strecken, die das Netz nur queren, entfallen. Eine Strecke läuft an einer Stelle entlang des Netzes, wenn sie dort höchstens 60° von der Richtung einer nahen Netzkante abweicht; liegt weniger als die Hälfte der Strecke entlang des Netzes, entfällt sie (`ALONG_*` in `build.py`).
 7. **Ohne Radinfrastruktur**: Strecken, in denen kein Weg mit Bedarf eine Radinfrastruktur-Kategorie hat (reine Gehwege, Pfade, Treppen, Zufahrten), bleiben erst ab 100 m. Kürzere sind meist Verbindungsstücke, auf denen keine Radinfrastruktur zu erwarten ist.
 
-Entfallene Strecken stehen mit dem Attribut `grund` in `entfernt.geojson`.
+Entfallene Strecken stehen mit dem Attribut `grund` in `strecken_entfernt.geojson`.
 
 Attribute je Strecke:
 
@@ -143,16 +143,16 @@ Attribute je Strecke:
 | `laenge_m`, `anzahl_teile` | Länge inkl. geschlossener Lücken, Anzahl der Wege |
 | `befahrung_links_markdown` | Markdown-Links zur Mapillary-Abdeckung (Kartenmitte = Streckenmitte) und zum Routing (Streckenanfang bis -ende) |
 
-Die übrigen Attribute je Weg stehen in `pruefung_einzelwege.geojson`.
+Die übrigen Attribute je Weg stehen in `wege_alle.geojson`.
 
 ## Ausgabe (`output/`, nicht versioniert)
 
 | Datei | Inhalt |
 |---|---|
-| `befahrung_strecken.geojson` | Strecken zum Befahren: Wege mit `bedarf=ja`, verbunden |
-| `entfernt.geojson` | Strecken, die nach dem Verbinden entfallen, mit `grund` (kürzer als 30 m, quer zum Netz, ohne Radinfrastruktur und kürzer als 100 m) |
-| `befahrungsbedarf.geojson` | Einzelne Wege mit `bedarf=ja` |
-| `pruefung_einzelwege.geojson` | alle Wege am Netz inkl. Klassifizierung |
+| `strecken.geojson` | Strecken zum Befahren: Wege mit `bedarf=ja`, verbunden |
+| `strecken_entfernt.geojson` | Strecken, die nach dem Verbinden entfallen, mit `grund` (kürzer als 30 m, quer zum Netz, ohne Radinfrastruktur und kürzer als 100 m) |
+| `wege_mit_bedarf.geojson` | Einzelne Wege mit `bedarf=ja` |
+| `wege_alle.geojson` | alle Wege am Netz inkl. Klassifizierung |
 | `statistik.json` | Kilometer je Klasse, Parameter und Datenstände |
 
 Das Netz selbst als GeoJSON schreibt `ren-network/unify_networks.py` nach `ren-network/output/ren_netz_gesamt.geojson`.

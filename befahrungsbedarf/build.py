@@ -11,10 +11,10 @@ Eingabe (befahrungsbedarf/data/, siehe download_data.sh):
 - bikelanes.fgb, roads.fgb, roadsPathClasses.fgb  (TILDA-Export)
 
 Ausgabe (befahrungsbedarf/output/):
-- befahrungsbedarf.geojson  Wege mit Befahrungsbedarf
-- pruefung_einzelwege.geojson      alle Wege am Netz inkl. Klassifizierung
-- befahrung_strecken.geojson  Wege mit Befahrungsbedarf, zu Strecken verbunden (merge_lines.py)
-- entfernt.geojson          Strecken, die nach dem Verbinden entfallen (zu kurz oder quer zum Netz)
+- strecken.geojson           Ergebnis: Wege mit Befahrungsbedarf, zu Strecken verbunden (merge_lines.py)
+- strecken_entfernt.geojson  Strecken, die nach dem Verbinden entfallen, mit Grund
+- wege_mit_bedarf.geojson    einzelne Wege mit Befahrungsbedarf
+- wege_alle.geojson          alle Wege am Netz inkl. Klassifizierung
 - statistik.json            Kilometer je Klasse und Datenstände
 
 Zusätzlich wird der Abschnitt "Stand des letzten Laufs" in der README.md aktualisiert.
@@ -513,7 +513,7 @@ def main():
     (OUTPUT_DIR / 'statistik.json').write_text(json.dumps(statistik, indent=2, ensure_ascii=False))
     update_readme(statistik)
 
-    outputs = [('pruefung_einzelwege', ways), ('befahrungsbedarf', ways[ways['bedarf'] == 'ja'])]
+    outputs = [('wege_alle', ways), ('wege_mit_bedarf', ways[ways['bedarf'] == 'ja'])]
     for name, gdf in outputs:
         gdf = gdf.set_geometry(gdf.geometry.simplify(SIMPLIFY_M)).to_crs('EPSG:4326')
         path = OUTPUT_DIR / f'{name}.geojson'
@@ -521,7 +521,7 @@ def main():
         logging.info(f'{path.name}: {len(gdf)} Features')
 
     # Strecken sind schon vereinfacht
-    for name, gdf in [('befahrung_strecken', lines), ('entfernt', removed_lines)]:
+    for name, gdf in [('strecken', lines), ('strecken_entfernt', removed_lines)]:
         path = OUTPUT_DIR / f'{name}.geojson'
         gdf.to_crs('EPSG:4326').to_file(path, driver='GeoJSON', COORDINATE_PRECISION=6)
         logging.info(f'{path.name}: {len(gdf)} Features')
