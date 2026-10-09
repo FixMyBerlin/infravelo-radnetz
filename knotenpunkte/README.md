@@ -56,6 +56,7 @@ In `knotenpunkte/output/`:
 |---|---|
 | `knotenpunkte_gesamt.gpkg` / `.geojson` | Alle Knoten (GPKG in EPSG:25833, GeoJSON in WGS84) |
 | `knotenpunkte_bewerten.geojson` | Nur `bearbeitet_2025 = nein`, Eingabe für App und ML |
+| `knotenpunkte_vorschlaege.json` | ML-Vorschläge je Knoten und Attribut aus `infravelo-ml-knotenpunkte`, hier abgelegt für den Upload in die App |
 | `pruefliste.csv` | Auffälligkeiten mit `lon`/`lat`: Lage-Rückfälle, 2025-Knoten ohne Treffer, abweichende Werte 2025, Knoten, die das Netz nicht erreicht, Kanten ohne Knoten |
 | `knotenpunkte_abgabe.gpkg` / `.geojson` | Abgabestand nach `merge_bewertungen.py` |
 

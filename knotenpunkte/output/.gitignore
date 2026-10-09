@@ -1,3 +1,4 @@
 *.gpkg
 *.csv
 *.geojson
+*.json
