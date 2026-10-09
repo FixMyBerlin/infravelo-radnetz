@@ -78,6 +78,7 @@ BUS_LANE_LOSER_PREFIXES = ('cycleway_adjoining', 'footAndCyclewayShared', 'footA
 BUS_LANE_LOSER_SIGNS = re.compile(r'(^|[,;])\s*(DE:)?(237|240|241)([.\[,;]|$)')
 
 # Attribute, die neben id und Gruppe in die MapRoulette-Aufgaben übernommen werden
+REVIEW_PROPERTIES = ['name', 'category', 'side', 'traffic_sign', 'width', 'group']
 MAPROULETTE_PROPERTIES = ['category', 'name', 'road', 'traffic_sign', 'width', 'oneway', 'surface']
 
 # iD-Variante, mit der die Kampagne bearbeitet wird
@@ -327,6 +328,11 @@ def main():
     geojson_path = run_dir / 'centerline_tracks.geojson'
     tracks.to_file(geojson_path, driver='GeoJSON')
     logging.info(f"GeoJSON geschrieben: {geojson_path}")
+
+    # Schlanke Fassung für die TILDA-Prüfliste; id ist dort der Schlüssel für den Abgleich
+    review_path = run_dir / 'centerline_tracks_pruefliste.geojson'
+    tracks[['id', *REVIEW_PROPERTIES, 'editor_markdown', 'geometry']].to_file(review_path, driver='GeoJSON')
+    logging.info(f"Prüfliste geschrieben: {review_path}")
 
     maproulette_path = run_dir / 'centerline_tracks_maproulette.json'
     write_maproulette(tracks, maproulette_path, data_updated_at)

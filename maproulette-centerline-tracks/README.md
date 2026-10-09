@@ -35,6 +35,7 @@ Jeder Lauf schreibt in einen eigenen Ordner `output/<Datum>/`, frühere Läufe b
 | Datei | Inhalt |
 |---|---|
 | `centerline_tracks.geojson` | Alle Wege mit den TILDA-Attributen, `side`, `group` und `editor_markdown` (Link in den Editor mit ausgewähltem Weg), zur Vorschau |
+| `centerline_tracks_pruefliste.geojson` | Dieselben Wege mit wenigen Attributen und `editor_markdown`, zum Hochladen in die TILDA-Prüfliste „Mapping-Vorbereitung `track`“. `id` ist der Schlüssel: Ein erneuter Upload legt nur neue Wege an |
 | `centerline_tracks_maproulette.json` | Zeilenweises GeoJSON für MapRoulette wie in der TILDA-API: pro Zeile ein Record-Separator und eine FeatureCollection, eine Zeile pro Gruppe |
 | `centerline_tracks_stats.json` | Anzahl und Länge je Kategorie, Kennzahlen zu den Gruppen (nur in `output/<Datum>/`) |
 
