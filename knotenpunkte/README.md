@@ -8,6 +8,25 @@ python knotenpunkte/download_lsa.py       # Lichtsignalanlagen (einmalig, --neu 
 python knotenpunkte/build_knotenpunkte.py
 ```
 
+## Kette im Überblick
+
+```bash
+# 1. Knoten bauen (infravelo-radnetz)
+python ren-network/unify_networks.py                  # nur bei geändertem REN+
+python knotenpunkte/build_knotenpunkte.py
+
+# 2. ML-Vorschläge auf Luftbild 2026 (infravelo-ml-knotenpunkte)
+cd ../infravelo-ml-knotenpunkte
+cp -f ../infravelo-radnetz/knotenpunkte/output/knotenpunkte_bewerten.geojson _input/bewerten.geojson
+export DOP_TOKEN=...                                  # für fehlende 2026-Kacheln
+uv run python 04_vorhersage.py
+uv run python 06_export_knotenpunkte.py               # -> _output/knotenpunkte_vorschlaege.json
+
+# 3. Knotenpunkt-App: knotenpunkte_bewerten.geojson importieren, knotenpunkte_vorschlaege.json hochladen
+# 4. Bewertungen exportieren und übernehmen (infravelo-radnetz)
+python knotenpunkte/merge_bewertungen.py ratings-<bereich>-<datum>.geojson
+```
+
 ## Eingangsdaten
 
 | Datei | Inhalt |
@@ -23,10 +42,10 @@ python knotenpunkte/build_knotenpunkte.py
 
 1. **Knoten**: alle `von_knoten`/`bis_knoten` des REN+. Die Lage kommt vom Verbindungspunkt, sonst vom Kantenende im Detailnetz und zuletzt vom Kantenende im REN+.
 2. **Virtuelle Knoten** aus der manuellen Datei. Anliegende Kanten werden im Umkreis von 3 m gesucht.
-3. **Netzattribute** der anliegenden Kanten: `ist_radvorrangnetz` nach höchstem Rang (Vorrang > Ergänzung > keins). `Hauptverkehrsstrasse` ist gesetzt, wenn eine Kante Hauptverkehrsstraße ist.
+3. **Netzattribute** der anliegenden Kanten: `ist_radvorrangnetz` nach höchstem Rang (Vorrang > Ergänzung > keins). `KP_HVS` ist 1, wenn eine Kante Hauptverkehrsstraße ist.
 4. **Bezirk** aus den Bezirksgrenzen. Liegt ein Punkt außerhalb, gilt der nächste Bezirk.
-5. **LSA**: Ampel aus Open Data und OSM im Umkreis von 25 m. Melden beide eine Ampel, ist `LSA_vorhanden` wahr, meldet keine, ist es falsch. Melden die Quellen Widersprüchliches, bleibt es leer, und der Grund steht in `LSA_Konflikt`. Der Radius ist gegen die Lieferung 2025 kalibriert.
-6. **Lieferung 2025**: Abgleich über die ID, sonst über die Lage (5 m). Für gelieferte Knoten werden die Bewertungen übernommen. `KP_HVS` und `LSA_KP` von 2025 ersetzen dabei `Hauptverkehrsstrasse` und `LSA_vorhanden`.
+5. **LSA**: Ampel aus Open Data und OSM im Umkreis von 25 m. Melden beide eine Ampel, ist `LSA_KP` 1, meldet keine, ist es 0. Melden die Quellen Widersprüchliches, bleibt es leer, und der Grund steht in `LSA_Konflikt`. Der Radius ist gegen die Lieferung 2025 kalibriert.
+6. **Lieferung 2025**: Abgleich über die ID, sonst über die Lage (5 m). Für gelieferte Knoten werden die Bewertungen übernommen. `KP_HVS` und `LSA_KP` von 2025 ersetzen dabei die abgeleiteten Werte.
 7. **Betrachtung** = Hauptverkehrsstraße oder LSA. Das Feld ist nur ein Hinweis, kein Filter.
 
 ## Ausgabe
@@ -49,9 +68,9 @@ In `knotenpunkte/output/`:
 | `okstra_id` | Referenz im Detailnetz | Verbindungspunkt |
 | `Bezirksnummer` | `01`–`12` | abgeleitet |
 | `ist_radvorrangnetz` | Radvorrangnetz, Radergänzungsnetz oder Kein Radverkehrsnetz vorhanden | REN+ |
-| `Hauptverkehrsstrasse` | Ersetzt `KP_HVS` | 2025 / App, sonst REN+ |
-| `LSA_vorhanden`, `LSA_Konflikt` | Ersetzt `LSA_KP`; Konflikt `nur_OSM` oder `nur_OpenData` | 2025 / App, sonst Open Data und OSM |
-| `Betrachtung` | Hauptverkehrsstraße oder LSA (Hinweis) | abgeleitet |
+| `KP_HVS` | 0/1, Knotenpunkt an Hauptverkehrsstraße | 2025 / App, sonst REN+ |
+| `LSA_KP`, `LSA_Konflikt` | 0/1, Lichtsignalanlage; Konflikt `nur_OSM` oder `nur_OpenData` | 2025 / App, sonst Open Data und OSM |
+| `Betrachtung` | 0/1: Hauptverkehrsstraße oder LSA (Hinweis) | abgeleitet |
 | `Mar_RVF_KP`, `Furt_rot`, `Fl_Linksab`, `vorgez_Fl`, `RFS_Mitte` | `keine`, `teilweise` oder `gänzlich` | 2025 / App (mit ML-Vorschlägen) |
 | `KP_Nichtbetrachten`, `Mapillary-ID`, `Kommentar` | Bewertung | 2025 / App |
 | `ist_virtuell` | 1 für virtuelle Knoten | manuell / App |
@@ -64,12 +83,14 @@ Kanten ohne `element_nr` haben noch keine Knoten (siehe Prüfliste). Deckt eine 
 
 ## Bewertung und Abgabe
 
-1. `knotenpunkte_bewerten.geojson` in der Knotenpunkt-App als neuen Bereich importieren.
-2. Die Datei auch an `infravelo-ml-knotenpunkte` übergeben (`_input/bewerten.geojson`). Die Vorschläge aus `06_export_knotenpunkte.py` in der App hochladen.
-3. Die bewerteten Knoten aus der App als GeoJSON exportieren und übernehmen:
+Knotendatei, ML-Ergebnis, Knotenpunkt-App und Abgabe nutzen dieselben Attribute und Werte (Ja/Nein als 0/1).
+
+1. **ML:** `knotenpunkte_bewerten.geojson` nach `infravelo-ml-knotenpunkte/_input/bewerten.geojson` kopieren. Dann `04_vorhersage.py` und `06_export_knotenpunkte.py` ausführen, das ergibt `knotenpunkte_vorschlaege.json`.
+2. **App, in jedem Browser, der bewertet:** Einen Bereich anlegen, z. B. `infravelo-2026`, und `knotenpunkte_bewerten.geojson` importieren. Unter demselben Bereich die Vorschläge hochladen. Knoten und Vorschläge liegen nur lokal im Browser, die Bewertungen werden geteilt.
+3. **Abgabe:** Die Bewertungen aus der App als GeoJSON exportieren und übernehmen:
 
    ```bash
    python knotenpunkte/merge_bewertungen.py ratings-<bereich>-<datum>.geojson
    ```
 
-   Übernommen werden nur vollständig bewertete Knoten. Werte von 2025 bleiben unverändert. Die App-Felder `KP_HVS` und `LSA_KP` landen in `Hauptverkehrsstrasse` und `LSA_vorhanden`.
+   Übernommen werden nur vollständig bewertete Knoten. Werte von 2025 bleiben unverändert.

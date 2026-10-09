@@ -13,11 +13,10 @@ Verbindungspunkten des Detailnetzes.
 Jeder Knoten wird mit der Knotenpunkt-Lieferung 2025 (Radvorrangnetz)
 verglichen, zuerst über die ID, dann über die Lage: bearbeitet_2025 = ja
 oder nein. Für gelieferte Knoten werden die Bewertungen von 2025
-übernommen. Dabei werden KP_HVS und LSA_KP auf Hauptverkehrsstrasse und
-LSA_vorhanden migriert.
+übernommen, auch KP_HVS und LSA_KP.
 
-Für alle anderen Knoten werden Hauptverkehrsstrasse (aus den anliegenden
-REN+-Kanten) und LSA_vorhanden (Open Data und OSM) abgeleitet. Nur diese
+Für alle anderen Knoten werden KP_HVS (aus den anliegenden REN+-Kanten)
+und LSA_KP (Open Data und OSM) abgeleitet. Nur diese
 Knoten gehen an die Knotenpunkt-App und die ML-Vorhersage.
 
 INPUT:
@@ -83,8 +82,10 @@ LSA_CONFLICT_OPEN_DATA = "nur_OpenData"
 # Bewertungen der Lieferung 2025, die unverändert übernommen werden
 RATING_COLUMNS = ["Mar_RVF_KP", "Furt_rot", "Fl_Linksab", "vorgez_Fl", "RFS_Mitte",
                   "KP_Nichtbetrachten", "Mapillary-ID", "Kommentar"]
-# Attribute der Lieferung 2025, die auf die neuen Attribute migriert werden
-MIGRATED_COLUMNS = {"KP_HVS": "Hauptverkehrsstrasse", "LSA_KP": "LSA_vorhanden"}
+# Abgeleitete Attribute; für Knoten der Lieferung 2025 gilt der Wert von 2025
+DERIVED_COLUMNS = ["KP_HVS", "LSA_KP"]
+# Ja/Nein-Attribute als 0/1, gleiche Namen und Werte wie in der Knotenpunkt-App
+BINARY_COLUMNS = ["KP_HVS", "LSA_KP", "Betrachtung"]
 
 FINAL_COLUMNS = [
     "lfd_nr",
@@ -92,8 +93,8 @@ FINAL_COLUMNS = [
     "okstra_id",
     "Bezirksnummer",
     "ist_radvorrangnetz",
-    "Hauptverkehrsstrasse",
-    "LSA_vorhanden",
+    "KP_HVS",
+    "LSA_KP",
     "LSA_Konflikt",
     "Betrachtung",
     *RATING_COLUMNS,
@@ -144,7 +145,7 @@ def edges_by_node(network):
 
 
 def network_attributes(ends):
-    """ist_radvorrangnetz, Hauptverkehrsstrasse, netz_quellen und anzahl_kanten je Knoten."""
+    """ist_radvorrangnetz, KP_HVS, netz_quellen und anzahl_kanten je Knoten."""
     grouped = ends.groupby("node_id")
 
     def best_rvn(values):
@@ -155,7 +156,7 @@ def network_attributes(ends):
 
     return pd.DataFrame({
         "ist_radvorrangnetz": grouped["radverkehrsnetz"].agg(best_rvn),
-        "Hauptverkehrsstrasse": grouped["hauptverkehrsstrasse"].agg(lambda v: bool((v == "ja").any())),
+        "KP_HVS": grouped["hauptverkehrsstrasse"].agg(lambda v: bool((v == "ja").any())),
         "netz_quellen": grouped["netz_quellen"].agg(sources),
         "anzahl_kanten": grouped.size(),
     })
@@ -275,7 +276,7 @@ def virtual_nodes(network):
         note(f"Virtueller Knoten ohne REN+-Kante im Umkreis von {VIRTUAL_EDGE_TOLERANCE_M:.0f} m",
              row[NODE_ID], geometry=row.geometry)
     virtual["ist_radvorrangnetz"] = virtual["ist_radvorrangnetz"].fillna(ren.RVN_KEIN)
-    virtual["Hauptverkehrsstrasse"] = virtual["Hauptverkehrsstrasse"].fillna(False).astype(bool)
+    virtual["KP_HVS"] = virtual["KP_HVS"].fillna(False).astype(bool)
     virtual["netz_quellen"] = virtual["netz_quellen"].fillna("")
     virtual["anzahl_kanten"] = virtual["anzahl_kanten"].fillna(0).astype(int)
     virtual["okstra_id"] = None
@@ -304,7 +305,7 @@ def nearest_distance(nodes, targets):
 
 
 def add_lsa(nodes):
-    """LSA_vorhanden: ja, wenn Open Data UND OSM eine Ampel melden, nein, wenn keine
+    """LSA_KP: ja, wenn Open Data UND OSM eine Ampel melden, nein, wenn keine
     Quelle eine meldet, sonst leer mit Grund in LSA_Konflikt."""
     for path in [LSA_PATH, OSM_SIGNALS_PATH]:
         if not path.exists():
@@ -316,9 +317,9 @@ def add_lsa(nodes):
 
     at_open_data = nearest_distance(nodes, open_data) <= LSA_TOLERANCE_M
     at_osm = nearest_distance(nodes, osm) <= LSA_TOLERANCE_M
-    nodes["LSA_vorhanden"] = pd.Series(pd.NA, index=nodes.index, dtype="boolean")
-    nodes.loc[at_open_data & at_osm, "LSA_vorhanden"] = True
-    nodes.loc[~at_open_data & ~at_osm, "LSA_vorhanden"] = False
+    nodes["LSA_KP"] = pd.Series(pd.NA, index=nodes.index, dtype="boolean")
+    nodes.loc[at_open_data & at_osm, "LSA_KP"] = True
+    nodes.loc[~at_open_data & ~at_osm, "LSA_KP"] = False
     nodes["LSA_Konflikt"] = None
     nodes.loc[at_osm & ~at_open_data, "LSA_Konflikt"] = LSA_CONFLICT_OSM
     nodes.loc[at_open_data & ~at_osm, "LSA_Konflikt"] = LSA_CONFLICT_OPEN_DATA
@@ -331,7 +332,7 @@ def load_nodes_2025():
     # MultiPoint mit einem Punkt
     nodes_2025["geometry"] = nodes_2025.geometry.representative_point()
     nodes_2025["node_id"] = nodes_2025[NODE_ID].map(id_text)
-    for column in [*RATING_COLUMNS, *MIGRATED_COLUMNS]:
+    for column in [*RATING_COLUMNS, *DERIVED_COLUMNS]:
         values = nodes_2025[column]
         if values.dtype == object or pd.api.types.is_string_dtype(values):
             values = values.str.strip()
@@ -340,7 +341,7 @@ def load_nodes_2025():
     logging.info(f"Lieferung 2025: {len(nodes_2025)} Knoten")
 
     # Doppelte IDs: Der vollständigste Eintrag gilt
-    completeness = nodes_2025[[*RATING_COLUMNS, *MIGRATED_COLUMNS]].notna().sum(axis=1)
+    completeness = nodes_2025[[*RATING_COLUMNS, *DERIVED_COLUMNS]].notna().sum(axis=1)
     order = completeness.sort_values(ascending=False, kind="stable").index
     duplicated = nodes_2025.loc[order, "node_id"].duplicated() & nodes_2025.loc[order, "node_id"].notna()
     for index in duplicated[duplicated].index:
@@ -383,7 +384,7 @@ def as_bool(value):
 
 
 def add_2025(nodes):
-    """bearbeitet_2025, Bewertungen von 2025 und Migration von KP_HVS / LSA_KP."""
+    """bearbeitet_2025 und Bewertungen von 2025; KP_HVS / LSA_KP von 2025 ersetzen die Ableitung."""
     nodes_2025 = load_nodes_2025()
     match = match_2025(nodes, nodes_2025)
     delivered = match.notna()
@@ -394,26 +395,26 @@ def add_2025(nodes):
     for column in RATING_COLUMNS:
         nodes[column] = source[column].reindex(nodes.index)
 
-    for old, new in MIGRATED_COLUMNS.items():
-        values_2025 = source[old].map(as_bool).dropna().astype(bool)
-        derived = nodes.loc[values_2025.index, new]
+    for column in DERIVED_COLUMNS:
+        values_2025 = source[column].map(as_bool).dropna().astype(bool)
+        derived = nodes.loc[values_2025.index, column]
         differs = derived.notna() & (derived.astype(object) != values_2025)
         for index in values_2025.index[differs]:
-            note(f"{new}: abgeleitet {derived[index]}, 2025 erhoben {values_2025[index]} (2025 gilt)",
+            note(f"{column}: abgeleitet {int(derived[index])}, 2025 erhoben {int(values_2025[index])} (2025 gilt)",
                  nodes.at[index, NODE_ID], nodes.at[index, "knotenpunkt_id_2025"], geometry=nodes.at[index, "geometry"])
-        logging.info(f"{old} -> {new}: {len(values_2025)} Werte von 2025, {differs.sum()} weichen von der Ableitung ab")
-        nodes.loc[values_2025.index, new] = values_2025
-        if new == "LSA_vorhanden":
+        logging.info(f"{column}: {len(values_2025)} Werte von 2025, {differs.sum()} weichen von der Ableitung ab")
+        nodes.loc[values_2025.index, column] = values_2025
+        if column == "LSA_KP":
             nodes.loc[values_2025.index, "LSA_Konflikt"] = None
     return nodes
 
 
 def add_betrachtung(nodes):
     """Info: Hauptverkehrsstraße oder LSA. Ohne Hauptverkehrsstraße bei unklarer LSA leer."""
-    lsa = nodes["LSA_vorhanden"]
+    lsa = nodes["LSA_KP"]
     nodes["Betrachtung"] = pd.Series(pd.NA, index=nodes.index, dtype="boolean")
     nodes.loc[lsa.notna(), "Betrachtung"] = lsa[lsa.notna()].astype(bool)
-    nodes.loc[nodes["Hauptverkehrsstrasse"], "Betrachtung"] = True
+    nodes.loc[nodes["KP_HVS"].fillna(False).astype(bool), "Betrachtung"] = True
     return nodes
 
 
@@ -459,7 +460,9 @@ def finalize(nodes):
     nodes["KP_Nichtbetrachten"] = pd.to_numeric(nodes["KP_Nichtbetrachten"]).astype("Int64")
     nodes["ist_virtuell"] = nodes["ist_virtuell"].astype("Int64")
     nodes["anzahl_kanten"] = nodes["anzahl_kanten"].astype("Int64")
-    nodes["Hauptverkehrsstrasse"] = nodes["Hauptverkehrsstrasse"].astype("boolean")
+    # 0/1 wie in der Knotenpunkt-App und der Lieferung 2025, leer bei unklarer Lage
+    for column in BINARY_COLUMNS:
+        nodes[column] = nodes[column].astype("boolean").astype("Int64")
     return gpd.GeoDataFrame(nodes[FINAL_COLUMNS], geometry="geometry", crs=CRS)
 
 
@@ -488,12 +491,12 @@ def write_outputs(nodes):
 
 def log_summary(nodes):
     logging.info(f"Knoten gesamt: {len(nodes)}")
-    for column in ["bearbeitet_2025", "ist_radvorrangnetz", "Hauptverkehrsstrasse", "LSA_vorhanden", "LSA_Konflikt",
+    for column in ["bearbeitet_2025", "ist_radvorrangnetz", "KP_HVS", "LSA_KP", "LSA_Konflikt",
                    "Betrachtung", "ist_virtuell", "Bezirksnummer"]:
         logging.info(f"{column}: {nodes[column].value_counts(dropna=False).sort_index().to_dict()}")
     rating = nodes[nodes["bearbeitet_2025"] == "nein"]
     logging.info(f"Zu bewerten (bearbeitet_2025 = nein): {len(rating)}, "
-                 f"davon Betrachtung = true: {(rating['Betrachtung'] == True).sum()}")  # noqa: E712
+                 f"davon Betrachtung = 1: {(rating['Betrachtung'] == 1).sum()}")
 
 
 def main():

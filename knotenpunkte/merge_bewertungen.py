@@ -7,9 +7,9 @@ Führt die Bewertungen aus der Knotenpunkt-App mit dem Knotenpunkt-Datensatz
 zum Abgabestand zusammen.
 
 Übernommen werden nur vollständig bewertete Knoten (status = complete), die
-nicht 2025 geliefert wurden. Werte von 2025 bleiben unverändert. Die
-App-Attribute KP_HVS und LSA_KP werden nach Hauptverkehrsstrasse und
-LSA_vorhanden geschrieben und ersetzen dort die abgeleiteten Werte.
+nicht 2025 geliefert wurden. Werte von 2025 bleiben unverändert. App und
+Datensatz nutzen dieselben Attribute und Werte; KP_HVS und LSA_KP aus der
+App ersetzen die abgeleiteten Werte.
 
 INPUT:
 - knotenpunkte/output/knotenpunkte_gesamt.gpkg (build_knotenpunkte.py)
@@ -29,23 +29,14 @@ from pathlib import Path
 import geopandas as gpd
 import pandas as pd
 
-from build_knotenpunkte import FINAL_COLUMNS, NODE_ID, OUTPUT_DIR, OUTPUT_LAYER, OUTPUT_PATH, id_text
+from build_knotenpunkte import (BINARY_COLUMNS, DERIVED_COLUMNS, FINAL_COLUMNS, NODE_ID, OUTPUT_DIR, OUTPUT_LAYER,
+                                OUTPUT_PATH, add_betrachtung, id_text)
 
 OUTPUT_DELIVERY_PATH = OUTPUT_DIR / "knotenpunkte_abgabe.gpkg"
 
-# App-Attribut -> Attribut im Datensatz
-APP_COLUMNS = {
-    "Mar_RVF_KP": "Mar_RVF_KP",
-    "Furt_rot": "Furt_rot",
-    "Fl_Linksab": "Fl_Linksab",
-    "vorgez_Fl": "vorgez_Fl",
-    "RFS_Mitte": "RFS_Mitte",
-    "KP_Nichtbetrachten": "KP_Nichtbetrachten",
-    "Mapillary-ID": "Mapillary-ID",
-    "Kommentar": "Kommentar",
-    "KP_HVS": "Hauptverkehrsstrasse",
-    "LSA_KP": "LSA_vorhanden",
-}
+# Bewertungen der App; KP_HVS und LSA_KP (DERIVED_COLUMNS) nur, wenn gesetzt
+RATED_COLUMNS = ["Mar_RVF_KP", "Furt_rot", "Fl_Linksab", "vorgez_Fl", "RFS_Mitte",
+                 "KP_Nichtbetrachten", "Mapillary-ID", "Kommentar"]
 # Reihenfolge, in der die App die ID ablegt (properties.id ist die geparste ID)
 APP_ID_COLUMNS = ["id", "NUMMER", NODE_ID, "Knotenpunkt-ID"]
 
@@ -75,18 +66,15 @@ def merge(nodes, ratings):
     rows = nodes[NODE_ID].isin(ratings.index)
     source = ratings.reindex(nodes.loc[rows, NODE_ID])
     source.index = nodes.index[rows]
-    for app_column, column in APP_COLUMNS.items():
-        if app_column not in source.columns:
-            continue
-        values = source[app_column]
-        if column in ("Hauptverkehrsstrasse", "LSA_vorhanden"):
-            # Übersprungene Knoten haben keine Werte, dann bleibt die Ableitung stehen
-            values = values.dropna().astype(int).astype(bool)
-            nodes.loc[values.index, column] = values
-            if column == "LSA_vorhanden":
-                nodes.loc[values.index, "LSA_Konflikt"] = None
-        else:
-            nodes.loc[rows, column] = values
+    for column in RATED_COLUMNS:
+        if column in source.columns:
+            nodes.loc[rows, column] = source[column]
+    for column in DERIVED_COLUMNS:
+        # Übersprungene Knoten haben keine Werte, dann bleibt die Ableitung stehen
+        values = source[column].dropna().astype(int) if column in source.columns else pd.Series(dtype=int)
+        nodes.loc[values.index, column] = values
+        if column == "LSA_KP":
+            nodes.loc[values.index, "LSA_Konflikt"] = None
     # Die App setzt ist_virtuell standardmäßig auf 0, gepflegte virtuelle Knoten bleiben virtuell
     nodes.loc[rows, "ist_virtuell"] = nodes.loc[rows, "ist_virtuell"].combine(source["ist_virtuell"].fillna(0).astype(int), max)
 
@@ -102,17 +90,13 @@ def main():
     args = parser.parse_args()
 
     nodes = gpd.read_file(OUTPUT_PATH, layer=OUTPUT_LAYER)
-    # Nullbare Booleans liest geopandas als float zurück
-    for column in ["LSA_vorhanden", "Betrachtung"]:
-        nodes[column] = nodes[column].map({1.0: True, 0.0: False}).astype("boolean")
-    nodes["Hauptverkehrsstrasse"] = nodes["Hauptverkehrsstrasse"].astype("boolean")
+    # Nullbare Ganzzahlen liest geopandas als float zurück
+    for column in [*BINARY_COLUMNS, "KP_Nichtbetrachten"]:
+        nodes[column] = nodes[column].astype("Int64")
     nodes = merge(nodes, load_ratings(args.export))
 
-    # Betrachtung wie in build_knotenpunkte.add_betrachtung neu berechnen
-    lsa = nodes["LSA_vorhanden"]
-    nodes["Betrachtung"] = pd.Series(pd.NA, index=nodes.index, dtype="boolean")
-    nodes.loc[lsa.notna(), "Betrachtung"] = lsa[lsa.notna()].astype(bool)
-    nodes.loc[nodes["Hauptverkehrsstrasse"].fillna(False), "Betrachtung"] = True
+    nodes = add_betrachtung(nodes.astype({c: "boolean" for c in BINARY_COLUMNS}))
+    nodes = nodes.astype({c: "Int64" for c in BINARY_COLUMNS})
     nodes["KP_Nichtbetrachten"] = pd.to_numeric(nodes["KP_Nichtbetrachten"]).astype("Int64")
 
     nodes = nodes[FINAL_COLUMNS]
