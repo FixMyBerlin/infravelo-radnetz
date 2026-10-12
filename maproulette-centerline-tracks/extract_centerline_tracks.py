@@ -341,7 +341,7 @@ def main():
     write_stats(tracks, length_km, run_dir / 'centerline_tracks_stats.json', data_updated_at)
 
     PUBLIC_DIR.mkdir(exist_ok=True)
-    for path in (geojson_path, maproulette_path):
+    for path in (geojson_path, maproulette_path, review_path):
         shutil.copyfile(path, PUBLIC_DIR / path.name)
     logging.info(f"Letzter Lauf nach {PUBLIC_DIR} kopiert")
 
