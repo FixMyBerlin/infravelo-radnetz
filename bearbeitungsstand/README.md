@@ -27,6 +27,6 @@ Jeder Abruf wird mit Zeitpunkt in `cache/<aufgabe>.json` abgelegt (nicht version
 
 ## Stand in TILDA
 
-Das Log nennt den Zeitpunkt des Abrufs (`Bearbeitungsstand vom …`). Nach einem Lauf diesen Zeitpunkt in die `description` der drei Datensätze in `tilda-static-data` eintragen (`infravelo-ren-netz-zuteilung-netz`, `infravelo-ren-netz-zuteilung-gebiete`, `infravelo-ren-kartierung-tracks`) und sie neu hochladen. Erledigte Linien sind dort grau und dünn dargestellt.
+Das Log nennt den Zeitpunkt des Abrufs (`Bearbeitungsstand vom …`). Nach einem Lauf diesen Zeitpunkt in die `description` der drei Datensätze in `tilda-static-data` eintragen (`infravelo-ren-netz-zuteilung-netz`, `infravelo-ren-netz-zuteilung-gebiete`, `infravelo-ren-kartierung-tracks`) und sie neu hochladen. Erledigte Linien sind dort grün unterlegt.
 
 Meldet das Log erledigte Linien, die nicht mehr im Datensatz stehen, hat sich deren id geändert oder die Linie ist entfallen.
