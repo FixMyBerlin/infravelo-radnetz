@@ -50,6 +50,10 @@ import pandas as pd
 import shapely
 
 BASE_DIR = Path(__file__).resolve().parent
+sys.path.append(str(BASE_DIR.parent / 'bearbeitungsstand'))
+
+from load_status import STATUS_DONE, add_status  # noqa: E402
+
 BIKELANES_PATH = BASE_DIR / 'data' / 'bikelanes.fgb'
 NETWORK_PATH = BASE_DIR / 'data' / 'ren_netz_gesamt.gpkg'
 OUTPUT_DIR = BASE_DIR / 'output'
@@ -78,7 +82,8 @@ BUS_LANE_LOSER_PREFIXES = ('cycleway_adjoining', 'footAndCyclewayShared', 'footA
 BUS_LANE_LOSER_SIGNS = re.compile(r'(^|[,;])\s*(DE:)?(237|240|241)([.\[,;]|$)')
 
 # Attribute, die neben id und Gruppe in die MapRoulette-Aufgaben übernommen werden
-REVIEW_PROPERTIES = ['name', 'category', 'side', 'traffic_sign', 'width', 'group']
+REVIEW_PROPERTIES = ['name', 'category', 'side', 'traffic_sign', 'width', 'group',
+                     'bearbeitungsstand', 'erledigt_von', 'erledigt_am']
 MAPROULETTE_PROPERTIES = ['category', 'name', 'road', 'traffic_sign', 'width', 'oneway', 'surface']
 
 # iD-Variante, mit der die Kampagne bearbeitet wird: Maske des Kartierungsnetzes
@@ -324,6 +329,10 @@ def main():
     tracks['geometry'] = shapely.set_precision(tracks.geometry.values, 0.000001)
     # Spalten ohne Werte weglassen, damit das GeoJSON schlank bleibt
     tracks = tracks.dropna(axis='columns', how='all')
+    # Im Editor als erledigt markierte Wege
+    status_fetched_at = add_status(tracks, 'id', 'track')
+    logging.info(f"Bearbeitungsstand vom {status_fetched_at}: "
+                 f"{length_km[tracks['bearbeitungsstand'] == STATUS_DONE].sum():.1f} von {length_km.sum():.1f} km erledigt")
 
     # Datum der TILDA-Datei; über den Symlink hinweg das der eigentlichen Datei
     data_updated_at = datetime.fromtimestamp(BIKELANES_PATH.stat().st_mtime).strftime('%Y-%m-%d')
