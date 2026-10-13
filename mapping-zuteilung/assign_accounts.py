@@ -45,6 +45,10 @@ import pandas as pd
 import shapely
 
 BASE_DIR = Path(__file__).resolve().parent
+sys.path.append(str(BASE_DIR.parent / 'bearbeitungsstand'))
+
+from load_status import STATUS_DONE, add_status  # noqa: E402
+
 NETWORK_PATH = BASE_DIR / 'data' / 'ren_netz_gesamt.gpkg'
 LOR_PATH = BASE_DIR / 'data' / 'lor_plr_2021.geojson'
 ACCOUNTS_PATH = BASE_DIR / 'accounts.txt'
@@ -276,9 +280,15 @@ def main():
     network['reihenfolge'] = network['bezirk'].map(order)
     lor['account'] = lor['plr_id'].map(area_of_plr)
 
+    # Im Editor als erledigt markierte Kanten
+    status_fetched_at = add_status(network, 'lfd_nr', 'mapping')
+    network['km_erledigt'] = network['km'].where(network['bearbeitungsstand'] == STATUS_DONE, 0)
+
     # Statistik je Bezirk und Account
     grouped = network.groupby(['reihenfolge', 'bezirk', 'account'])
-    stats = grouped.agg(km=('km', 'sum'), kanten=('km', 'size'), plr=('plr_id', 'nunique'))
+    stats = grouped.agg(km=('km', 'sum'), kanten=('km', 'size'), plr=('plr_id', 'nunique'),
+                        km_erledigt=('km_erledigt', 'sum'))
+    stats['erledigt_prozent'] = stats['km_erledigt'] / stats['km'] * 100
     for column, values in (('radverkehrsnetz', None), ('hauptverkehrsstrasse', ['ja'])):
         shares = network.pivot_table(index=['reihenfolge', 'bezirk', 'account'], columns=column,
                                      values='km', aggfunc='sum', fill_value=0)
@@ -302,7 +312,8 @@ def main():
     network['geometry'] = shapely.simplify(network.geometry.values, args.simplify)
     network['editor_markdown'] = editor_markdown(network, EDITOR_ZOOM_EDGE)
     columns = ['lfd_nr', 'element_nr', 'strassenname', 'radverkehrsnetz', 'hauptverkehrsstrasse',
-               'laenge_m', 'reihenfolge', 'bezirk', 'plr_id', 'plr_name', 'account', 'editor_markdown', 'geometry']
+               'laenge_m', 'reihenfolge', 'bezirk', 'plr_id', 'plr_name', 'account', 'bearbeitungsstand',
+               'erledigt_von', 'erledigt_am', 'editor_markdown', 'geometry']
     network[columns].sort_values(['reihenfolge', 'account', 'lfd_nr']).to_crs(CRS_OUTPUT).to_file(
         OUTPUT_DIR / 'zuteilung_netz.geojson', driver='GeoJSON', COORDINATE_PRECISION=6)
 
@@ -310,6 +321,8 @@ def main():
         km=('km', 'sum'), min_km=('km', 'min'), max_km=('km', 'max'),
         max_abweichung_prozent=('abweichung_prozent', lambda values: values.abs().max()))
     logging.info(f"Zuteilung je Bezirk:\n{summary.round(1).to_string()}")
+    logging.info(f"Bearbeitungsstand vom {status_fetched_at}: {network['km_erledigt'].sum():.1f} von "
+                 f"{network['km'].sum():.1f} km erledigt")
     logging.info(f"Ausgabe geschrieben nach {OUTPUT_DIR}")
 
 

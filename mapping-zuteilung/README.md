@@ -32,8 +32,10 @@ In `output/` (nicht versioniert):
 
 | Datei | Inhalt |
 |---|---|
-| `zuteilung_netz.geojson` | Netzkanten mit `reihenfolge`, `bezirk`, `plr_id`, `plr_name`, `account`, `editor_markdown` |
-| `zuteilung_gebiete.geojson` | Ein Gebiet je Bezirk und Account mit der Statistik als Attribute und `editor_markdown` |
+| `zuteilung_netz.geojson` | Netzkanten mit `reihenfolge`, `bezirk`, `plr_id`, `plr_name`, `account`, `bearbeitungsstand`, `erledigt_von`, `erledigt_am`, `editor_markdown` |
+| `zuteilung_gebiete.geojson` | Ein Gebiet je Bezirk und Account mit der Statistik als Attribute, `km_erledigt`, `erledigt_prozent` und `editor_markdown` |
 | `zuteilung_statistik.csv` | Je Bezirk und Account: Kilometer, Kanten, PLR, Kilometer je Netzklasse und an Hauptverkehrsstraßen, Abweichung vom Bezirksmittel |
 
 `editor_markdown` ist ein Link in den Mapping-Editor (`EDITOR_URL` im Skript). Er öffnet die Karte an der Kante bzw. im Gebiet und zeigt die Maske des Kartierungsnetzes und die Zuteilung, gefiltert auf den Account des Features (`account=fmc_…`).
+
+`bearbeitungsstand` kommt aus dem Mapping-Editor und wird bei jedem Lauf neu gelesen, siehe [`bearbeitungsstand/`](../bearbeitungsstand/README.md). Die Zuteilung selbst ändert sich dadurch nicht.
