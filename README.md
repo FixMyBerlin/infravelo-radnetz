@@ -12,6 +12,7 @@ Jeder Ordner ist für eine Aufgabe zuständig und hat eine eigene README.
 - [`befahrungsbedarf/`](./befahrungsbedarf/README.md) – OSM-Wege am REN+-Netz ohne aktuelle Fotos, die neu befahren werden müssen.
 - [`maproulette-centerline-tracks/`](./maproulette-centerline-tracks/README.md) – Aufgabenliste für MapRoulette: Radwege, die an der Straßen-Mittellinie erfasst sind.
 - [`mapping-zuteilung/`](./mapping-zuteilung/README.md) – Aufteilung des REN+-Netzes auf die Mapping-Accounts.
+- [`bearbeitungsstand/`](./bearbeitungsstand/README.md) – Liest aus dem Mapping-Editor, welche Linien erledigt sind; genutzt von den beiden Ordnern darüber.
 - [`inspector/`](./inspector/README.md) – Web-Tool zur Qualitätssicherung der verarbeiteten Daten.
 - [`data/`](./data/README.md) – Gemeinsame Eingangsdaten (Detailnetz, Radvorrangsnetz, Bezirke, manuelle Listen).
 
