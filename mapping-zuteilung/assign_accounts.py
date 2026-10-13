@@ -53,6 +53,21 @@ OUTPUT_DIR = BASE_DIR / 'output'
 CRS_METRIC = 'EPSG:25833'
 CRS_OUTPUT = 'EPSG:4326'
 
+# Link in den Mapping-Editor: Maske des Kartierungsnetzes und die Zuteilung,
+# gefiltert auf den Account der Kante bzw. des Gebiets
+EDITOR_URL = (
+    'https://radnetz-mapping.netlify.app/'
+    '#disable_features=address_points,building_parts,indoor,boundaries,water,pistes,aerialways,power'
+    '&notes=tilda&map={zoom}/{lat:.5f}/{lon:.5f}&background=Berlin-2026'
+    '&data_layers=https://tilda-geo.de/api/uploads/infravelo-ren-netz-kartierung-mask.pmtiles'
+    '%7CMaske%7Cff26d4%7C%7Co'
+    '%3Bhttps://tilda-geo.de/api/uploads/infravelo-ren-netz-zuteilung-netz.pmtiles'
+    '%7CZuteilung+Netz%7Cc800ff%7Caccount%3D{account}%7C%7Cmapping'
+    '&readonly_features=points,buildings,landuse,rail,past_future,others'
+)
+EDITOR_ZOOM_EDGE = 19
+EDITOR_ZOOM_AREA = 15
+
 # PLR gelten als benachbart, wenn sie mindestens so viele Meter Grenze teilen
 MIN_SHARED_BORDER_M = 10
 # Anzahl der Startpunkt-Varianten, aus denen pro Bezirk die beste Aufteilung gewählt wird
@@ -60,6 +75,15 @@ ATTEMPTS = 200
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
+
+
+def editor_markdown(features: gpd.GeoDataFrame, zoom: int) -> list:
+    """Markdown-Link in den Editor je Feature; TILDA zeigt Attribute mit der Endung _markdown als Link an."""
+    points = features.geometry.representative_point().to_crs(CRS_OUTPUT)
+    return [
+        f"[Im Editor öffnen]({EDITOR_URL.format(zoom=zoom, lat=point.y, lon=point.x, account=account)})"
+        for point, account in zip(points, features['account'])
+    ]
 
 
 def read_accounts() -> list:
@@ -271,12 +295,14 @@ def main():
     areas = lor.dissolve(['bez', 'account']).reset_index().rename(columns={'bez': 'bezirk'})
     areas = areas[['bezirk', 'account', 'geometry']].merge(stats, on=['bezirk', 'account'])
     areas['geometry'] = areas.geometry.simplify(args.simplify * 5)
+    areas['editor_markdown'] = editor_markdown(areas, EDITOR_ZOOM_AREA)
     areas.sort_values(['reihenfolge', 'account']).to_crs(CRS_OUTPUT).to_file(
         OUTPUT_DIR / 'zuteilung_gebiete.geojson', driver='GeoJSON', COORDINATE_PRECISION=6)
 
     network['geometry'] = shapely.simplify(network.geometry.values, args.simplify)
+    network['editor_markdown'] = editor_markdown(network, EDITOR_ZOOM_EDGE)
     columns = ['lfd_nr', 'element_nr', 'strassenname', 'radverkehrsnetz', 'hauptverkehrsstrasse',
-               'laenge_m', 'reihenfolge', 'bezirk', 'plr_id', 'plr_name', 'account', 'geometry']
+               'laenge_m', 'reihenfolge', 'bezirk', 'plr_id', 'plr_name', 'account', 'editor_markdown', 'geometry']
     network[columns].sort_values(['reihenfolge', 'account', 'lfd_nr']).to_crs(CRS_OUTPUT).to_file(
         OUTPUT_DIR / 'zuteilung_netz.geojson', driver='GeoJSON', COORDINATE_PRECISION=6)
 

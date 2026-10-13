@@ -81,10 +81,20 @@ BUS_LANE_LOSER_SIGNS = re.compile(r'(^|[,;])\s*(DE:)?(237|240|241)([.\[,;]|$)')
 REVIEW_PROPERTIES = ['name', 'category', 'side', 'traffic_sign', 'width', 'group']
 MAPROULETTE_PROPERTIES = ['category', 'name', 'road', 'traffic_sign', 'width', 'oneway', 'surface']
 
-# iD-Variante, mit der die Kampagne bearbeitet wird
-EDITOR_URL = 'https://deploy-preview-10--tordans-id-experiments.netlify.app/'
+# iD-Variante, mit der die Kampagne bearbeitet wird: Maske des Kartierungsnetzes
+# und die Wege dieses Datensatzes als Datenebenen, Voreinstellung "track"
+EDITOR_URL = (
+    'https://radnetz-mapping.netlify.app/'
+    '#disable_features=address_points,building_parts,indoor,boundaries,water,pistes,aerialways,power'
+    '&notes=tilda&map={zoom}/{lat:.5f}/{lon:.5f}&background=Berlin-2026'
+    '&data_layers=https://tilda-geo.de/api/uploads/infravelo-ren-netz-kartierung-mask.pmtiles'
+    '%7CMaske%7Cff26d4%7C%7Co'
+    '%3Bhttps://tilda-geo.de/api/uploads/infravelo-ren-kartierung-tracks.pmtiles'
+    '%7CTrack%7Cffc400%7C%7C%7Ctrack'
+    '&readonly_features=points,buildings,landuse,rail,past_future,others'
+    '&id={way_ids}'
+)
 EDITOR_ZOOM = 19
-EDITOR_BACKGROUND = 'Brandenburg-DOP20c'
 
 SIDE_LABELS = {'left': 'links', 'right': 'rechts'}
 
@@ -196,9 +206,7 @@ def editor_url(members: gpd.GeoDataFrame) -> str:
     longest = max(members.geometry, key=lambda geometry: geometry.length)
     center = longest.interpolate(0.5, normalized=True)
     way_ids = ','.join(f"w{osm_id}" for osm_id in sorted(members['osm_id'].unique()))
-    return (f"{EDITOR_URL}#disable_features=boundaries"
-            f"&map={EDITOR_ZOOM}/{center.y:.5f}/{center.x:.5f}"
-            f"&background={EDITOR_BACKGROUND}&locale=en&photo_overlay=mapillary&id={way_ids}")
+    return EDITOR_URL.format(zoom=EDITOR_ZOOM, lat=center.y, lon=center.x, way_ids=way_ids)
 
 
 def task_markdown(members: gpd.GeoDataFrame, title: str) -> str:
