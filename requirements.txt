@@ -7,4 +7,4 @@ networkx
 
 # OSM traffic signal
 osmnx
-scikit-learnboto3
+scikit-learn

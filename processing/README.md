@@ -42,7 +42,7 @@ cd processing
 
 # Optional
 ../.venv/bin/python scripts/convert_to_geojson.py   # GeoJSON-Export
-./copy_to_tilda_static.sh                           # Kopie nach ../../tilda-static-data, danach CSV für TILDA nach S3 (../tilda-pseudo-tags)
+./copy_to_tilda_static.sh                           # Kopie nach ../../tilda-static-data, danach CSV für TILDA (../tilda-pseudo-tags, einchecken)
 ```
 
 `execute_processing.sh` und `run_validation.sh` akzeptieren `--clip neukoelln|norden|sueden`. `execute_processing.sh` außerdem `--start-step 1-4` und `--clean-cache`.

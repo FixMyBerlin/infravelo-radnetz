@@ -10,7 +10,7 @@ Quelle ist das Endergebnis der Prozessierung (Format von Datensatz C: je
 Netzkante die TILDA-IDs in tilda_ids, mit ";" getrennt). Es gibt nur eine CSV
 für das Projekt; jede neue Lieferung ersetzt sie.
 
-Ausgabe: tilda-pseudo-tags/output/infravelo-netz.csv
+Ausgabe: tilda-pseudo-tags/infravelo-netz.csv (eingecheckt, sortiert nach osm_id und id_suffix)
     osm_id,id_suffix,infravelo_netz
     812944114,,V
     4425411,cycleway/left,V
@@ -31,7 +31,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_INPUT = ROOT / 'data' / 'netzquellen' / 'ergebnis_2025_datensatz_c.geojson.gz'
-OUTPUT_PATH = Path(__file__).resolve().parent / 'output' / 'infravelo-netz.csv'
+# Eingecheckt; TILDA lädt die Datei aus dem Repo
+OUTPUT_PATH = Path(__file__).resolve().parent / 'infravelo-netz.csv'
 
 # Netzklasse je Kante: Spalte radverkehrsnetz, falls das Ergebnis sie hat.
 # Die Lieferung 2025 hat sie nicht; sie enthält nur das Radvorrangnetz.
@@ -92,7 +93,6 @@ def main():
 
     logging.info(f"Lese {args.input}")
     rows = build_rows(read_features(args.input))
-    OUTPUT_PATH.parent.mkdir(exist_ok=True)
     with open(OUTPUT_PATH, 'w', encoding='utf-8', newline='') as file:
         writer = csv.writer(file, lineterminator='\n')
         writer.writerow(['osm_id', 'id_suffix', 'infravelo_netz'])

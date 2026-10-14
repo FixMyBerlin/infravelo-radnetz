@@ -95,6 +95,6 @@ done
 
 echo -e "${GREEN}Done! All files copied and meta.ts files updated.${NC}"
 
-# CSV für den TILDA-Pseudo-Tag infravelo_netz aus dem neuen Ergebnis, Upload nach S3
+# CSV für den TILDA-Pseudo-Tag infravelo_netz aus dem neuen Ergebnis (danach einchecken)
 echo -e "${BLUE}Updating TILDA pseudo tag CSV...${NC}"
-../tilda-pseudo-tags/update.sh "$(pwd)/output/aggregated_rvn_final.geojson.gz"
+../.venv/bin/python ../tilda-pseudo-tags/build_csv.py --input output/aggregated_rvn_final.geojson.gz
