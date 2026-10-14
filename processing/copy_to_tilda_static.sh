@@ -94,3 +94,7 @@ for dest in "${FILE_MAP[@]}"; do
 done
 
 echo -e "${GREEN}Done! All files copied and meta.ts files updated.${NC}"
+
+# CSV für den TILDA-Pseudo-Tag infravelo_netz aus dem neuen Ergebnis, Upload nach S3
+echo -e "${BLUE}Updating TILDA pseudo tag CSV...${NC}"
+../tilda-pseudo-tags/update.sh "$(pwd)/output/aggregated_rvn_final.geojson.gz"
