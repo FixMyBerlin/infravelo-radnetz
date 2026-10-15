@@ -63,11 +63,11 @@ heading_window_m = 2.0
 # -----------------------------------------------------------------------------
 [hmm]
 # Suchradius für Kandidaten-Kanten um jede Beobachtung.
-candidate_radius_m = 25.0
+candidate_radius_m = 30.0
 # Maximale Anzahl Kandidaten (gerichtete Kanten) pro Beobachtung (Beam).
 max_candidates = 8
 # Emission: Gauß über den Abstand Beobachtung <-> Kante.
-sigma_distance_m = 7.0
+sigma_distance_m = 10.0
 # Emission: von-Mises-artiger Kurs-Term  kappa * (cos(dtheta) - 1).
 heading_kappa = 3.0
 # Emission: Strafe, wenn eine Einrichtungs-RVA nicht rechts der Fahrtrichtung liegt.
@@ -121,6 +121,11 @@ transfer_attributes = [
 name = "Bussonderfahrstreifen vor unbeschildertem Hochbordradweg"
 winner = { fuehr = ["Bussonderfahrstreifen mit Radverkehr frei (Z245 mit Z1022‐10)", "Radfahrstreifen mit Linienverkehr frei (Z237 mit Z1026-32)"] }
 loser = { fuehr = ["Radweg"], traffic_sign_none = ["237", "240", "241"] }
+
+[[rules.prefer]]
+name = "Geschützter Radfahrstreifen vor Bussonderfahrstreifen"
+winner = { fuehr = ["Geschützter Radfahrstreifen"] }
+loser = { fuehr = ["Bussonderfahrstreifen mit Radverkehr frei (Z245 mit Z1022‐10)"] }
 
 [[rules.tiers]]
 name = "RVA"
