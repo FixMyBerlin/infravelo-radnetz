@@ -204,6 +204,8 @@ mod tests {
             attrs: vec![],
             oneway,
             dual_carriageway: false,
+            from_node: None,
+            to_node: None,
             fuehr: "Radweg".into(),
             category: String::new(),
             traffic_sign: String::new(),
@@ -212,8 +214,8 @@ mod tests {
     }
 
     fn trace_of(w: &TildaWay) -> Trace {
-        let tc = TraceConfig { strategy: TraceStrategy::Single, sample_interval_m: 5.0, heading_window_m: 2.0 };
-        Trace { id: 0, ways: vec![w.idx], obs: sample_way(w, 0.0, &tc) }
+        let tc = TraceConfig { strategy: TraceStrategy::Single, sample_interval_m: 5.0, heading_window_m: 2.0, max_turn_deg: 45.0, end_heading_m: 10.0 };
+        Trace { id: 0, ways: vec![w.idx], obs: sample_way(w, 0.0, false, &tc) }
     }
 
     #[test]

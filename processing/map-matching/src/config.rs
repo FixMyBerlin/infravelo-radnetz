@@ -54,6 +54,9 @@ pub struct NetworkConfig {
 pub enum TraceStrategy {
     /// Jeder TILDA-Weg bildet eine eigene Trace.
     Single,
+    /// Traces folgen der Topologie des TILDA-Routing-Netzes (`from_node`/`to_node`):
+    /// Kanten derselben Datenquelle in erlaubter Fahrtrichtung, an Knoten möglichst geradeaus.
+    Topology,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -61,6 +64,20 @@ pub struct TraceConfig {
     pub strategy: TraceStrategy,
     pub sample_interval_m: f64,
     pub heading_window_m: f64,
+    /// `topology`: maximale Richtungsänderung an einem Knoten (Grad).
+    #[serde(default = "default_max_turn_deg")]
+    pub max_turn_deg: f64,
+    /// `topology`: Länge, über die der Kurs an Kantenenden bestimmt wird (m).
+    #[serde(default = "default_end_heading_m")]
+    pub end_heading_m: f64,
+}
+
+fn default_max_turn_deg() -> f64 {
+    45.0
+}
+
+fn default_end_heading_m() -> f64 {
+    10.0
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

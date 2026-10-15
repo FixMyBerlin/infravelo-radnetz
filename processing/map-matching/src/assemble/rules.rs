@@ -133,6 +133,8 @@ mod tests {
             attrs: vec![],
             oneway: true,
             dual_carriageway: false,
+            from_node: None,
+            to_node: None,
             fuehr: fuehr.into(),
             category: String::new(),
             traffic_sign: sign.into(),

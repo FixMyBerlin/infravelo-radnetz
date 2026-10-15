@@ -1,6 +1,7 @@
 //! TILDA-Wege laden und zu Traces (Beobachtungsfolgen) aufbereiten.
-//! Die TILDA-Topologie wird nirgends vorausgesetzt.
+//! Die TILDA-Topologie wird nur bei `trace.strategy = "topology"` genutzt (siehe `chain`).
 
+pub mod chain;
 pub mod sample;
 
 use std::sync::Arc;
@@ -14,7 +15,17 @@ use crate::io;
 use crate::model::{AttrSchema, TildaWay, Trace};
 
 /// Felder, die intern für das Matching benötigt werden (zusätzlich zu `transfer_attributes`).
-const INTERNAL_FIELDS: [&str; 7] = ["tilda_id", "fuehr", "verkehrsri", "tilda_oneway", "tilda_category", "tilda_traffic_sign", "tilda_name"];
+const INTERNAL_FIELDS: [&str; 9] = [
+    "tilda_id",
+    "fuehr",
+    "verkehrsri",
+    "tilda_oneway",
+    "tilda_category",
+    "tilda_traffic_sign",
+    "tilda_name",
+    "from_node",
+    "to_node",
+];
 
 /// Lädt alle konfigurierten TILDA-Quellen. `keep` filtert Wege (z. B. `--clip`).
 pub fn load_ways(cfg: &Config, schema: &AttrSchema, keep: impl Fn(&Polyline) -> bool) -> Result<Vec<TildaWay>> {
@@ -48,6 +59,8 @@ pub fn load_ways(cfg: &Config, schema: &AttrSchema, keep: impl Fn(&Polyline) -> 
                     category: internal[4].clone().unwrap_or_default(),
                     traffic_sign: internal[5].clone().unwrap_or_default(),
                     name_norm: normalize_name(internal[6].as_deref().unwrap_or("")),
+                    from_node: internal[7].as_deref().and_then(|v| v.parse().ok()),
+                    to_node: internal[8].as_deref().and_then(|v| v.parse().ok()),
                 });
             }
         }
@@ -62,8 +75,27 @@ pub fn build_traces(cfg: &Config, ways: &[TildaWay]) -> Vec<Trace> {
         TraceStrategy::Single => ways
             .iter()
             .enumerate()
-            .map(|(i, w)| Trace { id: i as u32, ways: vec![w.idx], obs: sample::sample_way(w, 0.0, &cfg.trace) })
+            .map(|(i, w)| Trace { id: i as u32, ways: vec![w.idx], obs: sample::sample_way(w, 0.0, false, &cfg.trace) })
             .collect(),
+        TraceStrategy::Topology => {
+            let chains = chain::build_chains(ways, &cfg.trace);
+            let joined = chains.iter().filter(|c| c.len() > 1).count();
+            info!("Topologie-Traces: {} Wege -> {} Traces ({} aus mehreren Wegen)", ways.len(), chains.len(), joined);
+            chains
+                .into_iter()
+                .enumerate()
+                .map(|(i, steps)| {
+                    let mut obs = Vec::new();
+                    let mut offset = 0.0;
+                    for s in &steps {
+                        let w = &ways[s.way as usize];
+                        obs.extend(sample::sample_way(w, offset, s.reversed, &cfg.trace));
+                        offset += w.line.length();
+                    }
+                    Trace { id: i as u32, ways: steps.iter().map(|s| s.way).collect(), obs }
+                })
+                .collect()
+        }
     }
 }
 

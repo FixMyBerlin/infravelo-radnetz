@@ -61,6 +61,9 @@ pub struct TildaWay {
     pub traffic_sign: String,
     /// Normalisierter Straßenname (leer, wenn unbekannt).
     pub name_norm: String,
+    /// Knoten am Anfang/Ende im TILDA-Routing-Netz (nur bei vorverarbeiteten Routing-Daten).
+    pub from_node: Option<u64>,
+    pub to_node: Option<u64>,
 }
 
 impl TildaWay {

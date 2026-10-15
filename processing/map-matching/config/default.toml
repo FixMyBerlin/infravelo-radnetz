@@ -17,17 +17,19 @@ reference_secondary = "output/reference-legacy/aggregated_rvn_final.gpkg"
 manual_way_lists = ["data/exclude_ways.txt", "data/include_ways.txt"]
 manual_element_lists = ["data/opposite_edge_overwrite_element_nr.txt"]
 
+# TILDA-Routing-Netz, vorverarbeitet mit scripts/prepare_tilda_routing.py
+# (Join, Teilung an Knoten, nur Hauptnetz). Siehe docs/tilda-routing.md.
 [[paths.tilda]]
 data_source = "bikelanes"
-path = "output/TILDA-translated/TILDA Bikelanes Translated.fgb"
+path = "output/TILDA-routing/TILDA Routing Bikelanes Translated.fgb"
 
 [[paths.tilda]]
 data_source = "streets"
-path = "output/TILDA-translated/TILDA Streets Translated.fgb"
+path = "output/TILDA-routing/TILDA Routing Streets Translated.fgb"
 
 [[paths.tilda]]
 data_source = "paths"
-path = "output/TILDA-translated/TILDA Paths Translated.fgb"
+path = "output/TILDA-routing/TILDA Routing Paths Translated.fgb"
 
 [paths.clip_regions]
 neukoelln = "data/Bezirk Neukölln Grenze.fgb"
@@ -45,8 +47,14 @@ gap_report_m = 10.0
 
 # -----------------------------------------------------------------------------
 [trace]
-# "single": jeder TILDA-Weg ist eine eigene Trace.
-strategy = "single"
+# "topology": Traces folgen dem TILDA-Routing-Netz (gleiche Datenquelle, erlaubte
+#             Fahrtrichtung, an Knoten möglichst geradeaus).
+# "single":   jeder TILDA-Weg ist eine eigene Trace (ohne Topologie).
+strategy = "topology"
+# topology: maximale Richtungsänderung an einem Knoten (Grad).
+max_turn_deg = 45.0
+# topology: Länge, über die der Kurs an Kantenenden bestimmt wird (m).
+end_heading_m = 10.0
 # Abstand der Beobachtungen entlang eines TILDA-Wegs (Anfang/Ende immer enthalten).
 sample_interval_m = 5.0
 # Halbe Fensterbreite zur Bestimmung des lokalen Kurses einer Beobachtung.
