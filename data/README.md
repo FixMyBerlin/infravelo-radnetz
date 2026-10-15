@@ -24,6 +24,10 @@ Diese Dateien werden durch `processing/process_tilda_data.sh` aus den Rohdaten i
 - `TILDA Straßen Berlin.fgb` – Auf Berlin zugeschnittene Straßen aus TILDA, basierend auf OpenStreetMap.
 - `TILDA Wege Berlin.fgb` – Auf Berlin zugeschnittene Wege aus TILDA, basierend auf OpenStreetMap.
 
+## TILDA-Routing-Netz
+
+- `TILDA Routing Berlin.gpkg` – Routingfähiges TILDA-Netz (Tabelle `routing`), Export von `https://tilda-geo.de/api/export/berlin/routing?format=gpkg`. Stand 15.10.2026 lokal mit tilda-geo gerechnet. Muss zum Stand von `processing/data-raw-tilda/` passen. Details: [Workdoc](../processing/map-matching/docs/tilda-routing.md).
+
 Für Lizenzen, siehe [LIZENZEN.md](./LIZENZEN.md)
 
 # Data Modifiers

@@ -12,6 +12,12 @@ Alle Aufrufe erfolgen aus `processing/` heraus, mit aktiviertem `.venv` aus dem 
 ```
 Bereitet die TILDA-Daten für die weitere Verarbeitung vor.
 
+### TILDA-Routing-Netz vorbereiten
+Das [`prepare_tilda_routing.py`](./prepare_tilda_routing.py) verknüpft `routing` mit den Attributen aus `bikelanes`/`roads`/`roadsPathClasses`, teilt die Wege an gemeinsamen Stützpunkten, behält nur das zusammenhängende Hauptnetz und übersetzt in RVN-Attribute. Siehe [Workdoc](../map-matching/docs/tilda-routing.md).
+
+- **Input**: `data/TILDA Routing Berlin.gpkg`, `data-raw-tilda/*.fgb`
+- **Output**: `output/TILDA-routing/`
+
 ### TILDA-Daten zuschneiden
 Das [`clip_tilda_data.py`](./clip_tilda_data.py) schneidet TILDA-Daten auf bestimmte Regionen (ganz Berlin oder einzelne Bezirke) zu.
 

@@ -2,6 +2,8 @@
 
 Von diesem Ordner werden die originalen Geodaten, die von TILDA heruntergeladen wurden, geladen.
 
+Diese Exporte müssen aus demselben Verarbeitungslauf stammen wie `data/TILDA Routing Berlin.gpkg` (siehe `prepare_tilda_routing.py`).
+
 Dieser Ordner sollte nur fünf Dateien enthalten:
 
 * **bikelanes.fgb**
