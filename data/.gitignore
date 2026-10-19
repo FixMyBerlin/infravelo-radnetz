@@ -5,3 +5,6 @@
 netzquellen/
 Berlin Straßenabschnitte Detailnetz *.fgb
 Berlin Verbindungspunkte Detailnetz.fgb
+
+# TILDA-Routing-Export (lokal, gehört zum Lauf in data-raw-tilda/)
+TILDA Routing Berlin.gpkg

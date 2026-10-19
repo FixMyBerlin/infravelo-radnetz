@@ -206,3 +206,6 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 .DS_Store
+
+# Von processing/qgis/*.py erzeugte QGIS-Projekte
+processing/qgis/*.qgz
