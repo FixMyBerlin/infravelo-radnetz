@@ -9,6 +9,7 @@ um detaillierte Informationen wie Straßennamen und -klassen zu ergänzen.
 INPUT:
 - output/rvn/Berlin Vorrangnetz_with_element_nr.fgb
 - output/rvn/Berlin Detailnetz_mit_virtuellen-knotenpunkten.fgb (gesplittet an virtuellen Knotenpunkten)
+- data/rvn_korrekturen.csv (manuelle Korrekturen, z. B. verkehrsrichtung)
 
 OUTPUT:
 - output/rvn/vorrangnetz_details_combined_rvn.fgb
@@ -445,6 +446,60 @@ def filter_excluded_elements(gdf):
     return filtered_gdf
 
 
+def reverse_geometry(geom):
+    """Dreht einen LineString oder MultiLineString um."""
+    if geom.geom_type == 'LineString':
+        return type(geom)(list(geom.coords)[::-1])
+    if geom.geom_type == 'MultiLineString':
+        return MultiLineString([type(line)(list(line.coords)[::-1]) for line in geom.geoms[::-1]])
+    raise ValueError(f"Unerwarteter Geometrietyp {geom.geom_type}")
+
+
+def apply_rvn_corrections(gdf, corrections_path):
+    """
+    Wendet die manuell gepflegten Korrekturen aus data/rvn_korrekturen.csv an.
+
+    Unterstützt wird bisher das Attribut verkehrsrichtung (B, R, G). Wechselt eine Kante von oder
+    nach G, wird die Geometrie gedreht, damit die Fahrtrichtung wie bei allen R/G-Kanten der
+    Digitalisierungsrichtung entspricht.
+
+    Args:
+        gdf (GeoDataFrame): Kombinierter RVN-Datensatz
+        corrections_path (str): Pfad zur Korrekturliste
+
+    Returns:
+        GeoDataFrame: Datensatz mit angewendeten Korrekturen
+    """
+    if not os.path.exists(corrections_path):
+        logger.info(f"Keine Korrekturliste gefunden: {corrections_path}")
+        return gdf
+
+    corrections = pd.read_csv(corrections_path, comment='#', dtype=str).fillna('')
+    allowed = {'verkehrsrichtung': {'B', 'R', 'G'}}
+    result = gdf.copy()
+    applied = 0
+
+    for _, c in corrections.iterrows():
+        if c.attribut not in allowed:
+            raise ValueError(f"Korrektur für {c.element_nr}: Attribut '{c.attribut}' wird nicht unterstützt")
+        if c.wert not in allowed[c.attribut]:
+            raise ValueError(f"Korrektur für {c.element_nr}: Wert '{c.wert}' für {c.attribut} ungültig")
+        mask = result['element_nr'] == c.element_nr
+        if not mask.any():
+            logger.warning(f"Korrektur: element_nr {c.element_nr} nicht im RVN gefunden")
+            continue
+        for idx in result.index[mask]:
+            old = result.at[idx, c.attribut]
+            if (old == 'G') != (c.wert == 'G'):
+                result.at[idx, 'geometry'] = reverse_geometry(result.at[idx, 'geometry'])
+            result.at[idx, c.attribut] = c.wert
+            logger.info(f"Korrektur: {c.element_nr} {c.attribut} {old} -> {c.wert} ({c.begruendung})")
+            applied += 1
+
+    logger.info(f"Korrekturen angewendet: {applied} Kanten aus {corrections_path}")
+    return result
+
+
 def save_result(combined_gdf, output_path):
     """
     Speichert den finalen Datensatz.
@@ -498,7 +553,10 @@ def main():
         # 9. Ausgeschlossene element_nr entfernen
         final_gdf = filter_excluded_elements(final_gdf)
         
-        # 10. Ergebnis speichern
+        # 10. Manuelle Korrekturen anwenden
+        final_gdf = apply_rvn_corrections(final_gdf, "data/rvn_korrekturen.csv")
+
+        # 11. Ergebnis speichern
         output_path = "output/rvn/vorrangnetz_details_combined_rvn.fgb"
         save_result(final_gdf, output_path)
         

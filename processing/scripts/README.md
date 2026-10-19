@@ -45,7 +45,7 @@ Das [`assign_element_nr_to_rvn.py`](./assign_element_nr_to_rvn.py) fügt jedem S
 - **Output**: `output/rvn/Berlin Vorrangnetz_with_element_nr.fgb`
 
 ### 3. RVN mit Detailnetz anreichern
-Das [`enrich_rvn_with_detailnetz.py`](./enrich_rvn_with_detailnetz.py) fügt fehlende Kanten im Detailnetz aus dem RVN hinzu, sodass für jeden Teil des RVN eine Kante im Knoten-Kanten-Modell existiert.
+Das [`enrich_rvn_with_detailnetz.py`](./enrich_rvn_with_detailnetz.py) fügt fehlende Kanten im Detailnetz aus dem RVN hinzu, sodass für jeden Teil des RVN eine Kante im Knoten-Kanten-Modell existiert. Am Ende wendet es die Korrekturen aus [`data/rvn_korrekturen.csv`](../data/rvn_korrekturen.csv) an.
 
 - **Input**: `output/rvn/Berlin Vorrangnetz_with_element_nr.fgb`, `data/Berlin Straßenabschnitte Detailnetz.fgb`
 - **Output**: `output/rvn/vorrangnetz_details_combined_rvn.fgb`

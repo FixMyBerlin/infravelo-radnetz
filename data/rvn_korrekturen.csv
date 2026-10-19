@@ -1,0 +1,34 @@
+# Korrekturen am RVN, angewendet in processing/scripts/enrich_rvn_with_detailnetz.py
+#
+# Spalten:
+# - element_nr: Kante im RVN (output/rvn/vorrangnetz_details_combined_rvn.fgb)
+# - attribut: zu setzendes Attribut. Erlaubt: verkehrsrichtung
+# - wert: neuer Wert. verkehrsrichtung: B (beide Richtungen), R (nur in Digitalisierungsrichtung), G (nur gegen Digitalisierungsrichtung)
+# - begruendung: warum die Korrektur nötig ist
+#
+# verkehrsrichtung bezieht sich auf die Digitalisierungsrichtung des Detailnetzes. Wechselt eine Kante
+# von oder nach G, dreht das Skript die Geometrie, damit die Fahrtrichtung wie bei allen R/G-Kanten ri=0 ist.
+#
+# Herkunft der ersten Einträge: Kanten mit verkehrsrichtung=B, die in der alten Liste
+# opposite_edge_overwrite_element_nr.txt "ri=1 entfernen" hatten (Analyse in
+# processing/map-matching/docs/einrichtungsfahrbahnen.md, Abschnitt 2.4). Die Richtung folgt der
+# OSM-Einbahnrichtung (TILDA-Straßen).
+element_nr,attribut,wert,begruendung
+61460005_61460022.02,verkehrsrichtung,R,"Scharnweberstraße: Richtungsfahrbahn, im Detailnetz nicht als Einbahn geführt"
+59430029_59430035.02,verkehrsrichtung,G,"Müggelbergplatz: Einbahn-Ring, OSM-Einbahn gegen Digitalisierungsrichtung"
+59430034_59430029.02,verkehrsrichtung,G,"Müggelbergplatz: Einbahn-Ring, OSM-Einbahn gegen Digitalisierungsrichtung"
+59430030_59430034.03,verkehrsrichtung,R,"Müggelbergplatz: Einbahn-Ring"
+59430035_59430030.03,verkehrsrichtung,R,"Müggelbergplatz: Einbahn-Ring"
+57470033_58470010.03,verkehrsrichtung,R,"Joachimstraße: Richtungsfahrbahn"
+57470032_57470033.02,verkehrsrichtung,R,"Joachimstraße: Richtungsfahrbahn"
+47500011_47500022.02,verkehrsrichtung,R,"Herrfurthplatz: Einbahn-Ring"
+47500027_47500010.02,verkehrsrichtung,R,"Herrfurthplatz: Einbahn-Ring"
+47500024_47500011.02,verkehrsrichtung,R,"Herrfurthplatz: Einbahn-Ring"
+47500010_47500025.02,verkehrsrichtung,R,"Herrfurthplatz: Einbahn-Ring"
+48520012_48520025.02,verkehrsrichtung,R,"Paul-Lincke-Ufer: Richtungsfahrbahn"
+56540008_56540055.01,verkehrsrichtung,R,"Wuhlgartenweg: Einbahn (OSM deckt nur 12 m der Kante ab, Richtung aus alter Liste)"
+56540055_57540055.01,verkehrsrichtung,R,"Wuhlgartenweg: Einbahn"
+55560007_56560038.02,verkehrsrichtung,R,"RVN-Kante ohne Detailnetz: Einbahn in Digitalisierungsrichtung"
+46630029_46630016.02,verkehrsrichtung,R,"Birkenallee: Einbahn"
+46630016_46630030.02,verkehrsrichtung,R,"Birkenallee: Einbahn"
+46520017_46520044.03,verkehrsrichtung,R,"Urbanpark: Einbahn"
