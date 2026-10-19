@@ -13,6 +13,6 @@ map-matching/
 # Gesicherte Legacy-Referenz und QGIS-Vergleichsordner
 reference-legacy/
 vergleich-qgis/
-# Ausgaben von prepare_tilda_routing.py und der Verteilung auf dem Detailnetz
+# Ausgaben von prepare_tilda_routing.py und der Verteilung auf dem REN+
 TILDA-routing/
-detailnetz-verteilung/
+ren-verteilung/

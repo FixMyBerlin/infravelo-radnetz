@@ -13,7 +13,8 @@ Schritte:
    einem Knoten. Es wird nichts geometrisch repariert.
 3. Zusammenhang: Nur die größte zusammenhängende Komponente wird behalten. Bricht ab, wenn
    sie zu wenig Radinfrastruktur enthält. Ausgeschlossene Kanten landen im Report.
-4. Zuschnitt auf den RVN-Puffer und Übersetzung in RVN-Attribute
+4. Zuschnitt auf den RVN-Puffer (abschaltbar mit `--ohne-rvn-zuschnitt`, z. B. für das
+   Matching auf das REN+) und Übersetzung in RVN-Attribute
    (wie `translate_attributes_tilda_to_rvn.py`).
 
 INPUT:
@@ -149,6 +150,7 @@ def main():
     parser.add_argument("--output-dir", default="output/TILDA-routing")
     parser.add_argument("--max-missing-share", type=float, default=0.01, help="max. Anteil Kanten ohne Quellobjekt je Tabelle")
     parser.add_argument("--min-bikelane-share", type=float, default=0.95, help="min. Anteil Radinfrastruktur (km) im Hauptnetz")
+    parser.add_argument("--ohne-rvn-zuschnitt", action="store_true", help="ganz Berlin behalten (z. B. für das REN+)")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     out_dir = Path(args.output_dir)
@@ -176,7 +178,9 @@ def main():
     if bike_share < args.min_bikelane_share:
         raise SystemExit(f"Nur {bike_share:.1%} der Radinfrastruktur im Hauptnetz (min. {args.min_bikelane_share:.0%}). Abbruch.")
 
-    segments = clip_to_rvn_buffer(segments[in_main].to_crs(DEFAULT_CRS), args.data_dir, DEFAULT_CRS)
+    segments = segments[in_main].to_crs(DEFAULT_CRS)
+    if not args.ohne_rvn_zuschnitt:
+        segments = clip_to_rvn_buffer(segments, args.data_dir, DEFAULT_CRS)
     segments = segments.drop(columns="_len_m")
     for source_table, (_, data_source) in SOURCES.items():
         part = segments[segments["routing_source_table"] == source_table].reset_index(drop=True)
