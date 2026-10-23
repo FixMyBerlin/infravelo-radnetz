@@ -7,13 +7,15 @@ Schreibt die Eingabedatei der App „Netzanpassungen“ (Repo knotenpunkte,
 Ordner netzanpassungen/). In der App werden entlang der Radfernwege neue
 Kanten gezeichnet, wo das Detailnetz und das REN+ keine haben.
 
-Die Datei enthält fünf FeatureCollections in WGS84:
+Die Datei enthält sechs FeatureCollections in WGS84:
 - detailnetz: Kanten mit element_nr, beginnt_bei_vp, endet_bei_vp
 - knoten: Detailnetzknoten aus den Kantenenden (erster Punkt =
   beginnt_bei_vp, letzter = endet_bei_vp) und die virtuellen Knoten
 - ren_netz: Kartierungs-Netz mit element_nr, von_knoten, bis_knoten
 - radfernwege: touristisches Radnetz
 - luecken: Abschnitte der Radfernwege ohne Kante in GAP_DISTANCE_M
+- knoten_vorschlaege: Punkte, an denen ein Radfernweg eine Detailnetzkante
+  kreuzt, ohne dass dort ein Knoten liegt (Vorschlag für einen virtuellen Knoten)
 
 INPUT:
 - data/Berlin Straßenabschnitte Detailnetz.fgb (jüngster Stand)
@@ -40,6 +42,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import geopandas as gpd
+import numpy as np
 import pandas as pd
 import shapely
 from shapely.geometry import MultiLineString, Point
@@ -64,6 +67,16 @@ MIN_GAP_LENGTH_M = 20.0
 AREA_BUFFER_M = 200.0
 # Liegen die Kantenenden desselben Knotens weiter auseinander, kommt er auf die Prüfliste
 NODE_POSITION_TOLERANCE_M = 0.5
+# Kreuzungen näher als das an einem vorhandenen Knoten brauchen keinen neuen
+NODE_SUGGESTION_MIN_NODE_DISTANCE_M = 15.0
+# Kreuzungen auf derselben Kante, die näher beieinander liegen, werden zu einem Vorschlag
+NODE_SUGGESTION_MERGE_DISTANCE_M = 10.0
+# Liegt der Anfang oder das Ende einer Lücke so nah am Vorschlag, beginnt dort wohl eine neue Kante
+NODE_SUGGESTION_GAP_DISTANCE_M = 25.0
+# Schnittwinkel zwischen Radfernweg und Kante; flacher gilt als „läuft parallel“
+NODE_SUGGESTION_STEEP_ANGLE_DEG = 30.0
+# Strecke, über die die Richtung der Linien am Schnittpunkt gemessen wird
+DIRECTION_SAMPLE_M = 5.0
 # 7 Nachkommastellen in WGS84 sind etwa 1 cm
 COORDINATE_GRID = 1e-7
 
@@ -179,6 +192,79 @@ def find_gaps(routes, edges):
     return gaps
 
 
+def line_direction(line, position):
+    """Richtung (Einheitsvektor) der Linie am Abstand `position` vom Anfang."""
+    before = line.interpolate(max(position - DIRECTION_SAMPLE_M, 0))
+    after = line.interpolate(min(position + DIRECTION_SAMPLE_M, line.length))
+    dx, dy = after.x - before.x, after.y - before.y
+    norm = (dx * dx + dy * dy) ** 0.5
+    return (dx / norm, dy / norm) if norm else (0.0, 0.0)
+
+
+def crossing_angle(route, edge, point):
+    """Spitzer Schnittwinkel in Grad zwischen Radfernweg und Kante am Punkt."""
+    ax, ay = line_direction(route, route.project(point))
+    bx, by = line_direction(edge, edge.project(point))
+    cosine = min(abs(ax * bx + ay * by), 1.0)
+    return float(np.degrees(np.arccos(cosine)))
+
+
+def find_node_suggestions(routes, detail, nodes, gaps):
+    """Punkte, an denen ein Radfernweg eine Detailnetzkante kreuzt, fern von jedem Knoten.
+
+    Hinweise je Vorschlag: `winkel_grad` (steil = echte Kreuzung, flach = läuft eher
+    parallel) und `luecke_nah` (Anfang oder Ende einer Lücke in der Nähe).
+    """
+    node_tree = shapely.STRtree(nodes.geometry.to_numpy())
+    gap_ends = [Point(c) for line in gaps.geometry for c in (line.coords[0], line.coords[-1])]
+    gap_tree = shapely.STRtree(gap_ends) if gap_ends else None
+
+    suggestions = []
+    for route_name, route in zip(routes["name"], routes.geometry):
+        for edge_pos in detail.sindex.query(route, predicate="intersects"):
+            edge = detail.geometry.iloc[edge_pos]
+            crossing = route.intersection(edge)
+            for point in getattr(crossing, "geoms", [crossing]):
+                if point.geom_type != "Point":
+                    continue
+                if node_tree.query_nearest(point, return_distance=True)[1][0] < NODE_SUGGESTION_MIN_NODE_DISTANCE_M:
+                    continue
+                angle = crossing_angle(route, edge, point)
+                merged = next((s for s in suggestions if s["edge_pos"] == edge_pos
+                               and s["point"].distance(point) < NODE_SUGGESTION_MERGE_DISTANCE_M), None)
+                if merged:
+                    merged["routes"].add(route_name)
+                    if angle > merged["angle"]:
+                        merged["angle"], merged["point"] = angle, point
+                else:
+                    suggestions.append({"edge_pos": edge_pos, "point": point, "routes": {route_name}, "angle": angle})
+
+    rows = []
+    for item in suggestions:
+        edge_row = detail.iloc[item["edge_pos"]]
+        point = item["point"]
+        station = edge_row.geometry.project(point)
+        near_gap = gap_tree is not None and gap_tree.query_nearest(
+            point, return_distance=True)[1][0] <= NODE_SUGGESTION_GAP_DISTANCE_M
+        rows.append({
+            "element_nr": edge_row["element_nr"],
+            "strassenname": edge_row["strassenname"],
+            "verkehrsebene": edge_row["verkehrsebene"],
+            "routen": " | ".join(sorted(str(name) for name in item["routes"] if name)),
+            "winkel_grad": round(item["angle"], 1),
+            "steil": bool(item["angle"] >= NODE_SUGGESTION_STEEP_ANGLE_DEG),
+            "luecke_nah": bool(near_gap),
+            "station_m": round(station, 1),
+            "abstand_ende_m": round(edge_row.geometry.length - station, 1),
+            "geometry": point,
+        })
+    frame = gpd.GeoDataFrame(rows, geometry="geometry", crs=detail.crs)
+    frame = frame.sort_values(["element_nr", "station_m"]).reset_index(drop=True)
+    logging.info(f"Knotenvorschläge: {len(frame)}, davon steil {int(frame['steil'].sum())}, "
+                 f"mit Lücke in der Nähe {int(frame['luecke_nah'].sum())}")
+    return frame
+
+
 def area_polygon(bezirk):
     districts = gpd.read_file(ren.DISTRICTS_PATH)
     if districts.crs is None or districts.crs.to_epsg() != ren.DEFAULT_CRS:
@@ -231,7 +317,10 @@ def main():
     gaps = find_gaps(routes, gpd.GeoDataFrame(
         pd.concat([detail[["geometry"]], ren_netz[["geometry"]]], ignore_index=True), crs=CRS))
 
+    suggestions = find_node_suggestions(routes, detail, all_nodes, gaps)
+
     detail = within_area(detail, area)
+    suggestions = within_area(suggestions, area)
     all_nodes = within_area(all_nodes, area)
     ren_netz = within_area(ren_netz, area)
     routes = within_area(routes, area)
@@ -252,6 +341,7 @@ def main():
         "ren_netz": feature_collection(ren_netz),
         "radfernwege": feature_collection(routes),
         "luecken": feature_collection(gaps),
+        "knoten_vorschlaege": feature_collection(suggestions),
     }
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)

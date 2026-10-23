@@ -22,12 +22,13 @@ python netzanpassungen/export_app_daten.py --bezirk Neukölln
 
 In `netzanpassungen/output/` (nicht versioniert):
 
-- `netzanpassungen_<gebiet>.json`: Schema `netzanpassungen-app/v1`, WGS84 mit 7 Nachkommastellen, fünf FeatureCollections:
+- `netzanpassungen_<gebiet>.json`: Schema `netzanpassungen-app/v1`, WGS84 mit 7 Nachkommastellen, sechs FeatureCollections:
   - `detailnetz`: `element_nr`, `beginnt_bei_vp`, `endet_bei_vp`, `strassenname`, `verkehrsebene`, `okstra_id`
   - `knoten`: `id`, `ist_virtuell`. Die Detailnetzknoten kommen aus den Kantenenden: erster Punkt = `beginnt_bei_vp`, letzter = `endet_bei_vp`. Die Verbindungspunkte aus dem WFS haben keine Knoten-ID.
   - `ren_netz`: `element_nr`, `von_knoten`, `bis_knoten` (als Text), `radverkehrsnetz`, `strassenname`. MultiLineStrings sind in Teile zerlegt.
   - `radfernwege`: `name`
   - `luecken`: Abschnitte der Radfernwege, die weiter als 10 m von jeder Detailnetz- und REN+-Kante liegen, mindestens 20 m lang (Arbeitsliste der App)
+  - `knoten_vorschlaege` (Test): Punkte, an denen ein Radfernweg eine Detailnetzkante kreuzt, mindestens 15 m von jedem Knoten entfernt (Kreuzungen auf derselben Kante unter 10 m werden zusammengelegt). Felder: `element_nr`, `strassenname`, `verkehrsebene`, `routen`, `winkel_grad`, `steil` (Schnittwinkel ab 30°; flachere Kreuzungen sind meist nur ein Radfernweg, der neben der Kante herläuft), `luecke_nah` (Anfang oder Ende einer Lücke innerhalb 25 m), `station_m`, `abstand_ende_m`. Stand 2026-10-23: 592 Vorschläge, 107 steil, 81 davon mit Lücke in der Nähe.
 - `pruefliste_<gebiet>.csv`: Kantenenden, die mehr als 0,5 m neben ihrem Knoten liegen (Stand 2026-10-23: eins)
 
 Mit `--bezirk` bleiben Kanten, Knoten und Radfernwege bis 200 m über die Bezirksgrenze hinaus enthalten; die Lücken werden vorher für ganz Berlin berechnet.
