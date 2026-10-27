@@ -764,7 +764,7 @@ def reorder_aggregated_columns(gdf):
 
 
 # ------------------------------------------------------------- Hauptablauf --
-def process(input_path, output_path, crs, clip_region=None, data_dir="./data", assign_districts=True, view=None):
+def process(input_path, output_path, crs, clip_region=None, data_dir="./data", assign_districts=True):
     """
     Hauptfunktion: Lädt angereicherte Netzwerkdaten und führt finale Aggregation durch.
     
@@ -775,7 +775,6 @@ def process(input_path, output_path, crs, clip_region=None, data_dir="./data", a
         clip_region: Regionale Beschränkung ('neukoelln', 'norden', 'sueden')
         data_dir: Verzeichnis mit den Eingabedateien
         assign_districts: Ob Bezirksnummern zugewiesen werden sollen
-        view: Viewport Zuschnitt
     """
     # Logging konfigurieren
     logging.basicConfig(
@@ -807,11 +806,6 @@ def process(input_path, output_path, crs, clip_region=None, data_dir="./data", a
         logging.info(f"Schneide Daten auf Region {clip_region} zu")
         gdf = clip_to_region(gdf, data_dir, crs, clip_region)
         logging.info(f"Nach {clip_region}-Clipping: {len(gdf)} Segmente")
-    elif view:
-        # Bei View-Modus sind die Daten bereits geclippt
-        # Überspringe zusätzliches Clipping um Leer-Resultate zu vermeiden
-        logging.info(f"View-Modus erkannt ({view}) - überspringe zusätzliches Clipping (Daten bereits geclippt)")
-        logging.info(f"Eingangsdaten nach View-Pipeline: {len(gdf)} Segmente")
 
     if gdf.empty:
         raise SystemExit("Abbruch: Keine Daten nach Clipping vorhanden")
@@ -931,25 +925,17 @@ if __name__ == "__main__":
     ap.add_argument("--crs", type=int, default=DEFAULT_CRS,
                     help=f"Ziel-EPSG (default {DEFAULT_CRS})")
     ap.add_argument("--clip", type=str, choices=['neukoelln', 'norden', 'sueden'],
-                    help="Regionaler Zuschnitt: 'neukoelln', 'norden' oder 'sueden'. Nicht mit --view kombinierbar.")
-    ap.add_argument("--view", type=str, help="Viewport Zuschnitt 'zoom/lat/lon' (WGS84). Nicht zusammen mit --clip verwenden.")
+                    help="Regionaler Zuschnitt: 'neukoelln', 'norden' oder 'sueden'.")
     ap.add_argument("--data-dir", default="./data", 
                     help="Pfad zum Datenverzeichnis (default: ./data)")
     ap.add_argument("--no-districts", action="store_true",
                     help="Überspringe Bezirkszuweisung (optional)")
     args = ap.parse_args()
     
-    if args.clip and args.view:
-        ap.error('--clip und --view können nicht gemeinsam verwendet werden')
-
     # Automatische Anpassung des Input-Pfads für regionale Clipping
     if args.clip and args.input == "./output/snapping_converted_bikelanes.fgb":
         args.input = f"./output/snapping_converted_bikelanes_{args.clip}.fgb"
         logging.info(f"Automatische Eingabedatei-Anpassung für {args.clip}: {args.input}")
 
-    # Bei View Standard-Ausgabepfad in output-bbox umlenken
-    if args.view and args.output == "./output/aggregated_rvn_final.gpkg":
-        args.output = "./output-bbox/aggregated_rvn_final_view.gpkg"
-
     # Hauptfunktion aufrufen
-    process(args.input, args.output, args.crs, args.clip, args.data_dir, not args.no_districts, args.view)
+    process(args.input, args.output, args.crs, args.clip, args.data_dir, not args.no_districts)

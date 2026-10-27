@@ -26,7 +26,7 @@ import os
 import logging
 import geopandas as gpd
 from helpers.globals import DEFAULT_CRS
-from helpers.clipping import clip_to_region, clip_to_view
+from helpers.clipping import clip_to_region
 from helpers.convert_schutzstreifen import convert_short_schutzstreifen_to_radfahrstreifen
 from helpers.convert_schutzstreifen_at_bus_stops import (
     convert_schutzstreifen_at_bus_stops_with_gdf,
@@ -49,7 +49,7 @@ def read_input_file(file_path):
         sys.exit(1)
 
 
-def process_bikelane_conversion(input_path, output_path, clip_region=None, data_dir="./data", view=None):
+def process_bikelane_conversion(input_path, output_path, clip_region=None, data_dir="./data"):
     """
     Hauptfunktion: Konvertiert Schutzstreifen zu Radfahrstreifen.
     
@@ -58,10 +58,9 @@ def process_bikelane_conversion(input_path, output_path, clip_region=None, data_
         output_path: Pfad zur Ausgabedatei (snapping_converted_bikelanes.fgb)
         clip_region: Regionaler Zuschnitt ('neukoelln', 'norden', 'sueden')
         data_dir: Verzeichnis mit den Eingabedateien
-        view: Viewport-Zuschnitt (z/lat/lon)
     """
     # Logging konfigurieren
-    log_level = logging.DEBUG if clip_region or view else logging.INFO
+    log_level = logging.DEBUG if clip_region else logging.INFO
     logging.basicConfig(
         level=log_level, 
         format='%(asctime)s - %(levelname)s: %(message)s',
@@ -85,10 +84,6 @@ def process_bikelane_conversion(input_path, output_path, clip_region=None, data_
         logging.info(f"Schneide Daten auf Region {clip_region} zu...")
         gdf = clip_to_region(gdf, data_dir, f"EPSG:{DEFAULT_CRS}", clip_region)
         logging.info(f"Nach {clip_region}-Zuschnitt: {len(gdf)} Kanten")
-    elif view:
-        logging.info(f"Schneide Daten auf Viewport zu: {view}")
-        gdf = clip_to_view(gdf, view)
-        logging.info(f"Nach Viewport-Zuschnitt: {len(gdf)} Kanten")
     
     # Zähle Schutzstreifen vor allen Konvertierungen
     schutzstreifen_initial = len(gdf[gdf['fuehr'] == 'Schutzstreifen'])
@@ -212,37 +207,23 @@ if __name__ == "__main__":
     ap.add_argument("--output", default="./output/snapping_converted_bikelanes.fgb", 
                     help="Ausgabedatei (Pfad) - Default: ./output/snapping_converted_bikelanes.fgb")
     ap.add_argument("--clip", type=str, choices=['neukoelln', 'norden', 'sueden'],
-                    help="Regionaler Zuschnitt: 'neukoelln', 'norden' oder 'sueden'. Nicht mit --view kombinierbar.")
+                    help="Regionaler Zuschnitt: 'neukoelln', 'norden' oder 'sueden'.")
     ap.add_argument("--data-dir", default="./data", 
                     help="Pfad zum Datenverzeichnis (default: ./data)")
-    ap.add_argument("--view", type=str, 
-                    help="Viewport Zuschnitt 'zoom/lat/lon' (WGS84, z.B. 18/52.488306/13.425140). Nicht zusammen mit --clip verwenden.")
     args = ap.parse_args()
 
-    # Konfliktprüfung
-    if args.clip and args.view:
-        print("❌ --clip und --view dürfen nicht kombiniert werden")
-        sys.exit(1)
-
-    # Anpassung der Pfade für verschiedene Modi
+    # Anpassung der Pfade für regionales Clipping
     if args.clip:
         # Für regionale Clipping: Standardpfade mit _{region} Suffix anpassen
         if args.input == "./output/snapping_network_enriched.fgb":
             args.input = f"./output/snapping_network_enriched_{args.clip}.fgb"
         if args.output == "./output/snapping_converted_bikelanes.fgb":
             args.output = f"./output/snapping_converted_bikelanes_{args.clip}.fgb"
-    elif args.view:
-        # Für View: Pfade nach output-bbox umleiten
-        if args.input == "./output/snapping_network_enriched.fgb":
-            args.input = "./output-bbox/snapping_network_enriched_view.fgb"
-        if args.output == "./output/snapping_converted_bikelanes.fgb":
-            args.output = "./output-bbox/snapping_converted_bikelanes_view.fgb"
 
     # Hauptfunktion aufrufen
     process_bikelane_conversion(
         args.input, 
         args.output, 
         args.clip, 
-        args.data_dir, 
-        args.view
+        args.data_dir
     )

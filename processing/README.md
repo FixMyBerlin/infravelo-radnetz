@@ -27,7 +27,6 @@ pip install -r requirements.txt
 - `helpers/` – gemeinsame Python-Module der Verarbeitungsschritte
 - `validation/` – Validierung der Ergebnisse
 - `output/` – alle erzeugten Dateien
-- `output-bbox/` – Ausgaben einer Verarbeitung mit `--view` (Bounding Box)
 - `output-last-run/` – Backup der Ausgaben vom letzten Lauf
 - `QGIS QA Processing.qgz`, `QGIS Aggregated Visualization.qgz` – QGIS-Projekte zur Kontrolle
 
@@ -91,6 +90,6 @@ Prüft virtuelle Knotenpunkte, TILDA-Knotenpunkte, Datensatz B und C sowie Über
 ## Helper-Module (`helpers/`)
 - `globals.py`: Konstanten (CRS, Pfade)
 - `district_assignment.py`: Bezirkszuweisung
-- `clipping.py`: Regionale/Viewport-Zuschnitte
+- `clipping.py`: Regionale Zuschnitte
 - `convert_*.py`: Schutzstreifen-Konvertierungslogik
 - `override_edges.py`: Override-Verarbeitung

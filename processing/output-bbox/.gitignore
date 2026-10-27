@@ -1,6 +1,0 @@
-*.fgb
-*.geojson
-*.gpq
-*.gpkg
-*.txt
-osm_candidates_per_edge*

@@ -14,11 +14,10 @@
 # - Temporäre Dateien werden vor dem entsprechenden Verarbeitungsschritt gelöscht
 # - Zwischendateien bleiben zwischen Schritten erhalten (für --start-step Funktionalität)
 #
-# Verwendung: ./execute_processing.sh [--clip <region> | --view z/lat/lon] [--start-step <1-4>] [--clean-cache]
+# Verwendung: ./execute_processing.sh [--clip <region>] [--start-step <1-4>] [--clean-cache]
 # 
 # Argumente:
 #   --clip <region>     Regionaler Zuschnitt: neukoelln, norden oder sueden
-#   --view z/lat/lon     Viewport Zuschnitt (WGS84, z.B. 18/52.488306/13.425140) – schreibt nach output-bbox
 #   --start-step <1-4>  Startet die Verarbeitung ab dem angegebenen Schritt
 #                       1-2: HMM-Map-Matching
 #                       3: Schutzstreifen-Konvertierung und Overrides
@@ -82,8 +81,6 @@ Führt den infraVelo Radnetz Verarbeitungsprozess aus.
 
 OPTIONEN:
   --clip <region>      Regionale Verarbeitung: neukoelln, norden oder sueden
-  --view <z/lat/lon>   Viewport-Zuschnitt (WGS84, z.B. 18/52.488306/13.425140)
-                       Schreibt Ergebnisse nach output-bbox/
   --start-step <1-4>   Startet ab angegebenem Schritt:
                        1 = OSM-Wege Matching
                        2 = Snapping und Attribut-Übernahme
@@ -94,7 +91,6 @@ OPTIONEN:
 
 BEISPIELE:
   $0 --clip neukoelln                   # Nur Bezirk Neukölln
-  $0 --view 18/52.488306/13.425140      # Kleiner Viewport-Ausschnitt
   $0 --clip norden --start-step 2       # Norden ab Schritt 2
 
 EOF
@@ -141,7 +137,6 @@ show_total_time() {
 # CLI-Argumente verarbeiten
 CLIP_REGION=""
 START_STEP=1
-VIEW=""
 CLEAN_CACHE=""
 
 # Verarbeite alle Argumente
@@ -156,10 +151,6 @@ while [[ $# -gt 0 ]]; do
             ;;
         --start-step)
             START_STEP="$2"
-            shift 2
-            ;;
-        --view)
-            VIEW="$2"
             shift 2
             ;;
         --clean-cache)
@@ -213,14 +204,8 @@ exec > >(tee -a "$LOG_FILE") 2>&1
 echo "📝 Log-Datei: $LOG_FILE"
 echo ""
 
-if [[ -n "$CLIP_REGION" && -n "$VIEW" ]]; then
-    echo "❌ --clip und --view dürfen nicht kombiniert werden"
-    exit 1
-fi
 if [[ -n "$CLIP_REGION" ]]; then
     echo "🌍 Verarbeitung wird auf Region $CLIP_REGION beschränkt."
-elif [[ -n "$VIEW" ]]; then
-    echo "🌍 Verarbeitung mit Viewport $VIEW (output-bbox)"
 else
     echo "🌍 Vollständige Verarbeitung für ganz Berlin."
 fi
@@ -231,25 +216,20 @@ echo "🚀 Starte infraVelo Radnetz Verarbeitungsprozess ab Schritt $START_STEP.
 echo "💾 Sichere finale Dateien von vorherigem Lauf..."
 if [[ -n "$CLIP_REGION" ]]; then
     SUFFIX="_${CLIP_REGION}"
-elif [[ -n "$VIEW" ]]; then
-    SUFFIX="_view"
 else
     SUFFIX=""
 fi
 
 BASE_OUT_DIR="output"
-if [[ -n "$VIEW" && -z "$CLIP_REGION" ]]; then
-    BASE_OUT_DIR="output-bbox"
-fi
 mkdir -p "$BASE_OUT_DIR"
 
 # Zusätzliche Cache-Bereinigung falls --clean-cache gesetzt ist
 if [[ -n "$CLEAN_CACHE" ]]; then
     echo "🧹 Vollständige Cache-Bereinigung aktiviert..."
-    echo "  - Lösche alle Zwischendateien aus output/ und output-bbox/"
+    echo "  - Lösche alle Zwischendateien aus output/"
     
-    # Bereinige alle Zwischendateien aus beiden Verzeichnissen
-    for dir in "output" "output-bbox"; do
+    # Bereinige alle Zwischendateien
+    for dir in "output"; do
         if [ -d "$dir" ]; then
             echo "    Bereinige $dir/..."
             rm -rf $dir/matching/ $dir/matched/ $dir/snapping/ 2>/dev/null || true
@@ -291,10 +271,6 @@ if [[ $START_STEP -le 2 ]]; then
         echo "❌ Fehler: cargo (Rust) nicht gefunden"
         exit 1
     fi
-    if [[ -n "$VIEW" ]]; then
-        echo "❌ --view wird vom Rust-Matching nicht unterstützt (nutze: cargo run --release -- run --bbox minx,miny,maxx,maxy)"
-        exit 1
-    fi
 
     create_backup "${BASE_OUT_DIR}/snapping_network_enriched${SUFFIX}.fgb"
 
@@ -331,8 +307,6 @@ if [[ $START_STEP -le 3 ]]; then
     
     if [[ -n "$CLIP_REGION" ]]; then
         "$VENV/bin/python" start_bikelane_conversion.py --clip "$CLIP_REGION"
-    elif [[ -n "$VIEW" ]]; then
-        "$VENV/bin/python" start_bikelane_conversion.py --view "$VIEW"
     else
         "$VENV/bin/python" start_bikelane_conversion.py
     fi
@@ -353,8 +327,6 @@ if [[ $START_STEP -le 3 ]]; then
     echo "  - Wende Overrides auf konvertierte Bikelanes an..."
     if [[ -n "$CLIP_REGION" ]]; then
         "$VENV/bin/python" start_overriding.py --clip "$CLIP_REGION"
-    elif [[ -n "$VIEW" ]]; then
-        "$VENV/bin/python" start_overriding.py --view "$VIEW"
     else
         "$VENV/bin/python" start_overriding.py
     fi
@@ -382,8 +354,6 @@ if [[ $START_STEP -le 4 ]]; then
     
     if [[ -n "$CLIP_REGION" ]]; then
         "$VENV/bin/python" start_aggregation.py --clip "$CLIP_REGION" --input "./output/snapping_with_overrides_${CLIP_REGION}.fgb"
-    elif [[ -n "$VIEW" ]]; then
-        "$VENV/bin/python" start_aggregation.py --view "$VIEW" --input ./output-bbox/snapping_with_overrides_view.fgb
     else
         "$VENV/bin/python" start_aggregation.py --input ./output/snapping_with_overrides.fgb
     fi
@@ -415,9 +385,6 @@ echo "📁 Ausgabedateien verfügbar in:"
 if [[ -n "$CLIP_REGION" ]]; then
     echo "   - output/aggregated_rvn_final_${CLIP_REGION}.gpkg"
     echo "   - output/snapping_converted_bikelanes_${CLIP_REGION}.fgb"
-elif [[ -n "$VIEW" ]]; then
-    echo "   - output-bbox/aggregated_rvn_final_view.gpkg"
-    echo "   - output-bbox/snapping_converted_bikelanes_view.fgb"
 else
     echo "   - output/aggregated_rvn_final.gpkg"
     echo "   - output/snapping_converted_bikelanes.fgb"
