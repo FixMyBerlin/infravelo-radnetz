@@ -209,3 +209,6 @@ __marimo__/
 
 # Von processing/qgis/*.py erzeugte QGIS-Projekte
 processing/qgis/*.qgz
+
+# Exporte der Knotenpunkt-App
+knotenpunkte/ratings/*.geojson

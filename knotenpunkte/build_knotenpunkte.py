@@ -85,7 +85,7 @@ RATING_COLUMNS = ["Mar_RVF_KP", "Furt_rot", "Fl_Linksab", "vorgez_Fl", "RFS_Mitt
 # Abgeleitete Attribute; für Knoten der Lieferung 2025 gilt der Wert von 2025
 DERIVED_COLUMNS = ["KP_HVS", "LSA_KP"]
 # Ja/Nein-Attribute als 0/1, gleiche Namen und Werte wie in der Knotenpunkt-App
-BINARY_COLUMNS = ["KP_HVS", "LSA_KP", "Betrachtung"]
+BINARY_COLUMNS = ["KP_HVS", "LSA_KP"]
 
 FINAL_COLUMNS = [
     "lfd_nr",
@@ -96,7 +96,6 @@ FINAL_COLUMNS = [
     "KP_HVS",
     "LSA_KP",
     "LSA_Konflikt",
-    "Betrachtung",
     *RATING_COLUMNS,
     "ist_virtuell",
     "bearbeitet_2025",
@@ -409,15 +408,6 @@ def add_2025(nodes):
     return nodes
 
 
-def add_betrachtung(nodes):
-    """Info: Hauptverkehrsstraße oder LSA. Ohne Hauptverkehrsstraße bei unklarer LSA leer."""
-    lsa = nodes["LSA_KP"]
-    nodes["Betrachtung"] = pd.Series(pd.NA, index=nodes.index, dtype="boolean")
-    nodes.loc[lsa.notna(), "Betrachtung"] = lsa[lsa.notna()].astype(bool)
-    nodes.loc[nodes["KP_HVS"].fillna(False).astype(bool), "Betrachtung"] = True
-    return nodes
-
-
 def note_nodes_off_network(nodes, network):
     """Knoten, die keine ihrer REN+-Kanten erreicht: Die Quelle deckt nur einen Teil des
     Detailnetz-Elements ab, die Verzweigung im Netz liegt dann mitten auf dem Element
@@ -492,11 +482,9 @@ def write_outputs(nodes):
 def log_summary(nodes):
     logging.info(f"Knoten gesamt: {len(nodes)}")
     for column in ["bearbeitet_2025", "ist_radvorrangnetz", "KP_HVS", "LSA_KP", "LSA_Konflikt",
-                   "Betrachtung", "ist_virtuell", "Bezirksnummer"]:
+                   "ist_virtuell", "Bezirksnummer"]:
         logging.info(f"{column}: {nodes[column].value_counts(dropna=False).sort_index().to_dict()}")
-    rating = nodes[nodes["bearbeitet_2025"] == "nein"]
-    logging.info(f"Zu bewerten (bearbeitet_2025 = nein): {len(rating)}, "
-                 f"davon Betrachtung = 1: {(rating['Betrachtung'] == 1).sum()}")
+    logging.info(f"Zu bewerten (bearbeitet_2025 = nein): {(nodes['bearbeitet_2025'] == 'nein').sum()}")
 
 
 def main():
@@ -507,7 +495,6 @@ def main():
     nodes = add_district(nodes)
     nodes = add_lsa(nodes)
     nodes = add_2025(nodes)
-    nodes = add_betrachtung(nodes)
     note_nodes_off_network(nodes, network)
     note_edges_without_nodes(network)
     nodes = finalize(nodes)

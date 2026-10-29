@@ -30,7 +30,7 @@ import geopandas as gpd
 import pandas as pd
 
 from build_knotenpunkte import (BINARY_COLUMNS, DERIVED_COLUMNS, FINAL_COLUMNS, NODE_ID, OUTPUT_DIR, OUTPUT_LAYER,
-                                OUTPUT_PATH, add_betrachtung, id_text)
+                                OUTPUT_PATH, id_text)
 
 OUTPUT_DELIVERY_PATH = OUTPUT_DIR / "knotenpunkte_abgabe.gpkg"
 
@@ -95,7 +95,6 @@ def main():
         nodes[column] = nodes[column].astype("Int64")
     nodes = merge(nodes, load_ratings(args.export))
 
-    nodes = add_betrachtung(nodes.astype({c: "boolean" for c in BINARY_COLUMNS}))
     nodes = nodes.astype({c: "Int64" for c in BINARY_COLUMNS})
     nodes["KP_Nichtbetrachten"] = pd.to_numeric(nodes["KP_Nichtbetrachten"]).astype("Int64")
 

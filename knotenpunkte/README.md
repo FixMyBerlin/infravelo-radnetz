@@ -46,7 +46,6 @@ python knotenpunkte/merge_bewertungen.py ratings-<bereich>-<datum>.geojson
 4. **Bezirk** aus den Bezirksgrenzen. Liegt ein Punkt außerhalb, gilt der nächste Bezirk.
 5. **LSA**: Ampel aus Open Data und OSM im Umkreis von 25 m. Melden beide eine Ampel, ist `LSA_KP` 1, meldet keine, ist es 0. Melden die Quellen Widersprüchliches, bleibt es leer, und der Grund steht in `LSA_Konflikt`. Der Radius ist gegen die Lieferung 2025 kalibriert.
 6. **Lieferung 2025**: Abgleich über die ID, sonst über die Lage (5 m). Für gelieferte Knoten werden die Bewertungen übernommen. `KP_HVS` und `LSA_KP` von 2025 ersetzen dabei die abgeleiteten Werte.
-7. **Betrachtung** = Hauptverkehrsstraße oder LSA. Das Feld ist nur ein Hinweis, kein Filter.
 
 ## Ausgabe
 
@@ -71,7 +70,6 @@ In `knotenpunkte/output/`:
 | `ist_radvorrangnetz` | Radvorrangnetz, Radergänzungsnetz oder Kein Radverkehrsnetz vorhanden | REN+ |
 | `KP_HVS` | 0/1, Knotenpunkt an Hauptverkehrsstraße | 2025 / App, sonst REN+ |
 | `LSA_KP`, `LSA_Konflikt` | 0/1, Lichtsignalanlage; Konflikt `nur_OSM` oder `nur_OpenData` | 2025 / App, sonst Open Data und OSM |
-| `Betrachtung` | 0/1: Hauptverkehrsstraße oder LSA (Hinweis) | abgeleitet |
 | `Mar_RVF_KP`, `Furt_rot`, `Fl_Linksab`, `vorgez_Fl`, `RFS_Mitte` | `keine`, `teilweise` oder `gänzlich` | 2025 / App (mit ML-Vorschlägen) |
 | `KP_Nichtbetrachten`, `Mapillary-ID`, `Kommentar` | Bewertung | 2025 / App |
 | `ist_virtuell` | 1 für virtuelle Knoten | manuell / App |
