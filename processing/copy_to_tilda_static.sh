@@ -5,11 +5,12 @@ set -e
 cd "$(dirname "$0")"
 
 # Script to copy processed GeoJSON files to tilda-static-data repository
-# and update the updatedAt field in meta.ts files
+# and update the dataUpdatedNote field in meta.ts files
 
 # Color output
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
+RED='\033[0;31m'
 NC='\033[0m' # No Color
 
 echo -e "${BLUE}Starting copy to tilda-static-data...${NC}"
@@ -49,33 +50,41 @@ else
 fi
 
 # Define relative paths
-TILDA_STATIC_BASE="../../tilda-static-data/geojson/region-berlin"
+TILDA_STATIC_BASE="../../tilda-static-data/geojson/region-infravelo"
 
-# File mappings: source -> destination
+# File mappings: source -> destination directory. The file names in tilda-static-data stay
+# as they are (Datensatz B was snapping_with_overrides before the overrides step was removed).
 declare -A FILE_MAP=(
-    ["output/snapping_with_overrides.geojson.gz"]="$TILDA_STATIC_BASE/infravelo-datensatz-b-fortlaufend"
     ["output/matched_tilda_ways.geojson.gz"]="$TILDA_STATIC_BASE/infravelo-datensatz-a-fortlaufend"
+    ["output/snapping_converted_bikelanes.geojson.gz"]="$TILDA_STATIC_BASE/infravelo-datensatz-b-fortlaufend"
     ["output/aggregated_rvn_final.geojson.gz"]="$TILDA_STATIC_BASE/infravelo-datensatz-c-fortlaufend"
 )
+declare -A DEST_NAME=(
+    ["output/matched_tilda_ways.geojson.gz"]="matched_tilda_ways.geojson.gz"
+    ["output/snapping_converted_bikelanes.geojson.gz"]="snapping_with_overrides.geojson.gz"
+    ["output/aggregated_rvn_final.geojson.gz"]="aggregated_rvn_final.geojson.gz"
+)
+
+# Check everything before copying anything
+for src in "${!FILE_MAP[@]}"; do
+    dest="${FILE_MAP[$src]}"
+    if [ ! -f "$src" ]; then
+        echo -e "${RED}ERROR: Source file not found: $src${NC}"
+        exit 1
+    fi
+    if [ ! -d "$dest" ]; then
+        echo -e "${RED}ERROR: Destination directory not found: $dest${NC}"
+        exit 1
+    fi
+done
 
 # Copy files
 echo -e "${BLUE}Copying files...${NC}"
 for src in "${!FILE_MAP[@]}"; do
     dest="${FILE_MAP[$src]}"
-    filename=$(basename "$src")
-    
-    if [ ! -f "$src" ]; then
-        echo "ERROR: Source file not found: $src"
-        exit 1
-    fi
-    
-    if [ ! -d "$dest" ]; then
-        echo "ERROR: Destination directory not found: $dest"
-        exit 1
-    fi
-    
+    filename="${DEST_NAME[$src]}"
     cp "$src" "$dest/$filename"
-    echo -e "${GREEN}✓${NC} Copied $filename to $dest"
+    echo -e "${GREEN}✓${NC} Copied $src to $dest/$filename"
 done
 
 # Update meta.ts files
@@ -88,9 +97,9 @@ for dest in "${FILE_MAP[@]}"; do
         continue
     fi
     
-    # Update the updatedAt line using sed
-    sed -i "s/updatedAt: '[0-9]\{2\}\.[0-9]\{2\}\.[0-9]\{4\}',/updatedAt: '${UPDATE_DATE}',/" "$meta_file"
-    echo -e "${GREEN}✓${NC} Updated updatedAt in $(basename $(dirname $meta_file))/meta.ts"
+    # Update the dataUpdatedNote line using sed
+    sed -i "s/dataUpdatedNote: '[^']*',/dataUpdatedNote: '${UPDATE_DATE}',/" "$meta_file"
+    echo -e "${GREEN}✓${NC} Updated dataUpdatedNote in $(basename $(dirname $meta_file))/meta.ts"
 done
 
 echo -e "${GREEN}Done! All files copied and meta.ts files updated.${NC}"
