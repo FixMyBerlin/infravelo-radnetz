@@ -6,7 +6,7 @@
 #
 # Verarbeitungsschritte:
 # 1.+2. HMM-Map-Matching (Rust, map-matching/)
-# 3. Schutzstreifen-Konvertierung und Overrides
+# 3. Schutzstreifen-Konvertierung
 # 4. Finale Aggregation
 #
 # Dateiverwaltung:
@@ -20,7 +20,7 @@
 #   --clip <region>     Regionaler Zuschnitt: neukoelln, norden oder sueden
 #   --start-step <1-4>  Startet die Verarbeitung ab dem angegebenen Schritt
 #                       1-2: HMM-Map-Matching
-#                       3: Schutzstreifen-Konvertierung und Overrides
+#                       3: Schutzstreifen-Konvertierung
 #                       4: Finale Aggregation
 #   --clean-cache       Vollständige Bereinigung aller Cache-Dateien vor der Verarbeitung
 # 
@@ -166,8 +166,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Validiere START_STEP
-if [[ ! "$START_STEP" =~ ^[1-5]$ ]]; then
-    echo "❌ Ungültiger Schritt: $START_STEP. Erlaubt sind: 1-5"
+if [[ ! "$START_STEP" =~ ^[1-4]$ ]]; then
+    echo "❌ Ungültiger Schritt: $START_STEP. Erlaubt sind: 1-4"
     exit 1
 fi
 
@@ -298,7 +298,7 @@ fi
 
 # Schritt 3: Schutzstreifen-Konvertierung
 if [[ $START_STEP -le 3 ]]; then
-    echo "🚲 Schritt 3/5: Schutzstreifen-Konvertierung..."
+    echo "🚲 Schritt 3/4: Schutzstreifen-Konvertierung..."
     STEP3_START=$(date +%s)
     
     # Erstelle Backups statt Dateien zu löschen
@@ -320,23 +320,6 @@ if [[ $START_STEP -le 3 ]]; then
     show_elapsed_time $STEP3_START "Schritt 3"
     echo "✅ Schritt 3 abgeschlossen."
     echo ""
-    
-    # Schritt 3b: Override-Anwendung
-    echo "🔧 Schritt 3b/5: Override-Anwendung..."
-    STEP3B_START=$(date +%s)
-    echo "  - Wende Overrides auf konvertierte Bikelanes an..."
-    if [[ -n "$CLIP_REGION" ]]; then
-        "$VENV/bin/python" start_overriding.py --clip "$CLIP_REGION"
-    else
-        "$VENV/bin/python" start_overriding.py
-    fi
-    if [ $? -ne 0 ]; then
-        echo "❌ Fehler in Schritt 3b: start_overriding.py"
-        exit 1
-    fi
-    show_elapsed_time $STEP3B_START "Schritt 3b"
-    echo "✅ Schritt 3b abgeschlossen."
-    echo ""
 else
     echo "⏭️  Überspringe Schritt 3 (Schutzstreifen-Konvertierung)"
     echo ""
@@ -344,7 +327,7 @@ fi
 
 # Schritt 4: Finale Aggregation
 if [[ $START_STEP -le 4 ]]; then
-    echo "🎯 Schritt 4/5: Finale Aggregation..."
+    echo "🎯 Schritt 4/4: Finale Aggregation..."
     STEP4_START=$(date +%s)
     
     # Erstelle Backups statt Dateien zu löschen
@@ -353,9 +336,9 @@ if [[ $START_STEP -le 4 ]]; then
     create_backup "${BASE_OUT_DIR}/aggregated_rvn_final${SUFFIX}.fgb"
     
     if [[ -n "$CLIP_REGION" ]]; then
-        "$VENV/bin/python" start_aggregation.py --clip "$CLIP_REGION" --input "./output/snapping_with_overrides_${CLIP_REGION}.fgb"
+        "$VENV/bin/python" start_aggregation.py --clip "$CLIP_REGION" --input "./output/snapping_converted_bikelanes_${CLIP_REGION}.fgb"
     else
-        "$VENV/bin/python" start_aggregation.py --input ./output/snapping_with_overrides.fgb
+        "$VENV/bin/python" start_aggregation.py --input ./output/snapping_converted_bikelanes.fgb
     fi
     if [ $? -ne 0 ]; then
         echo "❌ Fehler in Schritt 4: start_aggregation.py"

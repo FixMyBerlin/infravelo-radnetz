@@ -2,7 +2,7 @@
 
 Ersetzt das bisherige Python-Matching und -Snapping der 2025er-Pipeline (archiviert im Tag
 `rvn-final-state`). Das Ergebnis ist eine segmentierte Kantendatei
-im Format von `snapping_network_enriched.fgb`. Die Python-Folgeschritte (Konvertierung, Overrides,
+im Format von `snapping_network_enriched.fgb`. Die Python-Folgeschritte (Konvertierung,
 Aggregation) können sie direkt weiterverwenden.
 
 ## Verwendung

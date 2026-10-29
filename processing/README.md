@@ -73,11 +73,6 @@ Konvertiert Schutzstreifen unter bestimmten Bedingungen:
 
 **Ausgabe**: `output/snapping_converted_bikelanes.fgb`
 
-#### Schritt 3b: Override-Anwendung (`start_overriding.py`)
-Wendet manuelle Overrides aus `data/override_ways.gpkg` und `data/override_ways.txt` auf Netzwerkdaten an. Überschreibt gezielt Attribute (fuehr, ofm, protek, pflicht, breite, farbe, trennstreifen, nutz_beschr, verkehrsri).
-
-**Ausgabe**: `output/snapping_with_overrides.fgb`
-
 #### Schritt 4: Aggregation (`start_aggregation.py`)
 Aggregiert Segmente nach `element_nr` + `ri` (Fahrtrichtung). Regelbasiert: längster Abschnitt für Führungsform/Bezirk/Material, schlechteste Ausprägung für Breite/Trennstreifen.
 
