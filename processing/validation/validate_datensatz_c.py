@@ -7,7 +7,7 @@ validate_datensatz_c.py
 Prüft auf NULL-Werte, TODO-Substring und weitere Auffälligkeiten in wichtigen Attributen.
 
 INPUT:
-- output/aggregated_rvn_final.gpkg (oder mit --clip: _neukoelln, _norden, _sueden)
+- output/aggregated_rvn_final.gpkg (mit --netz ren: _ren, mit --clip: _neukoelln, _norden, _sueden)
   Layer: hinrichtung, gegenrichtung
 
 OUTPUT:
@@ -16,6 +16,7 @@ OUTPUT:
 USAGE:
 - Gesamter Datensatz: python validate_datensatz_c.py
 - Regionaler Zuschnitt: python validate_datensatz_c.py --clip neukoelln|norden|sueden
+- REN+: python validate_datensatz_c.py --netz ren
 """
 
 import sys
@@ -28,6 +29,7 @@ from pathlib import Path
 # Import der Helper aus processing
 sys.path.append(str(Path(__file__).parent.parent))
 from helpers.globals import DEFAULT_CRS
+from helpers.netz import add_netz_argument, datei_zusatz
 
 # ANSI Farb-Codes
 ORANGE = '\033[38;5;214m'
@@ -416,6 +418,7 @@ def main():
         choices=['neukoelln', 'norden', 'sueden'],
         help="Regionaler Zuschnitt: 'neukoelln', 'norden' oder 'sueden'"
     )
+    add_netz_argument(parser)
     
     args = parser.parse_args()
     
@@ -425,11 +428,11 @@ def main():
     logger.info("=" * 80)
     
     # Dateipfad basierend auf --clip Parameter bestimmen
+    logger.info(f"Netz: {args.netz}")
+    input_file = Path(f"output/aggregated_rvn_final{datei_zusatz(args.netz, args.clip)}.gpkg")
     if args.clip:
-        input_file = Path(f"output/aggregated_rvn_final_{args.clip}.gpkg")
         logger.info(f"Modus: Regionaler Zuschnitt ({args.clip})")
     else:
-        input_file = Path("output/aggregated_rvn_final.gpkg")
         logger.info("Modus: Vollständiger Datensatz")
     
     if not input_file.exists():

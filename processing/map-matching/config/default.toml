@@ -37,6 +37,26 @@ norden = "data/Berlin_Gebiet_Norden.gpkg"
 sueden = "data/Berlin_Gebiet_Süden.gpkg"
 
 # -----------------------------------------------------------------------------
+# Zielnetz, gewählt mit --netz <name>. Die Werte ersetzen die gleichnamigen in
+# [paths]; ohne --netz gilt [paths] (= rvn). --set wirkt danach.
+# Die Netze erzeugt ../process_radnetz.sh --netz <name>, das TILDA-Routing
+# ../scripts/prepare_tilda_routing.py --netz <name>.
+
+# Radvorrangnetz: wie [paths]
+[netze.rvn]
+
+# REN+: alle Netzquellen gemeinsam (ren-network/output/ren_netz_gesamt.gpkg),
+# TILDA-Routing ohne Zuschnitt auf den RVN-Puffer
+[netze.ren]
+network = "output/ren/ren_netz_details_combined.fgb"
+output_dir = "output/map-matching-ren"
+tilda = [
+  { data_source = "bikelanes", path = "output/TILDA-routing-ren/TILDA Routing Bikelanes Translated.fgb" },
+  { data_source = "streets", path = "output/TILDA-routing-ren/TILDA Routing Streets Translated.fgb" },
+  { data_source = "paths", path = "output/TILDA-routing-ren/TILDA Routing Paths Translated.fgb" },
+]
+
+# -----------------------------------------------------------------------------
 [network]
 # Endpunkte innerhalb dieser Toleranz gelten als identischer Knoten.
 # Rein numerisch (Gleitkomma-Rauschen), KEIN Reparatur-Snapping.

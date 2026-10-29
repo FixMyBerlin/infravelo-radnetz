@@ -6,6 +6,12 @@ cd "$(dirname "$0")"
 
 # Script to copy processed GeoJSON files to tilda-static-data repository
 # and update the dataUpdatedNote field in meta.ts files
+#
+# Verwendung: ./copy_to_tilda_static.sh [--netz rvn|ren] [--use-tilda-date]
+#   --netz rvn  Radvorrangnetz (Standard) nach region-infravelo/infravelo-datensatz-{a,b,c}-fortlaufend
+#   --netz ren  REN+ nach region-infravelo/infravelo-ren-datensatz-{a,b,c}-fortlaufend
+#               (die Ordner mit meta.ts müssen in tilda-static-data angelegt sein)
+# Voraussetzung: scripts/convert_to_geojson.py mit demselben --netz
 
 # Color output
 GREEN='\033[0;32m'
@@ -13,17 +19,39 @@ BLUE='\033[0;34m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-echo -e "${BLUE}Starting copy to tilda-static-data...${NC}"
-
 # Default: use today's date
 USE_TILDA_DATE=false
+NETZ="rvn"
 
-# Check for CLI parameter
-for arg in "$@"; do
-    if [[ "$arg" == "--use-tilda-date" ]]; then
-        USE_TILDA_DATE=true
-    fi
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --use-tilda-date)
+            USE_TILDA_DATE=true
+            shift
+            ;;
+        --netz)
+            NETZ="$2"
+            shift 2
+            ;;
+        *)
+            echo -e "${RED}Unbekanntes Argument: $1${NC} (erlaubt: --netz rvn|ren, --use-tilda-date)"
+            exit 1
+            ;;
+    esac
 done
+
+if [[ "$NETZ" == "ren" ]]; then
+    SUFFIX="_ren"
+    DATASET_PREFIX="infravelo-ren-datensatz"
+elif [[ "$NETZ" == "rvn" ]]; then
+    SUFFIX=""
+    DATASET_PREFIX="infravelo-datensatz"
+else
+    echo -e "${RED}Ungültiges Netz: $NETZ. Erlaubt sind: rvn, ren${NC}"
+    exit 1
+fi
+
+echo -e "${BLUE}Starting copy to tilda-static-data (Netz: ${NETZ})...${NC}"
 
 if [ "$USE_TILDA_DATE" = true ]; then
     # Determine the update date from the most recent data-raw-tilda file
@@ -55,21 +83,21 @@ TILDA_STATIC_BASE="../../tilda-static-data/geojson/region-infravelo"
 # File mappings: source -> destination directory. The file names in tilda-static-data stay
 # as they are (Datensatz B was snapping_with_overrides before the overrides step was removed).
 declare -A FILE_MAP=(
-    ["output/matched_tilda_ways.geojson.gz"]="$TILDA_STATIC_BASE/infravelo-datensatz-a-fortlaufend"
-    ["output/snapping_converted_bikelanes.geojson.gz"]="$TILDA_STATIC_BASE/infravelo-datensatz-b-fortlaufend"
-    ["output/aggregated_rvn_final.geojson.gz"]="$TILDA_STATIC_BASE/infravelo-datensatz-c-fortlaufend"
+    ["output/matched_tilda_ways${SUFFIX}.geojson.gz"]="$TILDA_STATIC_BASE/${DATASET_PREFIX}-a-fortlaufend"
+    ["output/snapping_converted_bikelanes${SUFFIX}.geojson.gz"]="$TILDA_STATIC_BASE/${DATASET_PREFIX}-b-fortlaufend"
+    ["output/aggregated_rvn_final${SUFFIX}.geojson.gz"]="$TILDA_STATIC_BASE/${DATASET_PREFIX}-c-fortlaufend"
 )
 declare -A DEST_NAME=(
-    ["output/matched_tilda_ways.geojson.gz"]="matched_tilda_ways.geojson.gz"
-    ["output/snapping_converted_bikelanes.geojson.gz"]="snapping_with_overrides.geojson.gz"
-    ["output/aggregated_rvn_final.geojson.gz"]="aggregated_rvn_final.geojson.gz"
+    ["output/matched_tilda_ways${SUFFIX}.geojson.gz"]="matched_tilda_ways.geojson.gz"
+    ["output/snapping_converted_bikelanes${SUFFIX}.geojson.gz"]="snapping_with_overrides.geojson.gz"
+    ["output/aggregated_rvn_final${SUFFIX}.geojson.gz"]="aggregated_rvn_final.geojson.gz"
 )
 
 # Check everything before copying anything
 for src in "${!FILE_MAP[@]}"; do
     dest="${FILE_MAP[$src]}"
     if [ ! -f "$src" ]; then
-        echo -e "${RED}ERROR: Source file not found: $src${NC}"
+        echo -e "${RED}ERROR: Source file not found: $src${NC} (scripts/convert_to_geojson.py --netz $NETZ)"
         exit 1
     fi
     if [ ! -d "$dest" ]; then
@@ -106,4 +134,4 @@ echo -e "${GREEN}Done! All files copied and meta.ts files updated.${NC}"
 
 # CSV für den TILDA-Pseudo-Tag infravelo_netz aus dem neuen Ergebnis (danach einchecken)
 echo -e "${BLUE}Updating TILDA pseudo tag CSV...${NC}"
-../.venv/bin/python ../tilda-pseudo-tags/build_csv.py --input output/aggregated_rvn_final.geojson.gz
+../.venv/bin/python ../tilda-pseudo-tags/build_csv.py --input "output/aggregated_rvn_final${SUFFIX}.geojson.gz"

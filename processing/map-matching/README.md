@@ -34,7 +34,12 @@ cargo run --release -- tune --clip neukoelln --grid grid.toml
 
 # Beliebige Konfigurationswerte überschreiben
 cargo run --release -- run --set hmm.beta_m=6 --set trace.sample_interval_m=4
+
+# REN+ (alle Netzquellen gemeinsam) statt Radvorrangnetz
+cargo run --release -- --netz ren run
 ```
+
+`--netz rvn|ren` wählt das Zielnetz aus `[netze.*]` in `config/default.toml`. Die Werte dort ersetzen die gleichnamigen in `[paths]` (Netz, TILDA-Routing, Ausgabeordner), `--set` wirkt danach. Ohne `--netz` gilt `[paths]`, also das Radvorrangnetz. `ren` schreibt nach `output/map-matching-ren/` und braucht `../process_radnetz.sh --netz ren` und `../scripts/prepare_tilda_routing.py --netz ren`.
 
 Log-Level über `RUST_LOG` (z. B. `RUST_LOG=debug`). Logs landen zusätzlich in `output/map-matching/logs/`.
 

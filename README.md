@@ -35,7 +35,7 @@ Für das Map-Matching wird zusätzlich Rust (`cargo`) benötigt.
 ```sh
 # Komplette Verarbeitung (Details in processing/README.md)
 cd processing
-./process_tilda_data.sh && ./process_rvn.sh && ./execute_processing.sh && ./run_validation.sh
+./process_tilda_data.sh && ./process_radnetz.sh && ./execute_processing.sh && ./run_validation.sh
 
 # REN+-Netz erzeugen
 python ren-network/unify_networks.py

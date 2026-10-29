@@ -6,7 +6,7 @@ use map_matching::config::Config;
 use map_matching::pipeline::RunOptions;
 use map_matching::{commands, logging};
 
-/// HMM-/Viterbi-Map-Matching von TILDA-Wegen auf das Radvorrangsnetz.
+/// HMM-/Viterbi-Map-Matching von TILDA-Wegen auf das Radvorrangsnetz oder das REN+.
 #[derive(Parser)]
 #[command(version, about)]
 struct Cli {
@@ -16,6 +16,10 @@ struct Cli {
     /// Konfigurationswert überschreiben, z. B. --set hmm.beta_m=6
     #[arg(long = "set", global = true)]
     set: Vec<String>,
+    /// Zielnetz aus [netze.*] der Konfiguration: rvn (Radvorrangnetz) oder ren (REN+, alle
+    /// Netzquellen gemeinsam). Ohne Angabe gilt [paths].
+    #[arg(long, global = true)]
+    netz: Option<String>,
     #[command(subcommand)]
     cmd: Cmd,
 }
@@ -94,7 +98,7 @@ fn options(area: &Area, debug: bool, tilda_ids: Vec<String>) -> Result<RunOption
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    let cfg = Config::load(&cli.config, &cli.set)?;
+    let cfg = Config::load(&cli.config, cli.netz.as_deref(), &cli.set)?;
     let name = match &cli.cmd {
         Cmd::Run { .. } => "run",
         Cmd::Eval { .. } => "eval",
@@ -103,7 +107,7 @@ fn main() -> Result<()> {
         Cmd::Tune { .. } => "tune",
     };
     let _guard = logging::init(&cfg.output_dir().join("logs"), name);
-    tracing::info!("Konfiguration: {} (Overrides: {:?})", cli.config.display(), cli.set);
+    tracing::info!("Konfiguration: {} (Netz: {}, Overrides: {:?})", cli.config.display(), cli.netz.as_deref().unwrap_or("[paths]"), cli.set);
     match cli.cmd {
         Cmd::Run { area, debug, tilda_ids, eval } => commands::run(&cfg, &options(&area, debug, tilda_ids)?, eval),
         Cmd::Eval { area, candidate, reference, secondary } => commands::eval_file(&cfg, &options(&area, false, vec![])?, candidate, reference, secondary),

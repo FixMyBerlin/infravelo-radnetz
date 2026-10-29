@@ -14,10 +14,14 @@ Das Ergebnis wird immer als GeoJSON in WGS84 (EPSG:4326) exportiert, um der
 GeoJSON-Spezifikation zu entsprechen.
 
 AUTOMATISCHE KONVERTIERUNG:
-Standardmäßig werden diese drei Dateien automatisch konvertiert:
-- aggregated_rvn_final.gpkg
-- snapping_network_enriched.fgb  
-- matched/matched_tilda_ways.fgb
+Standardmäßig werden die drei Datensätze des gewählten Netzes (--netz rvn|ren) konvertiert:
+- Datensatz A: output/map-matching/matched_tilda_ways.fgb (REN+: output/map-matching-ren/)
+- Datensatz B: output/snapping_converted_bikelanes.fgb (REN+: …_ren.fgb)
+- Datensatz C: output/aggregated_rvn_final.gpkg (REN+: …_ren.gpkg)
+Die Ausgaben heißen wie die Eingaben, beim REN+ mit dem Zusatz _ren.
+
+Beim REN+ bekommen Datensatz B und C die Netzklasse radverkehrsnetz je element_nr aus
+output/ren/ren_netz_with_element_nr.fgb. tilda-pseudo-tags/build_csv.py braucht sie.
 
 KONFIGURATION:
 Das Skript kann über die globale Variable EXCLUDE_FIELD_PREFIXES konfiguriert werden,
@@ -27,6 +31,7 @@ Standardmäßig werden Spalten die mit 'priority' oder 'angle' beginnen entfernt
 VERWENDUNG:
     # Automatische Konvertierung aller Standarddateien
     python scripts/convert_to_geojson.py
+    python scripts/convert_to_geojson.py --netz ren
     
     # Spezifische Datei konvertieren
     python scripts/convert_to_geojson.py \
@@ -56,34 +61,48 @@ import pandas as pd
 import gzip
 import shutil
 
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+from helpers.netz import DEFAULT_NETZ, MATCHING_DIR, PFADE, add_netz_argument, datei_zusatz  # noqa: E402
+
 # Globale Konfiguration: Felder die entfernt werden sollen
 # Alle Spalten die mit diesen Präfixen beginnen werden aus dem Export ausgeschlossen
 EXCLUDE_FIELD_PREFIXES = ['priority', 'angle']
 
-# Standard-Dateien die automatisch konvertiert werden sollen
-DEFAULT_FILES = [
-    'matched/matched_tilda_ways.fgb',
-    'snapping_with_overrides.fgb',
-    'aggregated_rvn_final.gpkg'
-]
+# Reihenfolge der Netzklassen, falls eine element_nr im REN+ mehrfach vorkommt
+# (wie NETZ_RANK in tilda-pseudo-tags/build_csv.py)
+RADVERKEHRSNETZ_RANG = ['Radvorrangnetz', 'Radergänzungsnetz', 'Kein Radverkehrsnetz vorhanden']
 
 
-def find_default_files(base_path: str) -> list:
+def default_files(netz: str) -> list:
     """
-    Findet die Standard-Dateien im angegebenen Verzeichnis.
+    Standard-Dateien je Netz: Datensatz A, B und C.
+    
+    Returns:
+        Liste von (Eingabedatei relativ zu processing/, Ausgabename ohne Endung)
+    """
+    zusatz = datei_zusatz(netz)
+    return [
+        (os.path.join(MATCHING_DIR[netz], 'matched_tilda_ways.fgb'), f'matched_tilda_ways{zusatz}'),
+        (f'output/snapping_converted_bikelanes{zusatz}.fgb', f'snapping_converted_bikelanes{zusatz}'),
+        (f'output/aggregated_rvn_final{zusatz}.gpkg', f'aggregated_rvn_final{zusatz}'),
+    ]
+
+
+def find_default_files(netz: str) -> list:
+    """
+    Findet die Standard-Dateien des Netzes.
     
     Args:
-        base_path: Basis-Pfad (normalerweise output-Verzeichnis)
+        netz: Zielnetz (rvn oder ren)
         
     Returns:
-        Liste der gefundenen Dateipfade
+        Liste der gefundenen (Eingabedatei, Ausgabename)
     """
     found_files = []
     
-    for file_pattern in DEFAULT_FILES:
-        file_path = os.path.join(base_path, file_pattern)
+    for file_path, output_name in default_files(netz):
         if os.path.exists(file_path):
-            found_files.append(file_path)
+            found_files.append((file_path, output_name))
             logging.info(f"Gefundene Standard-Datei: {file_path}")
         else:
             logging.warning(f"Standard-Datei nicht gefunden: {file_path}")
@@ -91,29 +110,27 @@ def find_default_files(base_path: str) -> list:
     return found_files
 
 
-def convert_multiple_files(input_files: list, output_dir: str):
+def convert_multiple_files(input_files: list, output_dir: str, netz: str = DEFAULT_NETZ):
     """
     Konvertiert mehrere Dateien zu GeoJSON.
     
     Args:
-        input_files: Liste der Eingabedateien
+        input_files: Liste von (Eingabedatei, Ausgabename ohne Endung)
         output_dir: Verzeichnis für die Ausgabedateien
+        netz: Zielnetz (rvn oder ren)
     """
     success_count = 0
     
-    for input_file in input_files:
+    for input_file, output_name in input_files:
         try:
-            # Erstelle Ausgabedateiname basierend auf Eingabedatei
-            filename = os.path.basename(input_file)
-            name_without_ext = os.path.splitext(filename)[0]
-            output_file = os.path.join(output_dir, f"{name_without_ext}.geojson")
+            output_file = os.path.join(output_dir, f"{output_name}.geojson")
             
             logging.info(f"\n{'='*60}")
             logging.info(f"Konvertiere: {input_file}")
             logging.info(f"Nach: {output_file}")
             logging.info(f"{'='*60}")
             
-            convert_to_geojson(input_file, output_file)
+            convert_to_geojson(input_file, output_file, netz)
             success_count += 1
             
         except Exception as e:
@@ -259,13 +276,42 @@ def load_geopackage_layers(input_path: str) -> gpd.GeoDataFrame:
     return combined_gdf
 
 
-def convert_to_geojson(input_path: str, output_path: str):
+def add_radverkehrsnetz(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    """
+    Ergänzt beim REN+ die Netzklasse (radverkehrsnetz) je element_nr aus dem vorbereiteten
+    Netz von process_radnetz.sh --netz ren. Das Matching-Netz führt die Spalte nicht mit.
+    
+    Args:
+        gdf: Daten mit element_nr
+        
+    Returns:
+        GeoDataFrame mit Spalte radverkehrsnetz
+    """
+    path = PFADE['ren']['mit_element_nr']
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"{path} fehlt, zuerst ./process_radnetz.sh --netz ren ausführen")
+    netz = gpd.read_file(path, columns=['element_nr', 'radverkehrsnetz'], ignore_geometry=True)
+    netz['rang'] = netz['radverkehrsnetz'].map({name: i for i, name in enumerate(RADVERKEHRSNETZ_RANG)})
+    klasse = netz.sort_values('rang').drop_duplicates('element_nr').set_index('element_nr')['radverkehrsnetz']
+    
+    gdf = gdf.copy()
+    gdf['radverkehrsnetz'] = gdf['element_nr'].map(klasse)
+    missing = gdf['radverkehrsnetz'].isna()
+    if missing.any():
+        logging.warning(f"{missing.sum()} Features ohne radverkehrsnetz (element_nr nicht in {path}), "
+                        f"z. B. {sorted(gdf.loc[missing, 'element_nr'].dropna().unique())[:5]}")
+    logging.info(f"radverkehrsnetz ergänzt: {gdf['radverkehrsnetz'].value_counts().to_dict()}")
+    return gdf
+
+
+def convert_to_geojson(input_path: str, output_path: str, netz: str = DEFAULT_NETZ):
     """
     Konvertiert eine Geodatei (GeoPackage oder FlatGeoBuf) in GeoJSON-Format.
     
     Args:
         input_path: Pfad zur Eingabedatei
         output_path: Pfad für die Ausgabe-GeoJSON-Datei
+        netz: Zielnetz (rvn oder ren); beim REN+ wird radverkehrsnetz ergänzt
     """
     try:
         # Erkenne den Dateityp
@@ -282,6 +328,9 @@ def convert_to_geojson(input_path: str, output_path: str):
         
         # Filtere unerwünschte Spalten
         combined_gdf = filter_columns(combined_gdf)
+        
+        if netz == 'ren' and 'element_nr' in combined_gdf.columns and 'radverkehrsnetz' not in combined_gdf.columns:
+            combined_gdf = add_radverkehrsnetz(combined_gdf)
         
         # Erstelle das Ausgabeverzeichnis falls es nicht existiert
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
@@ -359,6 +408,7 @@ def main():
         default="./output",
         help="Verzeichnis für Ausgabedateien bei automatischer Konvertierung (Standard: ./output)"
     )
+    add_netz_argument(parser)
     
     args = parser.parse_args()
     
@@ -376,24 +426,24 @@ def main():
             logging.info(f"Automatische Ausgabedatei: {args.output}")
         
         # Konvertierung durchführen
-        convert_to_geojson(args.input, args.output)
+        convert_to_geojson(args.input, args.output, args.netz)
         
     else:
         # Automatische Konvertierung der Standard-Dateien
         logging.info("Keine spezifische Eingabedatei angegeben - konvertiere Standard-Dateien")
         
         # Finde Standard-Dateien
-        default_files = find_default_files(args.output_dir)
+        found_files = find_default_files(args.netz)
         
-        if not default_files:
+        if not found_files:
             logging.error("Keine Standard-Dateien gefunden!")
-            logging.info(f"Gesuchte Dateien in {args.output_dir}:")
-            for file_pattern in DEFAULT_FILES:
-                logging.info(f"  - {file_pattern}")
+            logging.info(f"Gesuchte Dateien (Netz {args.netz}):")
+            for file_path, _ in default_files(args.netz):
+                logging.info(f"  - {file_path}")
             sys.exit(1)
         
         # Konvertiere alle gefundenen Dateien
-        success_count = convert_multiple_files(default_files, args.output_dir)
+        success_count = convert_multiple_files(found_files, args.output_dir, args.netz)
         
         if success_count == 0:
             logging.error("Keine Dateien erfolgreich konvertiert!")

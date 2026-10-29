@@ -16,7 +16,7 @@ Bereitet die TILDA-Daten für die weitere Verarbeitung vor.
 Das [`prepare_tilda_routing.py`](./prepare_tilda_routing.py) verknüpft `routing` mit den Attributen aus `bikelanes`/`roads`/`roadsPathClasses`, teilt die Wege an gemeinsamen Stützpunkten, behält nur das zusammenhängende Hauptnetz und übersetzt in RVN-Attribute. Siehe [Workdoc](../map-matching/docs/tilda-routing.md).
 
 - **Input**: `data/TILDA Routing Berlin.gpkg`, `data-raw-tilda/*.fgb`
-- **Output**: `output/TILDA-routing/`
+- **Output**: `output/TILDA-routing/`, mit `--netz ren` ohne RVN-Zuschnitt nach `output/TILDA-routing-ren/`
 
 ### TILDA-Daten zuschneiden
 Das [`clip_tilda_data.py`](./clip_tilda_data.py) schneidet TILDA-Daten auf bestimmte Regionen (ganz Berlin oder einzelne Bezirke) zu.
@@ -27,16 +27,18 @@ Das [`assign_node_ids.py`](./assign_node_ids.py) fügt zwei Attribute zu den *Ve
 ## 🛤️ RVN-Verarbeitung
 
 ```bash
-./process_rvn.sh
+./process_radnetz.sh
 ```
 
-Dieses Skript führt die drei wichtigen RVN-Vorverarbeitungsschritte aus:
+Dieses Skript führt die drei Vorverarbeitungsschritte des Zielnetzes (RVN oder REN+) aus:
 
 ### 1. Virtuelle Knotenpunkte verarbeiten
 Das [`split_rvn_at_virtual_nodes.py`](./split_rvn_at_virtual_nodes.py) teilt das Berliner Radvorrangsnetz an virtuellen Knotenpunkten auf. Virtuelle Knotenpunkte liegen mitten auf Linien und erfordern eine Aufteilung der betroffenen Linien.
 
 - **Input**: `data/Berlin Radvorrangsnetz.fgb`, `data/Virtuelle-Knotenpunkte.gpkg`
 - **Output**: `output/rvn/Berlin Radvorrangsnetz_mit_virtuellen-knotenpunkten.fgb`
+
+Die drei Skripte dieses Abschnitts nehmen `--netz rvn|ren` (Standard `rvn`). Mit `ren` verarbeiten sie das REN+ (`../ren-network/output/ren_netz_gesamt.gpkg`) und schreiben nach `output/ren/`; die Pfade stehen in [`helpers/netz.py`](../helpers/netz.py).
 
 ### 2. Element-Nummern zuweisen
 Das [`assign_element_nr_to_rvn.py`](./assign_element_nr_to_rvn.py) fügt jedem Segment im Radvorrangsnetz eine `element_nr` hinzu, die auf den Verbindungspunkten basiert. Das Script berücksichtigt sowohl normale als auch virtuelle Knotenpunkte für die Zuweisung.
@@ -73,7 +75,7 @@ Für die vollständige Verarbeitung sollten die Scripts in dieser Reihenfolge au
 python scripts/assign_node_ids.py
 
 # 2. RVN-Verarbeitung
-./process_rvn.sh
+./process_radnetz.sh
 
 # 3. Hauptverarbeitung
 ./execute_processing.sh

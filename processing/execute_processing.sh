@@ -14,9 +14,13 @@
 # - Temporäre Dateien werden vor dem entsprechenden Verarbeitungsschritt gelöscht
 # - Zwischendateien bleiben zwischen Schritten erhalten (für --start-step Funktionalität)
 #
-# Verwendung: ./execute_processing.sh [--clip <region>] [--start-step <1-4>] [--clean-cache]
+# Verwendung: ./execute_processing.sh [--netz rvn|ren] [--clip <region>] [--start-step <1-4>] [--clean-cache]
 # 
 # Argumente:
+#   --netz rvn|ren      Zielnetz: rvn = Radvorrangnetz (Standard), ren = REN+ (alle Netzquellen
+#                       gemeinsam). Bei ren tragen alle Ausgaben den Zusatz _ren, das Matching
+#                       schreibt nach output/map-matching-ren/. Vorher ./process_radnetz.sh --netz ren
+#                       und scripts/prepare_tilda_routing.py --netz ren.
 #   --clip <region>     Regionaler Zuschnitt: neukoelln, norden oder sueden
 #   --start-step <1-4>  Startet die Verarbeitung ab dem angegebenen Schritt
 #                       1-2: HMM-Map-Matching
@@ -80,6 +84,7 @@ Verwendung: $0 [OPTIONEN]
 Führt den infraVelo Radnetz Verarbeitungsprozess aus.
 
 OPTIONEN:
+  --netz rvn|ren       Zielnetz: rvn = Radvorrangnetz (Standard), ren = REN+ (alle Netzquellen gemeinsam)
   --clip <region>      Regionale Verarbeitung: neukoelln, norden oder sueden
   --start-step <1-4>   Startet ab angegebenem Schritt:
                        1 = OSM-Wege Matching
@@ -92,6 +97,7 @@ OPTIONEN:
 BEISPIELE:
   $0 --clip neukoelln                   # Nur Bezirk Neukölln
   $0 --clip norden --start-step 2       # Norden ab Schritt 2
+  $0 --netz ren                         # REN+ statt Radvorrangnetz
 
 EOF
     exit 0
@@ -135,6 +141,7 @@ show_total_time() {
 }
 
 # CLI-Argumente verarbeiten
+NETZ="rvn"
 CLIP_REGION=""
 START_STEP=1
 CLEAN_CACHE=""
@@ -144,6 +151,10 @@ while [[ $# -gt 0 ]]; do
     case $1 in
         --help|-h)
             show_help
+            ;;
+        --netz)
+            NETZ="$2"
+            shift 2
             ;;
         --clip)
             CLIP_REGION="$2"
@@ -168,6 +179,12 @@ done
 # Validiere START_STEP
 if [[ ! "$START_STEP" =~ ^[1-4]$ ]]; then
     echo "❌ Ungültiger Schritt: $START_STEP. Erlaubt sind: 1-4"
+    exit 1
+fi
+
+# Validiere NETZ
+if [[ ! "$NETZ" =~ ^(rvn|ren)$ ]]; then
+    echo "❌ Ungültiges Netz: $NETZ. Erlaubt sind: rvn, ren"
     exit 1
 fi
 
@@ -204,6 +221,7 @@ exec > >(tee -a "$LOG_FILE") 2>&1
 echo "📝 Log-Datei: $LOG_FILE"
 echo ""
 
+echo "🛤️  Zielnetz: $NETZ"
 if [[ -n "$CLIP_REGION" ]]; then
     echo "🌍 Verarbeitung wird auf Region $CLIP_REGION beschränkt."
 else
@@ -214,11 +232,20 @@ echo "🚀 Starte infraVelo Radnetz Verarbeitungsprozess ab Schritt $START_STEP.
 
 # Sichere finale Ausgabedateien von vorherigem Lauf in output-last-run
 echo "💾 Sichere finale Dateien von vorherigem Lauf..."
-if [[ -n "$CLIP_REGION" ]]; then
-    SUFFIX="_${CLIP_REGION}"
+# Dateizusatz: _ren für das REN+ (das Radvorrangnetz behält die bisherigen Namen), dann die Region
+if [[ "$NETZ" == "ren" ]]; then
+    NETZ_SUFFIX="_ren"
+    MM_OUT_DIR="output/map-matching-ren"
 else
-    SUFFIX=""
+    NETZ_SUFFIX=""
+    MM_OUT_DIR="output/map-matching"
 fi
+if [[ -n "$CLIP_REGION" ]]; then
+    CLIP_SUFFIX="_${CLIP_REGION}"
+else
+    CLIP_SUFFIX=""
+fi
+SUFFIX="${NETZ_SUFFIX}${CLIP_SUFFIX}"
 
 BASE_OUT_DIR="output"
 mkdir -p "$BASE_OUT_DIR"
@@ -274,7 +301,7 @@ if [[ $START_STEP -le 2 ]]; then
 
     create_backup "${BASE_OUT_DIR}/snapping_network_enriched${SUFFIX}.fgb"
 
-    MM_ARGS=(run)
+    MM_ARGS=(--netz "$NETZ" run)
     if [[ -n "$CLIP_REGION" ]]; then
         MM_ARGS+=(--clip "$CLIP_REGION")
     fi
@@ -285,7 +312,7 @@ if [[ $START_STEP -le 2 ]]; then
     fi
 
     # Ergebnis für die Python-Folgeschritte bereitstellen
-    cp "output/map-matching/network_enriched_hmm${SUFFIX}.fgb" "${BASE_OUT_DIR}/snapping_network_enriched${SUFFIX}.fgb"
+    cp "${MM_OUT_DIR}/network_enriched_hmm${CLIP_SUFFIX}.fgb" "${BASE_OUT_DIR}/snapping_network_enriched${SUFFIX}.fgb"
 
     cleanup_backups
     show_elapsed_time $STEP1_START "Schritt 1-2"
@@ -305,11 +332,11 @@ if [[ $START_STEP -le 3 ]]; then
     echo "  💾 Erstelle Backups der vorhandenen Dateien..."
     create_backup "${BASE_OUT_DIR}/snapping_converted_bikelanes${SUFFIX}.fgb"
     
+    CONVERSION_ARGS=(--input "./output/snapping_network_enriched${SUFFIX}.fgb" --output "./output/snapping_converted_bikelanes${SUFFIX}.fgb")
     if [[ -n "$CLIP_REGION" ]]; then
-        "$VENV/bin/python" start_bikelane_conversion.py --clip "$CLIP_REGION"
-    else
-        "$VENV/bin/python" start_bikelane_conversion.py
+        CONVERSION_ARGS+=(--clip "$CLIP_REGION")
     fi
+    "$VENV/bin/python" start_bikelane_conversion.py "${CONVERSION_ARGS[@]}"
     if [ $? -ne 0 ]; then
         echo "❌ Fehler in Schritt 3: start_bikelane_conversion.py"
         exit 1
@@ -335,11 +362,12 @@ if [[ $START_STEP -le 4 ]]; then
     create_backup "${BASE_OUT_DIR}/aggregated_rvn_final${SUFFIX}.gpkg"
     create_backup "${BASE_OUT_DIR}/aggregated_rvn_final${SUFFIX}.fgb"
     
+    # start_aggregation.py hängt die Region selbst an den Ausgabenamen an
+    AGGREGATION_ARGS=(--input "./output/snapping_converted_bikelanes${SUFFIX}.fgb" --output "./output/aggregated_rvn_final${NETZ_SUFFIX}.gpkg")
     if [[ -n "$CLIP_REGION" ]]; then
-        "$VENV/bin/python" start_aggregation.py --clip "$CLIP_REGION" --input "./output/snapping_converted_bikelanes_${CLIP_REGION}.fgb"
-    else
-        "$VENV/bin/python" start_aggregation.py --input ./output/snapping_converted_bikelanes.fgb
+        AGGREGATION_ARGS+=(--clip "$CLIP_REGION")
     fi
+    "$VENV/bin/python" start_aggregation.py "${AGGREGATION_ARGS[@]}"
     if [ $? -ne 0 ]; then
         echo "❌ Fehler in Schritt 4: start_aggregation.py"
         exit 1
@@ -365,14 +393,9 @@ show_total_time $SCRIPT_START_TIME
 
 echo ""
 echo "📁 Ausgabedateien verfügbar in:"
-if [[ -n "$CLIP_REGION" ]]; then
-    echo "   - output/aggregated_rvn_final_${CLIP_REGION}.gpkg"
-    echo "   - output/snapping_converted_bikelanes_${CLIP_REGION}.fgb"
-else
-    echo "   - output/aggregated_rvn_final.gpkg"
-    echo "   - output/snapping_converted_bikelanes.fgb"
-fi
-echo "   - output/map-matching/ (Ergebnisse und Reports des Map-Matchings)"
+echo "   - output/aggregated_rvn_final${SUFFIX}.gpkg"
+echo "   - output/snapping_converted_bikelanes${SUFFIX}.fgb"
+echo "   - ${MM_OUT_DIR}/ (Ergebnisse und Reports des Map-Matchings)"
 echo "   - output-last-run/ (gesicherte Dateien vom vorherigen Lauf)"
 echo ""
 echo "🔍 Für QA-Zwecke:"

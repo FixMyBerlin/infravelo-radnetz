@@ -7,7 +7,7 @@ validate_datensatz_b.py
 Prüft auf NULL-Werte, TODO-Substring und weitere Auffälligkeiten in wichtigen Attributen.
 
 INPUT:
-- output/snapping_with_overrides.fgb (oder mit --clip: _neukoelln, _norden, _sueden)
+- output/snapping_converted_bikelanes.fgb (mit --netz ren: _ren, mit --clip: _neukoelln, _norden, _sueden)
 
 OUTPUT:
 - Konsolenausgabe mit Hinweisen und Warnungen zu gefundenen Problemen
@@ -15,6 +15,7 @@ OUTPUT:
 USAGE:
 - Gesamter Datensatz: python validate_datensatz_b.py
 - Regionaler Zuschnitt: python validate_datensatz_b.py --clip neukoelln|norden|sueden
+- REN+: python validate_datensatz_b.py --netz ren
 """
 
 import sys
@@ -29,6 +30,7 @@ from collections import Counter
 sys.path.append(str(Path(__file__).parent.parent))
 from helpers.globals import DEFAULT_CRS
 from helpers.clipping import clip_to_region
+from helpers.netz import add_netz_argument, datei_zusatz
 
 # ANSI Farb-Codes
 ORANGE = '\033[38;5;214m'
@@ -607,6 +609,7 @@ def main():
         action='store_true',
         help="Erstelle eine Datei mit allen problematischen Features in validation/output/"
     )
+    add_netz_argument(parser)
     
     args = parser.parse_args()
     
@@ -617,19 +620,20 @@ def main():
     
     # Dateipfad basierend auf --clip Parameter bestimmen
     needs_clipping = False
+    logger.info(f"Netz: {args.netz}")
     if args.clip:
-        input_file = Path(f"output/snapping_with_overrides{args.clip}.fgb")
+        input_file = Path(f"output/snapping_converted_bikelanes{datei_zusatz(args.netz, args.clip)}.fgb")
         logger.info(f"Modus: Regionaler Zuschnitt ({args.clip})")
         
         # Wenn geclippte Datei nicht existiert, lade Standard-Datei und clippe dynamisch
         if not input_file.exists():
-            fallback_file = Path("output/snapping_with_overrides.fgb")
+            fallback_file = Path(f"output/snapping_converted_bikelanes{datei_zusatz(args.netz)}.fgb")
             logger.warning(f"{ORANGE}⚠️ Geclippte Datei nicht gefunden: {input_file}{RESET}")
             logger.info(f"→ Lade Standard-Datei und clippe auf Region '{args.clip}'")
             input_file = fallback_file
             needs_clipping = True
     else:
-        input_file = Path("output/snapping_with_overrides.fgb")
+        input_file = Path(f"output/snapping_converted_bikelanes{datei_zusatz(args.netz)}.fgb")
         logger.info("Modus: Vollständiger Datensatz")
     
     # Lade Daten

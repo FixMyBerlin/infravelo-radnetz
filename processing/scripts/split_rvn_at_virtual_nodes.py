@@ -9,21 +9,31 @@ Linien und erfordern daher eine Aufteilung der betroffenen Linien.
 
 Die neuen element_nr werden im Skript assign_element_nr_to_rvn.py ausgeführt.
 
+Mit --netz ren wird statt des Radvorrangsnetzes das REN+ geteilt. Dessen element_nr
+heißt danach elem_nr, damit assign_element_nr_to_rvn.py sie wie die elem_nr des
+Radvorrangsnetzes behandelt (Vorrang vor der berechneten, außer an virtuellen Knotenpunkten).
+
 INPUT:
 - data/Virtuelle-Knotenpunkte.gpkg (von assign_node_ids erstellt)
-- data/Berlin Radvorrangsnetz.fgb
+- data/Berlin Radvorrangsnetz.fgb bzw. ../ren-network/output/ren_netz_gesamt.gpkg (--netz ren)
 - data/Berlin Straßenabschnitte Detailnetz.fgb
 
-OUTPUT:
+OUTPUT (Pfade je Netz in helpers/netz.py):
 - output/rvn/Berlin Radvorrangsnetz_mit_virtuellen-knotenpunkten.fgb
 - output/rvn/Berlin Detailnetz_mit_virtuellen-knotenpunkten.fgb
 """
 
+import argparse
 import geopandas as gpd
 import logging
 import os
+import sys
+from pathlib import Path
 from shapely.geometry import LineString, MultiLineString
 from shapely.ops import split
+
+sys.path.append(str(Path(__file__).parent.parent))
+from helpers.netz import PFADE, add_netz_argument  # noqa: E402
 
 # Konfiguration
 DEFAULT_CRS = 25833  # EPSG:25833 (ETRS89 / UTM zone 33N) - aus helpers.globals
@@ -56,19 +66,20 @@ def load_virtual_nodes(virtual_nodes_path):
     return virtual_nodes_gdf
 
 
-def load_geodataframe(path, name="Datensatz"):
+def load_geodataframe(path, name="Datensatz", layer=None):
     """
     Lädt ein GeoDataFrame und projiziert es auf das Ziel-CRS.
     
     Args:
         path (str): Pfad zur Datei
         name (str): Name des Datensatzes für Logging
+        layer (str): Layer der Datei (optional)
         
     Returns:
         GeoDataFrame: Geladener Datensatz
     """
     logging.info(f"Lade {name} von {path}")
-    gdf = gpd.read_file(path)
+    gdf = gpd.read_file(path, layer=layer)
     
     target_crs = f'EPSG:{DEFAULT_CRS}'
     if gdf.crs != target_crs:
@@ -365,18 +376,19 @@ def split_rvn_at_virtual_nodes(rvn_gdf, virtual_nodes_gdf):
     return split_geodataframe_at_virtual_nodes(rvn_gdf, virtual_nodes_gdf, "RVN")
 
 
-def main():
+def main(netz):
     """
-    Hauptfunktion zur Aufteilung des RVN und Detailnetzes an virtuellen Knotenpunkten.
+    Hauptfunktion zur Aufteilung des Zielnetzes und Detailnetzes an virtuellen Knotenpunkten.
     """
     # Dateipfade definieren
+    pfade = PFADE[netz]
     virtual_nodes_path = 'data/Virtuelle-Knotenpunkte.gpkg'
     
-    rvn_path = 'data/Berlin Radvorrangsnetz.fgb'
-    rvn_output_path = 'output/rvn/Berlin Radvorrangsnetz_mit_virtuellen-knotenpunkten.fgb'
+    rvn_path = pfade['quelle']
+    rvn_output_path = pfade['geteilt']
     
     detailnetz_path = 'data/Berlin Straßenabschnitte Detailnetz.fgb'
-    detailnetz_output_path = 'output/rvn/Berlin Detailnetz_mit_virtuellen-knotenpunkten.fgb'
+    detailnetz_output_path = pfade['detailnetz_geteilt']
     
     # Stelle sicher, dass das Ausgabeverzeichnis existiert
     os.makedirs(os.path.dirname(rvn_output_path), exist_ok=True)
@@ -387,9 +399,11 @@ def main():
         
         # 1. RVN splitten
         logging.info("=" * 60)
-        logging.info("SCHRITT 1: Radvorrangsnetz splitten")
+        logging.info(f"SCHRITT 1: Zielnetz ({netz}) splitten")
         logging.info("=" * 60)
-        rvn_gdf = load_geodataframe(rvn_path, "Radvorrangsnetz")
+        rvn_gdf = load_geodataframe(rvn_path, "Zielnetz", pfade['quelle_layer'])
+        if netz == 'ren':
+            rvn_gdf = rvn_gdf.rename(columns={'element_nr': 'elem_nr'})
         split_rvn = split_geodataframe_at_virtual_nodes(rvn_gdf, virtual_nodes_gdf, "RVN")
         
         logging.info(f"Speichere aufgeteiltes RVN nach {rvn_output_path}")
@@ -417,4 +431,6 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser(description="Teilt Zielnetz und Detailnetz an virtuellen Knotenpunkten")
+    add_netz_argument(parser)
+    main(parser.parse_args().netz)

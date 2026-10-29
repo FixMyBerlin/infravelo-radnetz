@@ -11,6 +11,8 @@ Das Modul sucht an den Endpunkten der Kanten nach Knotenpunkten und weist
 die entsprechenden IDs zu. Falls kein direkter Knotenpunkt gefunden wird,
 werden Linien in die entsprechende Richtung gemergt und die Suche wiederholt.
 
+Mit --netz ren für das REN+ (Pfade je Netz in helpers/netz.py).
+
 INPUT:
 - output/rvn/Berlin Radvorrangsnetz_mit_virtuellen-knotenpunkten.fgb
 - output/knotenpunkte/knotenpunkte_mit_id.gpkg
@@ -20,12 +22,18 @@ OUTPUT:
 - output/rvn/Berlin Vorrangnetz_with_element_nr.fgb
 """
 
+import argparse
 import geopandas as gpd
 import pandas as pd
 import logging
 import os
+import sys
+from pathlib import Path
 from shapely.geometry import Point
 import networkx as nx
+
+sys.path.append(str(Path(__file__).parent.parent))
+from helpers.netz import DEFAULT_NETZ, PFADE, add_netz_argument  # noqa: E402
 
 # Konfiguration
 DEFAULT_CRS = 25833  # EPSG:25833 (ETRS89 / UTM zone 33N) - aus helpers.globals
@@ -609,15 +617,15 @@ def apply_elem_nr_priority(enriched_rvn):
     return result_gdf
 
 
-def create_element_numbers_for_rvn():
+def create_element_numbers_for_rvn(netz=DEFAULT_NETZ):
     """
-    Hauptfunktion zur Erstellung der Element-Nummern für das Radvorrangsnetz.
+    Hauptfunktion zur Erstellung der Element-Nummern für das Zielnetz.
     """
     # Dateipfade definieren
-    radvorrangsnetz_path = 'output/rvn/Berlin Radvorrangsnetz_mit_virtuellen-knotenpunkten.fgb'
+    radvorrangsnetz_path = PFADE[netz]['geteilt']
     knotenpunkte_path = 'output/knotenpunkte/knotenpunkte_mit_id.gpkg'
     virtuelle_knotenpunkte_path = 'data/Virtuelle-Knotenpunkte.gpkg'
-    output_path = 'output/rvn/Berlin Vorrangnetz_with_element_nr.fgb'
+    output_path = PFADE[netz]['mit_element_nr']
     
     # Stelle sicher, dass das Ausgabeverzeichnis existiert
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
@@ -666,4 +674,6 @@ def create_element_numbers_for_rvn():
 
 
 if __name__ == '__main__':
-    create_element_numbers_for_rvn()
+    parser = argparse.ArgumentParser(description="Weist dem Zielnetz element_nr zu")
+    add_netz_argument(parser)
+    create_element_numbers_for_rvn(parser.parse_args().netz)

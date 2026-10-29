@@ -13,8 +13,8 @@ Schritte:
    einem Knoten. Es wird nichts geometrisch repariert.
 3. Zusammenhang: Nur die größte zusammenhängende Komponente wird behalten. Bricht ab, wenn
    sie zu wenig Radinfrastruktur enthält. Ausgeschlossene Kanten landen im Report.
-4. Zuschnitt auf den RVN-Puffer (abschaltbar mit `--ohne-rvn-zuschnitt`, z. B. für das
-   Matching auf das REN+) und Übersetzung in RVN-Attribute
+4. Zuschnitt auf den RVN-Puffer (entfällt mit `--netz ren` oder `--ohne-rvn-zuschnitt`)
+   und Übersetzung in RVN-Attribute
    (wie `translate_attributes_tilda_to_rvn.py`).
 
 INPUT:
@@ -23,13 +23,14 @@ INPUT:
 - data-raw-tilda/roads.fgb                 (Export `roads`, gleicher Verarbeitungsstand)
 - data-raw-tilda/roadsPathClasses.fgb      (Export `roadsPathClasses`, gleicher Verarbeitungsstand)
 
-OUTPUT (output/TILDA-routing/):
+OUTPUT (output/TILDA-routing/, mit --netz ren output/TILDA-routing-ren/):
 - TILDA Routing {Bikelanes,Streets,Paths} Translated.fgb
 - ausserhalb_hauptnetz.fgb                 (Kanten außerhalb der größten Komponente)
 - report.json                              (Kennzahlen zu Join und Topologie)
 
 Aufruf (aus processing/):
     python scripts/prepare_tilda_routing.py
+    python scripts/prepare_tilda_routing.py --netz ren
 """
 
 import argparse
@@ -48,6 +49,7 @@ from shapely import LineString
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from helpers.globals import DEFAULT_CRS  # noqa: E402
+from helpers.netz import TILDA_ROUTING_DIR, add_netz_argument  # noqa: E402
 from translate_attributes_tilda_to_rvn import clip_to_rvn_buffer, translate_tilda_attributes  # noqa: E402
 
 # source_table im Routing-Datensatz -> (Rohdatei, data_source im Map-Matching)
@@ -147,13 +149,14 @@ def main():
     parser.add_argument("--routing", default="data/TILDA Routing Berlin.gpkg")
     parser.add_argument("--raw-dir", default="data-raw-tilda", help="Exporte bikelanes/roads/roadsPathClasses")
     parser.add_argument("--data-dir", default="data", help="enthält das RVN für den Puffer-Zuschnitt")
-    parser.add_argument("--output-dir", default="output/TILDA-routing")
+    parser.add_argument("--output-dir", help="Standard: output/TILDA-routing bzw. output/TILDA-routing-ren (--netz ren)")
     parser.add_argument("--max-missing-share", type=float, default=0.01, help="max. Anteil Kanten ohne Quellobjekt je Tabelle")
     parser.add_argument("--min-bikelane-share", type=float, default=0.95, help="min. Anteil Radinfrastruktur (km) im Hauptnetz")
-    parser.add_argument("--ohne-rvn-zuschnitt", action="store_true", help="ganz Berlin behalten (z. B. für das REN+)")
+    parser.add_argument("--ohne-rvn-zuschnitt", action="store_true", help="ganz Berlin behalten (bei --netz ren immer)")
+    add_netz_argument(parser)
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    out_dir = Path(args.output_dir)
+    out_dir = Path(args.output_dir or TILDA_ROUTING_DIR[args.netz])
     out_dir.mkdir(parents=True, exist_ok=True)
 
     routing = gpd.read_file(args.routing)
@@ -179,7 +182,7 @@ def main():
         raise SystemExit(f"Nur {bike_share:.1%} der Radinfrastruktur im Hauptnetz (min. {args.min_bikelane_share:.0%}). Abbruch.")
 
     segments = segments[in_main].to_crs(DEFAULT_CRS)
-    if not args.ohne_rvn_zuschnitt:
+    if args.netz == "rvn" and not args.ohne_rvn_zuschnitt:
         segments = clip_to_rvn_buffer(segments, args.data_dir, DEFAULT_CRS)
     segments = segments.drop(columns="_len_m")
     for source_table, (_, data_source) in SOURCES.items():

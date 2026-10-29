@@ -6,6 +6,8 @@ Anreicherung des Radvorrangnetzes mit Detailnetz-Informationen.
 Dieses Skript kombiniert das Berliner Radvorrangnetz mit dem Straßendetailnetz,
 um detaillierte Informationen wie Straßennamen und -klassen zu ergänzen.
 
+Mit --netz ren für das REN+ (Pfade je Netz in helpers/netz.py).
+
 INPUT:
 - output/rvn/Berlin Vorrangnetz_with_element_nr.fgb
 - output/rvn/Berlin Detailnetz_mit_virtuellen-knotenpunkten.fgb (gesplittet an virtuellen Knotenpunkten)
@@ -15,6 +17,7 @@ OUTPUT:
 - output/rvn/vorrangnetz_details_combined_rvn.fgb
 """
 
+import argparse
 import geopandas as gpd
 import pandas as pd
 import logging
@@ -31,6 +34,7 @@ try:
     from helpers.globals import DEFAULT_CRS
 except ImportError:
     DEFAULT_CRS = 25833
+from helpers.netz import DEFAULT_NETZ, PFADE, add_netz_argument
 
 # Konfiguration: Auszuschließende element_nr
 EXCLUDED_ELEMENT_NRS = [
@@ -42,7 +46,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 
-def load_input_data():
+def load_input_data(netz=DEFAULT_NETZ):
     """
     Lädt die Input-Dateien und überprüft deren Struktur.
     
@@ -52,7 +56,7 @@ def load_input_data():
     logger.info("Lade Input-Dateien...")
     
     # Vorrangnetz laden
-    vorrangnetz_path = "output/rvn/Berlin Vorrangnetz_with_element_nr.fgb"
+    vorrangnetz_path = PFADE[netz]["mit_element_nr"]
     if not os.path.exists(vorrangnetz_path):
         raise FileNotFoundError(f"Vorrangnetz-Datei nicht gefunden: {vorrangnetz_path}")
     
@@ -60,7 +64,7 @@ def load_input_data():
     logger.info(f"Vorrangnetz geladen: {len(vorrangnetz)} Kanten")
     
     # Detailnetz laden (gesplittet an virtuellen Knotenpunkten)
-    detailnetz_path = "output/rvn/Berlin Detailnetz_mit_virtuellen-knotenpunkten.fgb"
+    detailnetz_path = PFADE[netz]["detailnetz_geteilt"]
     if not os.path.exists(detailnetz_path):
         raise FileNotFoundError(f"Detailnetz-Datei nicht gefunden: {detailnetz_path}")
     
@@ -451,7 +455,7 @@ def reverse_geometry(geom):
     if geom.geom_type == 'LineString':
         return type(geom)(list(geom.coords)[::-1])
     if geom.geom_type == 'MultiLineString':
-        return MultiLineString([type(line)(list(line.coords)[::-1]) for line in geom.geoms[::-1]])
+        return MultiLineString([type(line)(list(line.coords)[::-1]) for line in list(geom.geoms)[::-1]])
     raise ValueError(f"Unerwarteter Geometrietyp {geom.geom_type}")
 
 
@@ -519,7 +523,7 @@ def save_result(combined_gdf, output_path):
     logger.info(f"Erfolgreich gespeichert: {len(combined_gdf)} Kanten")
 
 
-def main():
+def main(netz=DEFAULT_NETZ):
     """
     Hauptfunktion des Skripts.
     """
@@ -527,7 +531,7 @@ def main():
         logger.info("=== Starte Anreicherung des Radvorrangnetzes ===")
         
         # 1. Input-Daten laden
-        vorrangnetz, detailnetz = load_input_data()
+        vorrangnetz, detailnetz = load_input_data(netz)
         
         # 2. Datensätze vorbereiten
         vorrangnetz_prep, detailnetz_prep = prepare_datasets(vorrangnetz, detailnetz)
@@ -557,7 +561,7 @@ def main():
         final_gdf = apply_rvn_corrections(final_gdf, "data/rvn_korrekturen.csv")
 
         # 11. Ergebnis speichern
-        output_path = "output/rvn/vorrangnetz_details_combined_rvn.fgb"
+        output_path = PFADE[netz]["kombiniert"]
         save_result(final_gdf, output_path)
         
         logger.info("=== Anreicherung erfolgreich abgeschlossen ===")
@@ -568,4 +572,6 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Reichert das Zielnetz mit dem Detailnetz an")
+    add_netz_argument(parser)
+    main(parser.parse_args().netz)

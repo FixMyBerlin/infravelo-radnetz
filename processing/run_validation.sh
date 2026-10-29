@@ -7,15 +7,17 @@
 #
 # Eingabedateien:
 # - data/Virtuelle-Knotenpunkte.gpkg (validate_virtuelle_knotenpunkte.py)
-# - data-raw-tilda/knotenpunkte_mit_id_und_bezirken.gpkg (validate_knotenpunkte.py)
+# - output/knotenpunkte_mit_id_und_bezirken.geojson (validate_knotenpunkte.py)
 # - output/snapping_converted_bikelanes*.fgb (validate_datensatz_b.py)
+# - output/aggregated_rvn_final*.gpkg (validate_datensatz_c.py)
 #
 # Verwendung:
-#   ./run_validation.sh [--clip <region>]
+#   ./run_validation.sh [--netz rvn|ren] [--clip <region>]
 #
 # Argumente:
+#   --netz rvn|ren      Zielnetz: rvn = Radvorrangnetz (Standard), ren = REN+ (Dateien mit _ren)
 #   --clip <region>     Regionaler Zuschnitt: neukoelln, norden oder sueden
-#                       (Wird an validate_datensatz_b.py weitergegeben)
+#                       (beide werden an validate_datensatz_b.py und validate_datensatz_c.py weitergegeben)
 #
 # Exit-Codes:
 #   0 - Alle Validierungen bestanden
@@ -36,11 +38,16 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Argumentverarbeitung
+NETZ="rvn"
 CLIP_REGION=""
 CLIP_ARG=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
+        --netz)
+            NETZ="$2"
+            shift 2
+            ;;
         --clip)
             CLIP_REGION="$2"
             CLIP_ARG="--clip $2"
@@ -48,11 +55,17 @@ while [[ $# -gt 0 ]]; do
             ;;
         *)
             echo -e "${RED}Unbekanntes Argument: $1${NC}"
-            echo "Verwendung: ./run_validation.sh [--clip <region>]"
+            echo "Verwendung: ./run_validation.sh [--netz rvn|ren] [--clip <region>]"
             exit 1
             ;;
     esac
 done
+
+if [[ ! "$NETZ" =~ ^(rvn|ren)$ ]]; then
+    echo -e "${RED}Ungültiges Netz: $NETZ${NC}"
+    echo "Erlaubte Netze: rvn, ren"
+    exit 1
+fi
 
 # Validiere clip-Region falls angegeben
 if [[ -n "$CLIP_REGION" ]]; then
@@ -90,6 +103,7 @@ echo ""
 echo "📝 Log-Datei: $LOG_FILE"
 echo ""
 
+echo -e "${YELLOW}Netz: ${NETZ}${NC}"
 if [[ -n "$CLIP_REGION" ]]; then
     echo -e "${YELLOW}Modus: Regionaler Zuschnitt (${CLIP_REGION})${NC}"
 else
@@ -140,10 +154,10 @@ run_validation "Virtuelle Knotenpunkte (Eindeutigkeit)" "validation/validate_vir
 run_validation "TILDA Knotenpunkte (Eindeutigkeit)" "validation/validate_knotenpunkte.py"
 
 # 3. Datensatz B - NULL-Werte und TODO-Werte
-run_validation "Datensatz B (Konvertierte Radverkehrsanlagen)" "validation/validate_datensatz_b.py" "$CLIP_ARG"
+run_validation "Datensatz B (Konvertierte Radverkehrsanlagen)" "validation/validate_datensatz_b.py" "--netz $NETZ $CLIP_ARG"
 
 # 4. Datensatz C - Aggregierte RVN-Daten
-run_validation "Datensatz C (Aggregierte RVN-Daten)" "validation/validate_datensatz_c.py" "$CLIP_ARG"
+run_validation "Datensatz C (Aggregierte RVN-Daten)" "validation/validate_datensatz_c.py" "--netz $NETZ $CLIP_ARG"
 
 # 5. Duplicate Ways - Überprüfung auf doppelte Wege in exclude/include Dateien
 run_validation "Duplicate Ways (exclude/include Überschneidungen)" "validation/analyze_check_duplicate_ways.py"

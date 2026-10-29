@@ -145,12 +145,14 @@ pub struct EvalConfig {
 }
 
 impl Config {
-    /// Lädt die TOML-Datei und wendet Overrides (`a.b=wert`) an.
-    pub fn load(path: &Path, overrides: &[String]) -> Result<Config> {
+    /// Lädt die TOML-Datei, übernimmt die Pfade des Netzes `[netze.<netz>]` (falls angegeben)
+    /// und wendet danach die Overrides (`a.b=wert`) an.
+    pub fn load(path: &Path, netz: Option<&str>, overrides: &[String]) -> Result<Config> {
         let text = std::fs::read_to_string(path)
             .with_context(|| format!("Konfiguration nicht lesbar: {}", path.display()))?;
         let mut value: toml::Value = toml::from_str(&text)
             .with_context(|| format!("Konfiguration fehlerhaft: {}", path.display()))?;
+        apply_netz(&mut value, netz)?;
         for ov in overrides {
             apply_override(&mut value, ov)?;
         }
@@ -206,6 +208,35 @@ impl Config {
     }
 }
 
+/// Ersetzt Werte in `[paths]` durch die des gewählten Netzes `[netze.<netz>]` und entfernt
+/// `[netze]` aus dem Baum. Ohne Netz bleibt `[paths]` unverändert.
+fn apply_netz(root: &mut toml::Value, netz: Option<&str>) -> Result<()> {
+    let table = root.as_table_mut().ok_or_else(|| anyhow!("Konfiguration ist keine Tabelle"))?;
+    let netze = match table.remove("netze") {
+        Some(toml::Value::Table(t)) => t,
+        Some(_) => bail!("[netze] muss eine Tabelle sein"),
+        None => toml::Table::new(),
+    };
+    let Some(netz) = netz else {
+        return Ok(());
+    };
+    let selected = netze
+        .get(netz)
+        .and_then(|v| v.as_table())
+        .ok_or_else(|| anyhow!("Unbekanntes Netz '{netz}' (verfügbar: {})", netze.keys().cloned().collect::<Vec<_>>().join(", ")))?;
+    let paths = table
+        .get_mut("paths")
+        .and_then(|v| v.as_table_mut())
+        .ok_or_else(|| anyhow!("Abschnitt [paths] fehlt"))?;
+    for (key, v) in selected {
+        if !paths.contains_key(key) {
+            bail!("[netze.{netz}]: unbekannter Schlüssel '{key}' (erlaubt sind Schlüssel aus [paths])");
+        }
+        paths.insert(key.clone(), v.clone());
+    }
+    Ok(())
+}
+
 /// Setzt `a.b.c=wert` in einem TOML-Baum. Der Wert wird als TOML-Literal
 /// interpretiert (Zahl, Bool, String in Anführungszeichen, Array); schlägt das
 /// fehl, wird er als String übernommen.
@@ -247,5 +278,41 @@ mod tests {
         apply_override(&mut v, "hmm.beta_m=6.5").unwrap();
         assert_eq!(v["hmm"]["beta_m"].as_float(), Some(6.5));
         assert!(apply_override(&mut v, "hmm.unbekannt=1").is_err());
+    }
+
+    #[test]
+    fn netz_replaces_paths_and_rejects_unknown() {
+        let text = "[paths]\nnetwork = \"rvn.fgb\"\noutput_dir = \"out\"\n[netze.rvn]\n[netze.ren]\nnetwork = \"ren.fgb\"\n";
+        let mut v: toml::Value = toml::from_str(text).unwrap();
+        apply_netz(&mut v, Some("ren")).unwrap();
+        assert_eq!(v["paths"]["network"].as_str(), Some("ren.fgb"));
+        assert_eq!(v["paths"]["output_dir"].as_str(), Some("out"));
+        assert!(v.get("netze").is_none());
+
+        let mut v: toml::Value = toml::from_str(text).unwrap();
+        apply_netz(&mut v, Some("rvn")).unwrap();
+        assert_eq!(v["paths"]["network"].as_str(), Some("rvn.fgb"));
+
+        let mut v: toml::Value = toml::from_str(text).unwrap();
+        assert!(apply_netz(&mut v, Some("unbekannt")).is_err());
+        let mut v: toml::Value = toml::from_str("[paths]\nnetwork = \"a\"\n[netze.x]\nfalsch = 1\n").unwrap();
+        assert!(apply_netz(&mut v, Some("x")).is_err());
+    }
+
+    #[test]
+    fn default_config_has_both_netze() {
+        let path = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/config/default.toml"));
+        let standard = Config::load(path, None, &[]).unwrap();
+        let rvn = Config::load(path, Some("rvn"), &[]).unwrap();
+        let ren = Config::load(path, Some("ren"), &[]).unwrap();
+        assert_eq!(rvn.paths.network, standard.paths.network);
+        assert_eq!(rvn.paths.output_dir, standard.paths.output_dir);
+        assert_eq!(ren.paths.network, PathBuf::from("output/ren/ren_netz_details_combined.fgb"));
+        assert_eq!(ren.paths.output_dir, PathBuf::from("output/map-matching-ren"));
+        assert_eq!(ren.paths.tilda.len(), standard.paths.tilda.len());
+        assert!(ren.paths.tilda.iter().all(|t| t.path.starts_with("output/TILDA-routing-ren")));
+        // --set wirkt nach der Netzauswahl
+        let set = Config::load(path, Some("ren"), &["paths.output_dir=\"x\"".into()]).unwrap();
+        assert_eq!(set.paths.output_dir, PathBuf::from("x"));
     }
 }

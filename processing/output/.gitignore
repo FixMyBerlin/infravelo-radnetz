@@ -10,9 +10,11 @@ osm_candidates_per_edge*
 *.backup
 # Ausgaben des Rust-Map-Matchings (Ergebnisse, Debug, Evaluationsberichte, Summaries)
 map-matching/
+map-matching-ren/
 # Gesicherte Legacy-Referenz und QGIS-Vergleichsordner
 reference-legacy/
 vergleich-qgis/
 # Ausgaben von prepare_tilda_routing.py und der Verteilung auf dem REN+
 TILDA-routing/
+TILDA-routing-ren/
 ren-verteilung/
