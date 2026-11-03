@@ -12,7 +12,7 @@ Jeder Ordner ist für eine Aufgabe zuständig und hat eine eigene README.
 - [`netzanpassungen/`](./netzanpassungen/README.md) – Eingabedatei für die App „Netzanpassungen“ (neue Kanten entlang der Radfernwege, virtuelle Knoten).
 - [`befahrungsbedarf/`](./befahrungsbedarf/README.md) – OSM-Wege am REN+-Netz ohne aktuelle Fotos, die neu befahren werden müssen.
 - [`maproulette-centerline-tracks/`](./maproulette-centerline-tracks/README.md) – Aufgabenliste für MapRoulette: Radwege, die an der Straßen-Mittellinie erfasst sind.
-- [`mapping-zuteilung/`](./mapping-zuteilung/README.md) – Aufteilung des REN+-Netzes auf die Mapping-Accounts.
+- [`mapping-zuteilung/`](./mapping-zuteilung/README.md) – Aufteilung des REN+-Netzes auf die Mapping-Accounts; die Zuteilung steht seit 2026-11-03 in `assignment.csv`, regelmäßig läuft nur das Update.
 - [`tilda-pseudo-tags/`](./tilda-pseudo-tags/README.md) – CSV für den TILDA-Pseudo-Tag `infravelo_netz` (welche OSM-Wege zum Radnetz gehören), eingecheckt und von TILDA aus dem Repo geladen.
 - [`bearbeitungsstand/`](./bearbeitungsstand/README.md) – Liest aus dem Mapping-Editor, welche Linien erledigt sind; genutzt von den beiden Ordnern darüber.
 - [`inspector/`](./inspector/README.md) – Web-Tool zur Qualitätssicherung der verarbeiteten Daten.
@@ -42,6 +42,9 @@ python data/download_inputs.py
 
 # REN+-Netz erzeugen
 python ren-network/unify_networks.py
+
+# Mapping-Zuteilung aktualisieren (nur Update, keine Neuzuteilung)
+python mapping-zuteilung/update_assignment.py
 
 # Knotenpunkte erzeugen
 python knotenpunkte/download_lsa.py && python knotenpunkte/build_knotenpunkte.py

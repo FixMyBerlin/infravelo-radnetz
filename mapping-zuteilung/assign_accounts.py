@@ -3,7 +3,12 @@
 """
 assign_accounts.py
 --------------------------------------------------------------------
-Teilt die Kanten des REN+-Netzes auf die Mapping-Accounts auf.
+ERSTERFASSUNG: Teilt die Kanten des REN+-Netzes neu auf die Mapping-Accounts auf.
+
+Seit es die Zuteilung in assignment.csv gibt, läuft regelmäßig nur noch
+update_assignment.py. Dieses Skript würde Gebiete, Accounts und die Nummern der
+Kanten neu vergeben, an denen die Markierungen der Mapper hängen. Es bricht
+deshalb ab, solange assignment.csv existiert (--reassign erzwingt es).
 
 Die Bezirke werden nacheinander bearbeitet. Innerhalb eines Bezirks bekommt jeder
 Account ein zusammenhängendes Gebiet aus LOR-Planungsräumen (PLR), damit alle
@@ -16,7 +21,7 @@ Ablauf:
    von Startpunkten über benachbarte PLR, danach werden PLR an den Gebietsgrenzen
    getauscht, bis die Kilometer möglichst ausgeglichen sind
 3. Bezirke ab dem Startbezirk gegen den Uhrzeigersinn nummerieren
-4. Kanten, Gebiete und Statistik schreiben
+4. Zuteilung (assignment.csv, assignment_plr.csv), Kanten, Gebiete und Statistik schreiben
 
 Das Ergebnis ist deterministisch: Gleiche Eingangsdaten und gleiche Account-Liste
 ergeben dieselbe Zuteilung.
@@ -27,6 +32,7 @@ INPUT:
 - accounts.txt (ein Account pro Zeile)
 
 OUTPUT:
+- assignment.csv, assignment_plr.csv (eingecheckt)
 - output/zuteilung_netz.geojson
 - output/zuteilung_gebiete.geojson
 - output/zuteilung_statistik.csv
@@ -37,40 +43,21 @@ import logging
 import math
 import random
 import sys
+from datetime import date
 from pathlib import Path
 
 import geopandas as gpd
 import networkx as nx
 import pandas as pd
-import shapely
+
+from assignment_output import ASSIGNMENT_PATH, CRS_METRIC, assignment_rows, write_assignment, write_outputs
 
 BASE_DIR = Path(__file__).resolve().parent
-sys.path.append(str(BASE_DIR.parent / 'bearbeitungsstand'))
-
-from load_status import STATUS_DONE, add_status  # noqa: E402
 
 NETWORK_PATH = BASE_DIR / 'data' / 'ren_netz_gesamt.gpkg'
 LOR_PATH = BASE_DIR / 'data' / 'lor_plr_2021.geojson'
 ACCOUNTS_PATH = BASE_DIR / 'accounts.txt'
-OUTPUT_DIR = BASE_DIR / 'output'
-
-CRS_METRIC = 'EPSG:25833'
-CRS_OUTPUT = 'EPSG:4326'
-
-# Link in den Mapping-Editor: Maske des Kartierungsnetzes und die Zuteilung,
-# gefiltert auf den Account der Kante bzw. des Gebiets
-EDITOR_URL = (
-    'https://radnetz-mapping.netlify.app/'
-    '#disable_features=address_points,building_parts,indoor,boundaries,water,pistes,aerialways,power'
-    '&notes=tilda&map={zoom}/{lat:.5f}/{lon:.5f}&background=Berlin-2026'
-    '&data_layers=https://tilda-geo.de/api/uploads/infravelo-ren-netz-kartierung-mask.pmtiles'
-    '%7CMaske%7Cff26d4%7C%7Co'
-    '%3Bhttps://tilda-geo.de/api/uploads/infravelo-ren-netz-zuteilung-netz.pmtiles'
-    '%7CZuteilung+Netz%7Cc800ff%7Caccount%3D{account}%7C%7Cmapping'
-    '&readonly_features=points,buildings,landuse,rail,past_future,others'
-)
-EDITOR_ZOOM_EDGE = 19
-EDITOR_ZOOM_AREA = 15
+START_DISTRICT = 'Neukölln'
 
 # PLR gelten als benachbart, wenn sie mindestens so viele Meter Grenze teilen
 MIN_SHARED_BORDER_M = 10
@@ -79,15 +66,6 @@ ATTEMPTS = 200
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
-
-
-def editor_markdown(features: gpd.GeoDataFrame, zoom: int) -> list:
-    """Markdown-Link in den Editor je Feature; TILDA zeigt Attribute mit der Endung _markdown als Link an."""
-    points = features.geometry.representative_point().to_crs(CRS_OUTPUT)
-    return [
-        f"[Im Editor öffnen]({EDITOR_URL.format(zoom=zoom, lat=point.y, lon=point.x, account=account)})"
-        for point, account in zip(points, features['account'])
-    ]
 
 
 def read_accounts() -> list:
@@ -242,14 +220,26 @@ def district_order(lor: gpd.GeoDataFrame, start: str) -> dict:
     return {name: number for number, name in enumerate(ordered, start=1)}
 
 
+def build_areas(lor: gpd.GeoDataFrame, simplify_m: float) -> gpd.GeoDataFrame:
+    """Ein Gebiet je Bezirk und Account aus den PLR (lor mit Spalte account)."""
+    areas = lor.dissolve(['bez', 'account']).reset_index().rename(columns={'bez': 'bezirk'})
+    areas['geometry'] = areas.geometry.simplify(simplify_m * 5)
+    return areas
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split('\n\n')[0],
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--start-district', default='Neukölln',
-                        help='Bezirk, mit dem die Bearbeitung beginnt (Standard: Neukölln)')
+    parser.add_argument('--start-district', default=START_DISTRICT,
+                        help=f'Bezirk, mit dem die Bearbeitung beginnt (Standard: {START_DISTRICT})')
     parser.add_argument('--simplify', type=float, default=1.0,
                         help='Toleranz der Vereinfachung in Metern (Standard: 1.0)')
+    parser.add_argument('--reassign', action='store_true',
+                        help=f'Trotz {ASSIGNMENT_PATH.name} neu zuteilen (verschiebt Gebiete und Nummern)')
     args = parser.parse_args()
+    if ASSIGNMENT_PATH.exists() and not args.reassign:
+        raise SystemExit(f"Die Zuteilung steht schon in {ASSIGNMENT_PATH.name}. "
+                         "Für den regelmäßigen Lauf update_assignment.py verwenden.")
 
     accounts = read_accounts()
     logging.info(f"{len(accounts)} Accounts: {', '.join(accounts)}")
@@ -280,50 +270,8 @@ def main():
     network['reihenfolge'] = network['bezirk'].map(order)
     lor['account'] = lor['plr_id'].map(area_of_plr)
 
-    # Im Editor als erledigt markierte Kanten
-    status_fetched_at = add_status(network, 'lfd_nr', 'mapping')
-    network['km_erledigt'] = network['km'].where(network['bearbeitungsstand'] == STATUS_DONE, 0)
-
-    # Statistik je Bezirk und Account
-    grouped = network.groupby(['reihenfolge', 'bezirk', 'account'])
-    stats = grouped.agg(km=('km', 'sum'), kanten=('km', 'size'), plr=('plr_id', 'nunique'),
-                        km_erledigt=('km_erledigt', 'sum'))
-    stats['erledigt_prozent'] = stats['km_erledigt'] / stats['km'] * 100
-    for column, values in (('radverkehrsnetz', None), ('hauptverkehrsstrasse', ['ja'])):
-        shares = network.pivot_table(index=['reihenfolge', 'bezirk', 'account'], columns=column,
-                                     values='km', aggfunc='sum', fill_value=0)
-        if values:
-            shares = shares[values]
-        stats = stats.join(shares.add_prefix('km_' if not values else 'km_hauptverkehrsstrasse_'))
-    district_mean = stats.groupby(level='bezirk')['km'].transform('mean')
-    stats['abweichung_prozent'] = (stats['km'] / district_mean - 1) * 100
-    stats = stats.round(1).reset_index()
-
-    OUTPUT_DIR.mkdir(exist_ok=True)
-    stats.to_csv(OUTPUT_DIR / 'zuteilung_statistik.csv', index=False)
-
-    areas = lor.dissolve(['bez', 'account']).reset_index().rename(columns={'bez': 'bezirk'})
-    areas = areas[['bezirk', 'account', 'geometry']].merge(stats, on=['bezirk', 'account'])
-    areas['geometry'] = areas.geometry.simplify(args.simplify * 5)
-    areas['editor_markdown'] = editor_markdown(areas, EDITOR_ZOOM_AREA)
-    areas.sort_values(['reihenfolge', 'account']).to_crs(CRS_OUTPUT).to_file(
-        OUTPUT_DIR / 'zuteilung_gebiete.geojson', driver='GeoJSON', COORDINATE_PRECISION=6)
-
-    network['geometry'] = shapely.simplify(network.geometry.values, args.simplify)
-    network['editor_markdown'] = editor_markdown(network, EDITOR_ZOOM_EDGE)
-    columns = ['lfd_nr', 'element_nr', 'strassenname', 'radverkehrsnetz', 'hauptverkehrsstrasse',
-               'laenge_m', 'reihenfolge', 'bezirk', 'plr_id', 'plr_name', 'account', 'bearbeitungsstand',
-               'erledigt_von', 'erledigt_am', 'editor_markdown', 'geometry']
-    network[columns].sort_values(['reihenfolge', 'account', 'lfd_nr']).to_crs(CRS_OUTPUT).to_file(
-        OUTPUT_DIR / 'zuteilung_netz.geojson', driver='GeoJSON', COORDINATE_PRECISION=6)
-
-    summary = stats.groupby(['reihenfolge', 'bezirk']).agg(
-        km=('km', 'sum'), min_km=('km', 'min'), max_km=('km', 'max'),
-        max_abweichung_prozent=('abweichung_prozent', lambda values: values.abs().max()))
-    logging.info(f"Zuteilung je Bezirk:\n{summary.round(1).to_string()}")
-    logging.info(f"Bearbeitungsstand vom {status_fetched_at}: {network['km_erledigt'].sum():.1f} von "
-                 f"{network['km'].sum():.1f} km erledigt")
-    logging.info(f"Ausgabe geschrieben nach {OUTPUT_DIR}")
+    write_assignment(assignment_rows(network, date.today().isoformat()), lor.set_index('plr_id')['account'])
+    write_outputs(network, build_areas(lor, args.simplify), args.simplify)
 
 
 if __name__ == '__main__':
