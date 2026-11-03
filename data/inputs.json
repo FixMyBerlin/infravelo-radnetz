@@ -1,0 +1,26 @@
+{
+  "netzquellen_hauptstrassennetz.gpkg": {
+    "size": 3088384,
+    "sha256": "50efbea71d7182582d2429213e5c9f3663a82807247b1973dfcda296c466523b"
+  },
+  "netzquellen_radverkehrsnetz.gpkg": {
+    "size": 4288512,
+    "sha256": "532cd7590ebf64e7880a43c8f7e6970a72e4ffc1c335192a947c3fe7ba033689"
+  },
+  "netzquellen_radschnellverbindungen.gpkg": {
+    "size": 311296,
+    "sha256": "e59954249d8c57873b357ab18dc17a403d501a6d404a9b9573589ecc6206f04d"
+  },
+  "detailnetz_strassenabschnitte_2026-10-06.fgb": {
+    "size": 19298168,
+    "sha256": "462ac54a6e1f72cebf80801e9042c81cd1a2a1b8cd6a25a23e62310238c2fce8"
+  },
+  "detailnetz_verbindungspunkte.fgb": {
+    "size": 6070416,
+    "sha256": "d79d8e2f85617b41b30bf0cef5a9f1381f3d72f9914d537a276bcd473db76304"
+  },
+  "lor_planungsraeume_2021.geojson": {
+    "size": 5419337,
+    "sha256": "9e47d87da157c4a943c046d6a3bcee92fd9b9c74578b6f463987319153aeb831"
+  }
+}

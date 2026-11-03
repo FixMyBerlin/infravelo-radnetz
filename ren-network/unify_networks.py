@@ -71,10 +71,12 @@ from shapely.geometry import LineString, MultiLineString
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(ROOT / "processing"))
 sys.path.append(str(ROOT / "processing" / "scripts"))
+sys.path.append(str(ROOT / "data"))
 
 from assign_element_nr_to_rvn import assign_element_numbers  # noqa: E402
 from assign_node_ids import assign_node_ids_to_points  # noqa: E402
 from helpers.district_assignment import assign_district_to_edges  # noqa: E402
+from download_inputs import download as download_inputs  # noqa: E402
 
 try:
     from helpers.globals import DEFAULT_CRS
@@ -567,6 +569,8 @@ def log_summary(network):
 
 
 def main():
+    # Gleiche Eingangsdaten für alle: vor jedem Lauf aus dem gemeinsamen Drive-Ordner
+    download_inputs()
     sources = load_sources()
     detail = load_detailnetz()
     sources = remove_motorways(sources, detail)

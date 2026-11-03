@@ -8,3 +8,6 @@ networkx
 # OSM traffic signal
 osmnx
 scikit-learn
+
+# Eingangsdaten aus Google Drive (data/download_inputs.py)
+gdown

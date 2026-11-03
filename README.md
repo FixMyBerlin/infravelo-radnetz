@@ -37,6 +37,9 @@ Für das Map-Matching wird zusätzlich Rust (`cargo`) benötigt.
 cd processing
 ./process_tilda_data.sh && ./process_radnetz.sh && ./execute_processing.sh && ./run_validation.sh
 
+# Eingangsdaten aus dem gemeinsamen Google Drive (Link in .env, siehe .env.example; läuft auch zu Beginn von unify_networks.py)
+python data/download_inputs.py
+
 # REN+-Netz erzeugen
 python ren-network/unify_networks.py
 

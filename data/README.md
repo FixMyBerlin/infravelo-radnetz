@@ -40,3 +40,33 @@ Wir verwenden manuell gepflegte Listen von OpenStreetMap-Way-IDs, die das endgü
 * `opposite_edge_overwrite_element_nr.txt` enthält in jeder Zeile eine `element_nr`, für die die entgegengesetzte Richtung (ri=1) aus dem finalen Datensatz **entfernt** werden soll. Das ist nützlich, wenn der Snapping-Prozess fälschlicherweise Infrastruktur in beide Richtungen zuordnet, in der Realität aber nur die Vorwärtsrichtung (ri=0) existiert.
 - `override_ways.gpkg` – GeoPackage mit räumlichen Override-Geometrien zur gezielten Überschreibung von Attributen nach dem Snapping.
 - `override_ways.txt` – Textdatei mit Text-Overrides im Format `tilda_id|element_nr|ri|attributes_json` für attributbasierte Überschreibungen.
+
+## Eingangsdaten aus Google Drive
+
+Einige Eingangsdaten liegen nicht im Repo und werden auch von keinem Skript geladen. Damit alle mit denselben Dateien rechnen, liegen sie in einem gemeinsamen Google-Drive-Ordner. Der Ordner ist für alle mit dem Link lesbar; der Link steht nur in der lokalen `.env` (`INPUTS_DRIVE_FOLDER_URL`, siehe `.env.example`) und nicht im Repo.
+
+```bash
+.venv/bin/python data/download_inputs.py
+```
+
+- `ren-network/unify_networks.py` ruft das zu Beginn jedes Laufs auf. Fehlt der Link, bricht der Lauf ab.
+- Der Ordner im Drive ist flach. `INPUT_FILES` im Skript ordnet jedem Dateinamen dort seinen Pfad im Repo zu:
+
+| Datei im Drive | Pfad im Repo |
+|---|---|
+| `netzquellen_hauptstrassennetz.gpkg` | `data/netzquellen/hauptstrassennetz.gpkg` |
+| `netzquellen_radverkehrsnetz.gpkg` | `data/netzquellen/radverkehrsnetz.gpkg` |
+| `netzquellen_radschnellverbindungen.gpkg` | `data/netzquellen/radschnellverbindungen.gpkg` |
+| `detailnetz_strassenabschnitte_2026-10-06.fgb` | `data/Berlin Straßenabschnitte Detailnetz 2026-10-06.fgb` |
+| `detailnetz_verbindungspunkte.fgb` | `data/Berlin Verbindungspunkte Detailnetz.fgb` |
+| `lor_planungsraeume_2021.geojson` | `mapping-zuteilung/data/lor_plr_2021.geojson` |
+
+- [`inputs.json`](./inputs.json) (eingecheckt) hält Größe und SHA-256 jeder Datei fest. Geladen wird nur, was lokal fehlt oder davon abweicht; stimmen alle Dateien, läuft das Skript auch ohne Netz und ohne Link. Weicht eine Datei im Drive ab, bricht der Download ab, bevor er etwas überschreibt. So sieht man im Diff, wann sich Eingangsdaten geändert haben.
+
+Neue Eingangsdaten ins Drive bringen:
+
+1. Dateien lokal an ihren Platz legen und mit Drive-Namen in `INPUT_FILES` eintragen.
+2. `.venv/bin/python data/download_inputs.py --write-manifest`, dann `inputs.json` committen.
+3. `.venv/bin/python data/download_inputs.py --stage <ordner>` sammelt die Dateien unter ihrem Drive-Namen; den Inhalt des Ordners ins Drive kopieren und dabei die vorhandenen Dateien ersetzen.
+
+Nicht im Drive, weil ein Skript sie lädt: die TILDA-Exporte (`befahrungsbedarf/download_data.sh`) und die Ampeln (`knotenpunkte/download_lsa.py`). Für die Knotenpunkte fehlt noch `data/netzquellen/knotenpunkte_2025.geojson.gz` (liegt bei Henri).
