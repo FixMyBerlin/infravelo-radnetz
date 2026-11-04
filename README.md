@@ -43,8 +43,8 @@ python data/download_inputs.py
 # REN+-Netz erzeugen
 python ren-network/unify_networks.py
 
-# Mapping-Zuteilung aktualisieren (nur Update, keine Neuzuteilung)
-python mapping-zuteilung/update_assignment.py
+# Bearbeitungsstand der Mapper nach TILDA (Zuteilung und Mittellinien-Radwege, Upload nach production)
+bearbeitungsstand/update.sh
 
 # Knotenpunkte erzeugen
 python knotenpunkte/download_lsa.py && python knotenpunkte/build_knotenpunkte.py

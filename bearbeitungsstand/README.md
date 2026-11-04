@@ -25,8 +25,19 @@ Die Gebiete der Zuteilung bekommen zusätzlich `km_erledigt` und `erledigt_proze
 
 Jeder Abruf wird mit Zeitpunkt in `cache/<aufgabe>.json` abgelegt (nicht versioniert). Ist die API nicht erreichbar, verwendet das Skript diesen Stand und meldet das im Log. Das Lesen braucht keinen Login; die API verlangt nur den `Origin` des Editors, den das Skript mitschickt.
 
-## Stand in TILDA
+## Stand in TILDA aktualisieren
 
-Das Log nennt den Zeitpunkt des Abrufs (`Bearbeitungsstand vom …`). Nach einem Lauf diesen Zeitpunkt in die `description` der drei Datensätze in `tilda-static-data` eintragen (`infravelo-ren-netz-zuteilung-netz`, `infravelo-ren-netz-zuteilung-gebiete`, `infravelo-ren-kartierung-tracks`) und sie neu hochladen. Erledigte Linien sind dort grün unterlegt.
+Ein Befehl macht alles:
+
+```bash
+bearbeitungsstand/update.sh              # Ziel: production
+bearbeitungsstand/update.sh --env staging
+```
+
+Er ruft beide Skripte auf (beide lesen die key-value-db), trägt den Zeitpunkt des Abrufs in `description` und `dataUpdatedNote` der drei Datensätze in `tilda-static-data` ein (`infravelo-ren-netz-zuteilung-netz`, `infravelo-ren-netz-zuteilung-gebiete`, `infravelo-ren-kartierung-tracks`), committet und pusht `tilda-static-data` und lädt die drei Datensätze nach TILDA hoch. Erledigte Linien sind dort grün unterlegt.
+
+Voraussetzungen: `tilda-static-data` und `tilda-geo` liegen als Geschwister-Ordner neben diesem Repo (sonst `TILDA_STATIC_DATA_DIR` und `TILDA_GEO_DIR` setzen); in `tilda-geo` ist die `.env` mit S3-Zugang und dem Atlas-Key des Ziels eingerichtet (siehe `app/scripts/StaticDatasets/README.md`).
+
+Nimmt die Zuteilung neue Kanten auf, bricht der Befehl vor dem Upload ab: erst `mapping-zuteilung/assignment.csv` committen und pushen, dann erneut starten. Sonst könnte ein Lauf anderswo dieselben Nummern anders vergeben.
 
 Meldet das Log erledigte Linien, die nicht mehr im Datensatz stehen, hat sich deren id geändert oder die Linie ist entfallen.

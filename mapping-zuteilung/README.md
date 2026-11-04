@@ -25,7 +25,7 @@ Gemeinsam genutzt: `assignment_output.py` (Tabellen der Zuteilung, Bearbeitungss
 
 Die `lfd_nr` der Zuteilung ist damit eine eigene Nummer. Sie ist anfangs gleich der `lfd_nr` des REN+-Netzes vom 2026-10-26, weicht aber ab, sobald `ren-network/unify_networks.py` das Netz neu nummeriert (dort ist `lfd_nr` nur eine laufende Nummer nach `element_nr`).
 
-Danach die drei Datensätze in `tilda-static-data` hochladen (`infravelo-ren-netz-zuteilung`) und das Datum des Bearbeitungsstands in deren `description` eintragen.
+Für den Stand in TILDA nicht einzeln aufrufen, sondern `bearbeitungsstand/update.sh` (siehe [`bearbeitungsstand/`](../bearbeitungsstand/README.md)).
 
 ## Zuteilung (eingecheckt)
 

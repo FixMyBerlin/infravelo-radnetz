@@ -45,6 +45,8 @@ Die Kennung einer Aufgabe ist die `id` ihres ersten Features, also der OSM-Weg m
 
 ## Veröffentlichen
 
+Für den Stand in TILDA reicht `bearbeitungsstand/update.sh`. Netlify und MapRoulette sind vorbereitet, aber noch nicht eingerichtet (`parent` und `remoteGeoJson` in `challenge.json` sind leer).
+
 Die MapRoulette-Datei liegt auf Netlify, damit sie sich nach einem neuen Lauf aktualisieren lässt.
 
 ```bash
