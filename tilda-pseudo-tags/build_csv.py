@@ -30,7 +30,9 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_INPUT = ROOT / 'data' / 'netzquellen' / 'ergebnis_2025_datensatz_c.geojson.gz'
+# Ergebnis 2025 (Datensatz C) aus tilda-static-data, als Schwesterordner ausgecheckt
+DEFAULT_INPUT = (ROOT.parent / 'tilda-static-data' / 'geojson' / 'region-infravelo'
+                 / 'infravelo-datensatz-c-fortlaufend' / 'aggregated_rvn_final.geojson.gz')
 # Eingecheckt; TILDA lädt die Datei aus dem Repo
 OUTPUT_PATH = Path(__file__).resolve().parent / 'infravelo-netz.csv'
 

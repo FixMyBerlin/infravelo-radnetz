@@ -46,8 +46,9 @@ INPUT:
 - data/Berlin Verbindungspunkte Detailnetz.fgb
 - data/Berlin Bezirke.gpkg
 - ren-network/ausschluss_element_nr.csv
-- data/netzquellen/ergebnis_2025_datensatz_c.geojson.gz
-  (aggregated_rvn_final aus tilda-static-data, infravelo-datensatz-c-fortlaufend)
+- ../tilda-static-data/geojson/region-infravelo/infravelo-datensatz-c-fortlaufend/
+  aggregated_rvn_final.geojson.gz (Ergebnis 2025; tilda-static-data muss als
+  Schwesterordner ausgecheckt sein)
 
 OUTPUT:
 - ren-network/output/ren_netz_gesamt.gpkg (Layer: ren_netz)
@@ -96,7 +97,11 @@ OUTPUT_PATH = OUTPUT_DIR / "ren_netz_gesamt.gpkg"
 OUTPUT_LAYER = "ren_netz"
 EXCLUSIONS_PATH = Path(__file__).resolve().parent / "ausschluss_element_nr.csv"
 MISSING_REPORT_PATH = OUTPUT_DIR / "element_nr_nicht_im_detailnetz.csv"
-RESULT_2025_PATH = ROOT / "data" / "netzquellen" / "ergebnis_2025_datensatz_c.geojson.gz"
+# Ergebnis 2025 (Datensatz C): lebt nur in tilda-static-data, das als Schwesterordner
+# ausgecheckt sein muss. processing/copy_to_tilda_static.sh schreibt es dorthin.
+TILDA_STATIC_DATA_DIR = ROOT.parent / "tilda-static-data"
+RESULT_2025_PATH = (TILDA_STATIC_DATA_DIR / "geojson" / "region-infravelo"
+                    / "infravelo-datensatz-c-fortlaufend" / "aggregated_rvn_final.geojson.gz")
 MAPPING_NETWORK_PATH = OUTPUT_DIR / "ren_netz_kartierung.gpkg"
 RESULT_2025_REPORT_PATH = OUTPUT_DIR / "bearbeitet_2025_abweichungen.csv"
 
@@ -476,6 +481,9 @@ def add_bearbeitet_2025(network):
     Maßgeblich ist die Geometrie, nicht die element_nr: Nummern haben sich seit
     2025 geändert, und manche Nummer liegt heute an anderer Stelle.
     """
+    if not RESULT_2025_PATH.exists():
+        raise SystemExit(f"Ergebnis 2025 fehlt: {RESULT_2025_PATH}. "
+                         f"tilda-static-data als Schwesterordner von infravelo-radnetz auschecken.")
     with gzip.open(RESULT_2025_PATH) as file:
         result = gpd.read_file(io.BytesIO(file.read())).to_crs(network.crs)
     result = result.drop_duplicates(["element_nr", "ri"]).reset_index(drop=True)

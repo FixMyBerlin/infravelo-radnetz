@@ -16,7 +16,7 @@ python ren-network/unify_networks.py
 | `data/Berlin Straßenabschnitte Detailnetz.fgb` | Straßenname, Straßenklasse, Autobahn-Kennung, Knotenpunkt-IDs |
 | `data/Berlin Verbindungspunkte Detailnetz.fgb` | Knotenpunkte für die Berechnung fehlender `element_nr` |
 | `data/Berlin Bezirke.gpkg` | Bezirksnummer |
-| `data/netzquellen/ergebnis_2025_datensatz_c.geojson.gz` | Ergebnis der Bearbeitung 2025 (Radvorrangnetz), `aggregated_rvn_final` aus `tilda-static-data` (`region-infravelo/infravelo-datensatz-c-fortlaufend`) |
+| `../tilda-static-data/geojson/region-infravelo/infravelo-datensatz-c-fortlaufend/aggregated_rvn_final.geojson.gz` | Ergebnis der Bearbeitung 2025 (Radvorrangnetz). Lebt nur in `tilda-static-data`, das als Schwesterordner ausgecheckt sein muss |
 
 Die Dateien in `data/netzquellen/` und die Verbindungspunkte sind nicht versioniert. Liegt neben dem versionierten Detailnetz ein neuerer Stand mit Datum im Namen (`Berlin Straßenabschnitte Detailnetz <Datum>.fgb`, ebenfalls nicht versioniert), wird der jüngste verwendet. Beide Detailnetz-Layer kommen aus dem [WFS Detailnetz Berlin](https://daten.berlin.de/datensaetze/detailnetz-berlin-wfs-4f2045ef):
 
