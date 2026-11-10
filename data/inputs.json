@@ -11,6 +11,10 @@
     "size": 311296,
     "sha256": "e59954249d8c57873b357ab18dc17a403d501a6d404a9b9573589ecc6206f04d"
   },
+  "netzquellen_touristisches_radnetz.gpkg": {
+    "size": 184320,
+    "sha256": "d57fa2172be0c4bd0387bc4916cd222dd330b72b0135816bddf393b871de8dd5"
+  },
   "detailnetz_strassenabschnitte_2026-10-06.fgb": {
     "size": 19298168,
     "sha256": "462ac54a6e1f72cebf80801e9042c81cd1a2a1b8cd6a25a23e62310238c2fce8"

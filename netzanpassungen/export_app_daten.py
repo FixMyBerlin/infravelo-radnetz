@@ -21,7 +21,7 @@ INPUT:
 - data/Berlin Straßenabschnitte Detailnetz.fgb (jüngster Stand)
 - data/Virtuelle-Knotenpunkte.gpkg
 - ren-network/output/ren_netz_kartierung.gpkg (unify_networks.py)
-- data/netzquellen/touristisches_radnetz.gpkg
+- data/netzquellen/touristisches_radnetz.gpkg (aus dem Drive, data/download_inputs.py)
 - data/Berlin Bezirke.gpkg (nur mit --bezirk)
 
 OUTPUT:
@@ -305,6 +305,8 @@ def main():
     area = area_polygon(args.bezirk) if args.bezirk else None
     gebiet = slugify(args.bezirk) if args.bezirk else "berlin"
 
+    # Gleiche Eingangsdaten für alle: vor jedem Lauf aus dem gemeinsamen Drive-Ordner
+    ren.download_inputs()
     detail, detail_source = load_detailnetz()
     nodes, off_nodes = nodes_from_edges(detail)
     virtual = load_virtual_nodes()

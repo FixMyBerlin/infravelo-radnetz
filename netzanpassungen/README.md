@@ -15,7 +15,7 @@ python netzanpassungen/export_app_daten.py --bezirk Neukölln
 | `data/Berlin Straßenabschnitte Detailnetz*.fgb` | Detailnetzkanten, jüngster Stand wie in `unify_networks.py` |
 | `data/Virtuelle-Knotenpunkte.gpkg` | Virtuelle Knoten im Bestand |
 | `ren-network/output/ren_netz_kartierung.gpkg` | REN+-Kartierungs-Netz |
-| `data/netzquellen/touristisches_radnetz.gpkg` | Radfernwege (8 Routen) |
+| `data/netzquellen/touristisches_radnetz.gpkg` | Radfernwege (8 Routen), aus dem Drive (`data/download_inputs.py`, läuft zu Beginn des Exports) |
 | `data/Berlin Bezirke.gpkg` | nur mit `--bezirk` |
 
 ## Ausgabe
