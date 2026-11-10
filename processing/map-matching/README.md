@@ -73,8 +73,13 @@ Die TILDA-Wege sind die „Traces“, die gerichteten RVN-Kanten `(element_nr, r
    Referenzierung. Der Bericht enthält Attributquoten, Konfusionsmatrix, Bezirke und den Anteil
    der Abweichungen an Stellen mit manuellen Eingriffen des Altverfahrens.
 
-Die manuellen Listen (`include_ways`, `exclude_ways`, `override_ways`, `opposite_edge_overwrite`)
-werden **nicht** verwendet, nur in der Evaluation zur Einordnung.
+Die manuellen OSM-Listen (`include_ways`, `exclude_ways`, `override_ways`) werden **nicht**
+verwendet, nur in der Evaluation zur Einordnung. Die Liste `opposite_edge_overwrite` gibt es nicht mehr:
+Ihre Fälle sind als Korrekturen in der App Netzanpassungen erfasst (`verkehrsrichtung`).
+
+Das REN+-Netz (`output/ren/ren_netz_details_combined.fgb`) baut `../process_radnetz.sh --netz ren` aus
+`ren_netz_gesamt_korrigiert.gpkg`, wenn die Datei existiert (`--quelle original` erzwingt das Original).
+Das Ergebnis liegt dann auf den korrigierten Linien; `ren-network/zurueck_aufs_original.py` legt es aufs Original.
 
 ## Ausgaben (`output/map-matching/`)
 

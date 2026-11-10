@@ -38,7 +38,7 @@ Das [`split_rvn_at_virtual_nodes.py`](./split_rvn_at_virtual_nodes.py) teilt das
 - **Input**: `data/Berlin Radvorrangsnetz.fgb`, `data/Virtuelle-Knotenpunkte.gpkg`
 - **Output**: `output/rvn/Berlin Radvorrangsnetz_mit_virtuellen-knotenpunkten.fgb`
 
-Die drei Skripte dieses Abschnitts nehmen `--netz rvn|ren` (Standard `rvn`). Mit `ren` verarbeiten sie das REN+ (`../ren-network/output/ren_netz_gesamt.gpkg`) und schreiben nach `output/ren/`; die Pfade stehen in [`helpers/netz.py`](../helpers/netz.py).
+Die drei Skripte dieses Abschnitts nehmen `--netz rvn|ren` (Standard `rvn`). Mit `ren` verarbeiten sie das REN+ und schreiben nach `output/ren/`. Eingangsnetz ist `ren_netz_gesamt_korrigiert.gpkg` (Korrekturen aus der App Netzanpassungen, `netzanpassungen/import_app_export.py`), solange die Datei existiert, sonst `ren_netz_gesamt.gpkg`; `--quelle auto|korrigiert|original` (nur im ersten Schritt, auch an `process_radnetz.sh` übergeben) wählt es. Das Log nennt die gewählte Datei. Die Pfade stehen in [`helpers/netz.py`](../helpers/netz.py); die Pfade stehen in [`helpers/netz.py`](../helpers/netz.py).
 
 ### 2. Element-Nummern zuweisen
 Das [`assign_element_nr_to_rvn.py`](./assign_element_nr_to_rvn.py) fügt jedem Segment im Radvorrangsnetz eine `element_nr` hinzu, die auf den Verbindungspunkten basiert. Das Script berücksichtigt sowohl normale als auch virtuelle Knotenpunkte für die Zuweisung.
@@ -47,7 +47,7 @@ Das [`assign_element_nr_to_rvn.py`](./assign_element_nr_to_rvn.py) fügt jedem S
 - **Output**: `output/rvn/Berlin Vorrangnetz_with_element_nr.fgb`
 
 ### 3. RVN mit Detailnetz anreichern
-Das [`enrich_rvn_with_detailnetz.py`](./enrich_rvn_with_detailnetz.py) fügt fehlende Kanten im Detailnetz aus dem RVN hinzu, sodass für jeden Teil des RVN eine Kante im Knoten-Kanten-Modell existiert. Am Ende wendet es die Korrekturen aus [`data/rvn_korrekturen.csv`](../data/rvn_korrekturen.csv) an.
+Das [`enrich_rvn_with_detailnetz.py`](./enrich_rvn_with_detailnetz.py) fügt fehlende Kanten im Detailnetz aus dem RVN hinzu, sodass für jeden Teil des RVN eine Kante im Knoten-Kanten-Modell existiert. Hat das Zielnetz eine Spalte `verkehrsrichtung` (nur das korrigierte REN+ aus der App Netzanpassungen), gilt sie statt der des Detailnetzes.
 
 - **Input**: `output/rvn/Berlin Vorrangnetz_with_element_nr.fgb`, `data/Berlin Straßenabschnitte Detailnetz.fgb`
 - **Output**: `output/rvn/vorrangnetz_details_combined_rvn.fgb`
