@@ -27,7 +27,7 @@ Das Ergebnis ist deterministisch: Gleiche Eingangsdaten und gleiche Account-List
 ergeben dieselbe Zuteilung.
 
 INPUT:
-- data/ren_netz_gesamt.gpkg (Layer: ren_netz)
+- ../ren-network/output/ren_netz_gesamt.gpkg (Layer: ren_netz, aus ren-network/unify_networks.py)
 - data/lor_plr_2021.geojson (LOR-Planungsräume 2021)
 - accounts.txt (ein Account pro Zeile)
 
@@ -54,7 +54,7 @@ from assignment_output import ASSIGNMENT_PATH, CRS_METRIC, assignment_rows, writ
 
 BASE_DIR = Path(__file__).resolve().parent
 
-NETWORK_PATH = BASE_DIR / 'data' / 'ren_netz_gesamt.gpkg'
+NETWORK_PATH = BASE_DIR.parent / 'ren-network' / 'output' / 'ren_netz_gesamt.gpkg'
 LOR_PATH = BASE_DIR / 'data' / 'lor_plr_2021.geojson'
 ACCOUNTS_PATH = BASE_DIR / 'accounts.txt'
 START_DISTRICT = 'Neukölln'

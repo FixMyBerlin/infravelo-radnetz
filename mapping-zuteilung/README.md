@@ -47,11 +47,11 @@ Angelegt aus den Datensätzen „Zuteilung Netz“ und „Zuteilung Gebiete“ a
 | Datei | Inhalt |
 |---|---|
 | `assignment.csv`, `assignment_plr.csv` | Zuteilung, siehe oben |
-| `data/ren_netz_gesamt.gpkg` | Vereinheitlichtes REN+-Netz (Layer `ren_netz`), Symlink; verteilt wird nur das Kartierungs-Netz (`bearbeitet_2025` nicht `ja`) |
+| `../ren-network/output/ren_netz_gesamt.gpkg` | Vereinheitlichtes REN+-Netz (Layer `ren_netz`) aus `ren-network/unify_networks.py`; verteilt wird nur das Kartierungs-Netz (`bearbeitet_2025` nicht `ja`) |
 | `data/lor_plr_2021.geojson` | [LOR-Planungsräume 2021](https://gdi.berlin.de/services/wfs/lor_2021), Layer `a_lor_plr_2021`; im Update für Bezirk, Planungsraum neuer Kanten und Gebiete |
 | `accounts.txt` | Ein Account pro Zeile; nur für die Ersterfassung |
 
-`data/` ist nicht versioniert.
+`data/lor_plr_2021.geojson` kommt aus dem gemeinsamen Drive-Ordner (`data/download_inputs.py`) und ist nicht versioniert.
 
 ## Ausgabe
 
