@@ -1,10 +1,19 @@
+# Eingangsdaten aus dem gemeinsamen Google-Drive-Ordner. Sie kommen aus
+# INPUT_FILES in download_inputs.py (Größe und Prüfsumme in inputs.json).
+# Nur diese Dateien sind hier ignoriert. Jede andere Datei, die lokal in data/
+# liegt, zeigt `git status` an: Sie gehört eingecheckt oder ins Drive, nicht
+# nur auf einen Rechner. Neue Drive-Datei: hier und in INPUT_FILES eintragen.
+/netzquellen/hauptstrassennetz.gpkg
+/netzquellen/radverkehrsnetz.gpkg
+/netzquellen/radschnellverbindungen.gpkg
+/netzquellen/touristisches_radnetz.gpkg
+/Berlin Straßenabschnitte Detailnetz 2026-10-06.fgb
+/Berlin Verbindungspunkte Detailnetz.fgb
+
+# Nicht im Drive, sondern per Skript aus TILDA geladen
+# (processing/scripts/prepare_tilda_routing.py)
+/TILDA Routing Berlin.gpkg
+
+# Nebendateien geöffneter GeoPackages
 *.gpkg-shm
 *.gpkg-wal
-
-# Lokale Geodaten (nicht versioniert)
-netzquellen/
-Berlin Straßenabschnitte Detailnetz *.fgb
-Berlin Verbindungspunkte Detailnetz.fgb
-
-# TILDA-Routing-Export (lokal, gehört zum Lauf in data-raw-tilda/)
-TILDA Routing Berlin.gpkg

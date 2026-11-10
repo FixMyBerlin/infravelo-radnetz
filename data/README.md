@@ -66,7 +66,7 @@ Einige Eingangsdaten liegen nicht im Repo und werden auch von keinem Skript gela
 
 Neue Eingangsdaten ins Drive bringen:
 
-1. Dateien lokal an ihren Platz legen und mit Drive-Namen in `INPUT_FILES` eintragen.
+1. Dateien lokal an ihren Platz legen, mit Drive-Namen in `INPUT_FILES` eintragen und ihren Pfad in die `.gitignore` des Ordners schreiben (`data/.gitignore`, `mapping-zuteilung/.gitignore`). Diese `.gitignore`-Dateien führen nur Drive-Dateien. So zeigt `git status` jede lokale Datei, die weder eingecheckt noch im Drive ist.
 2. `.venv/bin/python data/download_inputs.py --write-manifest`, dann `inputs.json` committen.
 3. `.venv/bin/python data/download_inputs.py --stage <ordner>` sammelt die Dateien unter ihrem Drive-Namen; den Inhalt des Ordners ins Drive kopieren und dabei die vorhandenen Dateien ersetzen.
 

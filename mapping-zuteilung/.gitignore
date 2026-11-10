@@ -1,2 +1,5 @@
-data/
+# Eingangsdaten aus dem gemeinsamen Google-Drive-Ordner (data/download_inputs.py).
+# Nur diese Dateien sind in data/ ignoriert; alles andere zeigt `git status` an.
+/data/lor_plr_2021.geojson
+
 output/

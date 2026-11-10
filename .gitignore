@@ -213,5 +213,3 @@ processing/qgis/*.qgz
 # Exporte der Knotenpunkt-App
 knotenpunkte/ratings/*.geojson
 
-# Routing-Datensatz (generiert)
-data/infravelo_routing.gpkg
