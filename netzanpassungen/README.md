@@ -43,11 +43,13 @@ Mit `--bezirk` bleiben Kanten, Knoten und Radfernwege bis 200 m über die Bezirk
 - `ren-network/output/ren_netz_gesamt_korrigiert.gpkg`, `ren_netz_kartierung_korrigiert.gpkg` / `.geojson` und `korrekturen_konflikte.csv` aus den `edge_correction`-Einträgen. Aufbau, Prüfungen (5 cm gegen `original_coordinates`, Wiederholung des Protokolls) und Spalten stehen in [`ren-network/README.md`](../ren-network/README.md#korrigiertes-netz).
 - virtuelle Knoten in `data/Virtuelle-Knotenpunkte.gpkg` (nur neue IDs; eine ID, die dort an anderer Stelle liegt, kommt in die Konfliktliste), gezeichnete Kanten in `data/netzquellen/touristische_kanten.gpkg` (Layer `touristische_kanten`: `entry_id`, `element_nr`, `von_knoten`, `bis_knoten` als Text, `quelle`, `strassenname`, `routen_fernradweg`, `kommentar`). Die `element_nr` zählt wie in der App (`von_bis.NN`, in der Reihenfolge des Zeichnens, nach Detailnetz und REN+); das Teilen an virtuellen Knoten übernimmt `processing/scripts/split_rvn_at_virtual_nodes.py`. Gelöschte virtuelle Knoten werden nicht aus der Datei entfernt.
 
+Achtung Kartierung: Das Original `ren_netz_kartierung.gpkg` / `.geojson` enthält seit der Entfernung der Ausschlussliste wieder die 19 Ausschluss-Kanten (Tunnel Tiergarten, Zubringer); nur `ren_netz_kartierung_korrigiert` lässt sie weg. Der TILDA-Datensatz `infravelo-ren-netz-kartierung` (Symlink in `tilda-static-data`, außerhalb dieses Repos) muss deshalb auf die `_korrigiert`-Datei zeigen.
+
 Noch offen: `unify_networks.py` liest `touristische_kanten.gpkg` nicht als Netzquelle (`von_knoten`/`bis_knoten` als Text, weil virtuelle IDs mit `V` beginnen; `routen_fernradweg` füllen).
 
 ## Altlisten
 
-`output/altlisten_korrekturen.json` (versioniert) enthält die Altlisten als `edge_correction`-Einträge (`von_nutzer: "Altliste"`) zum Einspielen in der App („Korrekturen einspielen“): `verkehrsrichtung` aus `rvn_korrekturen.csv` und `opposite_edge_overwrite_element_nr.txt` (Modus `remove`, nur Kanten mit Detailnetz-`verkehrsrichtung` B, neu R) sowie die Ausschlüsse aus `ausschluss_element_nr.csv`. Die drei Listen und der Code, der sie las, sind entfernt; erzeugt hat die Datei ein einmaliges Skript, das nicht im Repo liegt (Stand 2026-11-10).
+`output/altlisten_korrekturen.json` (versioniert) enthält die Altlisten als `edge_correction`-Einträge (`von_nutzer: "Altliste"`) zum Einspielen in der App („Korrekturen einspielen“): `verkehrsrichtung` aus `rvn_korrekturen.csv` und `opposite_edge_overwrite_element_nr.txt` (Modus `remove`, nur Kanten mit Detailnetz-`verkehrsrichtung` B, neu R) sowie die Ausschlüsse aus `ausschluss_element_nr.csv`. Die drei Listen und der Code, der sie las, sind entfernt (darunter `processing/helpers/override_edges.py`, `processing/validation/analyse_einrichtungsfahrbahnen.py` und `processing/qgis/erzeuge_einrichtungsfahrbahnen_projekt.py`); erzeugt hat die Datei ein einmaliges Skript, das nicht im Repo liegt (Stand 2026-11-10).
 
 ## QGIS-Stil
 

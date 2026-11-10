@@ -258,6 +258,51 @@ class ImportTest(unittest.TestCase):
         self.assertEqual(coordinates, original)
         self.assertEqual(attribute, {"verkehrsrichtung": "R"})
 
+    def test_replay_like_the_app(self):
+        original = [[13.0, 52.0], [13.1, 52.1]]
+        moved = [13.0, 52.5]
+        # verschoben: Index außerhalb oder negativ wird übersprungen
+        for index in (2, -1):
+            self.assertEqual(imp.replay(original, [{"art": "verschoben", "index": index, "nach": moved}])[0], original)
+        # eingefuegt: Index hinter dem Ende wird übersprungen, am Ende (= Länge) geht
+        self.assertEqual(imp.replay(original, [{"art": "eingefuegt", "index": 3, "nach": moved}])[0], original)
+        self.assertEqual(imp.replay(original, [{"art": "eingefuegt", "index": 2, "nach": moved}])[0], original + [moved])
+        self.assertEqual(imp.replay(original, [{"art": "eingefuegt", "index": -1, "nach": moved}])[0], original)
+        # unbekannte Art: ignoriert, kein Fehler
+        self.assertEqual(imp.replay(original, [{"art": "gibt_es_nicht"}]), (original, {}))
+        # attribut nur für die drei Felder
+        _, attribute = imp.replay(original, [{"art": "attribut", "feld": "ausgeschlossen", "nach_wert": True},
+                                             {"art": "attribut", "feld": "irgendwas", "nach_wert": "x"},
+                                             {"art": "attribut", "feld": "fahrbahn_typ", "nach_wert": "einbahnstrasse"}])
+        self.assertEqual(attribute, {"fahrbahn_typ": "einbahnstrasse"})
+        # ausgeschlossen: nur nach_wert True zählt
+        for value, expected in ((True, True), (False, False), ("ja", False), (None, False)):
+            self.assertEqual(imp.replay(original, [{"art": "ausgeschlossen", "nach_wert": value}])[1],
+                             {"ausgeschlossen": expected})
+
+    def test_missing_duplicate_and_vertex_count(self):
+        entries = build_entries()
+        a0 = coords((0, 0), (50, 0), (100, 0))
+        # Ref fehlt: kein Ausweichen auf eine andere Linie derselben element_nr
+        entries.append(stored("x1", correction("10000001_10000002.01#2", "10000001_10000002.01", a0, a0,
+                                               {"verkehrsrichtung": "R"}, [change("attribut", feld="verkehrsrichtung", von_wert="B", nach_wert="R")])))
+        # Doppelter Eintrag zur selben Kante: keiner wird angewendet
+        c0 = coords((0, 40), (100, 40))
+        entries.append(stored("x2", correction("10000003_10000004.01", "10000003_10000004.01", c0, c0,
+                                               {"verkehrsrichtung": "G"}, [change("attribut", feld="verkehrsrichtung", von_wert="B", nach_wert="G")])))
+        # andere Stützpunktzahl als im Netz (3 statt 2) zählt als Abweichung
+        d3 = coords((0, 120), (50, 120), (100, 120))
+        entries.append(stored("x3", correction("10000007_10000008.01", "10000007_10000008.01", d3, d3, {}, [])))
+        self.export.write_text(json.dumps({"gebiet": "test", "exported_at": "x", "entries": entries}), encoding="utf-8")
+        _, conflicts = self.run_import()
+        reasons = {c["eintrag_id"]: c["grund"] for c in conflicts}
+        self.assertIn("fehlt im Eingangsnetz", reasons["x1"])
+        self.assertIn("Mehrere Einträge", reasons["x2"])
+        self.assertIn("Mehrere Einträge", reasons["e3"])
+        self.assertIn("andere Stützpunktzahl", reasons["x3"])
+        corrected = gpd.read_file(self.dir / "out" / "ren_netz_gesamt_korrigiert.gpkg", layer="ren_netz").set_index("element_nr")
+        self.assertEqual(corrected.loc["10000003_10000004.01", "attribut_korrigiert"], "nein")
+
     def test_replay(self):
         original = [[13.0, 52.0], [13.1, 52.1]]
         coordinates, attribute = imp.replay(original, [

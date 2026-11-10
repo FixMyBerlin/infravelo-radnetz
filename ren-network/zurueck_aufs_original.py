@@ -97,9 +97,12 @@ def same_geometry(original_parts, corrected_parts):
 def interval_on_original(corrected_line, original_line, segment):
     """Abschnitt des Teilsegments auf der Originallinie.
 
-    Gibt (von_m, bis_m, Geometrie, Abstand zur korrigierten Linie) zurück. Der Abschnitt auf der
+    Gibt (von_m, bis_m, Geometrie, Abstand zur korrigierten Linie) zurück; die Geometrie ist None, wenn der
+    Abschnitt kürzer als MIN_LENGTH_M ist oder die korrigierte Linie keine Länge hat. Der Abschnitt auf der
     korrigierten Linie wird anteilig auf die Originallänge übertragen. Die Geometrie läuft wie das
     Teilsegment (läuft es gegen die Linie, läuft sie gegen das Original)."""
+    if corrected_line.length <= 0:
+        return None, None, None, None
     start = corrected_line.project(Point(segment.coords[0]))
     end = corrected_line.project(Point(segment.coords[-1]))
     low, high = sorted((start, end))
@@ -138,7 +141,14 @@ def map_back(result, original, corrected, split_parent):
         corrected_parts, original_parts = corrected[parent], original[parent]
         changed = not same_geometry(original_parts, corrected_parts)
         row["kante_korrigiert"] = "ja" if changed else "nein"
-        length = sum(part.length for part in original_parts)
+
+        def skip(reason):
+            missing.append({"sfid": segment.get("sfid"), "element_nr": element_nr, "ursprung_element_nr": parent,
+                            "grund": reason})
+
+        if segment.geometry.length < MIN_LENGTH_M:
+            skip(f"Teilsegment kürzer als {MIN_LENGTH_M * 1000:.0f} mm")
+            continue
         if not changed:
             # Anteil trotzdem angeben, damit die Spalten überall gefüllt sind
             line = original_parts[0] if len(original_parts) == 1 else min(original_parts, key=lambda p: p.distance(geometry))
@@ -147,12 +157,15 @@ def map_back(result, original, corrected, split_parent):
         else:
             number = min(range(len(corrected_parts)), key=lambda i: corrected_parts[i].distance(geometry))
             if number >= len(original_parts):
-                missing.append({"sfid": segment.get("sfid"), "element_nr": element_nr, "ursprung_element_nr": parent,
-                                "grund": "Original hat weniger Linien als das korrigierte Netz"})
+                skip("Original hat weniger Linien als das korrigierte Netz")
+                continue
+            if corrected_parts[number].length <= 0:
+                skip("Linie der korrigierten Kante hat die Länge 0")
                 continue
             from_m, to_m, piece, distance = interval_on_original(corrected_parts[number], original_parts[number], geometry)
             length = original_parts[number].length
             if piece is None:
+                skip(f"Abschnitt auf dem Original kürzer als {MIN_LENGTH_M * 1000:.0f} mm")
                 continue
             geometry = piece
             far += distance > FAR_FROM_EDGE_M

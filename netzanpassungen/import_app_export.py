@@ -53,6 +53,8 @@ from pathlib import Path
 
 import geopandas as gpd
 import pandas as pd
+import shapely
+import shapely.ops
 from pyproj import Transformer
 from shapely.geometry import LineString, MultiLineString, Point
 
@@ -70,6 +72,8 @@ CRS = f"EPSG:{ren.DEFAULT_CRS}"
 CONFLICT_TOLERANCE_M = 0.05
 # Der Wiederholungstest vergleicht Längen- und Breitengrade; die App rundet auf 7 Stellen (etwa 1 cm)
 REPLAY_TOLERANCE_DEG = 1e-9
+# Raster der Koordinaten in der Eingabedatei der App (export_app_daten.py, COORDINATE_GRID)
+COORDINATE_GRID = 1e-7
 # Ein virtueller Knoten, der weiter von seiner (korrigierten) Trägerkante liegt, kommt auf die Prüfliste
 NODE_ON_EDGE_TOLERANCE_M = 1.0
 # Gleiche ID an (fast) gleicher Stelle: derselbe Knoten, schon angehängt
@@ -90,11 +94,13 @@ CORRECTION_COLUMNS = ["korrigiert", "attribut_korrigiert", "fahrbahn_typ", "fahr
                       "korrektur_kommentar"]
 CONFLICT_COLUMNS = ["grund", "art", "eintrag_id", "ref", "element_nr", "abweichung_m", "bearbeitet_von", "bearbeitet_am"]
 
+ATTRIBUTE_FIELDS = ("fahrbahn_typ", "fahrbahn_gruppe", "verkehrsrichtung")
 ELEMENT_NR_PATTERN = re.compile(r"^(.+)_(.+)\.(\d+)$")
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s", force=True)
 
 _to_utm = Transformer.from_crs("EPSG:4326", CRS, always_xy=True)
+_to_wgs = Transformer.from_crs(CRS, "EPSG:4326", always_xy=True)
 
 
 def to_utm(coordinates):
@@ -102,12 +108,22 @@ def to_utm(coordinates):
     return LineString([_to_utm.transform(lng, lat) for lng, lat in coordinates])
 
 
+def as_exported(line):
+    """Die Linie so, wie sie in der Eingabedatei der App steht: WGS84, 7 Nachkommastellen (der Export
+    rundet mit set_precision, dabei können eng beieinander liegende Stützpunkte zusammenfallen)."""
+    wgs = shapely.ops.transform(lambda x, y, z=None: _to_wgs.transform(x, y), line)
+    rounded = shapely.set_precision(wgs, COORDINATE_GRID)
+    if not isinstance(rounded, LineString) or rounded.is_empty:
+        return line
+    return to_utm(list(rounded.coords))
+
+
 def deviation_m(a, b):
-    """Größte Abweichung zweier Linien: Hausdorff, bei gleicher Stützpunktzahl auch Punkt für Punkt."""
-    result = a.hausdorff_distance(b)
-    if len(a.coords) == len(b.coords):
-        result = max(result, max(Point(p).distance(Point(q)) for p, q in zip(a.coords, b.coords)))
-    return result
+    """Größte Abweichung zweier Linien: Hausdorff und Punkt für Punkt. Eine andere Stützpunktzahl gilt
+    als Abweichung (unendlich), wie beim Prüfen gegen das Eingabenetz in der App."""
+    if len(a.coords) != len(b.coords):
+        return float("inf")
+    return max(a.hausdorff_distance(b), max(Point(p).distance(Point(q)) for p, q in zip(a.coords, b.coords)))
 
 
 def replay(original_coordinates, changes):
@@ -115,24 +131,32 @@ def replay(original_coordinates, changes):
 
     Unbekannte Zusatzfelder bleiben unbeachtet, z. B. `macht_rueckgaengig` (die vorgang_id, die eine
     Zeile zurücknimmt): Ein zurückgenommenes Einfügen steht als `zurueckgesetzt` mit folgenden
-    „Wiederholt: …“-Zeilen im Protokoll, das Abspielen in Reihenfolge deckt das ab."""
+    „Wiederholt: …“-Zeilen im Protokoll, das Abspielen in Reihenfolge deckt das ab.
+
+    Wie replayCorrection in der App: `verschoben` mit Index außerhalb der Linie und `eingefuegt` mit
+    Index hinter dem Ende werden übersprungen, `attribut` gilt nur für die drei Felder,
+    `ausgeschlossen` setzt `nach_wert is True`, eine unbekannte Art wird mit Warnung ignoriert."""
     coordinates = [list(point) for point in original_coordinates]
     attribute = {}
     for change in changes:
         kind = change["art"]
+        index = change.get("index")
         if kind == "verschoben":
-            coordinates[change["index"]] = list(change["nach"])
+            if isinstance(index, int) and 0 <= index < len(coordinates) and change.get("nach"):
+                coordinates[index] = list(change["nach"])
         elif kind == "eingefuegt":
-            coordinates.insert(change["index"], list(change["nach"]))
+            if isinstance(index, int) and 0 <= index <= len(coordinates) and change.get("nach"):
+                coordinates.insert(index, list(change["nach"]))
         elif kind == "attribut":
-            attribute[change["feld"]] = change.get("nach_wert")
+            if change.get("feld") in ATTRIBUTE_FIELDS:
+                attribute[change["feld"]] = change.get("nach_wert")
         elif kind == "ausgeschlossen":
-            attribute["ausgeschlossen"] = change.get("nach_wert")
+            attribute["ausgeschlossen"] = change.get("nach_wert") is True
         elif kind == "zurueckgesetzt":
             coordinates = [list(point) for point in original_coordinates]
             attribute = {}
         else:
-            raise ValueError(f"Unbekannte Änderungsart {kind!r}")
+            logging.warning(f"Unbekannte Änderungsart {kind!r} im Protokoll ignoriert")
     return coordinates, attribute
 
 
@@ -203,7 +227,11 @@ def apply_corrections(network, entries):
     lines = {}  # (row, part) -> neue Linie
     conflicts = []
     stats = {"edge_correction": 0, "angewendet": 0, "geometrie": 0, "attribute": 0, "konflikte": 0}
-    seen = {}
+    ref_count = {}
+    for entry in entries:
+        data = entry["data"]
+        if data.get("kind") == "edge_correction" and not data.get("geloescht"):
+            ref_count[data["kante"]["ref"]] = ref_count.get(data["kante"]["ref"], 0) + 1
 
     for entry in sorted(entries, key=lambda item: item.get("updated_at") or ""):
         data = entry["data"]
@@ -212,24 +240,29 @@ def apply_corrections(network, entries):
         stats["edge_correction"] += 1
         kante = data["kante"]
         ref = kante["ref"]
-        if ref in seen:
-            conflicts.append(conflict(entry, data, f"Zweiter Eintrag zur selben Kante (erster: {seen[ref]}), der spätere gilt"))
-        seen[ref] = entry.get("id")
+        if ref_count[ref] > 1:
+            conflicts.append(conflict(entry, data, f"Mehrere Einträge zur selben Kante ({ref_count[ref]}): keiner wird angewendet"))
+            stats["konflikte"] += 1
+            continue
 
         original = to_utm(data["original_coordinates"])
         item = parts.by_ref.get(ref)
         reason, distance = None, None
-        if item is None or (kante.get("element_nr") and item["element_nr"] != kante["element_nr"]):
-            # Die Nummerierung der Linien kann sich verschieben (z. B. Export nur eines Bezirks):
-            # dann sucht die Geometrie unter den Linien derselben element_nr
-            candidates = parts.same_number(kante.get("element_nr"))
-            item = next((c for c in candidates if deviation_m(c["line"], original) <= CONFLICT_TOLERANCE_M), None)
+        if item is None:
+            reason = "Kante fehlt im Eingangsnetz (ref nicht vorhanden)"
+        elif kante.get("element_nr") and item["element_nr"] != kante["element_nr"]:
+            # Die ref gibt es, die Nummerierung der Linien hat sich aber verschoben (z. B. Export nur eines
+            # Bezirks): dann sucht die Geometrie unter den Linien derselben element_nr
+            candidates = parts.same_number(kante["element_nr"])
+            item = next((c for c in candidates if deviation_m(as_exported(c["line"]), original) <= CONFLICT_TOLERANCE_M), None)
             if item is None:
-                reason = "Kante nicht im Eingangsnetz" if not candidates else \
-                    "Kante mit dieser ref nicht im Eingangsnetz, Geometrie keiner Linie der element_nr gleich"
+                reason = "ref gehört im Eingangsnetz zu einer anderen element_nr, Geometrie keiner Linie der element_nr gleich"
         if item is not None:
-            distance = deviation_m(item["line"], original)
-            if distance > CONFLICT_TOLERANCE_M:
+            distance = deviation_m(as_exported(item["line"]), original)
+            if distance == float("inf"):
+                distance = None
+                reason = "original_coordinates haben eine andere Stützpunktzahl als die Kante im Eingangsnetz"
+            elif distance > CONFLICT_TOLERANCE_M:
                 reason = f"original_coordinates weichen {distance * 100:.0f} cm von der Kante im Eingangsnetz ab (erlaubt {CONFLICT_TOLERANCE_M * 100:.0f} cm)"
         if reason is None:
             replayed, attribute = replay(data["original_coordinates"], data.get("aenderungen", []))

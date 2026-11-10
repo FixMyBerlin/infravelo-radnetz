@@ -62,7 +62,7 @@ Von 183 Remove-Einträgen haben 165 (90 %) R oder G.
   - Topologie: eine parallele Kante gleichen Namens in 3–60 m Abstand („Zwilling“) und ein alternativer Pfad gleichen Namens zwischen den Endknoten („Ring“)
   - TILDA-Straßen entlang der Kante (Puffer 12 m, gleiche Ausrichtung), als Längenanteil: `oneway` und `oneway_bicycle=no`
 
-Analyseskript: `processing/validation/analyse_einrichtungsfahrbahnen.py`, Ausgabe `output/analysis/einrichtungsfahrbahnen.{fgb,csv}`. 165 Remove-Einträge der Liste liegen im RVN. Die Zahlen unten stammen vom Stand vor den RVN-Korrekturen. Seit den Korrekturen sind alle 165 Remove-Einträge R/G.
+Analyseskript (seit 2026-11-10 gelöscht, es las die abgelösten Listen): `processing/validation/analyse_einrichtungsfahrbahnen.py`, Ausgabe `output/analysis/einrichtungsfahrbahnen.{fgb,csv}`. 165 Remove-Einträge der Liste liegen im RVN. Die Zahlen unten stammen vom Stand vor den RVN-Korrekturen. Seit den Korrekturen sind alle 165 Remove-Einträge R/G.
 
 **Ergebnis 1: Das Detailnetz zeigt seine Aufspaltung selbst an.** Ist eine Fahrbahn im Detailnetz in Richtungskanten aufgeteilt, haben diese Kanten `verkehrsrichtung` R oder G. Ist sie nicht aufgeteilt, steht dort B, auch wenn OSM zwei Richtungsfahrbahnen hat (`yes_dual_carriageway`).
 
@@ -179,11 +179,11 @@ Alles, was danach übrig bleibt, ist ein Fehler im RVN-Netz und wird dort korrig
 
 1. **Einfache Einbahnstraße (entschieden 16.10.2026):** `ri=1` entfällt. „Keine Radinfrastruktur vorhanden“ wird nicht ausgegeben.
 2. **B-Fälle (umgesetzt 16.10.2026; seit 2026-11-10 in der App Netzanpassungen):** Die Liste `data/rvn_korrekturen.csv` und die alte Liste `opposite_edge_overwrite_element_nr.txt` gibt es nicht mehr. Ihre Einträge sind als Korrekturen `verkehrsrichtung` in `netzanpassungen/output/altlisten_korrekturen.json` übertragen; `enrich_rvn_with_detailnetz.py` übernimmt die Richtung aus dem korrigierten REN+ (`apply_verkehrsrichtung_korrekturen`). Die folgenden Punkte beschreiben den Stand vom 16.10.:
-   - **Liste:** Die 17 B-Kanten und eine RVN-Kante ohne Detailnetz (`55560007_56560038.02`) stehen in `data/rvn_korrekturen.csv`.
-   - **Anwendung:** `scripts/enrich_rvn_with_detailnetz.py` wendet die Liste am Ende an (`apply_rvn_corrections`) und dreht dabei die Geometrie, wenn eine Kante von oder nach G wechselt.
+   - **Liste (Stand 16.10., gelöscht):** Die 17 B-Kanten und eine RVN-Kante ohne Detailnetz (`55560007_56560038.02`) standen in `data/rvn_korrekturen.csv`.
+   - **Anwendung heute:** `scripts/enrich_rvn_with_detailnetz.py` übernimmt die Richtung aus der Spalte `verkehrsrichtung` des korrigierten REN+ (`apply_verkehrsrichtung_korrekturen`) und dreht dabei die Geometrie, wenn eine Kante von oder nach G wechselt. Für `--netz rvn` gibt es diese Korrekturen nicht mehr: Das Radvorrangnetz hat keine Spalte `verkehrsrichtung`, die Korrekturen leben im korrigierten REN+.
    - **Richtung:** Sie folgt der OSM-Einbahnrichtung. Zwei Kanten am Müggelbergplatz (`59430029_59430035.02`, `59430034_59430029.02`) laufen gegen die Digitalisierung und bekommen G. Die alte Liste hatte dort die falsche Richtung behalten.
-   - **Erweiterbar:** Die Liste nimmt weitere Sonderfälle auf. Neue Attribute müssen in `apply_rvn_corrections` freigeschaltet werden.
+   - **Erweiterbar:** Weitere Sonderfälle werden in der App Netzanpassungen erfasst (Korrektur `verkehrsrichtung`).
 3. **C-Fälle (offen, Prüfung durch den Nutzer):**
    - **Was:** 22 R/G-Kanten, bei denen die Referenz in `ri=1` einen anderen Einrichtungsweg hat.
-   - **Werkzeug:** QGIS-Projekt `processing/qgis/Einrichtungsfahrbahnen Prüfung.qgz`, erzeugt mit `qgis/erzeuge_einrichtungsfahrbahnen_projekt.py`. Es hat Lesezeichen je Kante. Ist die Referenz dort richtig, braucht die Regel eine weitere Ausnahme.
+   - **Werkzeug:** QGIS-Projekt `processing/qgis/Einrichtungsfahrbahnen Prüfung.qgz`, erzeugt mit `qgis/erzeuge_einrichtungsfahrbahnen_projekt.py` (Skript und `analyse_einrichtungsfahrbahnen.py` sind seit 2026-11-10 gelöscht). Es hat Lesezeichen je Kante. Ist die Referenz dort richtig, braucht die Regel eine weitere Ausnahme.
 4. **Regel-Patch (offen):** Soll `docs/zwischenstand/agent_rules.patch` vorher übernommen werden? Dann baut Stufe 1 auf seiner `oneway_rule` auf statt auf der Regel in `main`.

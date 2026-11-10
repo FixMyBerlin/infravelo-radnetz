@@ -39,11 +39,12 @@ class MapBackTest(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.dir = Path(self.tmp.name)
         network([("A", [line((0, 0), (100, 0))]), ("B", [line((0, 50), (100, 50))]),
-                 ("C", [line((0, 100), (100, 100))])]).to_file(self.dir / "original.gpkg", layer="ren_netz", driver="GPKG")
+                 ("C", [line((0, 100), (100, 100))]),
+                 ("E", [line((0, 300), (10, 300))])]).to_file(self.dir / "original.gpkg", layer="ren_netz", driver="GPKG")
         # A: Stützpunkt in der Mitte 60 m nach Norden gezogen, die Linie ist dadurch länger
         self.bent = line((0, 0), (50, 60), (100, 0))
         network([("A", [self.bent]), ("B", [line((0, 50), (100, 50))]), ("C", [line((0, 100), (100, 100))]),
-                 ("D", [line((0, 200), (30, 200))])]).to_file(self.dir / "korrigiert.gpkg", layer="ren_netz", driver="GPKG")
+                 ("D", [line((0, 200), (30, 200))]), ("E", [line((0, 300), (0, 300))])]).to_file(self.dir / "korrigiert.gpkg", layer="ren_netz", driver="GPKG")
         gpd.GeoDataFrame({"element_nr": ["C.1", "C.2"], "elem_nr": ["C", "C"]},
                          geometry=[line((0, 100), (40, 100)), line((40, 100), (100, 100))], crs=zao.CRS).to_file(
             self.dir / "split.fgb", driver="FlatGeobuf")
@@ -55,6 +56,9 @@ class MapBackTest(unittest.TestCase):
             ("C.2", 0, line((40, 100), (100, 100))),                                  # Teilkante
             ("D", 0, line((0, 200), (30, 200))),                                      # gezeichnet
             ("A", 1, line((100, 0), (50, 60))),                                       # gegen die Linie (Gegenrichtung)
+            ("E", 0, line((0, 300), (5, 300))),                                       # korrigierte Linie hat die Länge 0
+            ("B", 0, line((20, 50), (20.0005, 50))),                                  # kürzer als 1 mm
+            ("A", 0, line((50, 60), (50.0004, 59.9996))),                             # Abschnitt auf dem Original unter 1 mm
         ]
         gpd.GeoDataFrame({"sfid": range(1, len(segments) + 1), "element_nr": [s[0] for s in segments],
                           "ri": [s[1] for s in segments], "Länge": [int(s[2].length) for s in segments],
@@ -108,9 +112,14 @@ class MapBackTest(unittest.TestCase):
 
         # Gezeichnete Kante D: nicht im Original
         self.assertNotIn(5, set(output["sfid"]))
-        self.assertEqual(list(missing["element_nr"]), ["D"])
+        self.assertEqual(sorted(zip(missing["element_nr"], missing["grund"])), sorted([
+            ("D", "Kante nicht im Original"),
+            ("E", "Linie der korrigierten Kante hat die Länge 0"),
+            ("B", "Teilsegment kürzer als 1 mm"),
+            ("A", "Teilsegment kürzer als 1 mm")]))
         self.assertTrue((self.dir / "out_ohne_original.csv").exists())
         self.assertEqual(len(output), 5)
+        self.assertNotIn(7, set(output["sfid"]))
 
 
 if __name__ == "__main__":
