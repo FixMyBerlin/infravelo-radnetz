@@ -11,7 +11,8 @@ Die Datei enthält sechs FeatureCollections in WGS84:
 - detailnetz: Kanten mit element_nr, beginnt_bei_vp, endet_bei_vp
 - knoten: Detailnetzknoten aus den Kantenenden (erster Punkt =
   beginnt_bei_vp, letzter = endet_bei_vp) und die virtuellen Knoten
-- ren_netz: Kartierungs-Netz mit element_nr, von_knoten, bis_knoten
+- ren_netz: REN+ gesamt (Original, noch ohne Korrekturen) mit element_nr,
+  von_knoten, bis_knoten und verkehrsrichtung (B/R/G aus dem Detailnetz)
 - radfernwege: touristisches Radnetz
 - luecken: Abschnitte der Radfernwege ohne Kante in GAP_DISTANCE_M
 - knoten_vorschlaege: Punkte, an denen ein Radfernweg eine Detailnetzkante
@@ -20,7 +21,7 @@ Die Datei enthält sechs FeatureCollections in WGS84:
 INPUT:
 - data/Berlin Straßenabschnitte Detailnetz.fgb (jüngster Stand)
 - data/Virtuelle-Knotenpunkte.gpkg
-- ren-network/output/ren_netz_kartierung.gpkg (unify_networks.py)
+- ren-network/output/ren_netz_gesamt.gpkg (unify_networks.py)
 - data/netzquellen/touristisches_radnetz.gpkg (aus dem Drive, data/download_inputs.py)
 - data/Berlin Bezirke.gpkg (nur mit --bezirk)
 
@@ -34,6 +35,7 @@ Aufruf:
 """
 
 import argparse
+import hashlib
 import json
 import logging
 import re
@@ -97,6 +99,21 @@ def single_lines(frame):
     return frame[frame.geometry.geom_type == "LineString"].reset_index(drop=True)
 
 
+def line_refs(element_nrs):
+    """Schlüssel der Linien wie in der App (model.ts, lineRefs): die element_nr, ab der zweiten Linie
+    derselben Nummer `#2`, `#3`, ... und `ohne#n` für Linien ohne element_nr. Gezählt wird in der
+    Reihenfolge der Datei. Die App speichert diesen Schlüssel als `kante.ref` der Korrekturen."""
+    seen = {}
+    refs = []
+    for element_nr in element_nrs:
+        has_number = isinstance(element_nr, str) and element_nr != ""
+        base = element_nr if has_number else "ohne"
+        count = seen.get(base, 0)
+        seen[base] = count + 1
+        refs.append(base if count == 0 and has_number else f"{base}#{count + 1}")
+    return refs
+
+
 def detailnetz_path():
     dated = sorted(ren.DETAILNETZ_PATH.parent.glob(ren.DETAILNETZ_DATED_GLOB))
     return dated[-1] if dated else ren.DETAILNETZ_PATH
@@ -106,7 +123,8 @@ def load_detailnetz():
     path = detailnetz_path()
     logging.info(f"Detailnetz: {path.name}")
     detail = gpd.read_file(path, columns=[
-        "element_nr", "beginnt_bei_vp", "endet_bei_vp", "strassenname", "verkehrsebene", "okstra_id"])
+        "element_nr", "beginnt_bei_vp", "endet_bei_vp", "strassenname", "verkehrsebene", "okstra_id",
+        "verkehrsrichtung"])
     if detail.crs is None or detail.crs.to_epsg() != ren.DEFAULT_CRS:
         detail = detail.to_crs(CRS)
     return single_lines(detail), path
@@ -156,15 +174,20 @@ def node_id_text(value):
     return str(int(value)) if isinstance(value, float) else str(value)
 
 
-def load_ren_netz():
-    network = gpd.read_file(ren.MAPPING_NETWORK_PATH, layer=ren.OUTPUT_LAYER, columns=[
+def load_ren_netz(detail):
+    """REN+ gesamt (Original). `verkehrsrichtung` (B/R/G) kommt je Kante per element_nr aus dem Detailnetz."""
+    network = gpd.read_file(ren.OUTPUT_PATH, layer=ren.OUTPUT_LAYER, columns=[
         "element_nr", "von_knoten", "bis_knoten", "radverkehrsnetz", "strassenname"])
     if network.crs is None or network.crs.to_epsg() != ren.DEFAULT_CRS:
         network = network.to_crs(CRS)
     network["von_knoten"] = network["von_knoten"].map(node_id_text)
     network["bis_knoten"] = network["bis_knoten"].map(node_id_text)
     network = single_lines(network)
-    logging.info(f"REN+-Kartierungs-Netz: {len(network)} Linien")
+    richtung = detail.dropna(subset=["element_nr", "verkehrsrichtung"]).drop_duplicates("element_nr").set_index(
+        "element_nr")["verkehrsrichtung"]
+    network["verkehrsrichtung"] = network["element_nr"].map(richtung).where(lambda column: column.isin(["B", "R", "G"]))
+    logging.info(f"REN+ gesamt: {len(network)} Linien, davon mit verkehrsrichtung aus dem Detailnetz "
+                 f"{network['verkehrsrichtung'].notna().sum()}: {network['verkehrsrichtung'].value_counts().to_dict()}")
     return network
 
 
@@ -297,6 +320,14 @@ def file_date(path):
     return datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc).date().isoformat()
 
 
+def sha256_of(path):
+    digest = hashlib.sha256()
+    with path.open("rb") as file:
+        for block in iter(lambda: file.read(1 << 20), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--bezirk", help="Nur dieser Bezirk (Name wie in Berlin Bezirke.gpkg), z. B. Neukölln")
@@ -314,7 +345,7 @@ def main():
     if duplicates:
         logging.warning(f"Virtuelle Knoten mit der ID eines Detailnetzknotens: {duplicates}")
     all_nodes = gpd.GeoDataFrame(pd.concat([nodes, virtual], ignore_index=True), crs=CRS)
-    ren_netz = load_ren_netz()
+    ren_netz = load_ren_netz(detail)
     routes = load_radfernwege()
     gaps = find_gaps(routes, gpd.GeoDataFrame(
         pd.concat([detail[["geometry"]], ren_netz[["geometry"]]], ignore_index=True), crs=CRS))
@@ -332,9 +363,16 @@ def main():
         "schema": SCHEMA,
         "gebiet": gebiet,
         "erzeugt_am": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        # Stand des REN+, auf dem die Korrekturen der App beruhen; import_app_export.py prüft die
+        # Korrekturen gegen die Geometrie der Datei, die dort liegt.
+        "ren_netz_stand": {
+            "datei": ren.OUTPUT_PATH.name,
+            "datum": file_date(ren.OUTPUT_PATH),
+            "sha256": sha256_of(ren.OUTPUT_PATH),
+        },
         "quellen": {
             "detailnetz": file_date(detail_source),
-            "ren_netz": file_date(ren.MAPPING_NETWORK_PATH),
+            "ren_netz": file_date(ren.OUTPUT_PATH),
             "radfernwege": file_date(RADFERNWEGE_PATH),
             "virtuelle_knoten": file_date(VIRTUAL_NODES_PATH),
         },
