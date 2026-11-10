@@ -178,7 +178,7 @@ Alles, was danach übrig bleibt, ist ein Fehler im RVN-Netz und wird dort korrig
 ## 6. Entscheidungen und offene Fragen
 
 1. **Einfache Einbahnstraße (entschieden 16.10.2026):** `ri=1` entfällt. „Keine Radinfrastruktur vorhanden“ wird nicht ausgegeben.
-2. **B-Fälle (umgesetzt 16.10.2026):**
+2. **B-Fälle (umgesetzt 16.10.2026; seit 2026-11-10 in der App Netzanpassungen):** Die Liste `data/rvn_korrekturen.csv` und die alte Liste `opposite_edge_overwrite_element_nr.txt` gibt es nicht mehr. Ihre Einträge sind als Korrekturen `verkehrsrichtung` in `netzanpassungen/output/altlisten_korrekturen.json` übertragen; `enrich_rvn_with_detailnetz.py` übernimmt die Richtung aus dem korrigierten REN+ (`apply_verkehrsrichtung_korrekturen`). Die folgenden Punkte beschreiben den Stand vom 16.10.:
    - **Liste:** Die 17 B-Kanten und eine RVN-Kante ohne Detailnetz (`55560007_56560038.02`) stehen in `data/rvn_korrekturen.csv`.
    - **Anwendung:** `scripts/enrich_rvn_with_detailnetz.py` wendet die Liste am Ende an (`apply_rvn_corrections`) und dreht dabei die Geometrie, wenn eine Kante von oder nach G wechselt.
    - **Richtung:** Sie folgt der OSM-Einbahnrichtung. Zwei Kanten am Müggelbergplatz (`59430029_59430035.02`, `59430034_59430029.02`) laufen gegen die Digitalisierung und bekommen G. Die alte Liste hatte dort die falsche Richtung behalten.

@@ -5,7 +5,7 @@ audit_double_edges.py
 --------------------------------------------------------------------
 Sucht im vereinheitlichten REN+-Netz Kanten, die denselben Weg doppelt
 abbilden, und schreibt sie als Prüfliste. Es wird nichts entfernt: Was
-wegfallen soll, kommt nach der Prüfung in ausschluss_element_nr.csv.
+wegfallen soll, wird nach der Prüfung in der App Netzanpassungen ausgeschlossen.
 
 Zwei Fälle:
 - ueberlappend: Zwei Kanten liegen aufeinander (mindestens OVERLAP_MIN_SHARE

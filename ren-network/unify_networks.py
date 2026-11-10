@@ -33,8 +33,9 @@ Hauptstraßennetzes, die im Detailnetz als Autobahn geführt sind
 dieselbe Kante auch zum Radverkehrsnetz oder zu einer Radschnellverbindung,
 bleibt sie über diese Quelle erhalten.
 
-Einzelne Kanten, die diese Regel nicht erfasst, stehen mit Begründung in
-ren-network/ausschluss_element_nr.csv und werden aus allen Quellen entfernt.
+Einzelne Kanten, die diese Regel nicht erfasst, bleiben im Original-Netz. Sie
+werden in der App Netzanpassungen ausgeschlossen (Korrektur „Kante ausschließen“);
+erst ren_netz_gesamt_korrigiert.gpkg (import_app_export.py) lässt sie weg.
 
 INPUT:
 - data/netzquellen/radverkehrsnetz.gpkg
@@ -45,7 +46,6 @@ INPUT:
   daneben, wird der jüngste verwendet)
 - data/Berlin Verbindungspunkte Detailnetz.fgb
 - data/Berlin Bezirke.gpkg
-- ren-network/ausschluss_element_nr.csv
 - ../tilda-static-data/geojson/region-infravelo/infravelo-datensatz-c-fortlaufend/
   aggregated_rvn_final.geojson.gz (Ergebnis 2025; tilda-static-data muss als
   Schwesterordner ausgecheckt sein)
@@ -95,7 +95,6 @@ DISTRICTS_PATH = ROOT / "data" / "Berlin Bezirke.gpkg"
 OUTPUT_DIR = ROOT / "ren-network" / "output"
 OUTPUT_PATH = OUTPUT_DIR / "ren_netz_gesamt.gpkg"
 OUTPUT_LAYER = "ren_netz"
-EXCLUSIONS_PATH = Path(__file__).resolve().parent / "ausschluss_element_nr.csv"
 MISSING_REPORT_PATH = OUTPUT_DIR / "element_nr_nicht_im_detailnetz.csv"
 # Ergebnis 2025 (Datensatz C): lebt nur in tilda-static-data, das als Schwesterordner
 # ausgecheckt sein muss. processing/copy_to_tilda_static.sh schreibt es dorthin.
@@ -251,19 +250,6 @@ def load_nodes(detail):
     nodes[NODE_ID_COLUMN] = nodes[NODE_ID_COLUMN].astype(str)
     logging.info(f"Verbindungspunkte mit Knotenpunkt-ID: {len(nodes)}/{len(points)}")
     return nodes
-
-
-def remove_excluded(sources):
-    """Entfernt die manuell gepflegten Kanten aus ausschluss_element_nr.csv."""
-    exclusions = pd.read_csv(EXCLUSIONS_PATH, dtype=str)
-    is_excluded = sources["element_nr"].isin(exclusions["element_nr"])
-    logging.info(f"Ausschlussliste: {is_excluded.sum()} Quellkanten entfernt "
-                 f"({sources.loc[is_excluded].geometry.length.sum() / 1000:.1f} km), "
-                 f"Gründe: {exclusions['grund'].value_counts().to_dict()}")
-    unknown = sorted(set(exclusions["element_nr"]) - set(sources["element_nr"].dropna()))
-    if unknown:
-        logging.warning(f"{len(unknown)} element_nr der Ausschlussliste kommen in keiner Quelle vor: {unknown}")
-    return sources.loc[~is_excluded].reset_index(drop=True)
 
 
 def _detailnetz_by_node_pair(detail):
@@ -582,7 +568,6 @@ def main():
     sources = load_sources()
     detail = load_detailnetz()
     sources = remove_motorways(sources, detail)
-    sources = remove_excluded(sources)
     sources = assign_missing_element_nr(sources, detail, load_nodes(detail))
     network = merge_by_element_nr(sources)
     network = add_detailnetz_attributes(network, detail)

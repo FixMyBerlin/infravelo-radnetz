@@ -112,4 +112,3 @@ Prüft virtuelle Knotenpunkte, TILDA-Knotenpunkte, Datensatz B und C sowie Über
 - `district_assignment.py`: Bezirkszuweisung
 - `clipping.py`: Regionale Zuschnitte
 - `convert_*.py`: Schutzstreifen-Konvertierungslogik
-- `override_edges.py`: Override-Verarbeitung
