@@ -1,27 +1,38 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-app_eingabe_schreiben.py
+app_eingabe_schreiben.py  (bisher export_app_daten.py)
 --------------------------------------------------------------------
 Schreibt die Eingabedatei der App „Netzanpassungen“ (Repo knotenpunkte,
-Ordner netzanpassungen/). In der App werden entlang der Radfernwege neue
-Kanten gezeichnet, wo das Detailnetz und das REN+ keine haben.
+Ordner netzanpassungen/). In der App werden die Radfernwege den Kanten zugeordnet
+und, wo es keine passende Kante gibt, neue Kanten gezeichnet.
 
-Die Datei enthält sechs FeatureCollections in WGS84:
+Die Eingabe enthält nur Rohdaten und das, was automatisch berechnet wird (Schritte 1 und 2,
+docs/netz-ablauf.md im Repo knotenpunkte). Handarbeit liegt ausschließlich in der KV-Datenbank
+der App und wird dort auf diese Datei gelegt; deshalb darf die Datei jederzeit neu erzeugt
+und hochgeladen werden.
+
+Die Datei enthält FeatureCollections in WGS84:
 - detailnetz: Kanten mit element_nr, beginnt_bei_vp, endet_bei_vp
 - knoten: Detailnetzknoten aus den Kantenenden (erster Punkt =
   beginnt_bei_vp, letzter = endet_bei_vp). Virtuelle Knoten stehen nicht in der Datei,
   sie leben in der App (KV-Datenbank)
-- ren_netz: REN+ gesamt (Original, noch ohne Korrekturen) mit element_nr,
-  von_knoten, bis_knoten und verkehrsrichtung (B/R/G aus dem Detailnetz)
+- ren_netz: ren_netz_auto.gpkg (Rohnetz mit automatischer Radfernweg-Zuordnung plus automatisch
+  aufgenommene Detailnetzkanten) mit element_nr, von_knoten, bis_knoten, verkehrsrichtung (B/R/G
+  aus dem Detailnetz) und den optionalen Feldern routen_fernradweg, routen_quelle (auto) und
+  quelle (radnetz | detailnetz_radfernweg)
 - radfernwege: touristisches Radnetz
-- luecken: Abschnitte der Radfernwege ohne Kante in GAP_DISTANCE_M
+- radfernweg_abschnitte: jeder Radfernweg lückenlos in Abschnitte zerlegt (id, radfernweg,
+  station_von_m, station_bis_m, laenge_m, zustand auf_ren | aufgenommen | luecke, kanten,
+  kandidaten, hausdorff_m, p95_m); kanten/kandidaten sind Listen von Kanten-Schlüsseln der App
+  (`ren:<ref>`, `detailnetz:<ref>`)
+- luecken: die Abschnitte mit zustand luecke ab MIN_GAP_LENGTH_M, mit id (= Abschnitts-Id)
 - knoten_vorschlaege: Punkte, an denen ein Radfernweg eine Detailnetzkante
   kreuzt, ohne dass dort ein Knoten liegt (Vorschlag für einen virtuellen Knoten)
 
 INPUT:
 - data/Berlin Straßenabschnitte Detailnetz.fgb (jüngster Stand)
-- ren-network/output/ren_netz_gesamt.gpkg (netz_zusammenfuehren.py)
+- netzanpassungen/output/ren_netz_auto.gpkg und radfernweg_abschnitte.gpkg (radfernwege_zuordnen.py)
 - data/netzquellen/touristisches_radnetz.gpkg (aus dem Drive, data/download_inputs.py)
 - data/Berlin Bezirke.gpkg (nur mit --bezirk)
 
@@ -59,10 +70,12 @@ SCHEMA = "netzanpassungen-app/v1"
 
 RADFERNWEGE_PATH = ROOT / "data" / "netzquellen" / "touristisches_radnetz.gpkg"
 OUTPUT_DIR = Path(__file__).resolve().parent / "output"
+# Ergebnis von Schritt 2 (radfernwege_zuordnen.py)
+AUTO_PATH = OUTPUT_DIR / "ren_netz_auto.gpkg"
+SECTIONS_PATH = OUTPUT_DIR / "radfernweg_abschnitte.gpkg"
+SECTIONS_LAYER = "radfernweg_abschnitte"
 
-# Ein Radfernweg-Abschnitt gilt als Lücke, wenn keine Kante so nah ist
-GAP_DISTANCE_M = 10.0
-# Kürzere Lücken sind meist nur Abweichungen an Kreuzungen
+# Abschnitte ohne Kante unter dieser Länge sind keine Lücke (meist nur Abweichungen an Kreuzungen)
 MIN_GAP_LENGTH_M = 20.0
 # Mit --bezirk bleiben Kanten bis zu diesem Abstand zur Bezirksgrenze enthalten
 AREA_BUFFER_M = 200.0
@@ -118,12 +131,13 @@ def detailnetz_path():
     return dated[-1] if dated else ren.DETAILNETZ_PATH
 
 
-def load_detailnetz():
+def load_detailnetz(extra_columns=()):
+    """Detailnetz als einzelne Linien in Dateireihenfolge (die Reihenfolge bestimmt die Schlüssel `#2`, ...)."""
     path = detailnetz_path()
     logging.info(f"Detailnetz: {path.name}")
     detail = gpd.read_file(path, columns=[
         "element_nr", "beginnt_bei_vp", "endet_bei_vp", "strassenname", "verkehrsebene", "okstra_id",
-        "verkehrsrichtung"])
+        "verkehrsrichtung", *extra_columns])
     if detail.crs is None or detail.crs.to_epsg() != ren.DEFAULT_CRS:
         detail = detail.to_crs(CRS)
     return single_lines(detail), path
@@ -161,21 +175,47 @@ def node_id_text(value):
     return str(int(value)) if isinstance(value, float) else str(value)
 
 
-def load_ren_netz(detail):
-    """REN+ gesamt (Original). `verkehrsrichtung` (B/R/G) kommt je Kante per element_nr aus dem Detailnetz."""
-    network = gpd.read_file(ren.OUTPUT_PATH, layer=ren.OUTPUT_LAYER, columns=[
-        "element_nr", "von_knoten", "bis_knoten", "radverkehrsnetz", "strassenname"])
+def load_ren_netz():
+    """ren_netz_auto.gpkg: Rohnetz mit automatischer Zuordnung. `verkehrsrichtung` (B/R/G) kam in Schritt 2
+    per element_nr aus dem Detailnetz; routen_fernradweg, routen_quelle und quelle sind optionale Felder der App."""
+    if not AUTO_PATH.exists():
+        raise SystemExit(f"Fehlt: {AUTO_PATH}\nErst netzanpassungen/radfernwege_zuordnen.py ausführen.")
+    network = gpd.read_file(AUTO_PATH, layer=ren.OUTPUT_LAYER, columns=[
+        "element_nr", "von_knoten", "bis_knoten", "radverkehrsnetz", "strassenname", "verkehrsrichtung",
+        "routen_fernradweg", "routen_quelle", "quelle"])
     if network.crs is None or network.crs.to_epsg() != ren.DEFAULT_CRS:
         network = network.to_crs(CRS)
     network["von_knoten"] = network["von_knoten"].map(node_id_text)
     network["bis_knoten"] = network["bis_knoten"].map(node_id_text)
     network = single_lines(network)
-    richtung = detail.dropna(subset=["element_nr", "verkehrsrichtung"]).drop_duplicates("element_nr").set_index(
-        "element_nr")["verkehrsrichtung"]
-    network["verkehrsrichtung"] = network["element_nr"].map(richtung).where(lambda column: column.isin(["B", "R", "G"]))
-    logging.info(f"REN+ gesamt: {len(network)} Linien, davon mit verkehrsrichtung aus dem Detailnetz "
-                 f"{network['verkehrsrichtung'].notna().sum()}: {network['verkehrsrichtung'].value_counts().to_dict()}")
+    network["verkehrsrichtung"] = network["verkehrsrichtung"].where(lambda column: column.isin(["B", "R", "G"]))
+    logging.info(f"REN+ (ren_netz_auto): {len(network)} Linien, davon mit verkehrsrichtung "
+                 f"{network['verkehrsrichtung'].notna().sum()}: {network['verkehrsrichtung'].value_counts().to_dict()}, "
+                 f"quelle: {network['quelle'].value_counts().to_dict()}")
     return network
+
+
+def load_sections():
+    """Abschnitte der Radfernwege (Schritt 2); kanten/kandidaten als Listen von Kanten-Schlüsseln."""
+    if not SECTIONS_PATH.exists():
+        raise SystemExit(f"Fehlt: {SECTIONS_PATH}\nErst netzanpassungen/radfernwege_zuordnen.py ausführen.")
+    sections = gpd.read_file(SECTIONS_PATH, layer=SECTIONS_LAYER)
+    if sections.crs is None or sections.crs.to_epsg() != ren.DEFAULT_CRS:
+        sections = sections.to_crs(CRS)
+    for column in ("kanten", "kandidaten"):
+        sections[column] = [[key for key in (value or "").split("|") if key] for value in sections[column]]
+    logging.info(f"Abschnitte: {len(sections)}, {sections['zustand'].value_counts().to_dict()}")
+    return sections
+
+
+def check_section_keys(sections, ren_netz, detail):
+    """Jeder Schlüssel in kanten/kandidaten muss eine Linie der Datei treffen (ref wie in der App)."""
+    known = {f"ren:{ref}" for ref in line_refs(ren_netz["element_nr"])}
+    known |= {f"detailnetz:{ref}" for ref in line_refs(detail["element_nr"])}
+    missing = sorted({key for column in ("kanten", "kandidaten") for keys in sections[column] for key in keys} - known)
+    if missing:
+        raise SystemExit(f"{len(missing)} Kanten-Schlüssel der Abschnitte fehlen im Netz (Schritte neu laufen lassen), "
+                         f"z. B. {missing[:5]}")
 
 
 def load_radfernwege():
@@ -188,16 +228,11 @@ def load_radfernwege():
     return routes
 
 
-def find_gaps(routes, edges):
-    """Abschnitte der Radfernwege, die weiter als GAP_DISTANCE_M von jeder Kante liegen."""
-    near = edges.iloc[edges.sindex.query(routes.geometry.buffer(GAP_DISTANCE_M * 2).union_all(),
-                                         predicate="intersects")]
-    covered = shapely.union_all(near.geometry.buffer(GAP_DISTANCE_M, quad_segs=2).to_numpy())
-    gaps = routes.copy()
-    gaps["geometry"] = gaps.geometry.difference(covered)
-    gaps = single_lines(gaps[~gaps.geometry.is_empty])
-    gaps = gaps[gaps.geometry.length >= MIN_GAP_LENGTH_M].reset_index(drop=True)
-    gaps["laenge_m"] = gaps.geometry.length.round(1)
+def gaps_of(sections):
+    """Die Lücken der App: Abschnitte ohne eindeutige Kante ab MIN_GAP_LENGTH_M (Spalten id, name, laenge_m)."""
+    gaps = sections[(sections["zustand"] == "luecke") & (sections["laenge_m"] >= MIN_GAP_LENGTH_M)].copy()
+    gaps["name"] = gaps["radfernweg"]
+    gaps = gaps[["id", "name", "laenge_m", "geometry"]].reset_index(drop=True)
     logging.info(f"Lücken: {len(gaps)}, {gaps['laenge_m'].sum() / 1000:.1f} km")
     return gaps
 
@@ -328,10 +363,11 @@ def main():
     detail, detail_source = load_detailnetz()
     nodes, off_nodes = nodes_from_edges(detail)
     all_nodes = nodes
-    ren_netz = load_ren_netz(detail)
+    ren_netz = load_ren_netz()
+    sections = load_sections()
+    check_section_keys(sections, ren_netz, detail)
     routes = load_radfernwege()
-    gaps = find_gaps(routes, gpd.GeoDataFrame(
-        pd.concat([detail[["geometry"]], ren_netz[["geometry"]]], ignore_index=True), crs=CRS))
+    gaps = gaps_of(sections)
 
     suggestions = find_node_suggestions(routes, detail, all_nodes, gaps)
 
@@ -340,6 +376,7 @@ def main():
     all_nodes = within_area(all_nodes, area)
     ren_netz = within_area(ren_netz, area)
     routes = within_area(routes, area)
+    sections = within_area(sections, area)
     gaps = within_area(gaps, area)
 
     output = {
@@ -349,19 +386,20 @@ def main():
         # Stand des REN+, auf dem die Korrekturen der App beruhen; app_ergebnis_anwenden.py prüft die
         # Korrekturen gegen die Geometrie der Datei, die dort liegt.
         "ren_netz_stand": {
-            "datei": ren.OUTPUT_PATH.name,
-            "datum": file_date(ren.OUTPUT_PATH),
-            "sha256": sha256_of(ren.OUTPUT_PATH),
+            "datei": AUTO_PATH.name,
+            "datum": file_date(AUTO_PATH),
+            "sha256": sha256_of(AUTO_PATH),
         },
         "quellen": {
             "detailnetz": file_date(detail_source),
-            "ren_netz": file_date(ren.OUTPUT_PATH),
+            "ren_netz": file_date(AUTO_PATH),
             "radfernwege": file_date(RADFERNWEGE_PATH),
         },
         "detailnetz": feature_collection(detail),
         "knoten": feature_collection(all_nodes),
         "ren_netz": feature_collection(ren_netz),
         "radfernwege": feature_collection(routes),
+        "radfernweg_abschnitte": feature_collection(sections),
         "luecken": feature_collection(gaps),
         "knoten_vorschlaege": feature_collection(suggestions),
     }
