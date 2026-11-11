@@ -1,11 +1,14 @@
 # -*- coding: utf-8 -*-
 """
 virtuelle_knoten.py
-Ort der virtuellen Knoten. Sie leben in der App Netzanpassungen (KV-Datenbank), nicht mehr in data/.
-netzanpassungen/apply_app_result.py schreibt sie aus dem App-Export nach
-netzanpassungen/output/virtuelle_knoten.gpkg (Layer Virtuelle-Knotenpunkte, Spalte Knotenpunkt-ID);
-alle Skripte, die virtuelle Knoten brauchen, lesen die Datei über virtual_nodes_path().
-Die einmalige Übernahme der 53 Knoten von 2025: netzanpassungen/one_time_import/.
+Location of the virtual nodes. Three kinds end up in one file:
+- the 53 nodes of the 2025 delivery (data/virtuelle_knoten_2025.gpkg, fixed names),
+- the nodes step 1 sets automatically (ren-network/output/virtuelle_knoten_auto.gpkg),
+- the nodes drawn in the Netzanpassungen app (KV database, export "alle Einträge").
+netzanpassungen/apply_app_result.py (step 3) merges them into
+netzanpassungen/output/virtuelle_knoten.gpkg (layer Virtuelle-Knotenpunkte, column Knotenpunkt-ID,
+column `quelle` = 2025 | auto | app); every script that needs virtual nodes reads the file through
+virtual_nodes_path().
 """
 
 from pathlib import Path
@@ -13,12 +16,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 VIRTUAL_NODES_PATH = ROOT / "netzanpassungen" / "output" / "virtuelle_knoten.gpkg"
 VIRTUAL_NODES_LAYER = "Virtuelle-Knotenpunkte"
-MISSING_MESSAGE = (f"Virtuelle Knoten fehlen: {VIRTUAL_NODES_PATH} existiert nicht. "
-                   "Erst netzanpassungen/apply_app_result.py mit dem App-Export laufen lassen.")
+MISSING_MESSAGE = (f"Virtual nodes missing: {VIRTUAL_NODES_PATH} does not exist. "
+                   "Run netzanpassungen/apply_app_result.py with the app export first.")
 
 
 def virtual_nodes_path():
-    """Pfad der Datei mit den virtuellen Knoten; bricht mit einer klaren Meldung ab, wenn sie fehlt."""
+    """Path of the file with the virtual nodes; stops with a clear message if it is missing."""
     if not VIRTUAL_NODES_PATH.exists():
         raise SystemExit(MISSING_MESSAGE)
     return VIRTUAL_NODES_PATH

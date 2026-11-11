@@ -1,13 +1,15 @@
-# Einmalige Übernahme in die App Netzanpassungen
+# One-time import into the Netzanpassungen app
 
-Dieser Ordner enthält Dateien, die **einmal** in die App Netzanpassungen (KV-Datenbank) hochgeladen werden und danach archiviert sind. Die Pipeline liest diesen Ordner nie. Handarbeit lebt in der App; `apply_app_result.py` schreibt daraus alles, was die Pipeline braucht, nach `netzanpassungen/output/`.
+This folder holds a file that is uploaded **once** into the Netzanpassungen app (KV database) and is an archive afterwards. The pipeline never reads this folder. Manual work lives in the app; `apply_app_result.py` writes everything the pipeline needs from it to `netzanpassungen/output/`.
 
-Umgewandelt am 2026-11-11 aus den Altlisten und der Knotendatei von 2025. Hochgeladen wird im Schritt „Gebiet“ der App mit „Einträge einspielen“ (Gebiet Berlin). Danach ändert sich hier nichts mehr; wer eine Korrektur braucht, macht sie in der App.
+Converted on 2026-11-11 from the old override lists. It is uploaded in the "Gebiet" step of the app with "Einträge einspielen" (area Berlin). Nothing changes here afterwards; whoever needs a correction makes it in the app.
 
-| Datei | Inhalt | Herkunft |
+| File | Content | Origin |
 |---|---|---|
-| `altlisten_korrekturen.json` | 38 `edge_correction`-Einträge (`von_nutzer: "Altliste"`): `verkehrsrichtung` aus `rvn_korrekturen.csv` (18) und `opposite_edge_overwrite_element_nr.txt` (1, Modus `remove`, nur Detailnetz B → R) sowie 19 Ausschlüsse aus `ausschluss_element_nr.csv` (Tunnel Tiergarten, Autobahn-Zubringer). `kommentar` ist die Begründung der Liste | Die drei Listen wurden mit einem einmaligen Skript (nicht im Repo) umgewandelt und gelöscht |
-| `virtuelle_knoten_2025.json` | 53 `virtual_node`-Einträge (`name` = Knotenpunkt-ID, `lngLat` in WGS84 mit 7 Nachkommastellen an der Originallage, `kommentar`). Den Trägerkanten-Bezug (`traeger`) bestimmt die App beim Einspielen selbst | `Virtuelle-Knotenpunkte.gpkg`, mit einem einmaligen Skript (nicht im Repo) umgewandelt |
-| `Virtuelle-Knotenpunkte.gpkg` | Archiv der Knotendatei von 2025 (53 Punkte, Spalte `Knotenpunkt-ID`, EPSG:25833), bis 2026-11-10 in `data/` | verschoben aus `data/` |
+| `altlisten_korrekturen.json` | 38 `edge_correction` entries (`von_nutzer: "Altliste"`): `verkehrsrichtung` from `rvn_korrekturen.csv` (18) and `opposite_edge_overwrite_element_nr.txt` (1, mode `remove`, only Detailnetz B to R), plus 19 exclusions from `ausschluss_element_nr.csv` (Tunnel Tiergarten, motorway feeders). `kommentar` is the reason given in the list | The three lists were converted with a one-time script (not in the repo) and deleted |
 
-Wo die virtuellen Knoten jetzt leben: in der App. `apply_app_result.py` schreibt sie (alle nicht gelöschten Einträge des Exports „alle Einträge“) nach `netzanpassungen/output/virtuelle_knoten.gpkg`; diese Datei lesen `processing/` und `knotenpunkte/` über `processing/helpers/virtuelle_knoten.py`. Fehlt sie, bricht das Skript ab und sagt, dass erst der Import laufen muss.
+## The 53 virtual nodes of 2025 are not in this folder
+
+They were delivered with fixed names, so they are **not** imported into the app. They are a fixed, read-only input of step 1 (like the Detailnetz nodes): [`data/virtuelle_knoten_2025.gpkg`](../../data/virtuelle_knoten_2025.gpkg) (layer `Virtuelle-Knotenpunkte`, column `Knotenpunkt-ID`, EPSG:25833). `ren-network/merge_networks.py` splits the REN+ edges at them and numbers the edges from them; they reach the app as `knoten` with `ist_virtuell = 1` in the app input.
+
+Where all virtual nodes end up: `apply_app_result.py` writes the 2025 nodes, the automatic nodes of step 1 and the nodes drawn in the app to `netzanpassungen/output/virtuelle_knoten.gpkg`. `processing/` and `knotenpunkte/` read that file through `processing/helpers/virtuelle_knoten.py`. If it is missing, the scripts stop and say that step 3 has to run first.
