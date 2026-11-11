@@ -83,7 +83,8 @@ Spalten, die beide Netze zusätzlich zu denen von Schritt 1 tragen:
 
 | Spalte | Inhalt |
 |---|---|
-| `quelle` | `radnetz`, `detailnetz_radfernweg` (in Schritt 2 automatisch aufgenommen), `detailnetz_manuell` (über eine Zuordnung in der App) |
+| `quelle` | `radnetz`, `detailnetz_radfernweg` (in Schritt 2 automatisch aufgenommen), `detailnetz_manuell` (über eine Zuordnung in der App), `neu_gezeichnet` (in der App gezeichnete Kante) |
+| `ursprung_element_nr` | bei Teilkanten (Teilung an einem virtuellen Knoten) die `element_nr` der geteilten Kante, sonst leer |
 | `grund_aufnahme` | `radfernweg`, `radfernweg_manuell` oder leer |
 | `routen_fernradweg`, `routen_quelle` | Routennamen (mehrere mit `; `); `auto`, `manuell` oder `auto; manuell` |
 | `verkehrsrichtung`, `verkehrsrichtung_original`, `verkehrsrichtung_korrigiert` | B/R/G aus dem Detailnetz bzw. korrigiert; Wert vor der Korrektur; ja/nein |
@@ -94,7 +95,7 @@ Spalten, die beide Netze zusätzlich zu denen von Schritt 1 tragen:
 
 Eine Korrektur wird nur angewendet, wenn die Kante noch im Eingangsnetz liegt (Schlüssel `kante.ref`: `element_nr`, ab der zweiten Linie derselben Nummer `#2`), ihre `original_coordinates` höchstens 5 cm von der Geometrie dort abweichen und das Protokoll (`original_coordinates` + `aenderungen`) den gespeicherten Stand ergibt. Sonst bleibt die Kante unverändert und steht in `korrekturen_konflikte.csv`. Das passiert, wenn sich `ren_netz_auto.gpkg` seit dem Export an die App geändert hat. Zuordnungen zu Abschnitten der Radfernwege (`section_assignment`) und ihre Regeln: [`netzanpassungen/README.md`](../netzanpassungen/README.md).
 
-Virtuelle Knoten und gezeichnete Kanten schreibt Schritt 3 nach `netzanpassungen/output/virtuelle_knoten.gpkg` und `netzanpassungen/output/touristische_kanten.gpkg` (bei jedem Lauf neu aus dem Export, nie nach `data/`). `netz_zusammenfuehren.py` liest die Kantendatei nicht als Netzquelle.
+Gezeichnete Kanten stehen in beiden Netzen, virtuelle Knoten teilen ihre Trägerkante (Details: `netzanpassungen/README.md`). Zusätzlich schreibt Schritt 3 beide nach `netzanpassungen/output/virtuelle_knoten.gpkg` und `netzanpassungen/output/touristische_kanten.gpkg` (bei jedem Lauf neu aus dem Export, nie nach `data/`).
 
 **Was damit läuft.** Das Matching (`processing/process_radnetz.sh --netz ren`) nimmt standardmäßig das korrigierte Netz, solange `ren_netz_korrigiert.gpkg` existiert; `--quelle original` nimmt `ren_netz.gpkg`, `--quelle korrigiert` bricht ohne die Datei ab. Ausgeschlossene Kanten entfallen dabei, und die korrigierte `verkehrsrichtung` (`verkehrsrichtung_korrigiert = ja`) gilt statt der des Detailnetzes. Das Ergebnis liegt dann auf den korrigierten Linien.
 

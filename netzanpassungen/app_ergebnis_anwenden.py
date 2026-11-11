@@ -20,7 +20,13 @@ Einträge des Exports (Einträge mit geloescht = true werden übersprungen):
   Abschnitt oder unbekannte Kante: Konflikt, der Eintrag gilt nicht.
 - virtual_node: virtueller Knoten, kommt nach netzanpassungen/output/virtuelle_knoten.gpkg.
   Das ist die Datei, die die Pipeline (processing/, knotenpunkte/) als virtuelle Knoten liest.
-- new_edge: gezeichnete Kante, kommt nach netzanpassungen/output/touristische_kanten.gpkg.
+- new_edge: gezeichnete Kante. Steht in beiden Ergebnisnetzen (quelle = neu_gezeichnet, routen_fernradweg aus dem
+  Eintrag mit routen_quelle = manuell, element_nr `<von>_<bis>.<nn>` wie in der App) und weiterhin in
+  netzanpassungen/output/touristische_kanten.gpkg.
+- Virtuelle Knoten teilen ihre Trägerkante (REN+-Kante oder gezeichnete Kante) in beiden Ergebnisnetzen: Jede Teilkante
+  bekommt eine neue element_nr und `ursprung_element_nr`, wie splitEdges in der App. Die Teilung an Detailnetz und
+  Radvorrangsnetz bleibt Sache von processing/scripts/split_rvn_at_virtual_nodes.py; sie arbeitet nur geometrisch,
+  nummeriert nicht und teilt an Knoten am Kantenende (unter 1 m) nicht noch einmal, kann also nicht wiederverwendet werden.
 
 Eine Korrektur wird nur angewendet, wenn die Kante im Eingangsnetz liegt (Schlüssel
 kante.ref wie in der App: element_nr, ab der zweiten Linie derselben Nummer `#2`, ...), ihre
@@ -34,7 +40,7 @@ markiert:
   Detailnetzkanten, Richtung, Fahrbahn und Ausschluss, aber ohne Lagekorrekturen.
 - ren_netz_korrigiert.gpkg (Matching, Mapping): dasselbe plus die Lagekorrekturen, mit lage_korrigiert
   und den Kennzahlen hausdorff_m, max_verschiebung_m, differenzflaeche_m2, laenge_alt_m, laenge_neu_m.
-Spalten (beide): quelle (radnetz | detailnetz_radfernweg | detailnetz_manuell), grund_aufnahme,
+Spalten (beide): quelle (radnetz | detailnetz_radfernweg | detailnetz_manuell | neu_gezeichnet), ursprung_element_nr, grund_aufnahme,
 routen_fernradweg, routen_quelle (auto | manuell | auto; manuell), verkehrsrichtung (aktuell),
 verkehrsrichtung_original, verkehrsrichtung_korrigiert (ja/nein), fahrbahn_typ, fahrbahn_gruppe,
 ausgeschlossen (ja/nein), ausschluss_grund, eintrag_ids, anzahl_vorgaenge, letzte_aenderung_am,
@@ -67,6 +73,7 @@ Aufruf:
 import argparse
 import json
 import logging
+import numbers
 import re
 import sys
 from pathlib import Path
@@ -121,6 +128,9 @@ LAGE_COLUMNS = ["lage_korrigiert", "hausdorff_m", "max_verschiebung_m", "differe
 CONFLICT_COLUMNS = ["grund", "art", "eintrag_id", "ref", "element_nr", "abweichung_m", "bearbeitet_von", "bearbeitet_am"]
 ASSIGNMENT_COLUMNS = ["abschnitt_id", "radfernweg", "art", "kanten", "status", "hinweis", "kommentar", "eintrag_id",
                       "bearbeitet_von", "bearbeitet_am"]
+
+# Virtuelle Knoten, die näher am Ende der Trägerkante liegen, teilen sie nicht (keine winzigen Teilkanten)
+SPLIT_END_TOLERANCE_M = 0.5
 
 ATTRIBUTE_FIELDS = ("fahrbahn_typ", "fahrbahn_gruppe", "verkehrsrichtung")
 ELEMENT_NR_PATTERN = re.compile(r"^(.+)_(.+)\.(\d+)$")
@@ -233,6 +243,7 @@ def blank_correction_columns(network):
     network["ausgeschlossen"] = "nein"
     network["ausschluss_grund"] = None
     network["eintrag_ids"] = None
+    network["ursprung_element_nr"] = None
     network["anzahl_vorgaenge"] = pd.array([0] * len(network), dtype="Int64")
     network["letzte_aenderung_am"] = None
     network["letzte_aenderung_von"] = None
@@ -685,6 +696,156 @@ def apply_assignments(network, parts, entries, sections, detail_lines):
     return network, conflicts, report, stats
 
 
+def node_text(value):
+    """Knoten-IDs als Text: virtuelle IDs beginnen mit V, die übrigen sind Zahlen (von_knoten ist im Netz Integer)."""
+    if value is None or (not isinstance(value, str) and pd.isna(value)):
+        return None
+    return str(int(value)) if isinstance(value, numbers.Number) else str(value)
+
+
+def add_drawn_edges(network, original_geometry, new_edges, entries):
+    """Hängt die in der App gezeichneten Kanten (new_edges aus new_edge_frame) als Zeilen an das Netz.
+
+    quelle = neu_gezeichnet, routen_fernradweg aus dem Eintrag (routen_quelle = manuell), element_nr wie in der
+    App. Gibt (Netz, Originallage, Indexmarke je entry_id) zurück; die Lage ist die gezeichnete, in beiden Netzen."""
+    if len(new_edges) == 0:
+        return network, original_geometry, {}
+    data_by_id = {entry["id"]: entry["data"] for entry in entries}
+    rows = []
+    for edge in new_edges.itertuples():
+        data = data_by_id[edge.entry_id]
+        routes = data.get("routen_fernradweg") or None
+        rows.append({
+            "element_nr": edge.element_nr, "element_nr_berechnet": "nein", "von_knoten": edge.von_knoten,
+            "bis_knoten": edge.bis_knoten, "strassenname": edge.strassenname, "radverkehrsnetz": ren.RVN_KEIN,
+            "hauptverkehrsstrasse": "nein", "netz_quellen": "netzanpassungen", "in_detailnetz": "nein",
+            "bearbeitet_2025": "nein", "anteil_2025": 0.0, "quelle": "neu_gezeichnet",
+            "grund_aufnahme": "radfernweg_manuell" if data.get("quelle") == "radfernweg" else None,
+            "routen_fernradweg": routes, "routen_quelle": "manuell" if routes else None,
+            "eintrag_ids": edge.entry_id, "geometry": MultiLineString([edge.geometry]),
+        })
+    added = gpd.GeoDataFrame(rows, geometry="geometry", crs=CRS)
+    added = ren.add_district(added)
+    added["laenge_m"] = added.geometry.length.round(1)
+    for column, value in (("verkehrsrichtung_korrigiert", "nein"), ("lage_korrigiert", "nein"), ("ausgeschlossen", "nein"),
+                          ("anzahl_vorgaenge", 0)):
+        added[column] = value
+    first = int(network["lfd_nr"].max()) + 1 if len(network) else 1
+    added["lfd_nr"] = range(first, first + len(added))
+    start = int(network.index.max()) + 1 if len(network) else 0
+    added.index = range(start, start + len(added))
+    labels = dict(zip(new_edges["entry_id"], added.index))
+    added = added[[column for column in added.columns if column in network.columns]]
+    network = gpd.GeoDataFrame(pd.concat([network, added]), geometry="geometry", crs=CRS)
+    network["anzahl_vorgaenge"] = network["anzahl_vorgaenge"].astype("Int64")
+    original_geometry = pd.concat([original_geometry, added.geometry])
+    return network, original_geometry, labels
+
+
+def split_at_virtual_nodes(network, original_geometry, labels_of_ref, drawn_labels, entries, base_element_nrs):
+    """Teilt REN+-Kanten und gezeichnete Kanten an den virtuellen Knoten des Exports (wie splitEdges in der App,
+    netzanpassungen/src/network/element-nr.ts im Repo knotenpunkte).
+
+    Jede Teilkante bekommt eine neue element_nr `<von>_<bis>.<nn>` (nn zählt je Knotenpaar nach den vorhandenen
+    Kanten, zuerst die Teile gezeichneter Kanten) und `ursprung_element_nr`; die Ursprungszeile entfällt. Die
+    Station kommt aus der Lage des Knotens (Projektion auf die Trägerkante, bei Lagekorrekturen auf die korrigierte
+    Linie, wo die App den Knoten mitgeführt hat); ein Knoten mehr als 1 m neben der Kante teilt sie nicht. Im Kundennetz (Originallage) liegt die
+    Teilung bei demselben Anteil der Kantenlänge. Der freie Endknoten einer gezeichneten Kante teilt sie nicht.
+    Nicht geteilt wird eine Trägerkante ohne Knotennamen oder mit mehreren Linien (steht in den Konflikten).
+    `labels_of_ref`: Indexmarke und Linie je Schlüssel `ref` des Eingangsnetzes.
+    Gibt (Netz, Originallage, Konflikte, Zähler) zurück."""
+    nodes = [entry for entry in active_entries(entries, "virtual_node") if not entry["data"].get("geloescht")]
+    drawn_data = {entry["id"]: entry["data"] for entry in active_entries(entries, "new_edge")}
+    conflicts, stats = [], {"geteilte_kanten": 0, "teilkanten": 0, "traeger_ohne_netz": 0, "knoten_neben_traeger": 0}
+    hosts = {}  # Indexmarke -> [(Knoteneintrag)], in der Reihenfolge des Exports
+    for entry in nodes:
+        data = entry["data"]
+        host = data.get("traeger") or {}
+        if host.get("art") == "ren" and host.get("ref") in labels_of_ref and labels_of_ref[host["ref"]][0] in network.index:
+            label = labels_of_ref[host["ref"]][0]
+        elif host.get("art") == "neu" and host.get("ref") in drawn_labels:
+            label = drawn_labels[host["ref"]]
+            edge = drawn_data[host["ref"]]
+            if f"v:{entry['id']}" in (edge["von"], edge["bis"]):
+                continue  # freier Endknoten der gezeichneten Kante: teilt sie nicht
+        else:
+            stats["traeger_ohne_netz"] += 1
+            continue
+        hosts.setdefault(label, []).append(entry)
+
+    drawn_label_set = set(drawn_labels.values())
+    # Zuerst die gezeichneten Kanten, damit ihre Teile wie die Kanten selbst nummeriert werden
+    order = sorted(hosts, key=lambda label: label not in drawn_label_set)
+    counts = element_nr_counts(list(base_element_nrs) + [network.at[label, "element_nr"] for label in drawn_label_set])
+    network = network.copy()
+    network["von_knoten"] = network["von_knoten"].map(node_text)
+    network["bis_knoten"] = network["bis_knoten"].map(node_text)
+    names = {entry["id"]: entry["data"]["name"] for entry in nodes}
+    next_label = int(network.index.max()) + 1
+    next_lfd = int(network["lfd_nr"].max()) + 1
+    pieces, piece_geometry, dropped = [], [], []
+    for label in order:
+        row = network.loc[label]
+        line_parts = list(row.geometry.geoms)
+        old_parts = list(original_geometry.loc[label].geoms)
+        if len(line_parts) != 1:
+            conflicts.append({"grund": f"Trägerkante {row['element_nr']} hat {len(line_parts)} Linien: nicht an virtuellen Knoten geteilt",
+                              "art": "virtual_node", "eintrag_id": hosts[label][0]["id"], "ref": None, "element_nr": row["element_nr"],
+                              "abweichung_m": None, "bearbeitet_von": None, "bearbeitet_am": None})
+            continue
+        if not row["von_knoten"] or not row["bis_knoten"]:
+            conflicts.append({"grund": f"Trägerkante {row['element_nr']} ohne Knoten: nicht an virtuellen Knoten geteilt",
+                              "art": "virtual_node", "eintrag_id": hosts[label][0]["id"], "ref": None, "element_nr": row["element_nr"],
+                              "abweichung_m": None, "bearbeitet_von": None, "bearbeitet_am": None})
+            continue
+        line, old_line = line_parts[0], old_parts[0]
+        stops = []
+        for entry in hosts[label]:
+            data = entry["data"]
+            point = Point(*_to_utm.transform(*data["lngLat"]))
+            if line.distance(point) > NODE_ON_EDGE_TOLERANCE_M:
+                stats["knoten_neben_traeger"] += 1  # steht schon als Hinweis in den Konflikten (check_nodes_on_edges)
+                continue
+            station = line.project(point)
+            if SPLIT_END_TOLERANCE_M < station < line.length - SPLIT_END_TOLERANCE_M:
+                stops.append((station, entry))
+        if not stops:
+            continue
+        stops.sort(key=lambda item: item[0])
+        scale = old_line.length / line.length if line.length else 1.0
+        chain = [(0.0, row["von_knoten"], None)] + [(st, names[e["id"]], e) for st, e in stops] + [(line.length, row["bis_knoten"], None)]
+        dropped.append(label)
+        stats["geteilte_kanten"] += 1
+        for (low, start, start_entry), (high, end, end_entry) in zip(chain[:-1], chain[1:]):
+            key = pair_key(start, end)
+            counts[key] = counts.get(key, 0) + 1
+            element_nr = f"{start}_{end}.{counts[key]:02d}"
+            piece = row.drop(labels=["geometry"]).to_dict()
+            piece.update({"element_nr": element_nr, "von_knoten": start, "bis_knoten": end,
+                          "ursprung_element_nr": row["element_nr"], "lfd_nr": next_lfd, "eintrag_ids": row["eintrag_ids"]})
+            next_lfd += 1
+            for entry in (start_entry, end_entry):
+                if entry is not None:
+                    ids = piece["eintrag_ids"].split("; ") if isinstance(piece["eintrag_ids"], str) and piece["eintrag_ids"] else []
+                    if entry["id"] not in ids:
+                        piece["eintrag_ids"] = "; ".join(ids + [entry["id"]])
+            pieces.append((next_label, piece))
+            piece_geometry.append((next_label, MultiLineString([shapely.ops.substring(line, low, high)]),
+                                   MultiLineString([shapely.ops.substring(old_line, low * scale, high * scale)])))
+            next_label += 1
+            stats["teilkanten"] += 1
+
+    if not pieces:
+        return network, original_geometry, conflicts, stats
+    added = gpd.GeoDataFrame([piece for _, piece in pieces], index=[label for label, _ in pieces],
+                             geometry=[geometry for _, geometry, _ in piece_geometry], crs=CRS)
+    added["laenge_m"] = added.geometry.length.round(1)
+    network = gpd.GeoDataFrame(pd.concat([network.drop(index=dropped), added[list(network.columns)]]), geometry="geometry", crs=CRS)
+    old_added = gpd.GeoSeries([old for _, _, old in piece_geometry], index=[label for label, _, _ in piece_geometry], crs=CRS)
+    original_geometry = pd.concat([original_geometry.drop(index=dropped), old_added])
+    return network, original_geometry, conflicts, stats
+
+
 def lage_metrics(old, new):
     """Kennzahlen zwischen alter und neuer Geometrie einer Kante (Meter, Quadratmeter)."""
     old_parts = list(old.geoms) if isinstance(old, MultiLineString) else [old]
@@ -753,6 +914,7 @@ def run(export_path, ren_path=AUTO_PATH, output_dir=OUTPUT_DIR, virtual_nodes_pa
         network = network.to_crs(CRS)
     original_geometry = network.geometry.copy()
     corrected, conflicts, stats, parts = apply_corrections(network, entries)
+    labels = list(corrected.index)  # Indexmarke je Zeile des Eingangsnetzes (Parts.items[...]["row"] ist die Position)
     logging.info(f"Korrekturen: {stats['angewendet']} von {stats['edge_correction']} angewendet "
                  f"({stats['geometrie']} mit Geometrie, {stats['attribute']} mit Attributen), {stats['konflikte']} Konflikte")
 
@@ -773,10 +935,23 @@ def run(export_path, ren_path=AUTO_PATH, output_dir=OUTPUT_DIR, virtual_nodes_pa
     stats.update({f"zuordnung_{key}": value for key, value in assignment_stats.items()})
 
     nodes, node_conflicts = virtual_node_frame(entries, parts)
-    new_edges, edge_conflicts = new_edge_frame(entries, load_base_element_nrs(network, detail_path))
+    base_element_nrs = load_base_element_nrs(network, detail_path)
+    new_edges, edge_conflicts = new_edge_frame(entries, base_element_nrs)
     conflicts += node_conflicts + edge_conflicts
     stats["virtuelle_knoten"] = len(nodes)
     stats["neue_kanten"] = len(new_edges)
+
+    # Gezeichnete Kanten in die Ergebnisnetze, dann REN+-Kanten und gezeichnete Kanten an den virtuellen Knoten teilen
+    corrected, original_geometry, drawn_labels = add_drawn_edges(corrected, original_geometry, new_edges, entries)
+    corrected, original_geometry, split_conflicts, split_stats = split_at_virtual_nodes(
+        corrected, original_geometry, {item["ref"]: (labels[item["row"]], item["part"]) for item in parts.items},
+        drawn_labels, entries, base_element_nrs)
+    conflicts += split_conflicts
+    stats.update(split_stats)
+    corrected["von_knoten"] = corrected["von_knoten"].map(node_text)
+    corrected["bis_knoten"] = corrected["bis_knoten"].map(node_text)
+    logging.info(f"Gezeichnete Kanten im Netz: {len(drawn_labels)}, geteilt an virtuellen Knoten: "
+                 f"{split_stats['geteilte_kanten']} Kanten in {split_stats['teilkanten']} Teilkanten")
     if export_path is None:
         # Ohne Export wüsste die Datei nichts von den virtuellen Knoten: lieber den letzten Stand lassen
         logging.info("Ohne Export: virtuelle Knoten und gezeichnete Kanten bleiben, wie sie sind")
