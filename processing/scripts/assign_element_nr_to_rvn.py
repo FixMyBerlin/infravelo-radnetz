@@ -16,7 +16,7 @@ Mit --netz ren für das REN+ (Pfade je Netz in helpers/netz.py).
 INPUT:
 - output/rvn/Berlin Radvorrangsnetz_mit_virtuellen-knotenpunkten.fgb
 - output/knotenpunkte/knotenpunkte_mit_id.gpkg
-- data/Virtuelle-Knotenpunkte.gpkg
+- netzanpassungen/output/virtuelle_knoten.gpkg (import_app_export.py, über helpers/virtuelle_knoten.py)
 
 OUTPUT:
 - output/rvn/Berlin Vorrangnetz_with_element_nr.fgb
@@ -34,6 +34,7 @@ import networkx as nx
 
 sys.path.append(str(Path(__file__).parent.parent))
 from helpers.netz import DEFAULT_NETZ, PFADE, add_netz_argument  # noqa: E402
+from helpers.virtuelle_knoten import virtual_nodes_path  # noqa: E402
 
 # Konfiguration
 DEFAULT_CRS = 25833  # EPSG:25833 (ETRS89 / UTM zone 33N) - aus helpers.globals
@@ -624,7 +625,7 @@ def create_element_numbers_for_rvn(netz=DEFAULT_NETZ):
     # Dateipfade definieren
     radvorrangsnetz_path = PFADE[netz]['geteilt']
     knotenpunkte_path = 'output/knotenpunkte/knotenpunkte_mit_id.gpkg'
-    virtuelle_knotenpunkte_path = 'data/Virtuelle-Knotenpunkte.gpkg'
+    virtuelle_knotenpunkte_path = str(virtual_nodes_path())
     output_path = PFADE[netz]['mit_element_nr']
     
     # Stelle sicher, dass das Ausgabeverzeichnis existiert

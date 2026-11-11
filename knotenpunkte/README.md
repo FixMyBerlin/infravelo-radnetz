@@ -33,7 +33,7 @@ python knotenpunkte/merge_bewertungen.py ratings-<bereich>-<datum>.geojson
 |---|---|
 | `ren-network/output/ren_netz_gesamt.gpkg` | REN+-Kanten mit `von_knoten`, `bis_knoten`, `radverkehrsnetz`, `hauptverkehrsstrasse` |
 | `data/Berlin Verbindungspunkte Detailnetz.fgb`, `data/Berlin Straßenabschnitte Detailnetz*.fgb` | Lage und `okstra_id` der Knoten |
-| `data/Virtuelle-Knotenpunkte.gpkg` | Manuell gepflegte virtuelle Knoten (`Knotenpunkt-ID`, Punkt) |
+| `netzanpassungen/output/virtuelle_knoten.gpkg` | Virtuelle Knoten aus der App Netzanpassungen (`Knotenpunkt-ID`, Punkt; `netzanpassungen/import_app_export.py` schreibt sie, ohne die Datei bricht das Skript ab) |
 | `data/Berlin Bezirke.gpkg` | Bezirksnummer |
 | `data/netzquellen/knotenpunkte_2025.geojson.gz` | Lieferung 2025, gzip von `knotenpunkte_mit_id_und_bezirken.geojson` aus `tilda-static-data` (`region-infravelo/infravelo-datensatz-knoten-fortlaufend`) |
 | `data/netzquellen/lsa.gpkg`, `osm_ampeln.gpkg` | Ampeln aus Open Data (WFS `lsa`) und OSM, von `download_lsa.py` |

@@ -46,6 +46,9 @@ python ren-network/unify_networks.py
 # Bearbeitungsstand der Mapper nach TILDA (Zuteilung und Mittellinien-Radwege, Upload nach production)
 bearbeitungsstand/update.sh
 
+# Export der App Netzanpassungen einlesen: virtuelle Knoten (netzanpassungen/output/virtuelle_knoten.gpkg) und korrigiertes REN+; vor processing/ und knotenpunkte/
+python netzanpassungen/import_app_export.py <export-alle-eintraege>.json
+
 # Knotenpunkte erzeugen
 python knotenpunkte/download_lsa.py && python knotenpunkte/build_knotenpunkte.py
 

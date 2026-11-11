@@ -7,7 +7,7 @@ Validiert die Eindeutigkeit der Knotenpunkt-IDs in den virtuellen Knotenpunkten.
 Prüft, ob jede Knotenpunkt-ID nur einmal vorkommt und gibt Warnungen bei Duplikaten aus.
 
 INPUT:
-- data/Virtuelle-Knotenpunkte.gpkg
+- netzanpassungen/output/virtuelle_knoten.gpkg (import_app_export.py, über helpers/virtuelle_knoten.py)
 
 OUTPUT:
 - Konsolenausgabe mit Warnungen bei gefundenen Duplikaten
@@ -23,6 +23,7 @@ from collections import Counter
 # Import der Helper aus processing
 sys.path.append(str(Path(__file__).parent.parent))
 from helpers.globals import DEFAULT_CRS
+from helpers.virtuelle_knoten import virtual_nodes_path
 
 # ANSI Farb-Codes
 ORANGE = '\033[38;5;214m'
@@ -157,11 +158,7 @@ def main():
     logger.info("=" * 80)
     
     # Dateipfad definieren
-    input_file = Path("data/Virtuelle-Knotenpunkte.gpkg")
-    
-    if not input_file.exists():
-        logger.error(f"{RED}❌ FEHLER: Datei nicht gefunden: {input_file}{RESET}")
-        sys.exit(1)
+    input_file = virtual_nodes_path()  # bricht mit klarer Meldung ab, wenn die Datei fehlt
     
     # Lade Daten
     gdf = load_virtuelle_knotenpunkte(input_file)

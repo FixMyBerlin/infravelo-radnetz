@@ -18,7 +18,7 @@ Netzanpassungen (ren_netz_gesamt_korrigiert.gpkg, Standard, wenn die Datei exist
 oder das Original. Im korrigierten Netz entfallen die Kanten mit ausgeschlossen = ja.
 
 INPUT:
-- data/Virtuelle-Knotenpunkte.gpkg (von assign_node_ids erstellt)
+- netzanpassungen/output/virtuelle_knoten.gpkg (import_app_export.py, über helpers/virtuelle_knoten.py)
 - data/Berlin Radvorrangsnetz.fgb bzw. ../ren-network/output/ren_netz_gesamt.gpkg oder
   ren_netz_gesamt_korrigiert.gpkg (--netz ren, siehe --quelle)
 - data/Berlin Straßenabschnitte Detailnetz.fgb
@@ -39,6 +39,7 @@ from shapely.ops import split
 
 sys.path.append(str(Path(__file__).parent.parent))
 from helpers.netz import PFADE, add_netz_argument, add_quelle_argument, waehle_quelle  # noqa: E402
+from helpers.virtuelle_knoten import virtual_nodes_path as find_virtual_nodes_path  # noqa: E402
 
 # Konfiguration
 DEFAULT_CRS = 25833  # EPSG:25833 (ETRS89 / UTM zone 33N) - aus helpers.globals
@@ -387,7 +388,7 @@ def main(netz, quelle='auto'):
     """
     # Dateipfade definieren
     pfade = PFADE[netz]
-    virtual_nodes_path = 'data/Virtuelle-Knotenpunkte.gpkg'
+    virtual_nodes_path = str(find_virtual_nodes_path())
     
     rvn_path, korrigiert = waehle_quelle(netz, quelle)
     rvn_output_path = pfade['geteilt']

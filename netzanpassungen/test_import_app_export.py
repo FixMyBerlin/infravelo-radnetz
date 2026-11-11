@@ -150,8 +150,6 @@ class ImportTest(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.dir = Path(self.tmp.name)
         build_network().to_file(self.dir / "ren_netz_gesamt.gpkg", layer="ren_netz", driver="GPKG")
-        gpd.GeoDataFrame({"Knotenpunkt-ID": ["V47500003-V47500008"]}, geometry=[Point(X0 + 5000, Y0)], crs=imp.CRS).to_file(
-            self.dir / "Virtuelle-Knotenpunkte.gpkg", layer=imp.VIRTUAL_NODES_LAYER, driver="GPKG")
         self.export = self.dir / "export.json"
         self.export.write_text(json.dumps({"gebiet": "test", "exported_at": "2026-11-12T12:00:00Z", "entries": build_entries()}),
                                encoding="utf-8")
@@ -161,8 +159,8 @@ class ImportTest(unittest.TestCase):
 
     def run_import(self):
         return imp.run(self.export, ren_path=self.dir / "ren_netz_gesamt.gpkg", output_dir=self.dir / "out",
-                       virtual_nodes_path=self.dir / "Virtuelle-Knotenpunkte.gpkg",
-                       new_edges_path=self.dir / "touristische_kanten.gpkg")
+                       virtual_nodes_path=self.dir / "app-output" / "virtuelle_knoten.gpkg",
+                       new_edges_path=self.dir / "app-output" / "touristische_kanten.gpkg")
 
     def test_import(self):
         stats, conflicts = self.run_import()
@@ -214,16 +212,22 @@ class ImportTest(unittest.TestCase):
         self.assertAlmostEqual(parts[0].coords[-1][1] - Y0, 100.0, delta=0.001)
         self.assertAlmostEqual(parts[1].coords[-1][1] - Y0, 103.0, delta=0.02)
 
-        # virtuelle Knoten: n1 liegt auf der korrigierten Kante und wird angehängt, n2 steht weit daneben (Hinweis),
-        # der gelöschte n3 fehlt
-        nodes = gpd.read_file(self.dir / "Virtuelle-Knotenpunkte.gpkg")
-        self.assertEqual(sorted(nodes["Knotenpunkt-ID"]), ["V10000001-10000002", "V47500003-V47500008", "V99"])
+        # virtuelle Knoten: alle nicht gelöschten Einträge stehen in output/virtuelle_knoten.gpkg (n1 liegt auf der
+        # korrigierten Kante, n2 steht weit daneben und bekommt einen Hinweis), der gelöschte n3 fehlt
+        nodes = gpd.read_file(self.dir / "app-output" / "virtuelle_knoten.gpkg").set_index("Knotenpunkt-ID")
+        self.assertEqual(sorted(nodes.index), ["V10000001-10000002", "V99"])
+        self.assertEqual(nodes.loc["V10000001-10000002", "traeger_element_nr"], "10000001_10000002.01")
+        self.assertEqual(nodes.loc["V10000001-10000002", "ist_virtuell"], 1)
+        self.assertEqual(nodes.loc["V10000001-10000002", "eintrag_id"], "n1")
+        self.assertAlmostEqual(nodes.loc["V10000001-10000002", "station_m"], 57.0)
+        self.assertEqual(nodes.crs.to_epsg(), 25833)
+        self.assertFalse((self.dir / "Virtuelle-Knotenpunkte.gpkg").exists())
         self.assertIn("neben seiner Trägerkante", by_entry.loc["n2", "grund"])
         self.assertNotIn("n1", by_entry.index)
-        self.assertEqual(stats["virtuelle_knoten_neu"], 2)
+        self.assertEqual(stats["virtuelle_knoten"], 2)
 
         # neue Kanten: Nummern zählen je Knotenpaar, gelöschte fehlt
-        edges = gpd.read_file(self.dir / "touristische_kanten.gpkg", layer=imp.NEW_EDGES_LAYER).set_index("entry_id")
+        edges = gpd.read_file(self.dir / "app-output" / "touristische_kanten.gpkg", layer=imp.NEW_EDGES_LAYER).set_index("entry_id")
         self.assertEqual(sorted(edges.index), ["k1", "k2"])
         self.assertEqual(edges.loc["k1", "element_nr"], "10000001_V10000001-10000002.01")
         self.assertEqual(edges.loc["k2", "element_nr"], "10000001_V10000001-10000002.02")
@@ -233,16 +237,33 @@ class ImportTest(unittest.TestCase):
         self.assertEqual(stats["angewendet"], 5)
         self.assertEqual(stats["konflikte"], 2)
 
-    def test_second_run_changes_nothing(self):
+    def test_second_run_gives_the_same_files(self):
         self.run_import()
-        nodes_before = gpd.read_file(self.dir / "Virtuelle-Knotenpunkte.gpkg")
-        edges_before = gpd.read_file(self.dir / "touristische_kanten.gpkg", layer=imp.NEW_EDGES_LAYER)
-        stats, _ = self.run_import()
-        self.assertEqual(stats["virtuelle_knoten_neu"], 0)
-        self.assertEqual(len(gpd.read_file(self.dir / "Virtuelle-Knotenpunkte.gpkg")), len(nodes_before))
-        edges_after = gpd.read_file(self.dir / "touristische_kanten.gpkg", layer=imp.NEW_EDGES_LAYER)
+        nodes_before = gpd.read_file(self.dir / "app-output" / "virtuelle_knoten.gpkg")
+        edges_before = gpd.read_file(self.dir / "app-output" / "touristische_kanten.gpkg", layer=imp.NEW_EDGES_LAYER)
+        self.run_import()
+        nodes_after = gpd.read_file(self.dir / "app-output" / "virtuelle_knoten.gpkg")
+        edges_after = gpd.read_file(self.dir / "app-output" / "touristische_kanten.gpkg", layer=imp.NEW_EDGES_LAYER)
+        self.assertEqual(sorted(nodes_after["Knotenpunkt-ID"]), sorted(nodes_before["Knotenpunkt-ID"]))
         self.assertEqual(sorted(edges_after["entry_id"]), sorted(edges_before["entry_id"]))
         self.assertEqual(sorted(edges_after["element_nr"]), sorted(edges_before["element_nr"]))
+
+    def test_writes_nothing_to_data(self):
+        """Der Import schreibt nur dorthin, wohin ihn der Aufrufer schickt (output/), nie nach data/."""
+        self.assertEqual(imp.VIRTUAL_NODES_PATH.parent, imp.HERE / "output")
+        self.assertEqual(imp.NEW_EDGES_PATH.parent, imp.HERE / "output")
+        self.run_import()
+        self.assertEqual(sorted(path.name for path in self.dir.iterdir() if path.is_file()), ["export.json", "ren_netz_gesamt.gpkg"])
+
+    def test_duplicate_node_name(self):
+        entries = build_entries()
+        entries.append(stored("n9", {"kind": "virtual_node", "name": "V99", "name_vorschlag": "V99", "lngLat": lnglat(10, 7),
+                                     "traeger": {"art": "ren", "ref": "10000001_10000002.01", "station_m": 10.0}}))
+        self.export.write_text(json.dumps({"gebiet": "test", "exported_at": "x", "entries": entries}), encoding="utf-8")
+        _, conflicts = self.run_import()
+        self.assertTrue(any(c["eintrag_id"] == "n9" and "mehreren Einträgen" in c["grund"] for c in conflicts))
+        nodes = gpd.read_file(self.dir / "app-output" / "virtuelle_knoten.gpkg")
+        self.assertEqual(sorted(nodes["Knotenpunkt-ID"]).count("V99"), 1)
 
     def test_undo_fields(self):
         original = [[13.0, 52.0], [13.1, 52.1]]

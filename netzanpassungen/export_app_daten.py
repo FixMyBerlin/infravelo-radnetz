@@ -10,7 +10,8 @@ Kanten gezeichnet, wo das Detailnetz und das REN+ keine haben.
 Die Datei enthält sechs FeatureCollections in WGS84:
 - detailnetz: Kanten mit element_nr, beginnt_bei_vp, endet_bei_vp
 - knoten: Detailnetzknoten aus den Kantenenden (erster Punkt =
-  beginnt_bei_vp, letzter = endet_bei_vp) und die virtuellen Knoten
+  beginnt_bei_vp, letzter = endet_bei_vp). Virtuelle Knoten stehen nicht in der Datei,
+  sie leben in der App (KV-Datenbank)
 - ren_netz: REN+ gesamt (Original, noch ohne Korrekturen) mit element_nr,
   von_knoten, bis_knoten und verkehrsrichtung (B/R/G aus dem Detailnetz)
 - radfernwege: touristisches Radnetz
@@ -20,7 +21,6 @@ Die Datei enthält sechs FeatureCollections in WGS84:
 
 INPUT:
 - data/Berlin Straßenabschnitte Detailnetz.fgb (jüngster Stand)
-- data/Virtuelle-Knotenpunkte.gpkg
 - ren-network/output/ren_netz_gesamt.gpkg (unify_networks.py)
 - data/netzquellen/touristisches_radnetz.gpkg (aus dem Drive, data/download_inputs.py)
 - data/Berlin Bezirke.gpkg (nur mit --bezirk)
@@ -57,7 +57,6 @@ import unify_networks as ren  # noqa: E402
 CRS = f"EPSG:{ren.DEFAULT_CRS}"
 SCHEMA = "netzanpassungen-app/v1"
 
-VIRTUAL_NODES_PATH = ROOT / "data" / "Virtuelle-Knotenpunkte.gpkg"
 RADFERNWEGE_PATH = ROOT / "data" / "netzquellen" / "touristisches_radnetz.gpkg"
 OUTPUT_DIR = Path(__file__).resolve().parent / "output"
 
@@ -153,18 +152,6 @@ def nodes_from_edges(detail):
     nodes = gpd.GeoDataFrame({"id": nodes.index, "ist_virtuell": 0}, geometry=nodes.geometry.to_numpy(), crs=detail.crs)
     logging.info(f"Knoten aus Kantenenden: {len(nodes)}, Kantenenden abseits ihres Knotens: {len(off)}")
     return nodes, off
-
-
-def load_virtual_nodes():
-    virtual = gpd.read_file(VIRTUAL_NODES_PATH)
-    if virtual.crs is None or virtual.crs.to_epsg() != ren.DEFAULT_CRS:
-        virtual = virtual.to_crs(CRS)
-    virtual = virtual[virtual["Knotenpunkt-ID"].notna()]
-    logging.info(f"Virtuelle Knoten: {len(virtual)}")
-    return gpd.GeoDataFrame({
-        "id": virtual["Knotenpunkt-ID"].astype(str).str.strip(),
-        "ist_virtuell": 1,
-    }, geometry=virtual.geometry.to_numpy(), crs=virtual.crs)
 
 
 def node_id_text(value):
@@ -340,11 +327,7 @@ def main():
     ren.download_inputs()
     detail, detail_source = load_detailnetz()
     nodes, off_nodes = nodes_from_edges(detail)
-    virtual = load_virtual_nodes()
-    duplicates = sorted(set(virtual["id"]) & set(nodes["id"]))
-    if duplicates:
-        logging.warning(f"Virtuelle Knoten mit der ID eines Detailnetzknotens: {duplicates}")
-    all_nodes = gpd.GeoDataFrame(pd.concat([nodes, virtual], ignore_index=True), crs=CRS)
+    all_nodes = nodes
     ren_netz = load_ren_netz(detail)
     routes = load_radfernwege()
     gaps = find_gaps(routes, gpd.GeoDataFrame(
@@ -374,7 +357,6 @@ def main():
             "detailnetz": file_date(detail_source),
             "ren_netz": file_date(ren.OUTPUT_PATH),
             "radfernwege": file_date(RADFERNWEGE_PATH),
-            "virtuelle_knoten": file_date(VIRTUAL_NODES_PATH),
         },
         "detailnetz": feature_collection(detail),
         "knoten": feature_collection(all_nodes),

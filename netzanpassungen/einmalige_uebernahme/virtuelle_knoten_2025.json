@@ -1,0 +1,479 @@
+[
+ {
+  "kind": "virtual_node",
+  "name": "V47500003-V47500008",
+  "lngLat": [
+   13.4180192,
+   52.480009
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V49480011-V49480011",
+  "lngLat": [
+   13.4552285,
+   52.4611282
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V50430004-V50430008",
+  "lngLat": [
+   13.468228,
+   52.4201763
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V44530016-44530064",
+  "lngLat": [
+   13.3731881,
+   52.5012779
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V44520003-44520006",
+  "lngLat": [
+   13.3726209,
+   52.4999815
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V44520014-44520005",
+  "lngLat": [
+   13.3731649,
+   52.4958337
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V56600007-565900007",
+  "lngLat": [
+   13.5551353,
+   52.5652048
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V58590024-58590010",
+  "lngLat": [
+   13.5698463,
+   52.561747
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V58590010-58590024",
+  "lngLat": [
+   13.5715352,
+   52.5639501
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V57580021-57590012",
+  "lngLat": [
+   13.5681702,
+   52.5563257
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V57570032-57570018",
+  "lngLat": [
+   13.5664528,
+   52.5409126
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V50440026-49450046",
+  "lngLat": [
+   13.4633514,
+   52.424447
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V37510001-36510009",
+  "lngLat": [
+   13.2631574,
+   52.4877483
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V38520048-38520045",
+  "lngLat": [
+   13.28988,
+   52.49753
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V31530013-31520023",
+  "lngLat": [
+   13.1821342,
+   52.4999019
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V31520023-31520018",
+  "lngLat": [
+   13.1836996,
+   52.495362
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V30560038-30560029",
+  "lngLat": [
+   13.1689603,
+   52.5308442
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V2118",
+  "lngLat": [
+   13.1518032,
+   52.5460283
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V38700002-38690001",
+  "lngLat": [
+   13.2860816,
+   52.6553606
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V2120",
+  "lngLat": [
+   13.4183969,
+   52.4766779
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V61460005-61460004",
+  "lngLat": [
+   13.6267645,
+   52.4457153
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V50470016-49480011",
+  "lngLat": [
+   13.4576529,
+   52.4584907
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V49510042-2",
+  "lngLat": [
+   13.4512103,
+   52.4915763
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V37580001-40580001",
+  "lngLat": [
+   13.2966138,
+   52.5489021
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V49520053-50500002",
+  "lngLat": [
+   13.4561439,
+   52.4891384
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V4789",
+  "lngLat": [
+   13.5603024,
+   52.5644959
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V6475",
+  "lngLat": [
+   13.5588442,
+   52.5645671
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V47600012-2",
+  "lngLat": [
+   13.4133251,
+   52.5676483
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V44530064-2",
+  "lngLat": [
+   13.3737076,
+   52.5029562
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V8767",
+  "lngLat": [
+   13.407523,
+   52.5642268
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V7234",
+  "lngLat": [
+   13.45981,
+   52.4848417
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V42430031-2",
+  "lngLat": [
+   13.3482382,
+   52.416315
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V9634",
+  "lngLat": [
+   13.3023416,
+   52.4086451
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V9016",
+  "lngLat": [
+   13.2640967,
+   52.457066
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V38700004-2",
+  "lngLat": [
+   13.2846535,
+   52.6603955
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V9988",
+  "lngLat": [
+   13.3641306,
+   52.4757254
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V6967",
+  "lngLat": [
+   13.2959858,
+   52.4144883
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V6384",
+  "lngLat": [
+   13.4994825,
+   52.5216495
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V6533",
+  "lngLat": [
+   13.5049242,
+   52.5733669
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V5553",
+  "lngLat": [
+   13.5031206,
+   52.5727584
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V6655",
+  "lngLat": [
+   13.3994545,
+   52.5461379
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V7665",
+  "lngLat": [
+   13.2788793,
+   52.4344707
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V2622",
+  "lngLat": [
+   13.5539952,
+   52.4689936
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V7799",
+  "lngLat": [
+   13.460895,
+   52.4711483
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V6538",
+  "lngLat": [
+   13.4702722,
+   52.5034969
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V7633",
+  "lngLat": [
+   13.4710637,
+   52.5035103
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V8671",
+  "lngLat": [
+   13.5529807,
+   52.5445987
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V1112",
+  "lngLat": [
+   13.436413,
+   52.5388448
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V7011",
+  "lngLat": [
+   13.5430747,
+   52.5259152
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V6192",
+  "lngLat": [
+   13.5430885,
+   52.5266666
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V2012",
+  "lngLat": [
+   13.2615718,
+   52.4888744
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V4396",
+  "lngLat": [
+   13.3603247,
+   52.5911097
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ },
+ {
+  "kind": "virtual_node",
+  "name": "V4912",
+  "lngLat": [
+   13.3613727,
+   52.5913749
+  ],
+  "kommentar": "Bestand 2025 aus Virtuelle-Knotenpunkte.gpkg"
+ }
+]

@@ -23,7 +23,7 @@ INPUT:
 - ren-network/output/ren_netz_gesamt.gpkg (Layer: ren_netz)
 - data/Berlin Verbindungspunkte Detailnetz.fgb
 - data/Berlin Straßenabschnitte Detailnetz.fgb (jüngster Stand)
-- data/Virtuelle-Knotenpunkte.gpkg (manuell gepflegt)
+- netzanpassungen/output/virtuelle_knoten.gpkg (import_app_export.py, aus der App Netzanpassungen)
 - data/Berlin Bezirke.gpkg
 - data/netzquellen/knotenpunkte_2025.geojson.gz
   (tilda-static-data: region-infravelo/infravelo-datensatz-knoten-fortlaufend)
@@ -49,13 +49,13 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(ROOT / "ren-network"))
 
 import unify_networks as ren  # noqa: E402
+from helpers.virtuelle_knoten import virtual_nodes_path  # noqa: E402
 from assign_node_ids import assign_node_ids_to_points  # noqa: E402
 
 CRS = f"EPSG:{ren.DEFAULT_CRS}"
 NODE_ID = ren.NODE_ID_COLUMN  # "Knotenpunkt‐ID" mit U+2010 wie in der Lieferung 2025
 
 NETWORK_PATH = ren.OUTPUT_PATH
-VIRTUAL_NODES_PATH = ROOT / "data" / "Virtuelle-Knotenpunkte.gpkg"
 NODES_2025_PATH = ROOT / "data" / "netzquellen" / "knotenpunkte_2025.geojson.gz"
 LSA_PATH = ROOT / "data" / "netzquellen" / "lsa.gpkg"
 OSM_SIGNALS_PATH = ROOT / "data" / "netzquellen" / "osm_ampeln.gpkg"
@@ -257,9 +257,9 @@ def ren_nodes(network, detail):
 
 
 def virtual_nodes(network):
-    """Manuell gepflegte virtuelle Knoten; anliegende Kanten über den Abstand."""
-    virtual = gpd.read_file(VIRTUAL_NODES_PATH).to_crs(CRS)
-    # Die manuelle Datei schreibt die ID mit normalem Bindestrich
+    """Virtuelle Knoten aus der App Netzanpassungen; anliegende Kanten über den Abstand."""
+    virtual = gpd.read_file(virtual_nodes_path()).to_crs(CRS)
+    # Die Datei aus der App schreibt die ID mit normalem Bindestrich
     virtual = virtual.rename(columns={"Knotenpunkt-ID": NODE_ID})
     virtual[NODE_ID] = virtual[NODE_ID].map(id_text)
     virtual = virtual[virtual[NODE_ID].notna()].reset_index(drop=True)

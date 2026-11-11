@@ -8,13 +8,13 @@ fügt virtuelle Knotenpunkte hinzu.
 
 Dieses Skript lädt die Datei `knotenpunkte_mit_id_und_bezirken.gpkg` aus dem 
 data-raw-tilda Verzeichnis sowie die virtuellen Knotenpunkte aus 
-`Virtuelle-Knotenpunkte.gpkg` aus dem data Verzeichnis. Beide werden 
+`virtuelle_knoten.gpkg` aus netzanpassungen/output. Beide werden 
 zusammengeführt und in das GeoJSON-Format mit Standard-Projektion 
 (WGS84, EPSG:4326) konvertiert.
 
 INPUT:
 - data-raw-tilda/knotenpunkte_mit_id_und_bezirken.gpkg
-- data/Virtuelle-Knotenpunkte.gpkg
+- netzanpassungen/output/virtuelle_knoten.gpkg (import_app_export.py, über helpers/virtuelle_knoten.py)
 
 OUTPUT:
 - output/knotenpunkte_mit_id_und_bezirken.geojson (in WGS84)
@@ -34,9 +34,11 @@ import os
 import geopandas as gpd
 import pandas as pd
 
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from helpers.virtuelle_knoten import virtual_nodes_path  # noqa: E402
+
 # Konfiguration für Pfade
 INPUT_FILE = "./data-raw-tilda/knotenpunkte_mit_id_und_bezirken.gpkg"
-VIRTUAL_KNOTENPUNKTE_FILE = "./data/Virtuelle-Knotenpunkte.gpkg"
 OUTPUT_DIR = "./output/"
 OUTPUT_FILE = "knotenpunkte_mit_id_und_bezirken.geojson"
 
@@ -66,15 +68,11 @@ def load_and_merge_virtual_knotenpunkte(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFra
     Returns:
         GeoDataFrame mit regulären und virtuellen Knotenpunkten zusammengeführt
     """
-    if not os.path.exists(VIRTUAL_KNOTENPUNKTE_FILE):
-        logging.warning(f"Virtuelle Knotenpunkte-Datei nicht gefunden: {VIRTUAL_KNOTENPUNKTE_FILE}")
-        logging.warning("Fahre ohne virtuelle Knotenpunkte fort.")
-        return gdf
-    
-    logging.info(f"Lade virtuelle Knotenpunkte: {VIRTUAL_KNOTENPUNKTE_FILE}")
+    virtual_file = virtual_nodes_path()  # bricht mit klarer Meldung ab, wenn die Datei fehlt
+    logging.info(f"Lade virtuelle Knotenpunkte: {virtual_file}")
     
     # Lade virtuelle Knotenpunkte
-    virtual_gdf = gpd.read_file(VIRTUAL_KNOTENPUNKTE_FILE)
+    virtual_gdf = gpd.read_file(virtual_file)
     
     logging.info(f"Anzahl virtuelle Knotenpunkte geladen: {len(virtual_gdf)}")
     logging.info(f"Spalten virtuelle Knotenpunkte: {list(virtual_gdf.columns)}")

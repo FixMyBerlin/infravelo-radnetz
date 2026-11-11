@@ -10,7 +10,7 @@ Auswahl des Zielnetzes der Prozessierung (Parameter --netz).
   solange die Datei existiert (--quelle, siehe waehle_quelle).
 
 Beide Netze werden an denselben virtuellen Knotenpunkten geteilt
-(data/Virtuelle-Knotenpunkte.gpkg). Alle Pfade sind relativ zu processing/.
+(netzanpassungen/output/virtuelle_knoten.gpkg, siehe helpers/virtuelle_knoten.py). Alle Pfade sind relativ zu processing/.
 """
 
 import logging

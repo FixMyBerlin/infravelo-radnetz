@@ -8,10 +8,12 @@ netzanpassungen/) und bringt die Korrekturen ins REN+:
 
 - edge_correction: Korrektur einer REN+-Kante (Geometrie, fahrbahn_typ, fahrbahn_gruppe,
   verkehrsrichtung, ausgeschlossen). Wird auf ren_netz_gesamt.gpkg abgespielt.
-- virtual_node: virtueller Knoten, wird an data/Virtuelle-Knotenpunkte.gpkg angehängt.
-- new_edge: gezeichnete Kante, wird an data/netzquellen/touristische_kanten.gpkg angehängt
-  (je entry_id ersetzt, ein zweiter Lauf ändert nichts).
+- virtual_node: virtueller Knoten, kommt nach netzanpassungen/output/virtuelle_knoten.gpkg.
+  Das ist die Datei, die die Pipeline (processing/, knotenpunkte/) als virtuelle Knoten liest.
+- new_edge: gezeichnete Kante, kommt nach netzanpassungen/output/touristische_kanten.gpkg.
 - Einträge mit geloescht = true werden übersprungen.
+- Der Import schreibt nur nach output/, nie nach data/. Alles, was von Hand entsteht, lebt in der App
+  (KV-Datenbank); die beiden gpkg-Dateien entstehen bei jedem Lauf neu aus dem Export.
 
 Eine Korrektur wird nur angewendet, wenn die Kante im Eingangsnetz liegt (Schlüssel
 kante.ref wie in der App: element_nr, ab der zweiten Linie derselben Nummer `#2`, ...), ihre
@@ -30,18 +32,18 @@ INPUT:
 - Export der App (JSON: {gebiet, exported_at, entries})
 - ren-network/output/ren_netz_gesamt.gpkg (unify_networks.py)
 - data/Berlin Straßenabschnitte Detailnetz*.fgb (nur die element_nr, für die Nummern neuer Kanten)
-- data/Virtuelle-Knotenpunkte.gpkg, data/netzquellen/touristische_kanten.gpkg (werden ergänzt)
 
 OUTPUT:
 - ren-network/output/ren_netz_gesamt_korrigiert.gpkg / .geojson
 - ren-network/output/ren_netz_kartierung_korrigiert.gpkg / .geojson (ohne bearbeitet_2025 = ja
   und ohne ausgeschlossene Kanten)
 - ren-network/output/korrekturen_konflikte.csv
-- data/Virtuelle-Knotenpunkte.gpkg, data/netzquellen/touristische_kanten.gpkg (ergänzt)
+- netzanpassungen/output/virtuelle_knoten.gpkg (Layer Virtuelle-Knotenpunkte: Knotenpunkt-ID, ist_virtuell,
+  traeger_netz, traeger_element_nr, station_m, kommentar, eintrag_id)
+- netzanpassungen/output/touristische_kanten.gpkg (Layer touristische_kanten)
 
 Aufruf:
     python netzanpassungen/import_app_export.py netzanpassungen-alle-eintraege-berlin-2026-11-12.json
-    python netzanpassungen/import_app_export.py export.json --ohne-anhaengen
 """
 
 import argparse
@@ -76,17 +78,16 @@ REPLAY_TOLERANCE_DEG = 1e-9
 COORDINATE_GRID = 1e-7
 # Ein virtueller Knoten, der weiter von seiner (korrigierten) Trägerkante liegt, kommt auf die Prüfliste
 NODE_ON_EDGE_TOLERANCE_M = 1.0
-# Gleiche ID an (fast) gleicher Stelle: derselbe Knoten, schon angehängt
-NODE_SAME_POSITION_M = 0.5
 
 OUTPUT_DIR = ren.OUTPUT_DIR
 GESAMT_ORIGINAL = ren.OUTPUT_PATH
 GESAMT_KORRIGIERT = OUTPUT_DIR / "ren_netz_gesamt_korrigiert.gpkg"
 KARTIERUNG_KORRIGIERT = OUTPUT_DIR / "ren_netz_kartierung_korrigiert.gpkg"
 CONFLICTS_PATH = OUTPUT_DIR / "korrekturen_konflikte.csv"
-VIRTUAL_NODES_PATH = ROOT / "data" / "Virtuelle-Knotenpunkte.gpkg"
+APP_OUTPUT_DIR = HERE / "output"
+VIRTUAL_NODES_PATH = APP_OUTPUT_DIR / "virtuelle_knoten.gpkg"  # wie processing/helpers/virtuelle_knoten.py
 VIRTUAL_NODES_LAYER = "Virtuelle-Knotenpunkte"
-NEW_EDGES_PATH = ROOT / "data" / "netzquellen" / "touristische_kanten.gpkg"
+NEW_EDGES_PATH = APP_OUTPUT_DIR / "touristische_kanten.gpkg"
 NEW_EDGES_LAYER = "touristische_kanten"
 
 CORRECTION_COLUMNS = ["korrigiert", "attribut_korrigiert", "fahrbahn_typ", "fahrbahn_gruppe", "verkehrsrichtung",
@@ -317,15 +318,42 @@ def active_entries(entries, kind):
     return [entry for entry in entries if entry["data"].get("kind") == kind]
 
 
-def virtual_node_frame(entries):
-    rows = []
+def virtual_node_frame(entries, parts):
+    """Alle virtuellen Knoten des Exports (ohne gelöschte) in den Feldern der App (virtualNodesGeojson).
+    Gibt (Knoten, Konflikte) zurück; eine doppelte ID bleibt einmal drin (der frühere Eintrag)."""
+    rows, conflicts, names = [], [], {}
     for entry in active_entries(entries, "virtual_node"):
         data = entry["data"]
         if data.get("geloescht"):
             continue
+        name = data["name"]
+        if name in names:
+            conflicts.append({"grund": f"Virtueller Knoten {name} kommt in mehreren Einträgen vor (zuerst: {names[name]}); der erste gilt",
+                              "art": "virtual_node", "eintrag_id": entry["id"], "ref": None, "element_nr": None, "abweichung_m": None,
+                              "bearbeitet_von": entry.get("updated_by"), "bearbeitet_am": entry.get("updated_at")})
+            continue
+        names[name] = entry["id"]
         x, y = _to_utm.transform(*data["lngLat"])
-        rows.append({"Knotenpunkt-ID": data["name"], "eintrag_id": entry["id"], "geometry": Point(x, y)})
-    return gpd.GeoDataFrame(rows, columns=["Knotenpunkt-ID", "eintrag_id", "geometry"], geometry="geometry", crs=CRS)
+        host = data.get("traeger") or {}
+        item = parts.by_ref.get(host.get("ref")) if host.get("art") == "ren" else None
+        if item is not None:
+            host_element_nr = item["element_nr"]
+        elif host.get("art") == "detailnetz":
+            host_element_nr = str(host.get("ref", "")).split("#")[0] or None
+        else:
+            host_element_nr = None
+        rows.append({
+            "Knotenpunkt-ID": name,
+            "ist_virtuell": 1,
+            "traeger_netz": host.get("art"),
+            "traeger_element_nr": host_element_nr,
+            "station_m": round(host["station_m"], 2) if host.get("station_m") is not None else None,
+            "kommentar": data.get("kommentar"),
+            "eintrag_id": entry["id"],
+            "geometry": Point(x, y),
+        })
+    columns = ["Knotenpunkt-ID", "ist_virtuell", "traeger_netz", "traeger_element_nr", "station_m", "kommentar", "eintrag_id", "geometry"]
+    return gpd.GeoDataFrame(rows, columns=columns, geometry="geometry", crs=CRS), conflicts
 
 
 def check_nodes_on_edges(entries, network, parts):
@@ -353,28 +381,10 @@ def check_nodes_on_edges(entries, network, parts):
     return found
 
 
-def append_virtual_nodes(path, nodes):
-    """Hängt neue virtuelle Knoten an. Gleiche ID an gleicher Stelle ist schon da. Gibt (neu, Konflikte) zurück."""
-    existing = gpd.read_file(path).to_crs(CRS) if path.exists() else gpd.GeoDataFrame(
-        {"Knotenpunkt-ID": []}, geometry=[], crs=CRS)
-    known = {str(name): geometry for name, geometry in zip(existing["Knotenpunkt-ID"], existing.geometry)}
-    added, conflicts = [], []
-    for _, node in nodes.iterrows():
-        name = node["Knotenpunkt-ID"]
-        if name in known:
-            distance = known[name].distance(node.geometry)
-            if distance > NODE_SAME_POSITION_M:
-                conflicts.append({"grund": f"Virtueller Knoten {name} steht schon in {path.name}, {distance:.2f} m entfernt; die Datei bleibt",
-                                  "art": "virtual_node", "eintrag_id": node["eintrag_id"], "ref": None, "element_nr": None,
-                                  "abweichung_m": round(distance, 3), "bearbeitet_von": None, "bearbeitet_am": None})
-            continue
-        known[name] = node.geometry
-        added.append({"Knotenpunkt-ID": name, "geometry": node.geometry})
-    if added:
-        merged = pd.concat([existing[["Knotenpunkt-ID", "geometry"]], gpd.GeoDataFrame(added, crs=CRS)], ignore_index=True)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        gpd.GeoDataFrame(merged, crs=CRS).to_file(path, layer=VIRTUAL_NODES_LAYER, driver="GPKG")
-    return len(added), conflicts
+def write_virtual_nodes(path, nodes):
+    """Schreibt die virtuellen Knoten des Exports; die Datei entsteht bei jedem Lauf neu."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    nodes.to_file(path, layer=VIRTUAL_NODES_LAYER, driver="GPKG")
 
 
 def pair_key(a, b):
@@ -434,18 +444,10 @@ def new_edge_frame(entries, base_element_nrs):
     return gpd.GeoDataFrame(rows, columns=columns, geometry="geometry", crs=CRS), conflicts
 
 
-def write_new_edges(path, frame, entries):
-    """Ersetzt die Zeilen dieser Einträge (auch gelöschte) und lässt alle anderen stehen."""
-    touched = {entry["id"] for entry in active_entries(entries, "new_edge")}
-    existing = gpd.read_file(path, layer=NEW_EDGES_LAYER) if path.exists() else None
-    if existing is not None:
-        kept = existing[~existing["entry_id"].isin(touched)]
-        frame = gpd.GeoDataFrame(pd.concat([kept, frame], ignore_index=True), crs=CRS) if len(kept) else frame
-    elif frame.empty:
-        return 0
+def write_new_edges(path, frame):
+    """Schreibt die gezeichneten Kanten des Exports; die Datei entsteht bei jedem Lauf neu."""
     path.parent.mkdir(parents=True, exist_ok=True)
     frame.to_file(path, layer=NEW_EDGES_LAYER, driver="GPKG")
-    return len(frame)
 
 
 def load_base_element_nrs(network, detail_path):
@@ -456,7 +458,7 @@ def load_base_element_nrs(network, detail_path):
 
 
 def run(export_path, ren_path=GESAMT_ORIGINAL, output_dir=OUTPUT_DIR, virtual_nodes_path=VIRTUAL_NODES_PATH,
-        new_edges_path=NEW_EDGES_PATH, detail_path=None, append=True):
+        new_edges_path=NEW_EDGES_PATH, detail_path=None):
     """Der ganze Import. Gibt Zähler und Konflikte zurück (für Tests)."""
     export = json.loads(Path(export_path).read_text(encoding="utf-8"))
     entries = export["entries"]
@@ -471,19 +473,14 @@ def run(export_path, ren_path=GESAMT_ORIGINAL, output_dir=OUTPUT_DIR, virtual_no
 
     conflicts += check_nodes_on_edges(entries, corrected, parts)
 
-    nodes = virtual_node_frame(entries)
+    nodes, node_conflicts = virtual_node_frame(entries, parts)
     new_edges, edge_conflicts = new_edge_frame(entries, load_base_element_nrs(network, detail_path))
-    conflicts += edge_conflicts
+    conflicts += node_conflicts + edge_conflicts
     stats["virtuelle_knoten"] = len(nodes)
     stats["neue_kanten"] = len(new_edges)
-    if append:
-        added, node_conflicts = append_virtual_nodes(Path(virtual_nodes_path), nodes)
-        conflicts += node_conflicts
-        stats["virtuelle_knoten_neu"] = added
-        write_new_edges(Path(new_edges_path), new_edges, entries)
-        logging.info(f"Virtuelle Knoten: {len(nodes)} im Export, {added} neu angehängt. Neue Kanten: {len(new_edges)}")
-    else:
-        logging.info(f"Ohne Anhängen: {len(nodes)} virtuelle Knoten, {len(new_edges)} neue Kanten bleiben unberührt")
+    write_virtual_nodes(Path(virtual_nodes_path), nodes)
+    write_new_edges(Path(new_edges_path), new_edges)
+    logging.info(f"Virtuelle Knoten: {len(nodes)} nach {virtual_nodes_path}, neue Kanten: {len(new_edges)} nach {new_edges_path}")
 
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -505,10 +502,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("export", type=Path, help="Export „alle Einträge“ der App (JSON)")
     parser.add_argument("--ren-netz", type=Path, default=GESAMT_ORIGINAL, help="Eingangsnetz (Standard: ren_netz_gesamt.gpkg)")
-    parser.add_argument("--ohne-anhaengen", action="store_true",
-                        help="Virtuelle Knoten und neue Kanten nicht in data/ schreiben")
     args = parser.parse_args()
-    run(args.export, ren_path=args.ren_netz, detail_path=detailnetz_path(), append=not args.ohne_anhaengen)
+    run(args.export, ren_path=args.ren_netz, detail_path=detailnetz_path())
 
 
 if __name__ == "__main__":
