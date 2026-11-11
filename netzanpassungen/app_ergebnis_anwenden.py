@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-import_app_export.py
+app_ergebnis_anwenden.py
 --------------------------------------------------------------------
 Liest den Export „alle Einträge“ der App Netzanpassungen (Repo knotenpunkte, Ordner
 netzanpassungen/) und bringt die Korrekturen ins REN+:
@@ -21,7 +21,7 @@ original_coordinates höchstens 5 cm von der Geometrie dort abweichen (nach Umpr
 EPSG:4326 -> EPSG:25833) und original_coordinates + aenderungen den gespeicherten Stand
 ergeben. Sonst bleibt die Kante unverändert und steht in korrekturen_konflikte.csv.
 
-Die Datei ren_netz_gesamt_korrigiert.gpkg enthält alle Kanten von ren_netz_gesamt.gpkg, mit
+Die Datei ren_netz_korrigiert.gpkg enthält alle Kanten von ren_netz_gesamt.gpkg, mit
 korrigierter Geometrie und den Spalten korrigiert, attribut_korrigiert, fahrbahn_typ,
 fahrbahn_gruppe, verkehrsrichtung (nur wo erfasst), ausgeschlossen (ja/nein), anzahl_vorgaenge,
 letzte_aenderung_am, letzte_aenderung_von, korrektur_kommentar. Ausgeschlossene Kanten bleiben
@@ -30,11 +30,11 @@ Kartierung lassen sie weg.
 
 INPUT:
 - Export der App (JSON: {gebiet, exported_at, entries})
-- ren-network/output/ren_netz_gesamt.gpkg (unify_networks.py)
+- ren-network/output/ren_netz_gesamt.gpkg (netz_zusammenfuehren.py)
 - data/Berlin Straßenabschnitte Detailnetz*.fgb (nur die element_nr, für die Nummern neuer Kanten)
 
 OUTPUT:
-- ren-network/output/ren_netz_gesamt_korrigiert.gpkg / .geojson
+- ren-network/output/ren_netz_korrigiert.gpkg / .geojson
 - ren-network/output/ren_netz_kartierung_korrigiert.gpkg / .geojson (ohne bearbeitet_2025 = ja
   und ohne ausgeschlossene Kanten)
 - ren-network/output/korrekturen_konflikte.csv
@@ -43,7 +43,7 @@ OUTPUT:
 - netzanpassungen/output/touristische_kanten.gpkg (Layer touristische_kanten)
 
 Aufruf:
-    python netzanpassungen/import_app_export.py netzanpassungen-alle-eintraege-berlin-2026-11-12.json
+    python netzanpassungen/app_ergebnis_anwenden.py netzanpassungen-alle-eintraege-berlin-2026-11-12.json
 """
 
 import argparse
@@ -65,8 +65,8 @@ ROOT = HERE.parent
 sys.path.append(str(ROOT / "ren-network"))
 sys.path.append(str(HERE))
 
-import unify_networks as ren  # noqa: E402
-from export_app_daten import detailnetz_path, line_refs  # noqa: E402
+import netz_zusammenfuehren as ren  # noqa: E402
+from app_eingabe_schreiben import detailnetz_path, line_refs  # noqa: E402
 
 CRS = f"EPSG:{ren.DEFAULT_CRS}"
 
@@ -74,14 +74,14 @@ CRS = f"EPSG:{ren.DEFAULT_CRS}"
 CONFLICT_TOLERANCE_M = 0.05
 # Der Wiederholungstest vergleicht Längen- und Breitengrade; die App rundet auf 7 Stellen (etwa 1 cm)
 REPLAY_TOLERANCE_DEG = 1e-9
-# Raster der Koordinaten in der Eingabedatei der App (export_app_daten.py, COORDINATE_GRID)
+# Raster der Koordinaten in der Eingabedatei der App (app_eingabe_schreiben.py, COORDINATE_GRID)
 COORDINATE_GRID = 1e-7
 # Ein virtueller Knoten, der weiter von seiner (korrigierten) Trägerkante liegt, kommt auf die Prüfliste
 NODE_ON_EDGE_TOLERANCE_M = 1.0
 
 OUTPUT_DIR = ren.OUTPUT_DIR
 GESAMT_ORIGINAL = ren.OUTPUT_PATH
-GESAMT_KORRIGIERT = OUTPUT_DIR / "ren_netz_gesamt_korrigiert.gpkg"
+GESAMT_KORRIGIERT = OUTPUT_DIR / "ren_netz_korrigiert.gpkg"
 KARTIERUNG_KORRIGIERT = OUTPUT_DIR / "ren_netz_kartierung_korrigiert.gpkg"
 CONFLICTS_PATH = OUTPUT_DIR / "korrekturen_konflikte.csv"
 APP_OUTPUT_DIR = HERE / "output"

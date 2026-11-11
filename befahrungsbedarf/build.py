@@ -7,7 +7,7 @@ Ermittelt die OSM-Wege (TILDA) entlang des REN+-Netzes, für die neue Fotos
 aufgenommen werden müssen (Befahrungsbedarf).
 
 Eingabe (befahrungsbedarf/data/, siehe download_data.sh):
-- ren_netz_gesamt.gpkg  (Ausgabe von ren-network/unify_networks.py)
+- ren_netz.gpkg  (Ausgabe von ren-network/netz_zusammenfuehren.py)
 - bikelanes.fgb, roads.fgb, roadsPathClasses.fgb  (TILDA-Export)
 
 Ausgabe (befahrungsbedarf/output/):
@@ -140,7 +140,7 @@ WAY_COLUMNS = ['id', 'osm_id', 'quelle', 'road', 'category', 'name', 'lifecycle'
 
 def load_network() -> gpd.GeoDataFrame:
     """Lädt das Netz und legt die Pufferbreite je Kante fest."""
-    network = gpd.read_file(DATA_DIR / 'ren_netz_gesamt.gpkg').to_crs(CRS)
+    network = gpd.read_file(DATA_DIR / 'ren_netz.gpkg').to_crs(CRS)
     # Kartierungs-Netz: Kanten, die 2025 schon bearbeitet wurden, entfallen
     network = network[network['bearbeitet_2025'] != 'ja'].reset_index(drop=True)
     network['puffer_m'] = network['strassenklasse'].map(BUFFER_M_BY_CLASS).fillna(BUFFER_M_DEFAULT)

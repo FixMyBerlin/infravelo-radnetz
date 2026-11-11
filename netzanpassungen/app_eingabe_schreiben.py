@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-export_app_daten.py
+app_eingabe_schreiben.py
 --------------------------------------------------------------------
 Schreibt die Eingabedatei der App „Netzanpassungen“ (Repo knotenpunkte,
 Ordner netzanpassungen/). In der App werden entlang der Radfernwege neue
@@ -21,7 +21,7 @@ Die Datei enthält sechs FeatureCollections in WGS84:
 
 INPUT:
 - data/Berlin Straßenabschnitte Detailnetz.fgb (jüngster Stand)
-- ren-network/output/ren_netz_gesamt.gpkg (unify_networks.py)
+- ren-network/output/ren_netz_gesamt.gpkg (netz_zusammenfuehren.py)
 - data/netzquellen/touristisches_radnetz.gpkg (aus dem Drive, data/download_inputs.py)
 - data/Berlin Bezirke.gpkg (nur mit --bezirk)
 
@@ -30,8 +30,8 @@ OUTPUT:
 - netzanpassungen/output/pruefliste_<gebiet>.csv
 
 Aufruf:
-    python netzanpassungen/export_app_daten.py
-    python netzanpassungen/export_app_daten.py --bezirk Neukölln
+    python netzanpassungen/app_eingabe_schreiben.py
+    python netzanpassungen/app_eingabe_schreiben.py --bezirk Neukölln
 """
 
 import argparse
@@ -52,7 +52,7 @@ from shapely.geometry import MultiLineString, Point
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(ROOT / "ren-network"))
 
-import unify_networks as ren  # noqa: E402
+import netz_zusammenfuehren as ren  # noqa: E402
 
 CRS = f"EPSG:{ren.DEFAULT_CRS}"
 SCHEMA = "netzanpassungen-app/v1"
@@ -346,7 +346,7 @@ def main():
         "schema": SCHEMA,
         "gebiet": gebiet,
         "erzeugt_am": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        # Stand des REN+, auf dem die Korrekturen der App beruhen; import_app_export.py prüft die
+        # Stand des REN+, auf dem die Korrekturen der App beruhen; app_ergebnis_anwenden.py prüft die
         # Korrekturen gegen die Geometrie der Datei, die dort liegt.
         "ren_netz_stand": {
             "datei": ren.OUTPUT_PATH.name,

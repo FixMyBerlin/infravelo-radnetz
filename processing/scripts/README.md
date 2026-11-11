@@ -33,14 +33,14 @@ Das [`assign_node_ids.py`](./assign_node_ids.py) fügt zwei Attribute zu den *Ve
 Dieses Skript führt die drei Vorverarbeitungsschritte des Zielnetzes (RVN oder REN+) aus:
 
 ### 1. Virtuelle Knotenpunkte verarbeiten
-Die virtuellen Knotenpunkte kommen aus der App Netzanpassungen: `netzanpassungen/import_app_export.py` schreibt `netzanpassungen/output/virtuelle_knoten.gpkg` (Pfad und Abbruch bei fehlender Datei zentral in [`helpers/virtuelle_knoten.py`](../helpers/virtuelle_knoten.py)); auch `convert_knotenpunkte.py` und `validation/validate_virtuelle_knotenpunkte.py` lesen sie von dort.
+Die virtuellen Knotenpunkte kommen aus der App Netzanpassungen: `netzanpassungen/app_ergebnis_anwenden.py` schreibt `netzanpassungen/output/virtuelle_knoten.gpkg` (Pfad und Abbruch bei fehlender Datei zentral in [`helpers/virtuelle_knoten.py`](../helpers/virtuelle_knoten.py)); auch `convert_knotenpunkte.py` und `validation/validate_virtuelle_knotenpunkte.py` lesen sie von dort.
 
 Das [`split_rvn_at_virtual_nodes.py`](./split_rvn_at_virtual_nodes.py) teilt das Berliner Radvorrangsnetz an virtuellen Knotenpunkten auf. Virtuelle Knotenpunkte liegen mitten auf Linien und erfordern eine Aufteilung der betroffenen Linien.
 
 - **Input**: `data/Berlin Radvorrangsnetz.fgb`, `netzanpassungen/output/virtuelle_knoten.gpkg`
 - **Output**: `output/rvn/Berlin Radvorrangsnetz_mit_virtuellen-knotenpunkten.fgb`
 
-Die drei Skripte dieses Abschnitts nehmen `--netz rvn|ren` (Standard `rvn`). Mit `ren` verarbeiten sie das REN+ und schreiben nach `output/ren/`. Eingangsnetz ist `ren_netz_gesamt_korrigiert.gpkg` (Korrekturen aus der App Netzanpassungen, `netzanpassungen/import_app_export.py`), solange die Datei existiert, sonst `ren_netz_gesamt.gpkg`; `--quelle auto|korrigiert|original` (nur im ersten Schritt, auch an `process_radnetz.sh` übergeben) wählt es. Das Log nennt die gewählte Datei. Die Pfade stehen in [`helpers/netz.py`](../helpers/netz.py); die Pfade stehen in [`helpers/netz.py`](../helpers/netz.py).
+Die drei Skripte dieses Abschnitts nehmen `--netz rvn|ren` (Standard `rvn`). Mit `ren` verarbeiten sie das REN+ und schreiben nach `output/ren/`. Eingangsnetz ist `ren_netz_korrigiert.gpkg` (Korrekturen aus der App Netzanpassungen, `netzanpassungen/app_ergebnis_anwenden.py`), solange die Datei existiert, sonst `ren_netz.gpkg`; `--quelle auto|korrigiert|original` (nur im ersten Schritt, auch an `process_radnetz.sh` übergeben) wählt es. Das Log nennt die gewählte Datei. Die Pfade stehen in [`helpers/netz.py`](../helpers/netz.py); die Pfade stehen in [`helpers/netz.py`](../helpers/netz.py).
 
 ### 2. Element-Nummern zuweisen
 Das [`assign_element_nr_to_rvn.py`](./assign_element_nr_to_rvn.py) fügt jedem Segment im Radvorrangsnetz eine `element_nr` hinzu, die auf den Verbindungspunkten basiert. Das Script berücksichtigt sowohl normale als auch virtuelle Knotenpunkte für die Zuweisung.

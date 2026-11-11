@@ -14,13 +14,13 @@ heißt danach elem_nr, damit assign_element_nr_to_rvn.py sie wie die elem_nr des
 Radvorrangsnetzes behandelt (Vorrang vor der berechneten, außer an virtuellen Knotenpunkten).
 
 Mit --quelle wählt man das REN+-Eingangsnetz: die korrigierte Fassung aus der App
-Netzanpassungen (ren_netz_gesamt_korrigiert.gpkg, Standard, wenn die Datei existiert)
+Netzanpassungen (ren_netz_korrigiert.gpkg, Standard, wenn die Datei existiert)
 oder das Original. Im korrigierten Netz entfallen die Kanten mit ausgeschlossen = ja.
 
 INPUT:
-- netzanpassungen/output/virtuelle_knoten.gpkg (import_app_export.py, über helpers/virtuelle_knoten.py)
-- data/Berlin Radvorrangsnetz.fgb bzw. ../ren-network/output/ren_netz_gesamt.gpkg oder
-  ren_netz_gesamt_korrigiert.gpkg (--netz ren, siehe --quelle)
+- netzanpassungen/output/virtuelle_knoten.gpkg (app_ergebnis_anwenden.py, über helpers/virtuelle_knoten.py)
+- data/Berlin Radvorrangsnetz.fgb bzw. ../ren-network/output/ren_netz.gpkg oder
+  ren_netz_korrigiert.gpkg (--netz ren, siehe --quelle)
 - data/Berlin Straßenabschnitte Detailnetz.fgb
 
 OUTPUT (Pfade je Netz in helpers/netz.py):

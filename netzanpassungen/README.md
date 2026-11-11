@@ -1,20 +1,20 @@
 # Netzanpassungen
 
-`export_app_daten.py` schreibt die Eingabedatei der App „Netzanpassungen“ (Repo [knotenpunkte](https://github.com/FixMyBerlin/knotenpunkte), Ordner `netzanpassungen/`). In der App werden entlang der Radfernwege neue Kanten gezeichnet, wo weder das Detailnetz noch das REN+ eine Kante hat. Dabei entstehen virtuelle Knoten auf vorhandenen Kanten. Außerdem werden REN+-Kanten korrigiert (Geometrie, Fahrbahnart, Verkehrsrichtung, Ausschluss). `import_app_export.py` bringt den Export der App zurück in die Pipeline.
+`app_eingabe_schreiben.py` schreibt die Eingabedatei der App „Netzanpassungen“ (Repo [knotenpunkte](https://github.com/FixMyBerlin/knotenpunkte), Ordner `netzanpassungen/`). In der App werden entlang der Radfernwege neue Kanten gezeichnet, wo weder das Detailnetz noch das REN+ eine Kante hat. Dabei entstehen virtuelle Knoten auf vorhandenen Kanten. Außerdem werden REN+-Kanten korrigiert (Geometrie, Fahrbahnart, Verkehrsrichtung, Ausschluss). `app_ergebnis_anwenden.py` bringt den Export der App zurück in die Pipeline.
 
 ```bash
-python ren-network/unify_networks.py                  # nur bei geändertem REN+
-python netzanpassungen/export_app_daten.py            # ganz Berlin
-python netzanpassungen/export_app_daten.py --bezirk Neukölln
-python netzanpassungen/import_app_export.py <export-alle-eintraege>.json   # Export der App zurück
-python netzanpassungen/test_import_app_export.py                           # Selbsttest des Imports
+python ren-network/netz_zusammenfuehren.py                  # nur bei geändertem REN+
+python netzanpassungen/app_eingabe_schreiben.py            # ganz Berlin
+python netzanpassungen/app_eingabe_schreiben.py --bezirk Neukölln
+python netzanpassungen/app_ergebnis_anwenden.py <export-alle-eintraege>.json   # Export der App zurück
+python netzanpassungen/test_app_ergebnis_anwenden.py                           # Selbsttest des Imports
 ```
 
 ## Eingangsdaten
 
 | Datei | Inhalt |
 |---|---|
-| `data/Berlin Straßenabschnitte Detailnetz*.fgb` | Detailnetzkanten, jüngster Stand wie in `unify_networks.py` |
+| `data/Berlin Straßenabschnitte Detailnetz*.fgb` | Detailnetzkanten, jüngster Stand wie in `netz_zusammenfuehren.py` |
 | `ren-network/output/ren_netz_gesamt.gpkg` | REN+ gesamt, Original ohne Korrekturen (die Quelle der Korrekturen in der App) |
 | `data/netzquellen/touristisches_radnetz.gpkg` | Radfernwege (8 Routen), aus dem Drive (`data/download_inputs.py`, läuft zu Beginn des Exports) |
 | `data/Berlin Bezirke.gpkg` | nur mit `--bezirk` |
@@ -38,14 +38,14 @@ Mit `--bezirk` bleiben Kanten, Knoten und Radfernwege bis 200 m über die Bezirk
 
 ## Export der App zurück in die Pipeline
 
-`import_app_export.py` liest den Export „alle Einträge“ der App (`{gebiet, exported_at, entries}`; Einträge mit `geloescht` werden übersprungen) und schreibt:
+`app_ergebnis_anwenden.py` liest den Export „alle Einträge“ der App (`{gebiet, exported_at, entries}`; Einträge mit `geloescht` werden übersprungen) und schreibt:
 
-- `ren-network/output/ren_netz_gesamt_korrigiert.gpkg`, `ren_netz_kartierung_korrigiert.gpkg` / `.geojson` und `korrekturen_konflikte.csv` aus den `edge_correction`-Einträgen. Aufbau, Prüfungen (5 cm gegen `original_coordinates`, Wiederholung des Protokolls) und Spalten stehen in [`ren-network/README.md`](../ren-network/README.md#korrigiertes-netz).
+- `ren-network/output/ren_netz_korrigiert.gpkg`, `ren_netz_kartierung_korrigiert.gpkg` / `.geojson` und `korrekturen_konflikte.csv` aus den `edge_correction`-Einträgen. Aufbau, Prüfungen (5 cm gegen `original_coordinates`, Wiederholung des Protokolls) und Spalten stehen in [`ren-network/README.md`](../ren-network/README.md#korrigiertes-netz).
 - `netzanpassungen/output/virtuelle_knoten.gpkg`: alle nicht gelöschten virtuellen Knoten des Exports (Layer `Virtuelle-Knotenpunkte`: `Knotenpunkt-ID`, `ist_virtuell`, `traeger_netz`, `traeger_element_nr`, `station_m`, `kommentar`, `eintrag_id`; EPSG:25833). Das ist die Datei, die `processing/` und `knotenpunkte/` über `processing/helpers/virtuelle_knoten.py` lesen; fehlt sie, brechen sie mit dem Hinweis ab, erst den Import laufen zu lassen. Gezeichnete Kanten stehen in `netzanpassungen/output/touristische_kanten.gpkg` (Layer `touristische_kanten`: `entry_id`, `element_nr`, `von_knoten`, `bis_knoten` als Text, `quelle`, `strassenname`, `routen_fernradweg`, `kommentar`). Die `element_nr` zählt wie in der App (`von_bis.NN`, in der Reihenfolge des Zeichnens, nach Detailnetz und REN+); das Teilen an virtuellen Knoten übernimmt `processing/scripts/split_rvn_at_virtual_nodes.py`. Beide Dateien entstehen bei jedem Lauf neu aus dem Export. Der Import schreibt nur nach `output/`, nie nach `data/`: Handarbeit lebt in der App (KV-Datenbank), die Pipeline-Dateien sind daraus abgeleitet.
 
 Achtung Kartierung: Das Original `ren_netz_kartierung.gpkg` / `.geojson` enthält seit der Entfernung der Ausschlussliste wieder die 19 Ausschluss-Kanten (Tunnel Tiergarten, Zubringer); nur `ren_netz_kartierung_korrigiert` lässt sie weg. Der TILDA-Datensatz `infravelo-ren-netz-kartierung` (Symlink in `tilda-static-data`, außerhalb dieses Repos) muss deshalb auf die `_korrigiert`-Datei zeigen.
 
-Noch offen: `unify_networks.py` liest `touristische_kanten.gpkg` nicht als Netzquelle (`von_knoten`/`bis_knoten` als Text, weil virtuelle IDs mit `V` beginnen; `routen_fernradweg` füllen).
+Noch offen: `netz_zusammenfuehren.py` liest `touristische_kanten.gpkg` nicht als Netzquelle (`von_knoten`/`bis_knoten` als Text, weil virtuelle IDs mit `V` beginnen; `routen_fernradweg` füllen).
 
 ## Altlisten
 

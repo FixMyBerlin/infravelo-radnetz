@@ -12,7 +12,7 @@ Diese Dateien werden nicht von Skripten generiert und müssen manuell aktualisie
 - `Berlin_Gebiet_Süden.gpkg` – Gebietsgrenze für die Verarbeitung der südlichen Bezirke von Berlin.
 - `Bezirk Neukölln Grenze.fgb` – Bezirksgrenze von Neukölln für gezielte Testverarbeitung.
 - `Verbindungspunkte im RVN.gpkg` – Verbindungspunkte aus dem Radvorrangnetz/Detailnetz zur Netzwerkanalyse.
-- Virtuelle Knoten (früher `Virtuelle-Knotenpunkte.gpkg`) liegen nicht mehr in `data/`: Sie leben in der App Netzanpassungen. `netzanpassungen/import_app_export.py` schreibt sie nach `netzanpassungen/output/virtuelle_knoten.gpkg`, die Pipeline liest sie von dort. Die Datei von 2025 ist archiviert in [`netzanpassungen/einmalige_uebernahme/`](../netzanpassungen/einmalige_uebernahme/README.md).
+- Virtuelle Knoten (früher `Virtuelle-Knotenpunkte.gpkg`) liegen nicht mehr in `data/`: Sie leben in der App Netzanpassungen. `netzanpassungen/app_ergebnis_anwenden.py` schreibt sie nach `netzanpassungen/output/virtuelle_knoten.gpkg`, die Pipeline liest sie von dort. Die Datei von 2025 ist archiviert in [`netzanpassungen/einmalige_uebernahme/`](../netzanpassungen/einmalige_uebernahme/README.md).
 - `OSM-highway=bus_stop.geojson` – Bushaltestellen aus OpenStreetMap für Konvertierungen von Schutzstreifen.
 - `Stop-Positions-Bus-OSM.fgb` – Bushaltestellen-Positionen aus OpenStreetMap als FlatGeobuf.
 
@@ -47,7 +47,7 @@ Einige Eingangsdaten liegen nicht im Repo und werden auch von keinem Skript gela
 .venv/bin/python data/download_inputs.py
 ```
 
-- `ren-network/unify_networks.py` und `netzanpassungen/export_app_daten.py` rufen das zu Beginn jedes Laufs auf. Fehlt der Link, bricht der Lauf ab.
+- `ren-network/netz_zusammenfuehren.py` und `netzanpassungen/app_eingabe_schreiben.py` rufen das zu Beginn jedes Laufs auf. Fehlt der Link, bricht der Lauf ab.
 - Der Ordner im Drive ist flach. `INPUT_FILES` im Skript ordnet jedem Dateinamen dort seinen Pfad im Repo zu:
 
 | Datei im Drive | Pfad im Repo |

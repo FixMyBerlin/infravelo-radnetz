@@ -20,10 +20,10 @@ und LSA_KP (Open Data und OSM) abgeleitet. Nur diese
 Knoten gehen an die Knotenpunkt-App und die ML-Vorhersage.
 
 INPUT:
-- ren-network/output/ren_netz_gesamt.gpkg (Layer: ren_netz)
+- ren-network/output/ren_netz.gpkg (Layer: ren_netz)
 - data/Berlin Verbindungspunkte Detailnetz.fgb
 - data/Berlin Straßenabschnitte Detailnetz.fgb (jüngster Stand)
-- netzanpassungen/output/virtuelle_knoten.gpkg (import_app_export.py, aus der App Netzanpassungen)
+- netzanpassungen/output/virtuelle_knoten.gpkg (app_ergebnis_anwenden.py, aus der App Netzanpassungen)
 - data/Berlin Bezirke.gpkg
 - data/netzquellen/knotenpunkte_2025.geojson.gz
   (tilda-static-data: region-infravelo/infravelo-datensatz-knoten-fortlaufend)
@@ -48,7 +48,7 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(ROOT / "ren-network"))
 
-import unify_networks as ren  # noqa: E402
+import netz_zusammenfuehren as ren  # noqa: E402
 from helpers.virtuelle_knoten import virtual_nodes_path  # noqa: E402
 from assign_node_ids import assign_node_ids_to_points  # noqa: E402
 
@@ -126,7 +126,7 @@ def id_text(value):
 
 def load_network():
     if not NETWORK_PATH.exists():
-        raise SystemExit(f"Fehlt: {NETWORK_PATH}\nErst ren-network/unify_networks.py ausführen.")
+        raise SystemExit(f"Fehlt: {NETWORK_PATH}\nErst ren-network/netz_zusammenfuehren.py ausführen.")
     network = gpd.read_file(NETWORK_PATH, layer=ren.OUTPUT_LAYER).to_crs(CRS)
     logging.info(f"REN+: {len(network)} Kanten")
     return network

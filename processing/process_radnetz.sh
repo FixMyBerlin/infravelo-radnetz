@@ -11,10 +11,10 @@ set -euo pipefail
 #
 # Verwendung: ./process_radnetz.sh [--netz rvn|ren] [--quelle auto|korrigiert|original]
 #   --netz rvn  Radvorrangnetz (Standard), Ausgabe in output/rvn/
-#   --netz ren  REN+, alle Netzquellen gemeinsam (ren-network/output/ren_netz_gesamt.gpkg),
+#   --netz ren  REN+, alle Netzquellen gemeinsam (ren-network/output/ren_netz.gpkg),
 #               Ausgabe in output/ren/
-#   --quelle    Nur für ren: Eingangsnetz. auto (Standard) nimmt ren_netz_gesamt_korrigiert.gpkg
-#               (App Netzanpassungen, ren-network/import_app_export.py), wenn die Datei existiert,
+#   --quelle    Nur für ren: Eingangsnetz. auto (Standard) nimmt ren_netz_korrigiert.gpkg
+#               (App Netzanpassungen, ren-network/app_ergebnis_anwenden.py), wenn die Datei existiert,
 #               sonst das Original. korrigiert bricht ohne die Datei ab, original ignoriert sie.
 # =============================================================================
 

@@ -11,7 +11,7 @@ Mit --netz ren für das REN+ (Pfade je Netz in helpers/netz.py).
 INPUT:
 - output/rvn/Berlin Vorrangnetz_with_element_nr.fgb
 - output/rvn/Berlin Detailnetz_mit_virtuellen-knotenpunkten.fgb (gesplittet an virtuellen Knotenpunkten)
-- Spalte verkehrsrichtung des Eingangsnetzes (nur ren_netz_gesamt_korrigiert.gpkg, aus der
+- Spalte verkehrsrichtung des Eingangsnetzes (ren_netz.gpkg und ren_netz_korrigiert.gpkg, aus der
   App Netzanpassungen): überschreibt die verkehrsrichtung des Detailnetzes
 
 OUTPUT:
@@ -464,8 +464,9 @@ def apply_verkehrsrichtung_korrekturen(gdf, vorrangnetz):
     """
     Übernimmt die in der App Netzanpassungen korrigierte verkehrsrichtung (B, R, G) aus dem Zielnetz.
 
-    Nur das korrigierte REN+ (ren_netz_gesamt_korrigiert.gpkg) hat die Spalte verkehrsrichtung; sie ist
-    dort nur gefüllt, wo jemand die Richtung erfasst hat. Wechselt eine Kante von oder nach G, wird die
+    ren_netz.gpkg und ren_netz_korrigiert.gpkg tragen verkehrsrichtung für alle Kanten (aktueller Wert)
+    und verkehrsrichtung_korrigiert (ja/nein). Übernommen werden nur die Kanten mit ja; ohne die Spalte
+    (ältere Netze) gelten alle gefüllten Werte. Wechselt eine Kante von oder nach G, wird die
     Geometrie gedreht, damit die Fahrtrichtung wie bei allen R/G-Kanten der Digitalisierungsrichtung
     entspricht.
 
@@ -480,7 +481,10 @@ def apply_verkehrsrichtung_korrekturen(gdf, vorrangnetz):
         logger.info("Zielnetz ohne Spalte verkehrsrichtung: keine Richtungskorrekturen")
         return gdf
 
-    corrections = vorrangnetz.loc[vorrangnetz['verkehrsrichtung'].isin(['B', 'R', 'G']), ['element_nr', 'verkehrsrichtung']]
+    is_set = vorrangnetz['verkehrsrichtung'].isin(['B', 'R', 'G'])
+    if 'verkehrsrichtung_korrigiert' in vorrangnetz.columns:
+        is_set &= vorrangnetz['verkehrsrichtung_korrigiert'] == 'ja'
+    corrections = vorrangnetz.loc[is_set, ['element_nr', 'verkehrsrichtung']]
     corrections = corrections.dropna(subset=['element_nr']).drop_duplicates('element_nr').set_index('element_nr')['verkehrsrichtung']
     result = gdf.copy()
     applied = 0

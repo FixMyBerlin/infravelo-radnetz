@@ -23,7 +23,7 @@ Gemeinsam genutzt: `assignment_output.py` (Tabellen der Zuteilung, Bearbeitungss
 3. **Entfallene Kanten.** Zeilen von `assignment.csv`, deren Kante nicht mehr im Netz ist, fehlen in der Ausgabe; ihre Nummer wird nicht wieder vergeben. Hatten sie eine Markierung, meldet das Log das.
 4. **Bearbeitungsstand** aus dem Editor übertragen, siehe [`bearbeitungsstand/`](../bearbeitungsstand/README.md).
 
-Die `lfd_nr` der Zuteilung ist damit eine eigene Nummer. Sie ist anfangs gleich der `lfd_nr` des REN+-Netzes vom 2026-10-26, weicht aber ab, sobald `ren-network/unify_networks.py` das Netz neu nummeriert (dort ist `lfd_nr` nur eine laufende Nummer nach `element_nr`).
+Die `lfd_nr` der Zuteilung ist damit eine eigene Nummer. Sie ist anfangs gleich der `lfd_nr` des REN+-Netzes vom 2026-10-26, weicht aber ab, sobald `ren-network/netz_zusammenfuehren.py` das Netz neu nummeriert (dort ist `lfd_nr` nur eine laufende Nummer nach `element_nr`).
 
 Für den Stand in TILDA nicht einzeln aufrufen, sondern `bearbeitungsstand/update.sh` (siehe [`bearbeitungsstand/`](../bearbeitungsstand/README.md)).
 
@@ -47,7 +47,7 @@ Angelegt aus den Datensätzen „Zuteilung Netz“ und „Zuteilung Gebiete“ a
 | Datei | Inhalt |
 |---|---|
 | `assignment.csv`, `assignment_plr.csv` | Zuteilung, siehe oben |
-| `../ren-network/output/ren_netz_gesamt.gpkg` | Vereinheitlichtes REN+-Netz (Layer `ren_netz`) aus `ren-network/unify_networks.py`; verteilt wird nur das Kartierungs-Netz (`bearbeitet_2025` nicht `ja`) |
+| `../ren-network/output/ren_netz.gpkg` | Vereinheitlichtes REN+-Netz (Layer `ren_netz`) aus `ren-network/netz_zusammenfuehren.py`; verteilt wird nur das Kartierungs-Netz (`bearbeitet_2025` nicht `ja`) |
 | `data/lor_plr_2021.geojson` | [LOR-Planungsräume 2021](https://gdi.berlin.de/services/wfs/lor_2021), Layer `a_lor_plr_2021`; im Update für Bezirk, Planungsraum neuer Kanten und Gebiete |
 | `accounts.txt` | Ein Account pro Zeile; nur für die Ersterfassung |
 

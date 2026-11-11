@@ -6,7 +6,7 @@ analyse_verteilung_ren.py
 Verteilung der Radverkehrsführungsformen auf dem REN+ ohne Radvorrangnetz.
 
 Das HMM-Map-Matching (processing/map-matching) läuft dafür nicht auf dem RVN, sondern auf den
-Kanten des REN+ (ren-network/output/ren_netz_gesamt.gpkg). Welche Kanten zählen, wählt `--netz`:
+Kanten des REN+ (ren-network/output/ren_netz.gpkg). Welche Kanten zählen, wählt `--netz`:
 - `kartierung` (Standard): Kartierungs-Netz, also ohne die 2025 gelieferten Kanten
   (`bearbeitet_2025` ≠ ja)
 - `ohne-vorrangnetz`: alle Kanten mit `radverkehrsnetz` ≠ Radvorrangnetz
@@ -27,7 +27,7 @@ Voraussetzung: TILDA-Routing ohne RVN-Zuschnitt (Rohdaten aus demselben Lauf wie
         --output-dir output/ren-verteilung/TILDA-routing
 
 INPUT (relativ zu processing/):
-- ../ren-network/output/ren_netz_gesamt.gpkg
+- ../ren-network/output/ren_netz.gpkg
 - output/ren-verteilung/TILDA-routing/TILDA Routing {Bikelanes,Streets,Paths} Translated.fgb
 
 OUTPUT (output/ren-verteilung/):
@@ -52,7 +52,7 @@ import pandas as pd
 import pyogrio
 
 PROCESSING = Path(__file__).resolve().parents[1]
-REN = PROCESSING.parent / "ren-network/output/ren_netz_gesamt.gpkg"
+REN = PROCESSING.parent / "ren-network/output/ren_netz.gpkg"
 OUT_DIR = "output/ren-verteilung"
 TILDA_DIR = f"{OUT_DIR}/TILDA-routing"
 TILDA_SOURCES = ["bikelanes", "streets", "paths"]

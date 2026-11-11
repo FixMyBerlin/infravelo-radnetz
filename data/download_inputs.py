@@ -21,8 +21,8 @@ Aufruf (im Projekt-Root):
     .venv/bin/python data/download_inputs.py --stage <ordner>   # Dateien zum Hochladen ins Drive sammeln
     .venv/bin/python data/download_inputs.py --write-manifest   # inputs.json aus den lokalen Dateien schreiben
 
-Wird außerdem zu Beginn von ren-network/unify_networks.py und
-netzanpassungen/export_app_daten.py aufgerufen.
+Wird außerdem zu Beginn von ren-network/netz_zusammenfuehren.py und
+netzanpassungen/app_eingabe_schreiben.py aufgerufen.
 """
 
 import argparse

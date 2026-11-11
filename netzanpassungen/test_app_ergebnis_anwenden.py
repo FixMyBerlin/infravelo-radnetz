@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Selbsttest für import_app_export.py mit einem erfundenen Export und einem kleinen Netz.
+Selbsttest für app_ergebnis_anwenden.py mit einem erfundenen Export und einem kleinen Netz.
 
-    .venv/bin/python netzanpassungen/test_import_app_export.py
+    .venv/bin/python netzanpassungen/test_app_ergebnis_anwenden.py
 
 Deckt ab: verschoben, eingefuegt, attribut, ausgeschlossen, einen Konflikt (original_coordinates
 5 cm daneben), ein Protokoll, das nicht zum gespeicherten Stand passt, eine Linie `#2` einer
@@ -24,7 +24,7 @@ from shapely.geometry import LineString, MultiLineString, Point
 
 sys.path.append(str(Path(__file__).resolve().parent))
 
-import import_app_export as imp  # noqa: E402
+import app_ergebnis_anwenden as imp  # noqa: E402
 
 to_wgs = Transformer.from_crs(imp.CRS, "EPSG:4326", always_xy=True)
 X0, Y0 = 392000.0, 5815000.0
@@ -164,7 +164,7 @@ class ImportTest(unittest.TestCase):
 
     def test_import(self):
         stats, conflicts = self.run_import()
-        corrected = gpd.read_file(self.dir / "out" / "ren_netz_gesamt_korrigiert.gpkg", layer="ren_netz").set_index("element_nr")
+        corrected = gpd.read_file(self.dir / "out" / "ren_netz_korrigiert.gpkg", layer="ren_netz").set_index("element_nr")
 
         # verschoben: Stützpunkt 1 steht 7 m weiter nördlich, Länge wächst
         moved = list(corrected.loc["10000001_10000002.01"].geometry.geoms[0].coords)
@@ -321,7 +321,7 @@ class ImportTest(unittest.TestCase):
         self.assertIn("Mehrere Einträge", reasons["x2"])
         self.assertIn("Mehrere Einträge", reasons["e3"])
         self.assertIn("andere Stützpunktzahl", reasons["x3"])
-        corrected = gpd.read_file(self.dir / "out" / "ren_netz_gesamt_korrigiert.gpkg", layer="ren_netz").set_index("element_nr")
+        corrected = gpd.read_file(self.dir / "out" / "ren_netz_korrigiert.gpkg", layer="ren_netz").set_index("element_nr")
         self.assertEqual(corrected.loc["10000003_10000004.01", "attribut_korrigiert"], "nein")
 
     def test_replay(self):

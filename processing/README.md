@@ -48,9 +48,9 @@ cd processing
 
 ### Zielnetz (`--netz`)
 
-Die Prozessierung läuft wahlweise auf dem Radvorrangnetz oder auf dem REN+, also allen Netzquellen gemeinsam (`../ren-network/output/ren_netz_gesamt.gpkg`). `process_radnetz.sh`, `execute_processing.sh`, `scripts/prepare_tilda_routing.py` und das Rust-Matching nehmen dafür `--netz rvn|ren`, Standard ist `rvn`. Beide Netze werden an denselben virtuellen Knotenpunkten geteilt. Diese leben in der App Netzanpassungen; `netzanpassungen/import_app_export.py` schreibt sie nach `netzanpassungen/output/virtuelle_knoten.gpkg`, ohne diese Datei brechen `process_radnetz.sh`, `convert_knotenpunkte.py`, die Validierung und `knotenpunkte/build_knotenpunkte.py` mit einem Hinweis ab (Pfad zentral in `helpers/virtuelle_knoten.py`).
+Die Prozessierung läuft wahlweise auf dem Radvorrangnetz oder auf dem REN+, also allen Netzquellen gemeinsam (`../ren-network/output/ren_netz.gpkg`). `process_radnetz.sh`, `execute_processing.sh`, `scripts/prepare_tilda_routing.py` und das Rust-Matching nehmen dafür `--netz rvn|ren`, Standard ist `rvn`. Beide Netze werden an denselben virtuellen Knotenpunkten geteilt. Diese leben in der App Netzanpassungen; `netzanpassungen/app_ergebnis_anwenden.py` schreibt sie nach `netzanpassungen/output/virtuelle_knoten.gpkg`, ohne diese Datei brechen `process_radnetz.sh`, `convert_knotenpunkte.py`, die Validierung und `knotenpunkte/build_knotenpunkte.py` mit einem Hinweis ab (Pfad zentral in `helpers/virtuelle_knoten.py`).
 
-Korrekturen aus der App Netzanpassungen (`netzanpassungen/import_app_export.py`) gelten nur fürs REN+: Mit `--netz ren` nimmt `process_radnetz.sh` standardmäßig `ren_netz_gesamt_korrigiert.gpkg` (`--quelle original` erzwingt das Original). **Für `--netz rvn` gibt es keine Richtungskorrekturen mehr.** Die 18 Korrekturen von `verkehrsrichtung`, die bis 2026-11-10 in `data/rvn_korrekturen.csv` standen und auch den RVN-Pfad betrafen, leben jetzt als Korrekturen im korrigierten REN+; das Radvorrangnetz hat keine Spalte `verkehrsrichtung` und der RVN-Pfad ist der Vorläufer, dessen Daten im REN+ enthalten sind. Gelöscht sind außerdem `helpers/override_edges.py`, `validation/analyse_einrichtungsfahrbahnen.py` und `qgis/erzeuge_einrichtungsfahrbahnen_projekt.py`.
+Korrekturen aus der App Netzanpassungen (`netzanpassungen/app_ergebnis_anwenden.py`) gelten nur fürs REN+: Mit `--netz ren` nimmt `process_radnetz.sh` standardmäßig `ren_netz_korrigiert.gpkg` (`--quelle original` erzwingt das Original). **Für `--netz rvn` gibt es keine Richtungskorrekturen mehr.** Die 18 Korrekturen von `verkehrsrichtung`, die bis 2026-11-10 in `data/rvn_korrekturen.csv` standen und auch den RVN-Pfad betrafen, leben jetzt als Korrekturen im korrigierten REN+; das Radvorrangnetz hat keine Spalte `verkehrsrichtung` und der RVN-Pfad ist der Vorläufer, dessen Daten im REN+ enthalten sind. Gelöscht sind außerdem `helpers/override_edges.py`, `validation/analyse_einrichtungsfahrbahnen.py` und `qgis/erzeuge_einrichtungsfahrbahnen_projekt.py`.
 
 ```sh
 ../.venv/bin/python scripts/prepare_tilda_routing.py --netz ren   # TILDA-Routing ohne RVN-Zuschnitt
@@ -63,7 +63,7 @@ Korrekturen aus der App Netzanpassungen (`netzanpassungen/import_app_export.py`)
 
 | | `rvn` | `ren` |
 |---|---|---|
-| Eingangsnetz | `data/Berlin Radvorrangsnetz.fgb` | `../ren-network/output/ren_netz_gesamt.gpkg` |
+| Eingangsnetz | `data/Berlin Radvorrangsnetz.fgb` | `../ren-network/output/ren_netz.gpkg` |
 | TILDA-Routing | `output/TILDA-routing/` (auf den RVN-Puffer zugeschnitten) | `output/TILDA-routing-ren/` (ganz Berlin) |
 | Netz für das Matching | `output/rvn/vorrangnetz_details_combined_rvn.fgb` | `output/ren/ren_netz_details_combined.fgb` |
 | Matching | `output/map-matching/` | `output/map-matching-ren/` |

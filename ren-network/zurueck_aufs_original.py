@@ -6,8 +6,8 @@ zurueck_aufs_original.py
 Bringt das Matching-Ergebnis vom korrigierten REN+ zurück aufs Original, das der Kunde bekommt.
 
 Das Matching (processing/map-matching) rechnet mit dem korrigierten Netz
-(ren_netz_gesamt_korrigiert.gpkg). Die Teilsegmente seiner Ausgabe liegen auf den
-korrigierten Linien. Hier werden sie auf die Originallinien (ren_netz_gesamt.gpkg)
+(ren_netz_korrigiert.gpkg). Die Teilsegmente seiner Ausgabe liegen auf den
+korrigierten Linien. Hier werden sie auf die Originallinien (ren_netz.gpkg)
 gelegt: Jedes Teilsegment wird auf seine korrigierte Kante projiziert, der Abschnitt dort
 (von bis, als Anteil der Kantenlänge) gilt anteilig für die Originalkante. Kanten, die nicht
 korrigiert wurden (gleiche Geometrie in beiden Netzen), bleiben unverändert.
@@ -34,8 +34,8 @@ gezeichnete Kanten), stehen nicht in der Ausgabe, sondern in <Ausgabe>_ohne_orig
 
 INPUT:
 - processing/output/map-matching-ren/network_enriched_hmm.fgb (REN+; --eingabe)
-- ren-network/output/ren_netz_gesamt.gpkg (Original)
-- ren-network/output/ren_netz_gesamt_korrigiert.gpkg
+- ren-network/output/ren_netz.gpkg (Original)
+- ren-network/output/ren_netz_korrigiert.gpkg
 - processing/output/ren/ren_netz_with_element_nr.fgb (Ursprungskanten geteilter Kanten)
 
 OUTPUT:
@@ -60,8 +60,8 @@ ROOT = Path(__file__).resolve().parent.parent
 CRS = "EPSG:25833"
 OUTPUT_LAYER = "ren_netz"
 
-ORIGINAL_PATH = ROOT / "ren-network" / "output" / "ren_netz_gesamt.gpkg"
-CORRECTED_PATH = ROOT / "ren-network" / "output" / "ren_netz_gesamt_korrigiert.gpkg"
+ORIGINAL_PATH = ROOT / "ren-network" / "output" / "ren_netz.gpkg"
+CORRECTED_PATH = ROOT / "ren-network" / "output" / "ren_netz_korrigiert.gpkg"
 INPUT_PATH = ROOT / "processing" / "output" / "map-matching-ren" / "network_enriched_hmm.fgb"
 SPLIT_PATH = ROOT / "processing" / "output" / "ren" / "ren_netz_with_element_nr.fgb"
 

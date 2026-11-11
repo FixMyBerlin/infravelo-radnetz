@@ -39,7 +39,7 @@ Das Startdatum der Mapillary-Fotos wandert mit jedem Abgleich weiter (siehe [Fot
 
 | Datei | Inhalt | Herkunft |
 |---|---|---|
-| `ren_netz_gesamt.gpkg` | REN+-Netz; verwendet wird nur das Kartierungs-Netz (`bearbeitet_2025` nicht `ja`) | Ausgabe von [`ren-network/unify_networks.py`](../ren-network/README.md) |
+| `ren_netz.gpkg` | REN+-Netz; verwendet wird nur das Kartierungs-Netz (`bearbeitet_2025` nicht `ja`) | Ausgabe von [`ren-network/netz_zusammenfuehren.py`](../ren-network/README.md) |
 | `bikelanes.fgb`, `roads.fgb`, `roadsPathClasses.fgb` | TILDA-Wege für die Berlin-Bounding-Box | TILDA-Export, `download_data.sh` |
 | `tilda_export.json`, `ml_metadata.json`, `osm_metadata.json` | Datenstände | `download_data.sh` |
 
@@ -155,7 +155,7 @@ Die übrigen Attribute je Weg stehen in `wege_alle.geojson`.
 | `wege_alle.geojson` | alle Wege am Netz inkl. Klassifizierung |
 | `statistik.json` | Kilometer je Klasse, Parameter und Datenstände |
 
-Das Netz selbst als GeoJSON schreibt `ren-network/unify_networks.py` nach `ren-network/output/ren_netz_gesamt.geojson`.
+Das Netz selbst als GeoJSON schreibt `ren-network/netz_zusammenfuehren.py` nach `ren-network/output/ren_netz.geojson`.
 
 Attribute je Weg:
 
@@ -183,7 +183,7 @@ Stand 2026-10-06.
 - **Querungen** gelten als sichtbar, weil sie auf der Fahrbahn liegen.
 - **Kaum Filter nach Wegeart**: Auch Gehwege, Pfade und Treppen bleiben enthalten. Dort kann neue Radinfrastruktur entstehen, z. B. ein neuer Radweg im Park.
 - **Nur das Kartierungs-Netz**: Kanten, die 2025 schon bearbeitet wurden (Radvorrangnetz), entfallen seit 2026-10-07. Für sie liegen Fotos und Daten vor.
-- **Autobahnen gehören nicht zum Netz**: Das Hauptstraßennetz enthält rund 230 km Autobahn und Zubringer. Sie werden seit 2026-10-06 schon in `ren-network/unify_networks.py` entfernt, damit alle Auswertungen dasselbe bereinigte Netz nutzen.
+- **Autobahnen gehören nicht zum Netz**: Das Hauptstraßennetz enthält rund 230 km Autobahn und Zubringer. Sie werden seit 2026-10-06 schon in `ren-network/netz_zusammenfuehren.py` entfernt, damit alle Auswertungen dasselbe bereinigte Netz nutzen.
 - **Puffer nach Straßenklasse** statt einheitlich 25 m, um Wege zu vermeiden, die nur neben der Straße liegen.
 - **Wege unter 20 m entfallen**: Das war die Hälfte der Wege mit Bedarf, aber nur 9 % der Länge (vor allem kurze Gehwegstücke und Treppen).
 - **Falsch-Positive sind in Ordnung**: Die Auswahl am Netz ist bewusst großzügig; unpassende Wege werden später gekürzt oder entfernt.

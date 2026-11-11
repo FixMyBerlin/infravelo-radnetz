@@ -44,7 +44,7 @@ sueden = "data/Berlin_Gebiet_Süden.gpkg"
 # Radvorrangnetz: wie [paths]
 [netze.rvn]
 
-# REN+: alle Netzquellen gemeinsam (ren-network/output/ren_netz_gesamt.gpkg),
+# REN+: alle Netzquellen gemeinsam (ren-network/output/ren_netz.gpkg),
 # TILDA-Routing ohne Zuschnitt auf den RVN-Puffer
 [netze.ren]
 network = "output/ren/ren_netz_details_combined.fgb"

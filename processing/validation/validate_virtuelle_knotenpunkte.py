@@ -7,7 +7,7 @@ Validiert die Eindeutigkeit der Knotenpunkt-IDs in den virtuellen Knotenpunkten.
 Prüft, ob jede Knotenpunkt-ID nur einmal vorkommt und gibt Warnungen bei Duplikaten aus.
 
 INPUT:
-- netzanpassungen/output/virtuelle_knoten.gpkg (import_app_export.py, über helpers/virtuelle_knoten.py)
+- netzanpassungen/output/virtuelle_knoten.gpkg (app_ergebnis_anwenden.py, über helpers/virtuelle_knoten.py)
 
 OUTPUT:
 - Konsolenausgabe mit Warnungen bei gefundenen Duplikaten

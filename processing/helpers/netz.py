@@ -4,9 +4,9 @@ netz.py
 Auswahl des Zielnetzes der Prozessierung (Parameter --netz).
 
 - rvn: Radvorrangnetz (data/Berlin Radvorrangsnetz.fgb), wie bisher
-- ren: REN+, also alle Netzquellen gemeinsam (ren-network/output/ren_netz_gesamt.gpkg).
-  Mit den Korrekturen aus der App Netzanpassungen (ren-network/import_app_export.py) liegt daneben
-  ren_netz_gesamt_korrigiert.gpkg. Das Matching rechnet standardmäßig mit dem korrigierten Netz,
+- ren: REN+, also alle Netzquellen gemeinsam (ren-network/output/ren_netz.gpkg).
+  Mit den Korrekturen aus der App Netzanpassungen (ren-network/app_ergebnis_anwenden.py) liegt daneben
+  ren_netz_korrigiert.gpkg. Das Matching rechnet standardmäßig mit dem korrigierten Netz,
   solange die Datei existiert (--quelle, siehe waehle_quelle).
 
 Beide Netze werden an denselben virtuellen Knotenpunkten geteilt
@@ -30,9 +30,9 @@ PFADE = {
         "kombiniert": "output/rvn/vorrangnetz_details_combined_rvn.fgb",
     },
     "ren": {
-        "quelle": "../ren-network/output/ren_netz_gesamt.gpkg",
+        "quelle": "../ren-network/output/ren_netz.gpkg",
         "quelle_layer": "ren_netz",
-        "quelle_korrigiert": "../ren-network/output/ren_netz_gesamt_korrigiert.gpkg",
+        "quelle_korrigiert": "../ren-network/output/ren_netz_korrigiert.gpkg",
         "geteilt": "output/ren/ren_netz_mit_virtuellen-knotenpunkten.fgb",
         "detailnetz_geteilt": "output/ren/Berlin Detailnetz_mit_virtuellen-knotenpunkten.fgb",
         "mit_element_nr": "output/ren/ren_netz_with_element_nr.fgb",
@@ -62,9 +62,9 @@ DEFAULT_QUELLE = "auto"
 def waehle_quelle(netz=DEFAULT_NETZ, wahl=DEFAULT_QUELLE):
     """Eingangsnetz der Prozessierung: (Pfad, korrigiert). Nur das REN+ hat eine korrigierte Fassung.
 
-    auto: ren_netz_gesamt_korrigiert.gpkg, wenn die Datei existiert, sonst das Original.
+    auto: ren_netz_korrigiert.gpkg, wenn die Datei existiert, sonst das Original.
     korrigiert: wie auto, bricht aber ab, wenn die Datei fehlt.
-    original: immer ren_netz_gesamt.gpkg (der Stand, den der Kunde bekommt).
+    original: immer ren_netz.gpkg (der Stand, den der Kunde bekommt).
     """
     pfade = PFADE[netz]
     korrigiert_pfad = pfade.get("quelle_korrigiert")
@@ -74,7 +74,7 @@ def waehle_quelle(netz=DEFAULT_NETZ, wahl=DEFAULT_QUELLE):
         return pfade["quelle"], False
     vorhanden = Path(korrigiert_pfad).exists()
     if wahl == "korrigiert" and not vorhanden:
-        raise SystemExit(f"{korrigiert_pfad} fehlt. Zuerst python netzanpassungen/import_app_export.py ausführen "
+        raise SystemExit(f"{korrigiert_pfad} fehlt. Zuerst python netzanpassungen/app_ergebnis_anwenden.py ausführen "
                          f"oder --quelle original wählen.")
     if wahl != "original" and vorhanden:
         logging.info(f"Eingangsnetz: korrigiertes REN+ ({korrigiert_pfad})")
@@ -93,7 +93,7 @@ def add_quelle_argument(parser):
     """Fügt --quelle zu einem argparse-Parser hinzu."""
     parser.add_argument("--quelle", choices=QUELLE_WAHL, default=DEFAULT_QUELLE,
                         help="REN+-Eingangsnetz: korrigiert (aus der App Netzanpassungen) oder original. "
-                             "Standard auto: korrigiert, wenn ren_netz_gesamt_korrigiert.gpkg existiert")
+                             "Standard auto: korrigiert, wenn ren_netz_korrigiert.gpkg existiert")
 
 
 def add_netz_argument(parser):

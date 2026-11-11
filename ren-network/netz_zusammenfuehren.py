@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-unify_networks.py
+netz_zusammenfuehren.py  (Schritt 1 der Pipeline, bisher unify_networks.py)
 --------------------------------------------------------------------
 Führt Radergänzungsnetz, Hauptstraßennetz und Radschnellverbindungen zu einem
-einheitlichen Netz für REN+ zusammen (Zustand vor dem Matching).
+einheitlichen Rohnetz für REN+ zusammen (Zustand vor dem Matching).
 
-Das touristische Radnetz (Radfernwege) fehlt noch: Es hat weder element_nr noch
-Netzknoten und braucht einen Vorverarbeitungsschritt. Das Attribut
-'routen_fernradweg' wird deshalb leer angelegt.
+Reine Rohdatenzusammenführung, ohne Bezug zur App Netzanpassungen. Das touristische
+Radnetz (Radfernwege) ordnet Schritt 2 zu (netzanpassungen/radfernwege_zuordnen.py);
+'routen_fernradweg' bleibt hier leer. Die Kartierung (ohne bearbeitet_2025 = ja)
+schreibt Schritt 3 (netzanpassungen/app_ergebnis_anwenden.py) für beide Ergebnisnetze.
 
 Fehlende element_nr werden aus den Knotenpunkten an den Kantenenden berechnet
 (processing/scripts/assign_element_nr_to_rvn.py): Liegt an einem Ende kein Knotenpunkt,
@@ -21,7 +22,7 @@ Pro element_nr entsteht eine Kante.
 
 Jede Kante wird über die Geometrie mit der Lieferung 2025 verglichen
 (Ergebnisdatensatz C des Radvorrangnetzes): bearbeitet_2025 = ja, teilweise
-oder nein. Das Kartierungs-Netz ist das Gesamtnetz ohne die Kanten mit "ja";
+oder nein. Das Kartierungs-Netz (Schritt 3) ist das Netz ohne die Kanten mit "ja";
 teilweise gelieferte Kanten bleiben als Ganzes enthalten und tragen einen
 Hinweis (hinweis_2025).
 
@@ -35,7 +36,8 @@ bleibt sie über diese Quelle erhalten.
 
 Einzelne Kanten, die diese Regel nicht erfasst, bleiben im Original-Netz. Sie
 werden in der App Netzanpassungen ausgeschlossen (Korrektur „Kante ausschließen“);
-erst ren_netz_gesamt_korrigiert.gpkg (import_app_export.py) lässt sie weg.
+in ren_netz.gpkg und ren_netz_korrigiert.gpkg (app_ergebnis_anwenden.py) sind sie markiert,
+die Kartierung lässt sie weg.
 
 INPUT:
 - data/netzquellen/radverkehrsnetz.gpkg
@@ -51,9 +53,8 @@ INPUT:
   Schwesterordner ausgecheckt sein)
 
 OUTPUT:
-- ren-network/output/ren_netz_gesamt.gpkg (Layer: ren_netz)
-- ren-network/output/ren_netz_gesamt.geojson (WGS84, z.B. für play.placemark.io)
-- ren-network/output/ren_netz_kartierung.gpkg / .geojson (ohne bearbeitet_2025 = ja)
+- ren-network/output/ren_netz_roh.gpkg (Layer: ren_netz)
+- ren-network/output/ren_netz_roh.geojson (WGS84, z.B. für play.placemark.io)
 - ren-network/output/element_nr_nicht_im_detailnetz.csv
 - ren-network/output/bearbeitet_2025_abweichungen.csv
 """
@@ -93,7 +94,7 @@ VERBINDUNGSPUNKTE_PATH = ROOT / "data" / "Berlin Verbindungspunkte Detailnetz.fg
 NODE_ID_COLUMN = "Knotenpunkt‐ID"
 DISTRICTS_PATH = ROOT / "data" / "Berlin Bezirke.gpkg"
 OUTPUT_DIR = ROOT / "ren-network" / "output"
-OUTPUT_PATH = OUTPUT_DIR / "ren_netz_gesamt.gpkg"
+OUTPUT_PATH = OUTPUT_DIR / "ren_netz_roh.gpkg"
 OUTPUT_LAYER = "ren_netz"
 MISSING_REPORT_PATH = OUTPUT_DIR / "element_nr_nicht_im_detailnetz.csv"
 # Ergebnis 2025 (Datensatz C): lebt nur in tilda-static-data, das als Schwesterordner
@@ -101,7 +102,6 @@ MISSING_REPORT_PATH = OUTPUT_DIR / "element_nr_nicht_im_detailnetz.csv"
 TILDA_STATIC_DATA_DIR = ROOT.parent / "tilda-static-data"
 RESULT_2025_PATH = (TILDA_STATIC_DATA_DIR / "geojson" / "region-infravelo"
                     / "infravelo-datensatz-c-fortlaufend" / "aggregated_rvn_final.geojson.gz")
-MAPPING_NETWORK_PATH = OUTPUT_DIR / "ren_netz_kartierung.gpkg"
 RESULT_2025_REPORT_PATH = OUTPUT_DIR / "bearbeitet_2025_abweichungen.csv"
 
 # Reihenfolge bestimmt, aus welcher Quelle die Geometrie übernommen wird
@@ -452,7 +452,7 @@ def finalize(network):
     in_hauptstrassennetz = network["netz_quellen"].str.contains("hauptstrassennetz")
     ist_hvs = network["strassenklasse"].isin(HAUPTVERKEHRSSTRASSEN_KLASSEN)
     network["hauptverkehrsstrasse"] = (in_hauptstrassennetz & ist_hvs).map({True: "ja", False: "nein"})
-    # TODO: Radfernwege, sobald das touristische Netz vorverarbeitet ist
+    # Radfernwege ordnet Schritt 2 zu (netzanpassungen/radfernwege_zuordnen.py)
     network["routen_fernradweg"] = None
 
     network = network.sort_values("element_nr", na_position="last", kind="stable").reset_index(drop=True)
@@ -579,9 +579,6 @@ def main():
 
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     write_network(network, OUTPUT_PATH)
-    mapping_network = network[network["bearbeitet_2025"] != "ja"]
-    logging.info(f"Kartierungs-Netz: {len(mapping_network)} Kanten, {mapping_network['laenge_m'].sum() / 1000:.1f} km")
-    write_network(mapping_network, MAPPING_NETWORK_PATH)
     write_missing_report(network)
 
 
