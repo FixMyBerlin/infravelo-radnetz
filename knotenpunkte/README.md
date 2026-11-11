@@ -3,7 +3,9 @@
 `build_knotenpunkte.py` erstellt den Knotenpunkt-Datensatz für alle Netzknoten des [REN+-Netzes](../ren-network/README.md). Knoten aus der Lieferung 2025 (Radvorrangnetz) bleiben enthalten, samt ihren Bewertungen, und sind mit `bearbeitet_2025 = ja` markiert. Alle anderen Knoten gehen zur Bewertung an die [Knotenpunkt-App](https://github.com/FixMyBerlin/knotenpunkte) und an [infravelo-ml-knotenpunkte](https://github.com/FixMyBerlin/infravelo-ml-knotenpunkte).
 
 ```bash
-python ren-network/netz_zusammenfuehren.py      # REN+-Netz
+python ren-network/netz_zusammenfuehren.py      # REN+-Netz, Schritt 1
+python netzanpassungen/radfernwege_zuordnen.py   # Schritt 2
+python netzanpassungen/app_ergebnis_anwenden.py --ohne-export   # Schritt 3 (oder mit dem Export der App): ren_netz.gpkg
 python knotenpunkte/download_lsa.py       # Lichtsignalanlagen (einmalig, --neu lädt erneut)
 python knotenpunkte/build_knotenpunkte.py
 ```
@@ -12,7 +14,7 @@ python knotenpunkte/build_knotenpunkte.py
 
 ```bash
 # 1. Knoten bauen (infravelo-radnetz)
-python ren-network/netz_zusammenfuehren.py                  # nur bei geändertem REN+
+python ren-network/netz_zusammenfuehren.py                  # nur bei geändertem REN+ (danach Schritte 2 und 3, siehe oben)
 python knotenpunkte/build_knotenpunkte.py
 
 # 2. ML-Vorschläge auf Luftbild 2026 (infravelo-ml-knotenpunkte)

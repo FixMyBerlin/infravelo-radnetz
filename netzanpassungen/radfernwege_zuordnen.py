@@ -12,7 +12,8 @@ Regel (Werte und Begründung: docs/netz-ablauf.md im Repo knotenpunkte, Abschnit
 MATCH_DISTANCE_M von der Route entfernt liegt UND die Route dort ungefähr parallel läuft
 (Winkel unter MAX_ANGLE_DEG). Der Winkel verhindert, dass Querstraßen an Kreuzungen
 mitgenommen werden. Gemessen wird an Stützpunkten alle SAMPLE_STEP_M entlang der Kante.
-Kanten knapp darunter (ab CANDIDATE_SHARE) sind Kandidaten für die App.
+Kanten knapp darunter (ab CANDIDATE_SHARE) und lange Kanten, bei denen trotz hohem Anteil mehr als
+MAX_OPEN_M ohne Route bleiben, sind Kandidaten für die App.
 Hausdorff und das 95. Perzentil sind Kennzahlen je Abschnitt, kein Kriterium.
 
 - REN+-Kanten (Rohnetz) bekommen `routen_fernradweg`, `routen_quelle = auto`.
@@ -73,6 +74,8 @@ MATCH_DISTANCE_M = 20.0
 # Anteil der Kantenlänge, der nah UND parallel sein muss; darunter ab CANDIDATE_SHARE: Kandidat
 MATCH_SHARE = 0.60
 CANDIDATE_SHARE = 0.40
+# Auch bei hohem Anteil dürfen höchstens so viele Meter einer langen Kante ohne Route bleiben, sonst Kandidat
+MAX_OPEN_M = 250.0
 # Spitzer Winkel zwischen Kante und Route, unter dem sie als parallel gelten
 MAX_ANGLE_DEG = 45.0
 # Abstand der Stützpunkte entlang der Kante und Länge, über die die Richtung gemessen wird (je Seite)
@@ -411,8 +414,9 @@ def build_sections(routes, matches, ren_lines, detail_lines):
     geometries = {"ren": ren_lines.geometry.to_numpy(), "detail": detail_lines.geometry.to_numpy()}
     for name, route in routes.items():
         mine = matches[matches["route"] == name]
-        taken = mine[mine["anteil"] >= MATCH_SHARE]
-        rest = mine[(mine["anteil"] < MATCH_SHARE) & (mine["anteil"] >= CANDIDATE_SHARE)]
+        is_taken = (mine["anteil"] >= MATCH_SHARE) & (mine["laenge_m"] * (1 - mine["anteil"]) <= MAX_OPEN_M)
+        taken = mine[is_taken]
+        rest = mine[~is_taken & (mine["anteil"] >= CANDIDATE_SHARE)]
         taken_items = [{"key": r.key, "netz": r.netz, "intervalle": r.intervalle, "index": r.index}
                        for r in taken.itertuples() if r.netz == "ren"]
         ren_intervals = [iv for item in taken_items for iv in item["intervalle"]]

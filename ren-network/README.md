@@ -1,6 +1,15 @@
 # REN+
 
-`netz_zusammenfuehren.py` führt die Netzquellen zu einem einheitlichen Netz für REN+ zusammen (Zustand vor dem Matching). Es schreibt zwei Netze: das Gesamtnetz und das Kartierungs-Netz, also das Gesamtnetz ohne die 2025 schon gelieferten Kanten (siehe [Lieferung 2025](#lieferung-2025)). Das ist das **Original**, das der Kunde bekommt. Korrekturen aus der App Netzanpassungen kommen als zweite, **korrigierte** Fassung daneben (siehe [Korrigiertes Netz](#korrigiertes-netz)).
+`netz_zusammenfuehren.py` ist **Schritt 1** der Pipeline (bisher `unify_networks.py`, Gesamtbild: [`docs/netz-ablauf.md`](https://github.com/FixMyBerlin/knotenpunkte/blob/main/docs/netz-ablauf.md) im Repo knotenpunkte): Es führt die Netzquellen zu einem einheitlichen **Rohnetz** für REN+ zusammen (`ren_netz_roh.gpkg`), reine Rohdaten ohne Bezug zur App Netzanpassungen oder zu den Radfernwegen. Danach folgen:
+
+| Schritt | Skript | Ergebnis |
+|---|---|---|
+| 1 | `ren-network/netz_zusammenfuehren.py` | `ren_netz_roh.gpkg` |
+| 2 | `netzanpassungen/radfernwege_zuordnen.py` | `netzanpassungen/output/ren_netz_auto.gpkg`, `radfernweg_abschnitte.gpkg` |
+| – | `netzanpassungen/app_eingabe_schreiben.py` | `netzanpassungen/output/netzanpassungen_<gebiet>.json` für die App |
+| 3 | `netzanpassungen/app_ergebnis_anwenden.py` | `ren_netz.gpkg` (Kunde), `ren_netz_korrigiert.gpkg` (Matching, Mapping), jeweils mit Kartierung |
+
+Das ganze Netz, das der Kunde bekommt, ist `ren_netz.gpkg`; mit Lagekorrekturen daneben `ren_netz_korrigiert.gpkg` (siehe [Ergebnisnetze](#ergebnisnetze-schritt-3)). Die Kartierung (ohne die 2025 schon gelieferten Kanten, siehe [Lieferung 2025](#lieferung-2025)) schreibt Schritt 3 für beide.
 
 ```bash
 python ren-network/netz_zusammenfuehren.py
@@ -26,13 +35,13 @@ ogr2ogr -f FlatGeobuf "Berlin Verbindungspunkte Detailnetz.fgb" "WFS:https://gdi
 ogr2ogr -f FlatGeobuf -nlt MULTILINESTRING "Berlin Straßenabschnitte Detailnetz $(date +%F).fgb" "WFS:https://gdi.berlin.de/services/wfs/detailnetz" "detailnetz:c_strassenabschnitte"
 ```
 
-Noch nicht enthalten: Touristisches Radnetz (Radfernwege), da ohne `element_nr` und Netzknoten.
+Das Touristische Radnetz (Radfernwege) hat weder `element_nr` noch Netzknoten und kommt erst in Schritt 2 dazu (`netzanpassungen/radfernwege_zuordnen.py`); `routen_fernradweg` ist hier noch leer.
 
 ## Ablauf
 
 1. **Laden** der drei Netze in ein gemeinsames Schema (EPSG:25833).
 2. **Autobahnen entfernen**: Kanten des Hauptstraßennetzes, die im Detailnetz als Autobahn geführt sind (`strassenklasse2` = `AUBA` oder `AUTO`, inkl. Zubringer und Anschlussstellen), entfallen. Gehört dieselbe Kante auch zum Radverkehrsnetz oder zu einer Radschnellverbindung, bleibt sie über diese Quelle erhalten und wird im Log aufgelistet.
-3. Einzelne Kanten, die die Autobahn-Regel nicht erfasst (z. B. der Tunnel Tiergarten), bleiben im Original. Sie werden in der App Netzanpassungen ausgeschlossen und fehlen erst im korrigierten Netz (bis 2026-11-10 stand dafür die Liste `ausschluss_element_nr.csv`; ihre 19 Kanten wurden in `netzanpassungen/einmalige_uebernahme/altlisten_korrekturen.json` übertragen; gelöscht sind außerdem `data/rvn_korrekturen.csv`, `data/opposite_edge_overwrite_element_nr.txt` und der Code, der die Listen las, darunter `processing/qgis/erzeuge_einrichtungsfahrbahnen_projekt.py`).
+3. Einzelne Kanten, die die Autobahn-Regel nicht erfasst (z. B. der Tunnel Tiergarten), bleiben im Rohnetz. Sie werden in der App Netzanpassungen ausgeschlossen, in `ren_netz.gpkg` und `ren_netz_korrigiert.gpkg` sind sie als `ausgeschlossen` markiert, die Kartierung lässt sie weg (bis 2026-11-10 stand dafür die Liste `ausschluss_element_nr.csv`; ihre 19 Kanten wurden in `netzanpassungen/einmalige_uebernahme/altlisten_korrekturen.json` übertragen; gelöscht sind außerdem `data/rvn_korrekturen.csv`, `data/opposite_edge_overwrite_element_nr.txt` und der Code, der die Listen las, darunter `processing/qgis/erzeuge_einrichtungsfahrbahnen_projekt.py`).
 4. **Fehlende `element_nr` berechnen** (`processing/scripts/assign_element_nr_to_rvn.py`): Knotenpunkte (Verbindungspunkte mit ID über `processing/scripts/assign_node_ids.py`) an den Kantenenden suchen, ohne Knotenpunkt entlang verbundener Kanten derselben Quelle weitersuchen. Verbindet das Detailnetz dieselben Knoten, wird dessen `element_nr` übernommen (richtungsunabhängig, bei mehreren die geometrisch nächste), sonst `von_bis.01`. Ohne Knotenpunkt an beiden Enden bleibt die Kante ohne `element_nr`.
 5. **Zusammenführen** zu einer Kante pro `element_nr`. Geometrie aus der Quelle mit höchster Priorität (Radverkehrsnetz > Radschnellverbindungen > Hauptstraßennetz), die die Kante vollständig abdeckt: Ist eine vorrangige Quelle mehr als 10 m kürzer als eine andere, gewinnt die längere. `radverkehrsnetz` nach höchstem Rang (Vorrang > Ergänzung). Kanten ohne `element_nr` bleiben einzeln.
 6. **Detailnetz**: Straßenname und -klasse über `element_nr` ergänzen; Abweichungen zum Hauptstraßennetz werden geloggt.
@@ -43,39 +52,55 @@ Noch nicht enthalten: Touristisches Radnetz (Radfernwege), da ohne `element_nr` 
 
 ## Ausgabe
 
-In `ren-network/output/`:
+In `ren-network/output/` schreibt Schritt 1:
 
-- `ren_netz_gesamt.gpkg` (Layer `ren_netz`)
-- `ren_netz_gesamt.geojson`: dasselbe Netz in WGS84, z. B. für [play.placemark.io](https://play.placemark.io)
-- `ren_netz_kartierung.gpkg` und `.geojson`: das Netz für die Kartierung (**enthält seit 2026-11-10 wieder die 19 Kanten des Tunnels Tiergarten und der Autobahn-Zubringer**, weil die Ausschlussliste entfallen ist; erst `ren_netz_kartierung_korrigiert` lässt sie weg), also das Gesamtnetz ohne die Kanten mit `bearbeitet_2025 = ja`; teilweise gelieferte Kanten bleiben enthalten. Darauf bauen `befahrungsbedarf/`, `maproulette-centerline-tracks/` und `mapping-zuteilung/` auf; sie lesen `ren_netz_gesamt.gpkg` und filtern selbst
+- `ren_netz_roh.gpkg` (Layer `ren_netz`), bisher `ren_netz_gesamt.gpkg`
+- `ren_netz_roh.geojson`: dasselbe Netz in WGS84, z. B. für [play.placemark.io](https://play.placemark.io)
 - `bearbeitet_2025_abweichungen.csv`: Prüfliste zum Abgleich mit der Lieferung 2025
 - `element_nr_nicht_im_detailnetz.csv`: Kanten, deren `element_nr` im Detailnetz fehlt
-- `ren_netz_korrigiert.gpkg` / `.geojson`, `ren_netz_kartierung_korrigiert.gpkg` / `.geojson` und `korrekturen_konflikte.csv`: nur nach `netzanpassungen/app_ergebnis_anwenden.py`, siehe unten
 
-## Korrigiertes Netz
+Schritt 3 schreibt dorthin die Ergebnisnetze (siehe unten): `ren_netz.gpkg` / `.geojson`, `ren_netz_kartierung.gpkg` / `.geojson`, `ren_netz_korrigiert.gpkg` / `.geojson`, `ren_netz_kartierung_korrigiert.gpkg` / `.geojson`, `korrekturen_konflikte.csv`, `radfernweg_zuordnungen.csv`. `befahrungsbedarf/`, `maproulette-centerline-tracks/` und `mapping-zuteilung/` lesen `ren_netz.gpkg` und filtern die Kartierung selbst.
 
-In der App Netzanpassungen (Repo [knotenpunkte](https://github.com/FixMyBerlin/knotenpunkte), Ordner `netzanpassungen/`) werden REN+-Kanten korrigiert: Stützpunkte verschieben oder einfügen, `fahrbahn_typ`, `fahrbahn_gruppe`, `verkehrsrichtung` setzen, Kanten ausschließen. `von_knoten`, `bis_knoten` und `element_nr` einer Kante ändern sich dabei nie. `app_ergebnis_anwenden.py` spielt den App-Export „alle Einträge“ auf das Original ab:
+## Ergebnisnetze (Schritt 3)
+
+In der App Netzanpassungen (Repo [knotenpunkte](https://github.com/FixMyBerlin/knotenpunkte), Ordner `netzanpassungen/`) werden die Radfernwege den Kanten zugeordnet und REN+-Kanten korrigiert: Stützpunkte verschieben oder einfügen, `fahrbahn_typ`, `fahrbahn_gruppe`, `verkehrsrichtung` setzen, Kanten ausschließen. `von_knoten`, `bis_knoten` und `element_nr` einer Kante ändern sich dabei nie. `app_ergebnis_anwenden.py` spielt den App-Export „alle Einträge“ auf `netzanpassungen/output/ren_netz_auto.gpkg` (Schritt 2) ab:
 
 ```bash
 python netzanpassungen/app_ergebnis_anwenden.py netzanpassungen-alle-eintraege-berlin-2026-11-12.json
-python netzanpassungen/test_app_ergebnis_anwenden.py   # Selbsttest
+python netzanpassungen/app_ergebnis_anwenden.py --ohne-export    # nur Schritt 2, ohne Handarbeit
+python netzanpassungen/test_app_ergebnis_anwenden.py             # Selbsttest
 ```
 
 | Datei in `ren-network/output/` | Inhalt |
 |---|---|
-| `ren_netz_korrigiert.gpkg` / `.geojson` | alle Kanten von `ren_netz_gesamt.gpkg` mit korrigierter Geometrie und zusätzlich `korrigiert`, `attribut_korrigiert` (ja/nein), `fahrbahn_typ`, `fahrbahn_gruppe`, `verkehrsrichtung` (B/R/G, nur wo erfasst), `ausgeschlossen` (ja/nein), `anzahl_vorgaenge`, `letzte_aenderung_am`, `letzte_aenderung_von`, `korrektur_kommentar`. Ausgeschlossene Kanten bleiben darin, sind aber markiert |
-| `ren_netz_kartierung_korrigiert.gpkg` / `.geojson` | dieselbe Filterung wie beim Kartierungs-Netz (ohne `bearbeitet_2025 = ja`), zusätzlich ohne ausgeschlossene Kanten |
-| `korrekturen_konflikte.csv` | Korrekturen, die nicht angewendet wurden, mit Grund, und Hinweise zu Knoten und Kanten |
+| `ren_netz.gpkg` / `.geojson` | **Kunde.** Rohnetz + Radfernwege (automatisch und von Hand) + aufgenommene Detailnetzkanten + Richtung, Fahrbahn, Ausschluss, alles aus der App markiert. Originallage, **keine** Lagekorrekturen |
+| `ren_netz_korrigiert.gpkg` / `.geojson` | **Matching und Mapping.** Dieselben Kanten und Spalten, dazu die Lagekorrekturen: `lage_korrigiert` (ja/nein) und die Kennzahlen `hausdorff_m`, `max_verschiebung_m`, `differenzflaeche_m2`, `laenge_alt_m`, `laenge_neu_m` |
+| `ren_netz_kartierung.gpkg`, `ren_netz_kartierung_korrigiert.gpkg` (je `.gpkg` und `.geojson`) | Kartierung der beiden Netze: ohne `bearbeitet_2025 = ja` (teilweise gelieferte Kanten bleiben) und ohne ausgeschlossene Kanten. Darauf bauen die Mapper |
+| `korrekturen_konflikte.csv` | Korrekturen und Zuordnungen, die nicht angewendet wurden, mit Grund, und Hinweise zu Knoten und Kanten |
+| `radfernweg_zuordnungen.csv` | Eine Zeile je Entscheidung zu einem Abschnitt (zugeordnet, keine_aktion, Konflikt) |
 
-Eine Korrektur wird nur angewendet, wenn die Kante noch im Eingangsnetz liegt (Schlüssel `kante.ref`: `element_nr`, ab der zweiten Linie derselben Nummer `#2`), ihre `original_coordinates` höchstens 5 cm von der Geometrie dort abweichen und das Protokoll (`original_coordinates` + `aenderungen`) den gespeicherten Stand ergibt. Sonst bleibt die Kante unverändert und steht in `korrekturen_konflikte.csv`. Das passiert, wenn sich `ren_netz_gesamt.gpkg` seit dem Export an die App geändert hat.
+Spalten, die beide Netze zusätzlich zu denen von Schritt 1 tragen:
 
-Virtuelle Knoten und gezeichnete Kanten schreibt der Import nach `netzanpassungen/output/virtuelle_knoten.gpkg` und `netzanpassungen/output/touristische_kanten.gpkg` (bei jedem Lauf neu aus dem Export, nie nach `data/`). `netz_zusammenfuehren.py` liest die Kantendatei noch nicht als Netzquelle.
+| Spalte | Inhalt |
+|---|---|
+| `quelle` | `radnetz`, `detailnetz_radfernweg` (in Schritt 2 automatisch aufgenommen), `detailnetz_manuell` (über eine Zuordnung in der App) |
+| `grund_aufnahme` | `radfernweg`, `radfernweg_manuell` oder leer |
+| `routen_fernradweg`, `routen_quelle` | Routennamen (mehrere mit `; `); `auto`, `manuell` oder `auto; manuell` |
+| `verkehrsrichtung`, `verkehrsrichtung_original`, `verkehrsrichtung_korrigiert` | B/R/G aus dem Detailnetz bzw. korrigiert; Wert vor der Korrektur; ja/nein |
+| `fahrbahn_typ`, `fahrbahn_gruppe` | wie in der App erfasst, sonst leer |
+| `ausgeschlossen`, `ausschluss_grund` | ja/nein; Kommentar der Korrektur. Ausgeschlossene Kanten bleiben in beiden Netzen, sind aber markiert |
+| `eintrag_ids` | KV-Ids der Einträge, die diese Kante betreffen (`; `-getrennt) |
+| `anzahl_vorgaenge`, `letzte_aenderung_am`, `letzte_aenderung_von`, `korrektur_kommentar` | Protokoll der Korrektur |
 
-**Was damit läuft.** Das Matching (`processing/process_radnetz.sh --netz ren`) nimmt standardmäßig das korrigierte Netz, solange `ren_netz_korrigiert.gpkg` existiert; `--quelle original` erzwingt das Original, `--quelle korrigiert` bricht ohne die Datei ab. Ausgeschlossene Kanten entfallen dabei, und die korrigierte `verkehrsrichtung` gilt statt der des Detailnetzes. Das Ergebnis liegt dann auf den korrigierten Linien.
+Eine Korrektur wird nur angewendet, wenn die Kante noch im Eingangsnetz liegt (Schlüssel `kante.ref`: `element_nr`, ab der zweiten Linie derselben Nummer `#2`), ihre `original_coordinates` höchstens 5 cm von der Geometrie dort abweichen und das Protokoll (`original_coordinates` + `aenderungen`) den gespeicherten Stand ergibt. Sonst bleibt die Kante unverändert und steht in `korrekturen_konflikte.csv`. Das passiert, wenn sich `ren_netz_auto.gpkg` seit dem Export an die App geändert hat. Zuordnungen zu Abschnitten der Radfernwege (`section_assignment`) und ihre Regeln: [`netzanpassungen/README.md`](../netzanpassungen/README.md).
 
-**Kartierung in TILDA.** Der Datensatz `infravelo-ren-netz-kartierung` kommt per Symlink aus `tilda-static-data` (außerhalb dieses Repos). Der Symlink muss auf `ren_netz_kartierung_korrigiert.geojson` zeigen, sonst kartieren die Mapper die 19 ausgeschlossenen Kanten und sehen keine Korrekturen. Der Symlink wird hier nicht geändert.
+Virtuelle Knoten und gezeichnete Kanten schreibt Schritt 3 nach `netzanpassungen/output/virtuelle_knoten.gpkg` und `netzanpassungen/output/touristische_kanten.gpkg` (bei jedem Lauf neu aus dem Export, nie nach `data/`). `netz_zusammenfuehren.py` liest die Kantendatei nicht als Netzquelle.
 
-**Zurück aufs Original.** `zurueck_aufs_original.py` legt das Matching-Ergebnis (`processing/output/map-matching-ren/network_enriched_hmm.fgb`) auf die Originallinien aus `ren_netz_gesamt.gpkg`: Jedes Teilsegment wird auf seine korrigierte Kante projiziert, der Abschnitt dort gilt anteilig für die Originalkante (`von_m`, `bis_m`, `von_anteil`, `bis_anteil`). Geteilte Kanten (virtuelle Knoten) finden ihre Ursprungskante über `elem_nr` in `processing/output/ren/ren_netz_with_element_nr.fgb` (`ursprung_element_nr`). Segmente auf in der App gezeichneten Kanten gibt es im Original nicht; sie stehen in `<Ausgabe>_ohne_original.csv`.
+**Was damit läuft.** Das Matching (`processing/process_radnetz.sh --netz ren`) nimmt standardmäßig das korrigierte Netz, solange `ren_netz_korrigiert.gpkg` existiert; `--quelle original` nimmt `ren_netz.gpkg`, `--quelle korrigiert` bricht ohne die Datei ab. Ausgeschlossene Kanten entfallen dabei, und die korrigierte `verkehrsrichtung` (`verkehrsrichtung_korrigiert = ja`) gilt statt der des Detailnetzes. Das Ergebnis liegt dann auf den korrigierten Linien.
+
+**Kartierung in TILDA.** Der Datensatz `infravelo-ren-netz-kartierung` kommt per Symlink aus `tilda-static-data` (außerhalb dieses Repos). Der Symlink muss auf `ren_netz_kartierung_korrigiert.geojson` zeigen, sonst sehen die Mapper keine Lagekorrekturen. Der Symlink wird hier nicht geändert.
+
+**Zurück aufs Original.** `zurueck_aufs_original.py` legt das Matching-Ergebnis (`processing/output/map-matching-ren/network_enriched_hmm.fgb`) auf die Originallinien aus `ren_netz.gpkg`: Jedes Teilsegment wird auf seine korrigierte Kante projiziert, der Abschnitt dort gilt anteilig für die Originalkante (`von_m`, `bis_m`, `von_anteil`, `bis_anteil`). Geteilte Kanten (virtuelle Knoten) finden ihre Ursprungskante über `elem_nr` in `processing/output/ren/ren_netz_with_element_nr.fgb` (`ursprung_element_nr`). Segmente auf in der App gezeichneten Kanten gibt es im Original nicht; sie stehen in `<Ausgabe>_ohne_original.csv`.
 
 ```bash
 python ren-network/zurueck_aufs_original.py
@@ -84,7 +109,7 @@ python ren-network/test_zurueck_aufs_original.py   # Selbsttest
 
 ## Lieferung 2025
 
-Das Gesamtnetz enthält auch das Radvorrangnetz, das 2025 schon bearbeitet und an die infraVelo geliefert wurde. Kartiert wird 2026 nur, was damals nicht geliefert wurde. Dafür vergleicht `netz_zusammenfuehren.py` jede Kante mit der Lieferung und schreibt das Kartierungs-Netz als zweite Datei.
+Das Gesamtnetz enthält auch das Radvorrangnetz, das 2025 schon bearbeitet und an die infraVelo geliefert wurde. Kartiert wird 2026 nur, was damals nicht geliefert wurde. Dafür vergleicht `netz_zusammenfuehren.py` jede Kante mit der Lieferung (`bearbeitet_2025`); die Kartierungs-Netze filtert Schritt 3.
 
 ### Grundsätze
 
@@ -151,7 +176,7 @@ In TILDA zeigen „REN+ Gesamtnetz“ und „Netz“ (Kategorie „Netz: REN+ Ka
 python ren-network/create_mask.py
 ```
 
-Ausgabe: `ren-network/output/ren_netz_gesamt_maske.geojson` und `ren_netz_kartierung_maske.geojson` (WGS84, je ein MultiPolygon). Nach jeder Änderung am Netz neu erzeugen.
+Ausgabe: `ren-network/output/ren_netz_maske.geojson` und `ren_netz_kartierung_maske.geojson` (WGS84, je ein MultiPolygon). Nach jeder Änderung am Netz neu erzeugen.
 
 ## Prüfliste doppelter Kanten
 

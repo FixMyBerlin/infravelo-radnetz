@@ -55,7 +55,7 @@ from assign_node_ids import assign_node_ids_to_points  # noqa: E402
 CRS = f"EPSG:{ren.DEFAULT_CRS}"
 NODE_ID = ren.NODE_ID_COLUMN  # "Knotenpunkt‐ID" mit U+2010 wie in der Lieferung 2025
 
-NETWORK_PATH = ren.OUTPUT_PATH
+NETWORK_PATH = ren.OUTPUT_DIR / "ren_netz.gpkg"  # Schritt 3 (netzanpassungen/app_ergebnis_anwenden.py)
 NODES_2025_PATH = ROOT / "data" / "netzquellen" / "knotenpunkte_2025.geojson.gz"
 LSA_PATH = ROOT / "data" / "netzquellen" / "lsa.gpkg"
 OSM_SIGNALS_PATH = ROOT / "data" / "netzquellen" / "osm_ampeln.gpkg"
@@ -126,7 +126,8 @@ def id_text(value):
 
 def load_network():
     if not NETWORK_PATH.exists():
-        raise SystemExit(f"Fehlt: {NETWORK_PATH}\nErst ren-network/netz_zusammenfuehren.py ausführen.")
+        raise SystemExit(f"Fehlt: {NETWORK_PATH}\nErst ren-network/netz_zusammenfuehren.py, netzanpassungen/radfernwege_zuordnen.py und \n"
+                         "netzanpassungen/app_ergebnis_anwenden.py (bzw. mit --ohne-export) ausführen.")
     network = gpd.read_file(NETWORK_PATH, layer=ren.OUTPUT_LAYER).to_crs(CRS)
     logging.info(f"REN+: {len(network)} Kanten")
     return network
