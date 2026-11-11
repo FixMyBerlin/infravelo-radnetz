@@ -15,7 +15,9 @@ und hochgeladen werden.
 Die Datei enthält FeatureCollections in WGS84:
 - detailnetz: Kanten mit element_nr, beginnt_bei_vp, endet_bei_vp
 - knoten: Detailnetzknoten aus den Kantenenden (erster Punkt =
-  beginnt_bei_vp, letzter = endet_bei_vp). Virtuelle Knoten stehen nicht in der Datei,
+  beginnt_bei_vp, letzter = endet_bei_vp, ist_virtuell = 0) plus die virtuellen Knoten aus Schritt 1
+  (ren-network/output/virtuelle_knoten_roh.gpkg: die 53 von 2025 und die automatisch gesetzten,
+  ist_virtuell = 1). Von Hand in der App gezeichnete virtuelle Knoten stehen nicht in der Datei,
   sie leben in der App (KV-Datenbank)
 - ren_netz: ren_netz_auto.gpkg (Rohnetz mit automatischer Radfernweg-Zuordnung plus automatisch
   aufgenommene Detailnetzkanten) mit element_nr, von_knoten, bis_knoten, verkehrsrichtung (B/R/G
@@ -32,6 +34,7 @@ Die Datei enthält FeatureCollections in WGS84:
 
 INPUT:
 - data/Berlin Straßenabschnitte Detailnetz.fgb (jüngster Stand)
+- ren-network/output/virtuelle_knoten_roh.gpkg (merge_networks.py, Schritt 1)
 - netzanpassungen/output/ren_netz_auto.gpkg und radfernweg_abschnitte.gpkg (match_cycle_routes.py)
 - data/netzquellen/touristisches_radnetz.gpkg (aus dem Drive, data/download_inputs.py)
 - data/Berlin Bezirke.gpkg (nur mit --bezirk)
@@ -166,6 +169,20 @@ def nodes_from_edges(detail):
     nodes = gpd.GeoDataFrame({"id": nodes.index, "ist_virtuell": 0}, geometry=nodes.geometry.to_numpy(), crs=detail.crs)
     logging.info(f"Knoten aus Kantenenden: {len(nodes)}, Kantenenden abseits ihres Knotens: {len(off)}")
     return nodes, off
+
+
+def load_virtual_nodes():
+    """Virtual nodes of step 1 (the 2025 nodes and the automatic ones) as `knoten` with ist_virtuell = 1.
+    Nodes drawn in the app are not part of the input; they live in the KV database."""
+    if not ren.VIRTUAL_NODES_PATH.exists():
+        raise SystemExit(f"Missing: {ren.VIRTUAL_NODES_PATH}\nRun ren-network/merge_networks.py first (step 1).")
+    nodes = gpd.read_file(ren.VIRTUAL_NODES_PATH, layer=ren.VIRTUAL_NODES_LAYER)
+    if nodes.crs is None or nodes.crs.to_epsg() != ren.DEFAULT_CRS:
+        nodes = nodes.to_crs(CRS)
+    virtual = gpd.GeoDataFrame({"id": nodes["Knotenpunkt-ID"].astype(str), "ist_virtuell": 1},
+                               geometry=nodes.geometry.to_numpy(), crs=nodes.crs)
+    logging.info(f"Virtual nodes of step 1: {len(virtual)} ({nodes['quelle'].value_counts().to_dict()})")
+    return virtual
 
 
 def node_id_text(value):
@@ -362,7 +379,8 @@ def main():
     ren.download_inputs()
     detail, detail_source = load_detailnetz()
     nodes, off_nodes = nodes_from_edges(detail)
-    all_nodes = nodes
+    all_nodes = pd.concat([nodes, load_virtual_nodes()], ignore_index=True)
+    all_nodes = gpd.GeoDataFrame(all_nodes, geometry="geometry", crs=nodes.crs)
     ren_netz = load_ren_netz()
     sections = load_sections()
     check_section_keys(sections, ren_netz, detail)

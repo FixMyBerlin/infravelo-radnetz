@@ -134,6 +134,8 @@ def load_ren_lines():
     roh = gpd.read_file(ROH_PATH, layer=ren.OUTPUT_LAYER)
     if roh.crs is None or roh.crs.to_epsg() != ren.DEFAULT_CRS:
         roh = roh.to_crs(CRS)
+    if "ursprung_element_nr" not in roh.columns:
+        roh["ursprung_element_nr"] = None
     lines = explode_with_rows(roh)
     lines["ref"] = line_refs(lines["element_nr"])
     lines["key"] = "ren:" + lines["ref"]
@@ -522,7 +524,10 @@ def apply_assignment(roh, ren_lines, detail_lines, matches, sections):
     network = roh.copy()
     richtung = detail_lines.dropna(subset=["element_nr", "verkehrsrichtung"]).drop_duplicates("element_nr").set_index(
         "element_nr")["verkehrsrichtung"]
-    network["verkehrsrichtung"] = network["element_nr"].map(richtung).where(lambda column: column.isin(["B", "R", "G"]))
+    # Edges renumbered in step 1 take the direction of the Detailnetz edge they came from
+    origin = network["ursprung_element_nr"] if "ursprung_element_nr" in network.columns else pd.Series(None, index=network.index)
+    direction = network["element_nr"].map(richtung).fillna(origin.map(richtung))
+    network["verkehrsrichtung"] = direction.where(lambda column: column.isin(["B", "R", "G"]))
     network["quelle"] = "radnetz"
     network["grund_aufnahme"] = None
     network["routen_fernradweg"] = None
@@ -569,7 +574,9 @@ def run(output_dir=OUTPUT_DIR, write=True, **kwargs):
     detail_lines, _ = load_detail_lines()
     detail_lines = detail_lines[~detail_lines["strassenklasse2"].isin(EXCLUDED_DETAIL_CLASSES)].reset_index(drop=True)
     routes = load_routes()
-    detail_in_ren = detail_lines["element_nr"].isin(set(roh["element_nr"].dropna())).to_numpy()
+    # Step 1 renumbers edges it splits: a Detailnetz edge counts as in REN+ also under its old number (ursprung_element_nr)
+    ren_numbers = set(roh["element_nr"].dropna()) | set(roh["ursprung_element_nr"].dropna())
+    detail_in_ren = detail_lines["element_nr"].isin(ren_numbers).to_numpy()
     matches = match_all(routes, ren_lines, detail_lines, detail_in_ren, **kwargs)
     sections = build_sections(routes, matches, ren_lines, detail_lines)
     summarize(sections, matches)

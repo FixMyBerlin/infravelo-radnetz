@@ -123,6 +123,19 @@ def build_detailnetz():
         geometry=[r[1] for r in rows], crs=imp.CRS)
 
 
+def build_step1_nodes():
+    """Virtual nodes of step 1 (virtuelle_knoten_roh.gpkg): one from 2025, one set automatically."""
+    rows = [
+        {"Knotenpunkt-ID": "V2025-1", "ist_virtuell": 1, "quelle": "2025", "art": "on_edge", "traeger_netz": "ren",
+         "traeger_element_nr": "10000007_10000008.01", "station_m": 50.0, "kommentar": "Delivery 2025", "eintrag_id": None,
+         "geometry": Point(X0 + 50, Y0 + 120)},
+        {"Knotenpunkt-ID": "V10000005-1", "ist_virtuell": 1, "quelle": "auto", "art": "dead_end", "traeger_netz": None,
+         "traeger_element_nr": None, "station_m": None, "kommentar": "Set automatically", "eintrag_id": None,
+         "geometry": Point(X0 + 100, Y0 + 60)},
+    ]
+    return gpd.GeoDataFrame(rows, columns=imp.NODE_COLUMNS, geometry="geometry", crs=imp.CRS)
+
+
 def build_sections():
     """Abschnitte aus Schritt 2 (radfernweg_abschnitte.gpkg): id, radfernweg, kanten der automatischen Zuordnung."""
     rows = [
@@ -244,6 +257,7 @@ class ImportTest(unittest.TestCase):
         build_network().to_file(self.dir / "ren_netz_auto.gpkg", layer="ren_netz", driver="GPKG")
         build_sections().to_file(self.dir / "radfernweg_abschnitte.gpkg", layer=imp.SECTIONS_LAYER, driver="GPKG")
         build_detailnetz().to_file(self.dir / "detailnetz.gpkg", driver="GPKG")
+        build_step1_nodes().to_file(self.dir / "step1_nodes.gpkg", layer=imp.ren.VIRTUAL_NODES_LAYER, driver="GPKG")
         self.export = self.dir / "export.json"
         self.export.write_text(json.dumps({"gebiet": "test", "exported_at": "2026-11-12T12:00:00Z", "entries": build_entries()}),
                                encoding="utf-8")
@@ -256,7 +270,8 @@ class ImportTest(unittest.TestCase):
                        output_dir=self.dir / "out",
                        virtual_nodes_path=self.dir / "app-output" / "virtuelle_knoten.gpkg",
                        new_edges_path=self.dir / "app-output" / "touristische_kanten.gpkg",
-                       detail_path=self.dir / "detailnetz.gpkg", sections_path=self.dir / "radfernweg_abschnitte.gpkg")
+                       detail_path=self.dir / "detailnetz.gpkg", sections_path=self.dir / "radfernweg_abschnitte.gpkg",
+                       step1_nodes_path=self.dir / "step1_nodes.gpkg")
 
     def read(self, name):
         return gpd.read_file(self.dir / "out" / name, layer="ren_netz").set_index("element_nr")
@@ -342,7 +357,10 @@ class ImportTest(unittest.TestCase):
         # virtuelle Knoten: alle nicht gelöschten Einträge stehen in output/virtuelle_knoten.gpkg (n1 liegt auf der
         # korrigierten Kante, n2 steht weit daneben und bekommt einen Hinweis), der gelöschte n3 fehlt
         nodes = gpd.read_file(self.dir / "app-output" / "virtuelle_knoten.gpkg").set_index("Knotenpunkt-ID")
-        self.assertEqual(sorted(nodes.index), ["V10000001-10000002", "V10000003-10000005", "V99"])
+        # plus die zwei Knoten aus Schritt 1 (2025 und automatisch): alle drei Quellen stehen in einer Datei
+        self.assertEqual(sorted(nodes.index), ["V10000001-10000002", "V10000003-10000005", "V10000005-1", "V2025-1", "V99"])
+        self.assertEqual(nodes["quelle"].to_dict(), {"V10000001-10000002": "app", "V10000003-10000005": "app", "V99": "app",
+                                                      "V2025-1": "2025", "V10000005-1": "auto"})
         self.assertEqual(nodes.loc["V10000001-10000002", "traeger_element_nr"], "10000009_10000010.01")
         self.assertEqual(nodes.loc["V10000001-10000002", "ist_virtuell"], 1)
         self.assertEqual(nodes.loc["V10000001-10000002", "eintrag_id"], "n1")
@@ -491,8 +509,12 @@ class ImportTest(unittest.TestCase):
         """Ohne App-Einträge: beide Netze sind das Netz aus Schritt 2, ohne Markierungen."""
         stats, conflicts = imp.run(None, ren_path=self.dir / "ren_netz_auto.gpkg", output_dir=self.dir / "out",
                                    virtual_nodes_path=self.dir / "app-output" / "virtuelle_knoten.gpkg",
-                                   new_edges_path=self.dir / "app-output" / "touristische_kanten.gpkg")
+                                   new_edges_path=self.dir / "app-output" / "touristische_kanten.gpkg",
+                                   step1_nodes_path=self.dir / "step1_nodes.gpkg")
         self.assertEqual(conflicts, [])
+        # ohne Export enthält die Datei nur die Knoten aus Schritt 1 (und überschreibt nichts, was schon da ist)
+        nodes = gpd.read_file(self.dir / "app-output" / "virtuelle_knoten.gpkg")
+        self.assertEqual(sorted(nodes["Knotenpunkt-ID"]), ["V10000005-1", "V2025-1"])
         customer, working = self.read("ren_netz.gpkg"), self.read("ren_netz_korrigiert.gpkg")
         self.assertEqual(len(customer), len(build_network()))
         self.assertEqual(set(customer.columns) | set(imp.LAGE_COLUMNS), set(working.columns))
@@ -520,7 +542,7 @@ class ImportTest(unittest.TestCase):
         self.assertEqual(imp.VIRTUAL_NODES_PATH.parent, imp.HERE / "output")
         self.assertEqual(imp.NEW_EDGES_PATH.parent, imp.HERE / "output")
         self.run_import()
-        self.assertEqual(sorted(path.name for path in self.dir.iterdir() if path.is_file()), ["detailnetz.gpkg", "export.json", "radfernweg_abschnitte.gpkg", "ren_netz_auto.gpkg"])
+        self.assertEqual(sorted(path.name for path in self.dir.iterdir() if path.is_file()), ["detailnetz.gpkg", "export.json", "radfernweg_abschnitte.gpkg", "ren_netz_auto.gpkg", "step1_nodes.gpkg"])
 
     def test_duplicate_node_name(self):
         entries = build_entries()
@@ -528,9 +550,39 @@ class ImportTest(unittest.TestCase):
                                      "traeger": {"art": "ren", "ref": "10000001_10000002.01", "station_m": 10.0}}))
         self.export.write_text(json.dumps({"gebiet": "test", "exported_at": "x", "entries": entries}), encoding="utf-8")
         _, conflicts = self.run_import()
-        self.assertTrue(any(c["eintrag_id"] == "n9" and "mehreren Einträgen" in c["grund"] for c in conflicts))
+        self.assertTrue(any(c["eintrag_id"] == "n9" and "kommt schon vor" in c["grund"] for c in conflicts))
         nodes = gpd.read_file(self.dir / "app-output" / "virtuelle_knoten.gpkg")
         self.assertEqual(sorted(nodes["Knotenpunkt-ID"]).count("V99"), 1)
+
+    def test_node_name_of_step_1_is_taken(self):
+        """A node drawn in the app with the name of a 2025 or automatic node is a conflict; the node from step 1 stays."""
+        entries = [stored("nx", {"kind": "virtual_node", "name": "V2025-1", "name_vorschlag": "V2025-1", "lngLat": lnglat(10, 160),
+                                 "traeger": {"art": "ren", "ref": "10000009_10000010.01", "station_m": 10.0}})]
+        self.export.write_text(json.dumps({"gebiet": "test", "exported_at": "x", "entries": entries}), encoding="utf-8")
+        _, conflicts = self.run_import()
+        self.assertTrue(any(c["eintrag_id"] == "nx" and "kommt schon vor" in c["grund"] for c in conflicts))
+        nodes = gpd.read_file(self.dir / "app-output" / "virtuelle_knoten.gpkg").set_index("Knotenpunkt-ID")
+        self.assertEqual(nodes.loc["V2025-1", "quelle"], "2025")
+        self.assertEqual(len(nodes), 2)
+        # the rejected node does not split its host
+        self.assertIn("10000009_10000010.01", self.read("ren_netz.gpkg").index)
+
+    def test_host_without_nodes_is_a_conflict_not_a_crash(self):
+        """A host edge without von_knoten/bis_knoten (pandas gives NaN, a float) used to stop the split with a TypeError."""
+        network = build_network()
+        network["von_knoten"] = network["von_knoten"].astype(object)
+        network["bis_knoten"] = network["bis_knoten"].astype(object)
+        network.loc[network["element_nr"] == "10000009_10000010.01", ["von_knoten", "bis_knoten"]] = None
+        network["von_knoten"] = network["von_knoten"].astype("string").astype("str")
+        network["bis_knoten"] = network["bis_knoten"].astype("string").astype("str")
+        network.loc[network["element_nr"] == "10000009_10000010.01", ["von_knoten", "bis_knoten"]] = float("nan")
+        network.to_file(self.dir / "ren_netz_auto.gpkg", layer="ren_netz", driver="GPKG")
+        entries = [stored("nh", {"kind": "virtual_node", "name": "VH", "name_vorschlag": "VH", "lngLat": lnglat(40, 160),
+                                 "traeger": {"art": "ren", "ref": "10000009_10000010.01", "station_m": 40.0}})]
+        self.export.write_text(json.dumps({"gebiet": "test", "exported_at": "x", "entries": entries}), encoding="utf-8")
+        _, conflicts = self.run_import()
+        self.assertTrue(any(c["eintrag_id"] == "nh" and "ohne Knoten" in c["grund"] for c in conflicts))
+        self.assertIn("10000009_10000010.01", self.read("ren_netz.gpkg").index)
 
     def test_undo_fields(self):
         original = [[13.0, 52.0], [13.1, 52.1]]

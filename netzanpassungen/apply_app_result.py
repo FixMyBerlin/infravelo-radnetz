@@ -91,6 +91,7 @@ sys.path.append(str(ROOT / "ren-network"))
 sys.path.append(str(HERE))
 
 import merge_networks as ren  # noqa: E402
+from auto_nodes import NODE_COLUMNS  # noqa: E402
 from write_app_input import (  # noqa: E402
     AUTO_PATH, SECTIONS_LAYER, SECTIONS_PATH, detailnetz_path, line_refs, load_detailnetz)
 from match_cycle_routes import append_detail_rows, routes_text  # noqa: E402
@@ -243,7 +244,8 @@ def blank_correction_columns(network):
     network["ausgeschlossen"] = "nein"
     network["ausschluss_grund"] = None
     network["eintrag_ids"] = None
-    network["ursprung_element_nr"] = None
+    if "ursprung_element_nr" not in network.columns:  # step 1 fills it where it renumbered an edge
+        network["ursprung_element_nr"] = None
     network["anzahl_vorgaenge"] = pd.array([0] * len(network), dtype="Int64")
     network["letzte_aenderung_am"] = None
     network["letzte_aenderung_von"] = None
@@ -379,17 +381,24 @@ def active_entries(entries, kind):
     return [entry for entry in entries if entry["data"].get("kind") == kind]
 
 
-def virtual_node_frame(entries, parts):
-    """Alle virtuellen Knoten des Exports (ohne gelöschte) in den Feldern der App (virtualNodesGeojson).
-    Gibt (Knoten, Konflikte) zurück; eine doppelte ID bleibt einmal drin (der frühere Eintrag)."""
+def has_text(value):
+    """True for a non-empty string (pandas gives NaN, a float, for a missing text)."""
+    return isinstance(value, str) and value != ""
+
+
+def virtual_node_frame(entries, parts, taken_names=()):
+    """All virtual nodes drawn in the app (export, not deleted) in the fields of virtuelle_knoten.gpkg.
+    `taken_names`: names of the nodes from step 1 (2025 and automatic). Returns (nodes, conflicts); a name used
+    twice stays once (the earlier entry, or the node from step 1)."""
     rows, conflicts, names = [], [], {}
     for entry in active_entries(entries, "virtual_node"):
         data = entry["data"]
         if data.get("geloescht"):
             continue
         name = data["name"]
-        if name in names:
-            conflicts.append({"grund": f"Virtueller Knoten {name} kommt in mehreren Einträgen vor (zuerst: {names[name]}); der erste gilt",
+        if name in taken_names or name in names:
+            origin = "a node from step 1 (2025 or automatic)" if name in taken_names else f"entry {names[name]}"
+            conflicts.append({"grund": f"Virtueller Knoten {name} kommt schon vor ({origin}); der erste gilt",
                               "art": "virtual_node", "eintrag_id": entry["id"], "ref": None, "element_nr": None, "abweichung_m": None,
                               "bearbeitet_von": entry.get("updated_by"), "bearbeitet_am": entry.get("updated_at")})
             continue
@@ -406,6 +415,8 @@ def virtual_node_frame(entries, parts):
         rows.append({
             "Knotenpunkt-ID": name,
             "ist_virtuell": 1,
+            "quelle": "app",
+            "art": None,
             "traeger_netz": host.get("art"),
             "traeger_element_nr": host_element_nr,
             "station_m": round(host["station_m"], 2) if host.get("station_m") is not None else None,
@@ -413,18 +424,31 @@ def virtual_node_frame(entries, parts):
             "eintrag_id": entry["id"],
             "geometry": Point(x, y),
         })
-    columns = ["Knotenpunkt-ID", "ist_virtuell", "traeger_netz", "traeger_element_nr", "station_m", "kommentar", "eintrag_id", "geometry"]
-    return gpd.GeoDataFrame(rows, columns=columns, geometry="geometry", crs=CRS), conflicts
+    return gpd.GeoDataFrame(rows, columns=NODE_COLUMNS, geometry="geometry", crs=CRS), conflicts
 
 
-def check_nodes_on_edges(entries, network, parts):
-    """Virtuelle Knoten auf einer REN+-Kante müssen auf der (korrigierten) Kante liegen."""
+def read_step1_nodes(path=None):
+    """Virtual nodes of step 1 (2025 and automatic): ren-network/output/virtuelle_knoten_roh.gpkg."""
+    path = Path(path or ren.VIRTUAL_NODES_PATH)
+    if not path.exists():
+        raise SystemExit(f"Missing: {path}\nRun ren-network/merge_networks.py first (step 1).")
+    nodes = gpd.read_file(path, layer=ren.VIRTUAL_NODES_LAYER)
+    if nodes.crs is None or nodes.crs.to_epsg() != ren.DEFAULT_CRS:
+        nodes = nodes.to_crs(CRS)
+    return nodes[[column for column in NODE_COLUMNS if column in nodes.columns]]
+
+
+def check_nodes_on_edges(entries, network, parts, accepted_ids=None):
+    """Virtuelle Knoten auf einer REN+-Kante müssen auf der (korrigierten) Kante liegen.
+    `accepted_ids`: nur diese Einträge (die virtual_node_frame übernommen hat); None = alle."""
     found = []
     corrected = Parts(network)
     for entry in active_entries(entries, "virtual_node"):
         data = entry["data"]
         host = data.get("traeger", {})
         if data.get("geloescht") or host.get("art") != "ren":
+            continue
+        if accepted_ids is not None and entry["id"] not in accepted_ids:
             continue
         item = corrected.by_ref.get(host.get("ref"))
         if item is None:
@@ -442,10 +466,12 @@ def check_nodes_on_edges(entries, network, parts):
     return found
 
 
-def write_virtual_nodes(path, nodes):
-    """Schreibt die virtuellen Knoten des Exports; die Datei entsteht bei jedem Lauf neu."""
+def write_virtual_nodes(path, step1_nodes, app_nodes):
+    """Writes all virtual nodes: 2025 + automatic (step 1) + drawn in the app. The file is rebuilt on every run."""
     path.parent.mkdir(parents=True, exist_ok=True)
+    nodes = gpd.GeoDataFrame(pd.concat([step1_nodes, app_nodes], ignore_index=True), geometry="geometry", crs=CRS)
     nodes.to_file(path, layer=VIRTUAL_NODES_LAYER, driver="GPKG")
+    return nodes
 
 
 def pair_key(a, b):
@@ -742,7 +768,8 @@ def add_drawn_edges(network, original_geometry, new_edges, entries):
     return network, original_geometry, labels
 
 
-def split_at_virtual_nodes(network, original_geometry, labels_of_ref, drawn_labels, entries, base_element_nrs):
+def split_at_virtual_nodes(network, original_geometry, labels_of_ref, drawn_labels, entries, base_element_nrs,
+                           accepted_ids=None):
     """Teilt REN+-Kanten und gezeichnete Kanten an den virtuellen Knoten des Exports (wie splitEdges in der App,
     netzanpassungen/src/network/element-nr.ts im Repo knotenpunkte).
 
@@ -754,7 +781,8 @@ def split_at_virtual_nodes(network, original_geometry, labels_of_ref, drawn_labe
     Nicht geteilt wird eine Trägerkante ohne Knotennamen oder mit mehreren Linien (steht in den Konflikten).
     `labels_of_ref`: Indexmarke und Linie je Schlüssel `ref` des Eingangsnetzes.
     Gibt (Netz, Originallage, Konflikte, Zähler) zurück."""
-    nodes = [entry for entry in active_entries(entries, "virtual_node") if not entry["data"].get("geloescht")]
+    nodes = [entry for entry in active_entries(entries, "virtual_node") if not entry["data"].get("geloescht")
+             and (accepted_ids is None or entry["id"] in accepted_ids)]
     drawn_data = {entry["id"]: entry["data"] for entry in active_entries(entries, "new_edge")}
     conflicts, stats = [], {"geteilte_kanten": 0, "teilkanten": 0, "traeger_ohne_netz": 0, "knoten_neben_traeger": 0}
     hosts = {}  # Indexmarke -> [(Knoteneintrag)], in der Reihenfolge des Exports
@@ -793,7 +821,7 @@ def split_at_virtual_nodes(network, original_geometry, labels_of_ref, drawn_labe
                               "art": "virtual_node", "eintrag_id": hosts[label][0]["id"], "ref": None, "element_nr": row["element_nr"],
                               "abweichung_m": None, "bearbeitet_von": None, "bearbeitet_am": None})
             continue
-        if not row["von_knoten"] or not row["bis_knoten"]:
+        if not has_text(row["von_knoten"]) or not has_text(row["bis_knoten"]):
             conflicts.append({"grund": f"Trägerkante {row['element_nr']} ohne Knoten: nicht an virtuellen Knoten geteilt",
                               "art": "virtual_node", "eintrag_id": hosts[label][0]["id"], "ref": None, "element_nr": row["element_nr"],
                               "abweichung_m": None, "bearbeitet_von": None, "bearbeitet_am": None})
@@ -900,7 +928,7 @@ def mapping_network(network):
 
 
 def run(export_path, ren_path=AUTO_PATH, output_dir=OUTPUT_DIR, virtual_nodes_path=VIRTUAL_NODES_PATH,
-        new_edges_path=NEW_EDGES_PATH, detail_path=None, sections_path=SECTIONS_PATH):
+        new_edges_path=NEW_EDGES_PATH, detail_path=None, sections_path=SECTIONS_PATH, step1_nodes_path=None):
     """Der ganze Schritt 3. `export_path` None: ohne App-Einträge. Gibt Zähler und Konflikte zurück (für Tests)."""
     if export_path is None:
         export = {"gebiet": None, "exported_at": None, "entries": []}
@@ -918,7 +946,10 @@ def run(export_path, ren_path=AUTO_PATH, output_dir=OUTPUT_DIR, virtual_nodes_pa
     logging.info(f"Korrekturen: {stats['angewendet']} von {stats['edge_correction']} angewendet "
                  f"({stats['geometrie']} mit Geometrie, {stats['attribute']} mit Attributen), {stats['konflikte']} Konflikte")
 
-    conflicts += check_nodes_on_edges(entries, corrected, parts)
+    step1_nodes = read_step1_nodes(step1_nodes_path)
+    nodes, node_conflicts = virtual_node_frame(entries, parts, set(step1_nodes["Knotenpunkt-ID"]))
+    accepted_ids = set(nodes["eintrag_id"])
+    conflicts += check_nodes_on_edges(entries, corrected, parts, accepted_ids)
 
     # Zuordnungen: Detailnetzlinien nur laden, wenn es Zuordnungen gibt
     assignments = [entry for entry in active_entries(entries, "section_assignment") if not entry["data"].get("geloescht")]
@@ -934,18 +965,18 @@ def run(export_path, ren_path=AUTO_PATH, output_dir=OUTPUT_DIR, virtual_nodes_pa
         original_geometry.loc[index] = corrected.geometry.loc[index]
     stats.update({f"zuordnung_{key}": value for key, value in assignment_stats.items()})
 
-    nodes, node_conflicts = virtual_node_frame(entries, parts)
     base_element_nrs = load_base_element_nrs(network, detail_path)
     new_edges, edge_conflicts = new_edge_frame(entries, base_element_nrs)
     conflicts += node_conflicts + edge_conflicts
     stats["virtuelle_knoten"] = len(nodes)
+    stats["virtuelle_knoten_schritt1"] = len(step1_nodes)
     stats["neue_kanten"] = len(new_edges)
 
     # Gezeichnete Kanten in die Ergebnisnetze, dann REN+-Kanten und gezeichnete Kanten an den virtuellen Knoten teilen
     corrected, original_geometry, drawn_labels = add_drawn_edges(corrected, original_geometry, new_edges, entries)
     corrected, original_geometry, split_conflicts, split_stats = split_at_virtual_nodes(
         corrected, original_geometry, {item["ref"]: (labels[item["row"]], item["part"]) for item in parts.items},
-        drawn_labels, entries, base_element_nrs)
+        drawn_labels, entries, base_element_nrs, accepted_ids)
     conflicts += split_conflicts
     stats.update(split_stats)
     corrected["von_knoten"] = corrected["von_knoten"].map(node_text)
@@ -953,12 +984,15 @@ def run(export_path, ren_path=AUTO_PATH, output_dir=OUTPUT_DIR, virtual_nodes_pa
     logging.info(f"Gezeichnete Kanten im Netz: {len(drawn_labels)}, geteilt an virtuellen Knoten: "
                  f"{split_stats['geteilte_kanten']} Kanten in {split_stats['teilkanten']} Teilkanten")
     if export_path is None:
-        # Ohne Export wüsste die Datei nichts von den virtuellen Knoten: lieber den letzten Stand lassen
-        logging.info("Ohne Export: virtuelle Knoten und gezeichnete Kanten bleiben, wie sie sind")
+        # Without an export the file would not know the nodes drawn in the app: keep the last state, if there is one
+        logging.info("Without export: nodes drawn in the app and drawn edges stay as they are")
+        if not Path(virtual_nodes_path).exists():
+            write_virtual_nodes(Path(virtual_nodes_path), step1_nodes, nodes)
     else:
-        write_virtual_nodes(Path(virtual_nodes_path), nodes)
+        all_nodes = write_virtual_nodes(Path(virtual_nodes_path), step1_nodes, nodes)
         write_new_edges(Path(new_edges_path), new_edges)
-        logging.info(f"Virtuelle Knoten: {len(nodes)} nach {virtual_nodes_path}, neue Kanten: {len(new_edges)} nach {new_edges_path}")
+        logging.info(f"Virtual nodes: {len(all_nodes)} ({all_nodes['quelle'].value_counts().to_dict()}) to {virtual_nodes_path}, "
+                     f"drawn edges: {len(new_edges)} to {new_edges_path}")
 
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
