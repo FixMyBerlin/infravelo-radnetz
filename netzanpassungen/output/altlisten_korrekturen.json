@@ -64,7 +64,7 @@
     "feld": "verkehrsrichtung",
     "von_wert": "B",
     "nach_wert": "R",
-    "beschreibung": "Verkehrsrichtung B → R (Altliste rvn_korrekturen.csv)",
+    "beschreibung": "Verkehrsrichtung: nur in Pfeilrichtung (Altliste rvn_korrekturen.csv)",
     "kommentar": "Scharnweberstraße: Richtungsfahrbahn, im Detailnetz nicht als Einbahn geführt",
     "von_nutzer": "Altliste",
     "am": "2026-11-10T18:22:32Z"
@@ -128,7 +128,7 @@
     "feld": "verkehrsrichtung",
     "von_wert": "B",
     "nach_wert": "G",
-    "beschreibung": "Verkehrsrichtung B → G (Altliste rvn_korrekturen.csv)",
+    "beschreibung": "Verkehrsrichtung: nur gegen Pfeilrichtung (Altliste rvn_korrekturen.csv)",
     "kommentar": "Müggelbergplatz: Einbahn-Ring, OSM-Einbahn gegen Digitalisierungsrichtung",
     "von_nutzer": "Altliste",
     "am": "2026-11-10T18:22:32Z"
@@ -192,7 +192,7 @@
     "feld": "verkehrsrichtung",
     "von_wert": "B",
     "nach_wert": "G",
-    "beschreibung": "Verkehrsrichtung B → G (Altliste rvn_korrekturen.csv)",
+    "beschreibung": "Verkehrsrichtung: nur gegen Pfeilrichtung (Altliste rvn_korrekturen.csv)",
     "kommentar": "Müggelbergplatz: Einbahn-Ring, OSM-Einbahn gegen Digitalisierungsrichtung",
     "von_nutzer": "Altliste",
     "am": "2026-11-10T18:22:32Z"
@@ -264,7 +264,7 @@
     "feld": "verkehrsrichtung",
     "von_wert": "B",
     "nach_wert": "R",
-    "beschreibung": "Verkehrsrichtung B → R (Altliste rvn_korrekturen.csv)",
+    "beschreibung": "Verkehrsrichtung: nur in Pfeilrichtung (Altliste rvn_korrekturen.csv)",
     "kommentar": "Müggelbergplatz: Einbahn-Ring",
     "von_nutzer": "Altliste",
     "am": "2026-11-10T18:22:32Z"
@@ -336,7 +336,7 @@
     "feld": "verkehrsrichtung",
     "von_wert": "B",
     "nach_wert": "R",
-    "beschreibung": "Verkehrsrichtung B → R (Altliste rvn_korrekturen.csv)",
+    "beschreibung": "Verkehrsrichtung: nur in Pfeilrichtung (Altliste rvn_korrekturen.csv)",
     "kommentar": "Müggelbergplatz: Einbahn-Ring",
     "von_nutzer": "Altliste",
     "am": "2026-11-10T18:22:32Z"
@@ -392,7 +392,7 @@
     "feld": "verkehrsrichtung",
     "von_wert": "B",
     "nach_wert": "R",
-    "beschreibung": "Verkehrsrichtung B → R (Altliste rvn_korrekturen.csv)",
+    "beschreibung": "Verkehrsrichtung: nur in Pfeilrichtung (Altliste rvn_korrekturen.csv)",
     "kommentar": "Joachimstraße: Richtungsfahrbahn",
     "von_nutzer": "Altliste",
     "am": "2026-11-10T18:22:32Z"
@@ -448,7 +448,7 @@
     "feld": "verkehrsrichtung",
     "von_wert": "B",
     "nach_wert": "R",
-    "beschreibung": "Verkehrsrichtung B → R (Altliste rvn_korrekturen.csv)",
+    "beschreibung": "Verkehrsrichtung: nur in Pfeilrichtung (Altliste rvn_korrekturen.csv)",
     "kommentar": "Joachimstraße: Richtungsfahrbahn",
     "von_nutzer": "Altliste",
     "am": "2026-11-10T18:22:32Z"
@@ -520,7 +520,7 @@
     "feld": "verkehrsrichtung",
     "von_wert": "B",
     "nach_wert": "R",
-    "beschreibung": "Verkehrsrichtung B → R (Altliste rvn_korrekturen.csv)",
+    "beschreibung": "Verkehrsrichtung: nur in Pfeilrichtung (Altliste rvn_korrekturen.csv)",
     "kommentar": "Herrfurthplatz: Einbahn-Ring",
     "von_nutzer": "Altliste",
     "am": "2026-11-10T18:22:32Z"
@@ -592,7 +592,7 @@
     "feld": "verkehrsrichtung",
     "von_wert": "B",
     "nach_wert": "R",
-    "beschreibung": "Verkehrsrichtung B → R (Altliste rvn_korrekturen.csv)",
+    "beschreibung": "Verkehrsrichtung: nur in Pfeilrichtung (Altliste rvn_korrekturen.csv)",
     "kommentar": "Herrfurthplatz: Einbahn-Ring",
     "von_nutzer": "Altliste",
     "am": "2026-11-10T18:22:32Z"
@@ -656,7 +656,7 @@
     "feld": "verkehrsrichtung",
     "von_wert": "B",
     "nach_wert": "R",
-    "beschreibung": "Verkehrsrichtung B → R (Altliste rvn_korrekturen.csv)",
+    "beschreibung": "Verkehrsrichtung: nur in Pfeilrichtung (Altliste rvn_korrekturen.csv)",
     "kommentar": "Herrfurthplatz: Einbahn-Ring",
     "von_nutzer": "Altliste",
     "am": "2026-11-10T18:22:32Z"
@@ -720,7 +720,7 @@
     "feld": "verkehrsrichtung",
     "von_wert": "B",
     "nach_wert": "R",
-    "beschreibung": "Verkehrsrichtung B → R (Altliste rvn_korrekturen.csv)",
+    "beschreibung": "Verkehrsrichtung: nur in Pfeilrichtung (Altliste rvn_korrekturen.csv)",
     "kommentar": "Herrfurthplatz: Einbahn-Ring",
     "von_nutzer": "Altliste",
     "am": "2026-11-10T18:22:32Z"
@@ -792,7 +792,7 @@
     "feld": "verkehrsrichtung",
     "von_wert": "B",
     "nach_wert": "R",
-    "beschreibung": "Verkehrsrichtung B → R (Altliste rvn_korrekturen.csv)",
+    "beschreibung": "Verkehrsrichtung: nur in Pfeilrichtung (Altliste rvn_korrekturen.csv)",
     "kommentar": "Paul-Lincke-Ufer: Richtungsfahrbahn",
     "von_nutzer": "Altliste",
     "am": "2026-11-10T18:22:32Z"
@@ -848,7 +848,7 @@
     "feld": "verkehrsrichtung",
     "von_wert": "B",
     "nach_wert": "R",
-    "beschreibung": "Verkehrsrichtung B → R (Altliste rvn_korrekturen.csv)",
+    "beschreibung": "Verkehrsrichtung: nur in Pfeilrichtung (Altliste rvn_korrekturen.csv)",
     "kommentar": "Wuhlgartenweg: Einbahn (OSM deckt nur 12 m der Kante ab, Richtung aus alter Liste)",
     "von_nutzer": "Altliste",
     "am": "2026-11-10T18:22:32Z"
@@ -904,7 +904,7 @@
     "feld": "verkehrsrichtung",
     "von_wert": "B",
     "nach_wert": "R",
-    "beschreibung": "Verkehrsrichtung B → R (Altliste rvn_korrekturen.csv)",
+    "beschreibung": "Verkehrsrichtung: nur in Pfeilrichtung (Altliste rvn_korrekturen.csv)",
     "kommentar": "Wuhlgartenweg: Einbahn",
     "von_nutzer": "Altliste",
     "am": "2026-11-10T18:22:32Z"
@@ -1112,7 +1112,7 @@
     "feld": "verkehrsrichtung",
     "von_wert": null,
     "nach_wert": "R",
-    "beschreibung": "Verkehrsrichtung nicht erfasst → R (Altliste rvn_korrekturen.csv)",
+    "beschreibung": "Verkehrsrichtung: nur in Pfeilrichtung (Altliste rvn_korrekturen.csv)",
     "kommentar": "RVN-Kante ohne Detailnetz: Einbahn in Digitalisierungsrichtung",
     "von_nutzer": "Altliste",
     "am": "2026-11-10T18:22:32Z"
@@ -1184,7 +1184,7 @@
     "feld": "verkehrsrichtung",
     "von_wert": "B",
     "nach_wert": "R",
-    "beschreibung": "Verkehrsrichtung B → R (Altliste rvn_korrekturen.csv)",
+    "beschreibung": "Verkehrsrichtung: nur in Pfeilrichtung (Altliste rvn_korrekturen.csv)",
     "kommentar": "Birkenallee: Einbahn",
     "von_nutzer": "Altliste",
     "am": "2026-11-10T18:22:32Z"
@@ -1248,7 +1248,7 @@
     "feld": "verkehrsrichtung",
     "von_wert": "B",
     "nach_wert": "R",
-    "beschreibung": "Verkehrsrichtung B → R (Altliste rvn_korrekturen.csv)",
+    "beschreibung": "Verkehrsrichtung: nur in Pfeilrichtung (Altliste rvn_korrekturen.csv)",
     "kommentar": "Birkenallee: Einbahn",
     "von_nutzer": "Altliste",
     "am": "2026-11-10T18:22:32Z"
@@ -1296,7 +1296,7 @@
     "feld": "verkehrsrichtung",
     "von_wert": "B",
     "nach_wert": "R",
-    "beschreibung": "Verkehrsrichtung B → R (Altliste rvn_korrekturen.csv)",
+    "beschreibung": "Verkehrsrichtung: nur in Pfeilrichtung (Altliste rvn_korrekturen.csv)",
     "kommentar": "Urbanpark: Einbahn",
     "von_nutzer": "Altliste",
     "am": "2026-11-10T18:22:32Z"
@@ -1360,7 +1360,7 @@
     "feld": "verkehrsrichtung",
     "von_wert": "B",
     "nach_wert": "R",
-    "beschreibung": "Verkehrsrichtung B → R (Altliste opposite_edge_overwrite_element_nr.txt)",
+    "beschreibung": "Verkehrsrichtung: nur in Pfeilrichtung (Altliste opposite_edge_overwrite_element_nr.txt)",
     "kommentar": "Altliste opposite_edge_overwrite_element_nr.txt, Modus remove: Gegenrichtung (ri=1) entfiel im Matching; im Detailnetz in beide Richtungen (B), jetzt nur in Digitalisierungsrichtung.",
     "von_nutzer": "Altliste",
     "am": "2026-11-10T18:22:32Z"
