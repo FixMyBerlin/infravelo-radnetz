@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-app_ergebnis_anwenden.py  (Schritt 3 der Pipeline, bisher import_app_export.py)
+apply_app_result.py  (Schritt 3 der Pipeline, bisher import_app_export.py)
 --------------------------------------------------------------------
 Liest den Export „alle Einträge“ der App Netzanpassungen (Repo knotenpunkte, Ordner
 netzanpassungen/) und ren_netz_auto.gpkg (Schritt 2) und schreibt die Ergebnisnetze. Gelesen
@@ -51,7 +51,7 @@ Zu beiden Netzen gibt es die Kartierung (ohne bearbeitet_2025 = ja und ohne ausg
 
 INPUT:
 - Export der App (JSON: {gebiet, exported_at, entries}); mit --ohne-export ohne Einträge
-- netzanpassungen/output/ren_netz_auto.gpkg (radfernwege_zuordnen.py)
+- netzanpassungen/output/ren_netz_auto.gpkg (match_cycle_routes.py)
 - netzanpassungen/output/radfernweg_abschnitte.gpkg (nur für section_assignment)
 - data/Berlin Straßenabschnitte Detailnetz*.fgb (element_nr für die Nummern neuer Kanten, Linien für
   von Hand zugeordnete Detailnetzkanten)
@@ -65,8 +65,8 @@ OUTPUT:
 - netzanpassungen/output/touristische_kanten.gpkg (Layer touristische_kanten)
 
 Aufruf:
-    python netzanpassungen/app_ergebnis_anwenden.py netzanpassungen-alle-eintraege-berlin-2026-11-12.json
-    python netzanpassungen/app_ergebnis_anwenden.py --ohne-export    # nur Schritt 2, keine Handarbeit; lässt
+    python netzanpassungen/apply_app_result.py netzanpassungen-alle-eintraege-berlin-2026-11-12.json
+    python netzanpassungen/apply_app_result.py --ohne-export    # nur Schritt 2, keine Handarbeit; lässt
                                                                      # virtuelle_knoten.gpkg unangetastet
 """
 
@@ -90,10 +90,10 @@ ROOT = HERE.parent
 sys.path.append(str(ROOT / "ren-network"))
 sys.path.append(str(HERE))
 
-import netz_zusammenfuehren as ren  # noqa: E402
-from app_eingabe_schreiben import (  # noqa: E402
+import merge_networks as ren  # noqa: E402
+from write_app_input import (  # noqa: E402
     AUTO_PATH, SECTIONS_LAYER, SECTIONS_PATH, detailnetz_path, line_refs, load_detailnetz)
-from radfernwege_zuordnen import append_detail_rows, routes_text  # noqa: E402
+from match_cycle_routes import append_detail_rows, routes_text  # noqa: E402
 
 CRS = f"EPSG:{ren.DEFAULT_CRS}"
 
@@ -101,7 +101,7 @@ CRS = f"EPSG:{ren.DEFAULT_CRS}"
 CONFLICT_TOLERANCE_M = 0.05
 # Der Wiederholungstest vergleicht Längen- und Breitengrade; die App rundet auf 7 Stellen (etwa 1 cm)
 REPLAY_TOLERANCE_DEG = 1e-9
-# Raster der Koordinaten in der Eingabedatei der App (app_eingabe_schreiben.py, COORDINATE_GRID)
+# Raster der Koordinaten in der Eingabedatei der App (write_app_input.py, COORDINATE_GRID)
 COORDINATE_GRID = 1e-7
 # Ein virtueller Knoten, der weiter von seiner (korrigierten) Trägerkante liegt, kommt auf die Prüfliste
 NODE_ON_EDGE_TOLERANCE_M = 1.0

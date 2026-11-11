@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Selbsttest für zurueck_aufs_original.py mit einem erfundenen Matching-Ergebnis.
+Selbsttest für map_back_to_original.py mit einem erfundenen Matching-Ergebnis.
 
-    .venv/bin/python ren-network/test_zurueck_aufs_original.py
+    .venv/bin/python ren-network/test_map_back_to_original.py
 
 Original: A ist 100 m lang und gerade. Korrigiert: A hat einen Knick und ist 128,06 m lang. B ist
 unverändert, C ist an einem virtuellen Knoten geteilt (Teilkanten C.1 und C.2), D gibt es nur im
@@ -21,7 +21,7 @@ from shapely.geometry import LineString, MultiLineString
 
 sys.path.append(str(Path(__file__).resolve().parent))
 
-import zurueck_aufs_original as zao  # noqa: E402
+import map_back_to_original as zao  # noqa: E402
 
 X0, Y0 = 392000.0, 5815000.0
 

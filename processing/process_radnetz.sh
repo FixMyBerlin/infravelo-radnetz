@@ -14,7 +14,7 @@ set -euo pipefail
 #   --netz ren  REN+, alle Netzquellen gemeinsam (ren-network/output/ren_netz.gpkg),
 #               Ausgabe in output/ren/
 #   --quelle    Nur für ren: Eingangsnetz. auto (Standard) nimmt ren_netz_korrigiert.gpkg
-#               (App Netzanpassungen, ren-network/app_ergebnis_anwenden.py), wenn die Datei existiert,
+#               (App Netzanpassungen, ren-network/apply_app_result.py), wenn die Datei existiert,
 #               sonst das Original. korrigiert bricht ohne die Datei ab, original ignoriert sie.
 # =============================================================================
 

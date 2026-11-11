@@ -27,7 +27,7 @@ Das Ergebnis ist deterministisch: Gleiche Eingangsdaten und gleiche Account-List
 ergeben dieselbe Zuteilung.
 
 INPUT:
-- ../ren-network/output/ren_netz.gpkg (Layer: ren_netz, aus ren-network/netz_zusammenfuehren.py)
+- ../ren-network/output/ren_netz.gpkg (Layer: ren_netz, aus ren-network/merge_networks.py)
 - data/lor_plr_2021.geojson (LOR-Planungsräume 2021)
 - accounts.txt (ein Account pro Zeile)
 

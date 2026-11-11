@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-radfernwege_zuordnen.py  (Schritt 2 der Pipeline)
+match_cycle_routes.py  (Schritt 2 der Pipeline)
 --------------------------------------------------------------------
 Ordnet die Radfernwege (touristisches Radnetz, GPS-Linien) automatisch den Kanten des
 Rohnetzes und des Detailnetzes zu. Keine Handarbeit in diesem Schritt; was nicht eindeutig
@@ -27,10 +27,10 @@ Hausdorff und das 95. Perzentil sind Kennzahlen je Abschnitt, kein Kriterium.
 
 Die Schlüssel der Kanten in `kanten`/`kandidaten` sind die der App: `ren:<ref>` und
 `detailnetz:<ref>` (ref = element_nr, ab der zweiten Linie derselben Nummer `#2`, ...; siehe
-line_refs in app_eingabe_schreiben.py).
+line_refs in write_app_input.py).
 
 INPUT:
-- ren-network/output/ren_netz_roh.gpkg (netz_zusammenfuehren.py)
+- ren-network/output/ren_netz_roh.gpkg (merge_networks.py)
 - data/Berlin Straßenabschnitte Detailnetz*.fgb (jüngster Stand)
 - data/netzquellen/touristisches_radnetz.gpkg (Drive, data/download_inputs.py)
 
@@ -40,7 +40,7 @@ OUTPUT (netzanpassungen/output/):
 - radfernweg_abschnitte.gpkg (Layer radfernweg_abschnitte)
 
 Aufruf:
-    python netzanpassungen/radfernwege_zuordnen.py
+    python netzanpassungen/match_cycle_routes.py
 """
 
 import argparse
@@ -60,8 +60,8 @@ ROOT = HERE.parent
 sys.path.append(str(ROOT / "ren-network"))
 sys.path.append(str(HERE))
 
-import netz_zusammenfuehren as ren  # noqa: E402
-from app_eingabe_schreiben import (  # noqa: E402
+import merge_networks as ren  # noqa: E402
+from write_app_input import (  # noqa: E402
     AUTO_PATH, MIN_GAP_LENGTH_M, OUTPUT_DIR, RADFERNWEGE_PATH, SECTIONS_LAYER, SECTIONS_PATH,
     gaps_of, line_refs, load_detailnetz, slugify)
 
@@ -83,11 +83,11 @@ SAMPLE_STEP_M = 5.0
 DIRECTION_WINDOW_M = 8.0
 # Detailnetzkanten, deren Streckenanteil schon von zugeordneten REN+-Kanten abgedeckt wird, bleiben draußen
 DETAIL_COVERED_MAX = 0.5
-# Detailnetz: Autobahnen und Zubringer gehören nicht zum Netz (wie in netz_zusammenfuehren.py)
+# Detailnetz: Autobahnen und Zubringer gehören nicht zum Netz (wie in merge_networks.py)
 EXCLUDED_DETAIL_CLASSES = ren.AUTOBAHN_KLASSEN
 
 # --- Abschnitte ---
-# Kürzere Lücken (MIN_GAP_LENGTH_M, aus app_eingabe_schreiben.py) sind Abweichungen an Kreuzungen
+# Kürzere Lücken (MIN_GAP_LENGTH_M, aus write_app_input.py) sind Abweichungen an Kreuzungen
 # und gehen im Nachbarabschnitt auf
 # Kürzere Abschnitte gleichen Zustands werden mit dem Nachbarn zusammengelegt
 MIN_SECTION_M = 25.0
@@ -475,10 +475,10 @@ def routes_text(names):
 
 
 def append_detail_rows(network, edges, quelle, grund_aufnahme, routes, routes_quelle):
-    """Hängt Detailnetzkanten als Zeilen an das Netz (Spalten wie netz_zusammenfuehren.py).
+    """Hängt Detailnetzkanten als Zeilen an das Netz (Spalten wie merge_networks.py).
 
     `edges`: Linien des Detailnetzes (element_nr, strassenname, strassenklasse1, verkehrsrichtung, geometry),
-    `routes`: je Kante der Text für routen_fernradweg. Wird auch von app_ergebnis_anwenden.py für von Hand
+    `routes`: je Kante der Text für routen_fernradweg. Wird auch von apply_app_result.py für von Hand
     zugeordnete Detailnetzkanten genutzt (quelle detailnetz_manuell)."""
     if len(edges) == 0:
         return network
@@ -495,7 +495,7 @@ def append_detail_rows(network, edges, quelle, grund_aufnahme, routes, routes_qu
             "netz_quellen": "detailnetz",
             "netz_quellen_teilweise": None,
             "in_detailnetz": "ja",
-            "hauptverkehrsstrasse": "nein",  # nur Kanten des Hauptstraßennetzes zählen (wie in netz_zusammenfuehren.py)
+            "hauptverkehrsstrasse": "nein",  # nur Kanten des Hauptstraßennetzes zählen (wie in merge_networks.py)
             "bearbeitet_2025": "nein",
             "anteil_2025": 0.0,
             "verkehrsrichtung": edge.verkehrsrichtung if edge.verkehrsrichtung in ("B", "R", "G") else None,

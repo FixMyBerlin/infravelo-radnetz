@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-netz_zusammenfuehren.py  (Schritt 1 der Pipeline, bisher unify_networks.py)
+merge_networks.py  (Schritt 1 der Pipeline, bisher unify_networks.py)
 --------------------------------------------------------------------
 Führt Radergänzungsnetz, Hauptstraßennetz und Radschnellverbindungen zu einem
 einheitlichen Rohnetz für REN+ zusammen (Zustand vor dem Matching).
 
 Reine Rohdatenzusammenführung, ohne Bezug zur App Netzanpassungen. Das touristische
-Radnetz (Radfernwege) ordnet Schritt 2 zu (netzanpassungen/radfernwege_zuordnen.py);
+Radnetz (Radfernwege) ordnet Schritt 2 zu (netzanpassungen/match_cycle_routes.py);
 'routen_fernradweg' bleibt hier leer. Die Kartierung (ohne bearbeitet_2025 = ja)
-schreibt Schritt 3 (netzanpassungen/app_ergebnis_anwenden.py) für beide Ergebnisnetze.
+schreibt Schritt 3 (netzanpassungen/apply_app_result.py) für beide Ergebnisnetze.
 
 Fehlende element_nr werden aus den Knotenpunkten an den Kantenenden berechnet
 (processing/scripts/assign_element_nr_to_rvn.py): Liegt an einem Ende kein Knotenpunkt,
@@ -36,7 +36,7 @@ bleibt sie über diese Quelle erhalten.
 
 Einzelne Kanten, die diese Regel nicht erfasst, bleiben im Original-Netz. Sie
 werden in der App Netzanpassungen ausgeschlossen (Korrektur „Kante ausschließen“);
-in ren_netz.gpkg und ren_netz_korrigiert.gpkg (app_ergebnis_anwenden.py) sind sie markiert,
+in ren_netz.gpkg und ren_netz_korrigiert.gpkg (apply_app_result.py) sind sie markiert,
 die Kartierung lässt sie weg.
 
 INPUT:
@@ -452,7 +452,7 @@ def finalize(network):
     in_hauptstrassennetz = network["netz_quellen"].str.contains("hauptstrassennetz")
     ist_hvs = network["strassenklasse"].isin(HAUPTVERKEHRSSTRASSEN_KLASSEN)
     network["hauptverkehrsstrasse"] = (in_hauptstrassennetz & ist_hvs).map({True: "ja", False: "nein"})
-    # Radfernwege ordnet Schritt 2 zu (netzanpassungen/radfernwege_zuordnen.py)
+    # Radfernwege ordnet Schritt 2 zu (netzanpassungen/match_cycle_routes.py)
     network["routen_fernradweg"] = None
 
     network = network.sort_values("element_nr", na_position="last", kind="stable").reset_index(drop=True)

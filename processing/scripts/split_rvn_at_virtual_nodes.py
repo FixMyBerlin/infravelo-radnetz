@@ -18,7 +18,7 @@ Netzanpassungen (ren_netz_korrigiert.gpkg, Standard, wenn die Datei existiert)
 oder das Original. Im korrigierten Netz entfallen die Kanten mit ausgeschlossen = ja.
 
 INPUT:
-- netzanpassungen/output/virtuelle_knoten.gpkg (app_ergebnis_anwenden.py, über helpers/virtuelle_knoten.py)
+- netzanpassungen/output/virtuelle_knoten.gpkg (apply_app_result.py, über helpers/virtuelle_knoten.py)
 - data/Berlin Radvorrangsnetz.fgb bzw. ../ren-network/output/ren_netz.gpkg oder
   ren_netz_korrigiert.gpkg (--netz ren, siehe --quelle)
 - data/Berlin Straßenabschnitte Detailnetz.fgb

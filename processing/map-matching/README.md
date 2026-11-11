@@ -79,7 +79,7 @@ Ihre Fälle sind als Korrekturen in der App Netzanpassungen erfasst (`verkehrsri
 
 Das REN+-Netz (`output/ren/ren_netz_details_combined.fgb`) baut `../process_radnetz.sh --netz ren` aus
 `ren_netz_korrigiert.gpkg`, wenn die Datei existiert (`--quelle original` erzwingt das Original).
-Das Ergebnis liegt dann auf den korrigierten Linien; `ren-network/zurueck_aufs_original.py` legt es aufs Original.
+Das Ergebnis liegt dann auf den korrigierten Linien; `ren-network/map_back_to_original.py` legt es aufs Original.
 
 ## Ausgaben (`output/map-matching/`)
 

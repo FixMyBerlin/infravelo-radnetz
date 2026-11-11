@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Selbsttest für app_ergebnis_anwenden.py (Schritt 3) mit einem erfundenen Export und einem kleinen Netz.
+Selbsttest für apply_app_result.py (Schritt 3) mit einem erfundenen Export und einem kleinen Netz.
 
-    .venv/bin/python netzanpassungen/test_app_ergebnis_anwenden.py
+    .venv/bin/python netzanpassungen/test_apply_app_result.py
 
 Deckt ab: verschoben, eingefuegt, attribut, ausgeschlossen, einen Konflikt (original_coordinates
 5 cm daneben), ein Protokoll, das nicht zum gespeicherten Stand passt, eine Linie `#2` einer
@@ -28,7 +28,7 @@ from shapely.geometry import LineString, MultiLineString, Point
 
 sys.path.append(str(Path(__file__).resolve().parent))
 
-import app_ergebnis_anwenden as imp  # noqa: E402
+import apply_app_result as imp  # noqa: E402
 
 to_wgs = Transformer.from_crs(imp.CRS, "EPSG:4326", always_xy=True)
 X0, Y0 = 392000.0, 5815000.0

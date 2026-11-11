@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-app_eingabe_schreiben.py  (bisher export_app_daten.py)
+write_app_input.py  (bisher export_app_daten.py)
 --------------------------------------------------------------------
 Schreibt die Eingabedatei der App „Netzanpassungen“ (Repo knotenpunkte,
 Ordner netzanpassungen/). In der App werden die Radfernwege den Kanten zugeordnet
@@ -32,7 +32,7 @@ Die Datei enthält FeatureCollections in WGS84:
 
 INPUT:
 - data/Berlin Straßenabschnitte Detailnetz.fgb (jüngster Stand)
-- netzanpassungen/output/ren_netz_auto.gpkg und radfernweg_abschnitte.gpkg (radfernwege_zuordnen.py)
+- netzanpassungen/output/ren_netz_auto.gpkg und radfernweg_abschnitte.gpkg (match_cycle_routes.py)
 - data/netzquellen/touristisches_radnetz.gpkg (aus dem Drive, data/download_inputs.py)
 - data/Berlin Bezirke.gpkg (nur mit --bezirk)
 
@@ -41,8 +41,8 @@ OUTPUT:
 - netzanpassungen/output/pruefliste_<gebiet>.csv
 
 Aufruf:
-    python netzanpassungen/app_eingabe_schreiben.py
-    python netzanpassungen/app_eingabe_schreiben.py --bezirk Neukölln
+    python netzanpassungen/write_app_input.py
+    python netzanpassungen/write_app_input.py --bezirk Neukölln
 """
 
 import argparse
@@ -63,14 +63,14 @@ from shapely.geometry import MultiLineString, Point
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(ROOT / "ren-network"))
 
-import netz_zusammenfuehren as ren  # noqa: E402
+import merge_networks as ren  # noqa: E402
 
 CRS = f"EPSG:{ren.DEFAULT_CRS}"
 SCHEMA = "netzanpassungen-app/v1"
 
 RADFERNWEGE_PATH = ROOT / "data" / "netzquellen" / "touristisches_radnetz.gpkg"
 OUTPUT_DIR = Path(__file__).resolve().parent / "output"
-# Ergebnis von Schritt 2 (radfernwege_zuordnen.py)
+# Ergebnis von Schritt 2 (match_cycle_routes.py)
 AUTO_PATH = OUTPUT_DIR / "ren_netz_auto.gpkg"
 SECTIONS_PATH = OUTPUT_DIR / "radfernweg_abschnitte.gpkg"
 SECTIONS_LAYER = "radfernweg_abschnitte"
@@ -179,7 +179,7 @@ def load_ren_netz():
     """ren_netz_auto.gpkg: Rohnetz mit automatischer Zuordnung. `verkehrsrichtung` (B/R/G) kam in Schritt 2
     per element_nr aus dem Detailnetz; routen_fernradweg, routen_quelle und quelle sind optionale Felder der App."""
     if not AUTO_PATH.exists():
-        raise SystemExit(f"Fehlt: {AUTO_PATH}\nErst netzanpassungen/radfernwege_zuordnen.py ausführen.")
+        raise SystemExit(f"Fehlt: {AUTO_PATH}\nErst netzanpassungen/match_cycle_routes.py ausführen.")
     network = gpd.read_file(AUTO_PATH, layer=ren.OUTPUT_LAYER, columns=[
         "element_nr", "von_knoten", "bis_knoten", "radverkehrsnetz", "strassenname", "verkehrsrichtung",
         "routen_fernradweg", "routen_quelle", "quelle"])
@@ -198,7 +198,7 @@ def load_ren_netz():
 def load_sections():
     """Abschnitte der Radfernwege (Schritt 2); kanten/kandidaten als Listen von Kanten-Schlüsseln."""
     if not SECTIONS_PATH.exists():
-        raise SystemExit(f"Fehlt: {SECTIONS_PATH}\nErst netzanpassungen/radfernwege_zuordnen.py ausführen.")
+        raise SystemExit(f"Fehlt: {SECTIONS_PATH}\nErst netzanpassungen/match_cycle_routes.py ausführen.")
     sections = gpd.read_file(SECTIONS_PATH, layer=SECTIONS_LAYER)
     if sections.crs is None or sections.crs.to_epsg() != ren.DEFAULT_CRS:
         sections = sections.to_crs(CRS)
@@ -383,7 +383,7 @@ def main():
         "schema": SCHEMA,
         "gebiet": gebiet,
         "erzeugt_am": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        # Stand des REN+, auf dem die Korrekturen der App beruhen; app_ergebnis_anwenden.py prüft die
+        # Stand des REN+, auf dem die Korrekturen der App beruhen; apply_app_result.py prüft die
         # Korrekturen gegen die Geometrie der Datei, die dort liegt.
         "ren_netz_stand": {
             "datei": AUTO_PATH.name,

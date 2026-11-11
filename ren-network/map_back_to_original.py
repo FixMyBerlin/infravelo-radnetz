@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-zurueck_aufs_original.py
+map_back_to_original.py
 --------------------------------------------------------------------
 Bringt das Matching-Ergebnis vom korrigierten REN+ zurück aufs Original, das der Kunde bekommt.
 
@@ -43,8 +43,8 @@ OUTPUT:
 - processing/output/map-matching-ren/network_enriched_hmm_original_ohne_original.csv
 
 Aufruf:
-    python ren-network/zurueck_aufs_original.py
-    python ren-network/zurueck_aufs_original.py --eingabe processing/output/map-matching-ren/network_enriched_hmm.fgb
+    python ren-network/map_back_to_original.py
+    python ren-network/map_back_to_original.py --eingabe processing/output/map-matching-ren/network_enriched_hmm.fgb
 """
 
 import argparse

@@ -37,19 +37,19 @@ Für das Map-Matching wird zusätzlich Rust (`cargo`) benötigt.
 cd processing
 ./process_tilda_data.sh && ./process_radnetz.sh && ./execute_processing.sh && ./run_validation.sh
 
-# Eingangsdaten aus dem gemeinsamen Google Drive (Link in .env, siehe .env.example; läuft auch zu Beginn von netz_zusammenfuehren.py)
+# Eingangsdaten aus dem gemeinsamen Google Drive (Link in .env, siehe .env.example; läuft auch zu Beginn von merge_networks.py)
 python data/download_inputs.py
 
 # REN+-Netz: Schritt 1 Rohnetz, Schritt 2 Radfernwege zuordnen, App-Eingabe, Schritt 3 App-Ergebnis (docs/netz-ablauf.md im Repo knotenpunkte)
-python ren-network/netz_zusammenfuehren.py
-python netzanpassungen/radfernwege_zuordnen.py
-python netzanpassungen/app_eingabe_schreiben.py   # Datei für die App Netzanpassungen hochladen
+python ren-network/merge_networks.py
+python netzanpassungen/match_cycle_routes.py
+python netzanpassungen/write_app_input.py   # Datei für die App Netzanpassungen hochladen
 
 # Bearbeitungsstand der Mapper nach TILDA (Zuteilung und Mittellinien-Radwege, Upload nach production)
 bearbeitungsstand/update.sh
 
 # Export der App Netzanpassungen einlesen: ren_netz.gpkg (Kunde), ren_netz_korrigiert.gpkg (Matching, Mapping) und die virtuellen Knoten (netzanpassungen/output/virtuelle_knoten.gpkg); vor processing/ und knotenpunkte/
-python netzanpassungen/app_ergebnis_anwenden.py <export-alle-eintraege>.json   # oder --ohne-export
+python netzanpassungen/apply_app_result.py <export-alle-eintraege>.json   # oder --ohne-export
 
 # Knotenpunkte erzeugen
 python knotenpunkte/download_lsa.py && python knotenpunkte/build_knotenpunkte.py

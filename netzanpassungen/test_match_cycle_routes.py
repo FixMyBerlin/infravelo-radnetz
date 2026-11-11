@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Selbsttest für radfernwege_zuordnen.py (Schritt 2) mit einer erfundenen Route und wenigen Kanten.
+Selbsttest für match_cycle_routes.py (Schritt 2) mit einer erfundenen Route und wenigen Kanten.
 
-    .venv/bin/python netzanpassungen/test_radfernwege_zuordnen.py
+    .venv/bin/python netzanpassungen/test_match_cycle_routes.py
 
 Deckt ab: parallele Kante wird genommen, Querstraße an einer Kreuzung nicht, parallele Straße in 35 m
 nicht, eine Kante, die nur zur Hälfte neben der Route liegt, wird Kandidat, eine Detailnetzkante ohne
@@ -22,7 +22,7 @@ from shapely.geometry import LineString
 
 sys.path.append(str(Path(__file__).resolve().parent))
 
-import radfernwege_zuordnen as z  # noqa: E402
+import match_cycle_routes as z  # noqa: E402
 
 X0, Y0 = 392000.0, 5815000.0
 

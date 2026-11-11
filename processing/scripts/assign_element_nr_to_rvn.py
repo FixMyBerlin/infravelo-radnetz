@@ -16,7 +16,7 @@ Mit --netz ren für das REN+ (Pfade je Netz in helpers/netz.py).
 INPUT:
 - output/rvn/Berlin Radvorrangsnetz_mit_virtuellen-knotenpunkten.fgb
 - output/knotenpunkte/knotenpunkte_mit_id.gpkg
-- netzanpassungen/output/virtuelle_knoten.gpkg (app_ergebnis_anwenden.py, über helpers/virtuelle_knoten.py)
+- netzanpassungen/output/virtuelle_knoten.gpkg (apply_app_result.py, über helpers/virtuelle_knoten.py)
 
 OUTPUT:
 - output/rvn/Berlin Vorrangnetz_with_element_nr.fgb

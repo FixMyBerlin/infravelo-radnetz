@@ -5,7 +5,7 @@ Auswahl des Zielnetzes der Prozessierung (Parameter --netz).
 
 - rvn: Radvorrangnetz (data/Berlin Radvorrangsnetz.fgb), wie bisher
 - ren: REN+, also alle Netzquellen gemeinsam (ren-network/output/ren_netz.gpkg).
-  Mit den Korrekturen aus der App Netzanpassungen (ren-network/app_ergebnis_anwenden.py) liegt daneben
+  Mit den Korrekturen aus der App Netzanpassungen (ren-network/apply_app_result.py) liegt daneben
   ren_netz_korrigiert.gpkg. Das Matching rechnet standardmäßig mit dem korrigierten Netz,
   solange die Datei existiert (--quelle, siehe waehle_quelle).
 
@@ -74,7 +74,7 @@ def waehle_quelle(netz=DEFAULT_NETZ, wahl=DEFAULT_QUELLE):
         return pfade["quelle"], False
     vorhanden = Path(korrigiert_pfad).exists()
     if wahl == "korrigiert" and not vorhanden:
-        raise SystemExit(f"{korrigiert_pfad} fehlt. Zuerst python netzanpassungen/app_ergebnis_anwenden.py ausführen "
+        raise SystemExit(f"{korrigiert_pfad} fehlt. Zuerst python netzanpassungen/apply_app_result.py ausführen "
                          f"oder --quelle original wählen.")
     if wahl != "original" and vorhanden:
         logging.info(f"Eingangsnetz: korrigiertes REN+ ({korrigiert_pfad})")

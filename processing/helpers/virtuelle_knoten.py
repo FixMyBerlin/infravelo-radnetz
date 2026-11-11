@@ -2,10 +2,10 @@
 """
 virtuelle_knoten.py
 Ort der virtuellen Knoten. Sie leben in der App Netzanpassungen (KV-Datenbank), nicht mehr in data/.
-netzanpassungen/app_ergebnis_anwenden.py schreibt sie aus dem App-Export nach
+netzanpassungen/apply_app_result.py schreibt sie aus dem App-Export nach
 netzanpassungen/output/virtuelle_knoten.gpkg (Layer Virtuelle-Knotenpunkte, Spalte Knotenpunkt-ID);
 alle Skripte, die virtuelle Knoten brauchen, lesen die Datei über virtual_nodes_path().
-Die einmalige Übernahme der 53 Knoten von 2025: netzanpassungen/einmalige_uebernahme/.
+Die einmalige Übernahme der 53 Knoten von 2025: netzanpassungen/one_time_import/.
 """
 
 from pathlib import Path
@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 VIRTUAL_NODES_PATH = ROOT / "netzanpassungen" / "output" / "virtuelle_knoten.gpkg"
 VIRTUAL_NODES_LAYER = "Virtuelle-Knotenpunkte"
 MISSING_MESSAGE = (f"Virtuelle Knoten fehlen: {VIRTUAL_NODES_PATH} existiert nicht. "
-                   "Erst netzanpassungen/app_ergebnis_anwenden.py mit dem App-Export laufen lassen.")
+                   "Erst netzanpassungen/apply_app_result.py mit dem App-Export laufen lassen.")
 
 
 def virtual_nodes_path():
