@@ -28,7 +28,9 @@ Numbering: an existing element_nr is never changed unless it has to be. An edge 
 when it was not split (even if an end is off its node) and it is the longest edge with that element_nr.
 All other edges (split pieces, extra separate parts of a multi-part edge, edges without element_nr) get `<von>_<bis>.<nn>`, `nn` counting per unordered node pair on top of the highest
 number used by REN+ and Detailnetz. Direction in the name is the direction of the line. The
-element_nr before the change stays in `ursprung_element_nr`.
+element_nr before the change stays in `ursprung_element_nr`. `von_knoten`/`bis_knoten` of an edge that keeps its
+element_nr are the nodes that number names; where its geometric ends sit on other nodes, those are in
+`knoten_anfang`/`knoten_ende` (else empty).
 
 Manual virtual nodes drawn in the app are not part of this step; step 3 adds them
 (netzanpassungen/apply_app_result.py).
@@ -471,9 +473,16 @@ def snap_and_number(network, official, nodes_2025, detail_element_nrs, official_
     for index, piece in enumerate(pieces):
         row = lines.iloc[piece["parent"]].to_dict()
         original = row["element_nr"] if isinstance(row["element_nr"], str) else None
+        actual = (nodes[piece["a"]]["name"], nodes[piece["b"]]["name"])
+        parsed = parse_element_nr(element_nrs[index]) if index in kept else None
+        # A kept edge keeps the nodes its element_nr names (customer data stays consistent); the nodes at its
+        # geometric ends go to knoten_anfang / knoten_ende where they differ
+        named = (parsed[0], parsed[1]) if parsed else actual
+        differs = pair_key(*named) != pair_key(*actual)
         row.update({
             "element_nr": element_nrs[index],
-            "von_knoten": nodes[piece["a"]]["name"], "bis_knoten": nodes[piece["b"]]["name"],
+            "von_knoten": named[0], "bis_knoten": named[1],
+            "knoten_anfang": actual[0] if differs else None, "knoten_ende": actual[1] if differs else None,
             "ursprung_element_nr": original if original != element_nrs[index] else None,
             "element_nr_berechnet": row.get("element_nr_berechnet") if index in kept else "ja",
             "geometry": MultiLineString([piece["geometry"]]),

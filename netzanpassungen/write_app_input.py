@@ -199,11 +199,18 @@ def load_ren_netz():
         raise SystemExit(f"Fehlt: {AUTO_PATH}\nErst netzanpassungen/match_cycle_routes.py ausführen.")
     network = gpd.read_file(AUTO_PATH, layer=ren.OUTPUT_LAYER, columns=[
         "element_nr", "von_knoten", "bis_knoten", "radverkehrsnetz", "strassenname", "verkehrsrichtung",
-        "routen_fernradweg", "routen_quelle", "quelle"])
+        "routen_fernradweg", "routen_quelle", "quelle", "knoten_anfang", "knoten_ende"])
     if network.crs is None or network.crs.to_epsg() != ren.DEFAULT_CRS:
         network = network.to_crs(CRS)
     network["von_knoten"] = network["von_knoten"].map(node_id_text)
     network["bis_knoten"] = network["bis_knoten"].map(node_id_text)
+    # The app ties the ends of an edge to its from/to nodes (moving a node moves the edge end, validate.ts checks
+    # the ends against the nodes). An edge that keeps an element_nr whose nodes are not at its ends gets the nodes
+    # at its geometric ends here.
+    actual = network["knoten_anfang"].notna() & network["knoten_ende"].notna()
+    network.loc[actual, "von_knoten"] = network.loc[actual, "knoten_anfang"].map(node_id_text)
+    network.loc[actual, "bis_knoten"] = network.loc[actual, "knoten_ende"].map(node_id_text)
+    network = network.drop(columns=["knoten_anfang", "knoten_ende"])
     network = single_lines(network)
     network["verkehrsrichtung"] = network["verkehrsrichtung"].where(lambda column: column.isin(["B", "R", "G"]))
     logging.info(f"REN+ (ren_netz_auto): {len(network)} Linien, davon mit verkehrsrichtung "

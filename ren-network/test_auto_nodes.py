@@ -125,8 +125,13 @@ class AutoNodesTest(unittest.TestCase):
         # F ends 50 m beyond node 4 but was not split: it keeps 3_4.01
         f = result[result["element_nr"] == "3_4.01"].iloc[0]
         self.assertTrue(pd.isna(f["ursprung_element_nr"]))
-        self.assertEqual(f["von_knoten"], "3")
-        self.assertTrue(f["bis_knoten"].startswith("V"))
+        # the nodes named by the number stay; the actual end nodes are in knoten_anfang / knoten_ende
+        self.assertEqual((f["von_knoten"], f["bis_knoten"]), ("3", "4"))
+        self.assertEqual(f["knoten_anfang"], "3")
+        self.assertTrue(f["knoten_ende"].startswith("V"))
+        # consistent edges have no knoten_anfang / knoten_ende
+        e = result[result["element_nr"] == "1_4.01"].iloc[0]
+        self.assertTrue(pd.isna(e["knoten_anfang"]) and pd.isna(e["knoten_ende"]))
 
     def test_nn_counts_per_pair_above_detailnetz(self):
         result, virtual, report = self.run_it(extra_2025=False, detail=["1_V1-2.05", "3_4.01"])

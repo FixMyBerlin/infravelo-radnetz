@@ -158,6 +158,8 @@ FINAL_COLUMNS = [
     "ursprung_element_nr",
     "von_knoten",
     "bis_knoten",
+    "knoten_anfang",
+    "knoten_ende",
     "laenge_m",
     "bezirksnummer",
     "strassenname",

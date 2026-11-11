@@ -849,7 +849,7 @@ def split_at_virtual_nodes(network, original_geometry, labels_of_ref, drawn_labe
             counts[key] = counts.get(key, 0) + 1
             element_nr = f"{start}_{end}.{counts[key]:02d}"
             piece = row.drop(labels=["geometry"]).to_dict()
-            piece.update({"element_nr": element_nr, "von_knoten": start, "bis_knoten": end,
+            piece.update({"element_nr": element_nr, "von_knoten": start, "bis_knoten": end, "knoten_anfang": None, "knoten_ende": None,
                           "ursprung_element_nr": row["element_nr"], "lfd_nr": next_lfd, "eintrag_ids": row["eintrag_ids"]})
             next_lfd += 1
             for entry in (start_entry, end_entry):
