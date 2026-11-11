@@ -92,7 +92,7 @@ sys.path.append(str(ROOT / "ren-network"))
 sys.path.append(str(HERE))
 
 import merge_networks as ren  # noqa: E402
-from auto_nodes import NODE_COLUMNS  # noqa: E402
+from auto_nodes import NODE_COLUMNS, assert_unique  # noqa: E402
 from write_app_input import (  # noqa: E402
     AUTO_PATH, SECTIONS_LAYER, SECTIONS_PATH, detailnetz_path, line_refs, load_detailnetz)
 from match_cycle_routes import append_detail_rows, routes_text  # noqa: E402
@@ -344,9 +344,11 @@ def apply_corrections(network, entries):
         for field in ("fahrbahn_typ", "fahrbahn_gruppe"):
             if attribute.get(field) is not None:
                 network.at[index, field] = attribute[field]
-        direction = attribute.get("verkehrsrichtung")
-        if direction is not None:
-            if direction != network.at[index, "verkehrsrichtung_original"]:
+        if "verkehrsrichtung" in attribute:
+            # null is a value of its own: set to "nicht erfasst" in the app
+            direction = attribute["verkehrsrichtung"]
+            original = network.at[index, "verkehrsrichtung_original"]
+            if direction != (original if has_text(original) else None):
                 network.at[index, "verkehrsrichtung_korrigiert"] = "ja"
             network.at[index, "verkehrsrichtung"] = direction
         if attribute.get("ausgeschlossen"):
@@ -708,6 +710,16 @@ def apply_assignments(network, parts, entries, sections, detail_lines):
         row_of(entry, data, "zugeordnet", "angewendet", "; ".join(notes))
 
     if dropped:
+        for index in sorted(dropped):
+            if int(network.at[index, "anzahl_vorgaenge"]) > 0:
+                # The edge carried a correction from the app: it goes with the route, but not silently
+                conflicts.append({"grund": "Kante fällt durch die Umlegung weg (nur für den Radfernweg aufgenommen); "
+                                           "ihre Korrektur entfällt mit ihr",
+                                  "art": "edge_correction", "eintrag_id": network.at[index, "eintrag_ids"], "ref": None,
+                                  "element_nr": network.at[index, "element_nr"], "abweichung_m": None,
+                                  "bearbeitet_von": network.at[index, "letzte_aenderung_von"],
+                                  "bearbeitet_am": network.at[index, "letzte_aenderung_am"]})
+                stats["konflikte"] += 1
         network = network.drop(index=sorted(dropped))
     if new_edges:
         refs = sorted(new_edges)
@@ -778,7 +790,7 @@ def split_at_virtual_nodes(network, original_geometry, labels_of_ref, drawn_labe
     Kanten, zuerst die Teile gezeichneter Kanten) und `ursprung_element_nr`; die Ursprungszeile entfällt. Die
     Station kommt aus der Lage des Knotens (Projektion auf die Trägerkante, bei Lagekorrekturen auf die korrigierte
     Linie, wo die App den Knoten mitgeführt hat); ein Knoten mehr als 1 m neben der Kante teilt sie nicht. Im Kundennetz (Originallage) liegt die
-    Teilung bei demselben Anteil der Kantenlänge. Der freie Endknoten einer gezeichneten Kante teilt sie nicht.
+    Teilung an der Projektion des Knotens auf die Originallinie (beim selben Anteil der Kantenlänge, wenn die Projektionen nicht in Reihenfolge liegen). Der freie Endknoten einer gezeichneten Kante teilt sie nicht.
     Nicht geteilt wird eine Trägerkante ohne Knotennamen oder mit mehreren Linien (steht in den Konflikten).
     `labels_of_ref`: Indexmarke und Linie je Schlüssel `ref` des Eingangsnetzes.
     Gibt (Netz, Originallage, Konflikte, Zähler) zurück."""
@@ -859,9 +871,17 @@ def split_at_virtual_nodes(network, original_geometry, labels_of_ref, drawn_labe
         stops = spaced
         scale = old_line.length / line.length if line.length else 1.0
         chain = [(0.0, start_node, None)] + [(st, names[e["id"]], e) for st, e in stops] + [(line.length, end_node, None)]
+        # Where the nodes lie on the original line (customer network): their projection onto it, so a corrected
+        # edge is cut at the same spot in both networks. Falls back to the same length share when the projections
+        # are not in order (a heavily changed line).
+        old_chain = [0.0] + [old_line.project(Point(*_to_utm.transform(*e["data"]["lngLat"]))) for _, e in stops] + \
+            [old_line.length]
+        if not all(a < b for a, b in zip(old_chain, old_chain[1:])):
+            old_chain = [station * scale for station, _, _ in chain]
         dropped.append(label)
         stats["geteilte_kanten"] += 1
-        for (low, start, start_entry), (high, end, end_entry) in zip(chain[:-1], chain[1:]):
+        for (low, start, start_entry), (high, end, end_entry), old_low, old_high in zip(
+                chain[:-1], chain[1:], old_chain[:-1], old_chain[1:]):
             key = pair_key(start, end)
             counts[key] = counts.get(key, 0) + 1
             element_nr = f"{start}_{end}.{counts[key]:02d}"
@@ -876,7 +896,7 @@ def split_at_virtual_nodes(network, original_geometry, labels_of_ref, drawn_labe
                         piece["eintrag_ids"] = "; ".join(ids + [entry["id"]])
             pieces.append((next_label, piece))
             piece_geometry.append((next_label, MultiLineString([shapely.ops.substring(line, low, high)]),
-                                   MultiLineString([shapely.ops.substring(old_line, low * scale, high * scale)])))
+                                   MultiLineString([shapely.ops.substring(old_line, old_low, old_high)])))
             next_label += 1
             stats["teilkanten"] += 1
 
@@ -1014,6 +1034,7 @@ def run(export_path, ren_path=AUTO_PATH, output_dir=OUTPUT_DIR, virtual_nodes_pa
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     customer, working = customer_and_working_network(corrected, original_geometry)
+    assert_unique(customer)
     for network_frame, path, mapping_path in ((order_columns(customer), NETZ_PATH, KARTIERUNG_PATH),
                                               (order_columns(working), NETZ_KORRIGIERT_PATH, KARTIERUNG_KORRIGIERT_PATH)):
         ren.write_network(network_frame, output_dir / path.name)

@@ -61,6 +61,7 @@ sys.path.append(str(ROOT / "ren-network"))
 sys.path.append(str(HERE))
 
 import merge_networks as ren  # noqa: E402
+from auto_nodes import assert_unique  # noqa: E402
 from write_app_input import (  # noqa: E402
     AUTO_PATH, MIN_GAP_LENGTH_M, OUTPUT_DIR, RADFERNWEGE_PATH, SECTIONS_LAYER, SECTIONS_PATH,
     gaps_of, line_refs, load_detailnetz, slugify)
@@ -581,6 +582,7 @@ def run(output_dir=OUTPUT_DIR, write=True, **kwargs):
     sections = build_sections(routes, matches, ren_lines, detail_lines)
     summarize(sections, matches)
     network = apply_assignment(roh, ren_lines, detail_lines, matches, sections)
+    assert_unique(network)  # step 1 made every element_nr unique; the Detailnetz edges taken in must keep it so
     if write:
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)

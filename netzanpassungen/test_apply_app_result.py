@@ -678,6 +678,22 @@ class ImportTest(unittest.TestCase):
         corrected = self.read("ren_netz_korrigiert.gpkg")
         self.assertEqual(corrected.loc["10000003_10000004.01", "verkehrsrichtung_korrigiert"], "nein")
 
+    def test_direction_cleared(self):
+        """Direction set to "nicht erfasst" (null) in the app: empty in both networks, marked as corrected."""
+        entries = [entry for entry in build_entries() if entry["data"].get("kante", {}).get("ref") != "10000007_10000008.01"]
+        d0 = coords((0, 120), (100, 120))
+        entries.append(stored("x4", correction("10000007_10000008.01", "10000007_10000008.01", d0, d0,
+                                               {"verkehrsrichtung": None},
+                                               [change("attribut", feld="verkehrsrichtung", von_wert="B", nach_wert=None)])))
+        self.export.write_text(json.dumps({"gebiet": "test", "exported_at": "x", "entries": entries}), encoding="utf-8")
+        _, conflicts = self.run_import()
+        self.assertNotIn("x4", {c["eintrag_id"] for c in conflicts})
+        for name in ("ren_netz.gpkg", "ren_netz_korrigiert.gpkg"):
+            network = self.read(name)
+            self.assertTrue(pd.isna(network.loc["10000007_10000008.01", "verkehrsrichtung"]), name)
+            self.assertEqual(network.loc["10000007_10000008.01", "verkehrsrichtung_original"], "B", name)
+            self.assertEqual(network.loc["10000007_10000008.01", "verkehrsrichtung_korrigiert"], "ja", name)
+
     def test_replay(self):
         original = [[13.0, 52.0], [13.1, 52.1]]
         coordinates, attribute = imp.replay(original, [
