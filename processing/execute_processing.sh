@@ -17,8 +17,8 @@
 # Verwendung: ./execute_processing.sh [--netz rvn|ren] [--clip <region>] [--start-step <1-4>] [--clean-cache]
 # 
 # Argumente:
-#   --netz rvn|ren      Zielnetz: rvn = Radvorrangnetz (Standard), ren = REN+ (alle Netzquellen
-#                       gemeinsam). Bei ren tragen alle Ausgaben den Zusatz _ren, das Matching
+#   --netz rvn|ren      Zielnetz: ren = REN+ (Standard, alle Netzquellen gemeinsam),
+#                       rvn = Radvorrangnetz 2025. Bei ren tragen alle Ausgaben den Zusatz _ren, das Matching
 #                       schreibt nach output/map-matching-ren/. Vorher ./process_radnetz.sh --netz ren
 #                       und scripts/prepare_tilda_routing.py --netz ren.
 #   --clip <region>     Regionaler Zuschnitt: neukoelln, norden oder sueden
@@ -84,7 +84,7 @@ Verwendung: $0 [OPTIONEN]
 Führt den infraVelo Radnetz Verarbeitungsprozess aus.
 
 OPTIONEN:
-  --netz rvn|ren       Zielnetz: rvn = Radvorrangnetz (Standard), ren = REN+ (alle Netzquellen gemeinsam)
+  --netz rvn|ren       Zielnetz: ren = REN+ (Standard, alle Netzquellen gemeinsam), rvn = Radvorrangnetz 2025
   --clip <region>      Regionale Verarbeitung: neukoelln, norden oder sueden
   --start-step <1-4>   Startet ab angegebenem Schritt:
                        1 = OSM-Wege Matching
@@ -97,7 +97,7 @@ OPTIONEN:
 BEISPIELE:
   $0 --clip neukoelln                   # Nur Bezirk Neukölln
   $0 --clip norden --start-step 2       # Norden ab Schritt 2
-  $0 --netz ren                         # REN+ statt Radvorrangnetz
+  $0 --netz rvn                         # Radvorrangnetz 2025 statt REN+
 
 EOF
     exit 0
@@ -141,7 +141,7 @@ show_total_time() {
 }
 
 # CLI-Argumente verarbeiten
-NETZ="rvn"
+NETZ="ren"
 CLIP_REGION=""
 START_STEP=1
 CLEAN_CACHE=""
