@@ -567,6 +567,41 @@ class ImportTest(unittest.TestCase):
         # the rejected node does not split its host
         self.assertIn("10000009_10000010.01", self.read("ren_netz.gpkg").index)
 
+    def test_split_uses_the_actual_end_nodes_of_a_kept_edge(self):
+        """A kept edge whose element_nr names other nodes than its ends (knoten_anfang V9): the pieces use the real
+        end node, so the app and the file agree."""
+        network = build_network()
+        network["knoten_anfang"] = None
+        network["knoten_ende"] = None
+        row = network.index[network["element_nr"] == "10000001_10000002.01"][0]
+        network.loc[row, ["knoten_anfang", "knoten_ende"]] = ["V9", "10000002"]
+        network.to_file(self.dir / "ren_netz_auto.gpkg", layer="ren_netz", driver="GPKG")
+        entries = [stored("nx", {"kind": "virtual_node", "name": "VX", "name_vorschlag": "VX", "lngLat": lnglat(50, 0),
+                                 "traeger": {"art": "ren", "ref": "10000001_10000002.01", "station_m": 50.0}})]
+        self.export.write_text(json.dumps({"gebiet": "test", "exported_at": "x", "entries": entries}), encoding="utf-8")
+        self.run_import()
+        out = self.read("ren_netz.gpkg")
+        self.assertNotIn("10000001_10000002.01", out.index)
+        first, second = out.loc["V9_VX.01"], out.loc["VX_10000002.01"]
+        self.assertEqual((first["von_knoten"], first["bis_knoten"]), ("V9", "VX"))
+        self.assertEqual((second["von_knoten"], second["bis_knoten"]), ("VX", "10000002"))
+        self.assertEqual(first["ursprung_element_nr"], "10000001_10000002.01")
+        self.assertAlmostEqual(first["laenge_m"], 50.0, delta=0.1)
+
+    def test_two_nodes_closer_than_half_a_metre_split_once(self):
+        entries = [stored("na", {"kind": "virtual_node", "name": "VA", "name_vorschlag": "VA", "lngLat": lnglat(40, 160),
+                                 "traeger": {"art": "ren", "ref": "10000009_10000010.01", "station_m": 40.0}}),
+                   stored("nb", {"kind": "virtual_node", "name": "VB", "name_vorschlag": "VB", "lngLat": lnglat(40.3, 160),
+                                 "traeger": {"art": "ren", "ref": "10000009_10000010.01", "station_m": 40.3}})]
+        self.export.write_text(json.dumps({"gebiet": "test", "exported_at": "x", "entries": entries}), encoding="utf-8")
+        _, conflicts = self.run_import()
+        out = self.read("ren_netz.gpkg")
+        self.assertIn("10000009_VA.01", out.index)
+        self.assertIn("VA_10000010.01", out.index)
+        self.assertFalse(any("VB" in str(number) for number in out.index))
+        self.assertTrue(any(c["eintrag_id"] == "nb" and "teilt die Kante nicht" in c["grund"] for c in conflicts))
+        self.assertGreater(out.geometry.length.min(), 0.5)
+
     def test_host_without_nodes_is_a_conflict_not_a_crash(self):
         """A host edge without von_knoten/bis_knoten (pandas gives NaN, a float) used to stop the split with a TypeError."""
         network = build_network()

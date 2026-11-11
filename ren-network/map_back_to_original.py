@@ -13,9 +13,11 @@ gelegt: Jedes Teilsegment wird auf seine korrigierte Kante projiziert, der Absch
 korrigiert wurden (gleiche Geometrie in beiden Netzen), bleiben unverändert.
 
 Kanten, die an virtuellen Knoten geteilt wurden, tragen im Matching die Nummer der Teilkante
-(`element_nr` mit V-Knoten). Ihre Ursprungskante steht in `elem_nr` von
-processing/output/ren/ren_netz_with_element_nr.fgb; sie landet als `ursprung_element_nr` in
-der Ausgabe, und die Anteile beziehen sich auf die Ursprungskante.
+(`element_nr` mit V-Knoten). Ihre Ursprungskante steht in `ursprung_element_nr` von ren_netz.gpkg /
+ren_netz_korrigiert.gpkg (Schritt 1 und 3; fehlt sie dort, in `elem_nr` von
+processing/output/ren/ren_netz_with_element_nr.fgb); sie landet als `ursprung_element_nr` in
+der Ausgabe. Sind die Teilkanten selbst in den Ergebnisnetzen (der Normalfall), beziehen sich die Anteile
+auf die Teilkante, sonst auf die Ursprungskante.
 
 Felder der Eingabe (Ausgabe von processing/map-matching, src/pipeline.rs, `write_output`):
 sfid, element_nr, beginnt_bei_vp, endet_bei_vp, Länge, ri, Bezirksnummer, strassenname,
@@ -136,7 +138,7 @@ def map_back(result, original, corrected, split_parent):
                             "grund": "Kante nicht im korrigierten Netz" if parent is None else "Kante nicht im Original"})
             continue
         row = segment.drop("geometry").to_dict()
-        row["ursprung_element_nr"] = parent if parent != element_nr else None
+        row["ursprung_element_nr"] = split_parent.get(element_nr)
         geometry = segment.geometry
         corrected_parts, original_parts = corrected[parent], original[parent]
         changed = not same_geometry(original_parts, corrected_parts)
@@ -184,28 +186,44 @@ def map_back(result, original, corrected, split_parent):
     return output, pd.DataFrame(missing, columns=["sfid", "element_nr", "ursprung_element_nr", "grund"])
 
 
-def load_split_parents(path):
-    """Teilkante -> Ursprungskante (elem_nr) aus der Zwischendatei von assign_element_nr_to_rvn.py."""
-    if not Path(path).exists():
-        logging.warning(f"{path} fehlt: geteilte Kanten finden ihre Ursprungskante nicht")
+def network_parents(network):
+    """Edge -> parent edge from the column ursprung_element_nr, which step 1 (renumbered or split edges) and step 3
+    (edges split at virtual nodes) write. Both result networks carry the pieces themselves, so they map directly."""
+    if "ursprung_element_nr" not in network.columns:
         return {}
-    split = gpd.read_file(path, columns=["element_nr", "elem_nr"])
-    split = split[split["elem_nr"].notna() & (split["element_nr"] != split["elem_nr"])]
-    return dict(zip(split["element_nr"], split["elem_nr"]))
+    known = network[network["ursprung_element_nr"].notna() & network["element_nr"].notna()]
+    return dict(zip(known["element_nr"], known["ursprung_element_nr"]))
+
+
+def load_split_parents(path, *networks):
+    """Piece -> parent edge. Primary source: ursprung_element_nr of the result networks. Fallback: elem_nr in the
+    intermediate file of assign_element_nr_to_rvn.py (for a matching run on a network split elsewhere)."""
+    parents = {}
+    if Path(path).exists():
+        split = gpd.read_file(path, columns=["element_nr", "elem_nr"])
+        split = split[split["elem_nr"].notna() & (split["element_nr"] != split["elem_nr"])]
+        parents.update(zip(split["element_nr"], split["elem_nr"]))
+    else:
+        logging.warning(f"{path} fehlt: nur ursprung_element_nr der Ergebnisnetze liefert Ursprungskanten")
+    for network in networks:
+        parents.update(network_parents(network))
+    return parents
 
 
 def run(input_path=INPUT_PATH, output_path=None, original_path=ORIGINAL_PATH, corrected_path=CORRECTED_PATH,
         split_path=SPLIT_PATH):
     input_path = Path(input_path)
     output_path = Path(output_path) if output_path else input_path.with_name(input_path.stem + "_original.fgb")
-    original = parts_by_element_nr(gpd.read_file(original_path, layer=OUTPUT_LAYER).to_crs(CRS))
-    corrected = parts_by_element_nr(gpd.read_file(corrected_path, layer=OUTPUT_LAYER).to_crs(CRS))
+    original_frame = gpd.read_file(original_path, layer=OUTPUT_LAYER).to_crs(CRS)
+    corrected_frame = gpd.read_file(corrected_path, layer=OUTPUT_LAYER).to_crs(CRS)
+    original = parts_by_element_nr(original_frame)
+    corrected = parts_by_element_nr(corrected_frame)
     result = gpd.read_file(input_path)
     if result.crs is None or result.crs.to_epsg() != 25833:
         result = result.to_crs(CRS)
     logging.info(f"Matching-Ergebnis: {len(result)} Teilsegmente, korrigiertes Netz: {len(corrected)} Kanten")
 
-    output, missing = map_back(result, original, corrected, load_split_parents(split_path))
+    output, missing = map_back(result, original, corrected, load_split_parents(split_path, original_frame, corrected_frame))
     output.to_file(output_path, driver="FlatGeobuf")
     missing_path = output_path.with_name(output_path.stem + "_ohne_original.csv")
     missing.to_csv(missing_path, index=False)

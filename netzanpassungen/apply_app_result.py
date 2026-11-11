@@ -66,8 +66,9 @@ OUTPUT:
 
 Aufruf:
     python netzanpassungen/apply_app_result.py netzanpassungen-alle-eintraege-berlin-2026-11-12.json
-    python netzanpassungen/apply_app_result.py --ohne-export    # nur Schritt 2, keine Handarbeit; lässt
-                                                                     # virtuelle_knoten.gpkg unangetastet
+    python netzanpassungen/apply_app_result.py --ohne-export    # nur Schritt 2, keine Handarbeit; ein
+                                                                     # vorhandenes virtuelle_knoten.gpkg bleibt, fehlt es,
+                                                                     # entsteht es nur mit den Knoten aus Schritt 1
 """
 
 import argparse
@@ -821,7 +822,11 @@ def split_at_virtual_nodes(network, original_geometry, labels_of_ref, drawn_labe
                               "art": "virtual_node", "eintrag_id": hosts[label][0]["id"], "ref": None, "element_nr": row["element_nr"],
                               "abweichung_m": None, "bearbeitet_von": None, "bearbeitet_am": None})
             continue
-        if not has_text(row["von_knoten"]) or not has_text(row["bis_knoten"]):
+        # The nodes at the geometric ends: knoten_anfang/knoten_ende where step 1 set them (the app saw these as from/to),
+        # otherwise von_knoten/bis_knoten
+        start_node = row.get("knoten_anfang") if has_text(row.get("knoten_anfang")) else row["von_knoten"]
+        end_node = row.get("knoten_ende") if has_text(row.get("knoten_ende")) else row["bis_knoten"]
+        if not has_text(start_node) or not has_text(end_node):
             conflicts.append({"grund": f"Trägerkante {row['element_nr']} ohne Knoten: nicht an virtuellen Knoten geteilt",
                               "art": "virtual_node", "eintrag_id": hosts[label][0]["id"], "ref": None, "element_nr": row["element_nr"],
                               "abweichung_m": None, "bearbeitet_von": None, "bearbeitet_am": None})
@@ -840,8 +845,20 @@ def split_at_virtual_nodes(network, original_geometry, labels_of_ref, drawn_labe
         if not stops:
             continue
         stops.sort(key=lambda item: item[0])
+        # Two nodes closer than SPLIT_END_TOLERANCE_M on one edge would leave a near-zero piece: the first one splits,
+        # the later one is reported
+        spaced = [stops[0]]
+        for station, entry in stops[1:]:
+            if station - spaced[-1][0] < SPLIT_END_TOLERANCE_M:
+                conflicts.append({"grund": f"Virtueller Knoten {names[entry['id']]} liegt weniger als {SPLIT_END_TOLERANCE_M} m von "
+                                           f"{names[spaced[-1][1]['id']]} auf {row['element_nr']}: teilt die Kante nicht",
+                                  "art": "virtual_node", "eintrag_id": entry["id"], "ref": None, "element_nr": row["element_nr"],
+                                  "abweichung_m": None, "bearbeitet_von": entry.get("updated_by"), "bearbeitet_am": entry.get("updated_at")})
+            else:
+                spaced.append((station, entry))
+        stops = spaced
         scale = old_line.length / line.length if line.length else 1.0
-        chain = [(0.0, row["von_knoten"], None)] + [(st, names[e["id"]], e) for st, e in stops] + [(line.length, row["bis_knoten"], None)]
+        chain = [(0.0, start_node, None)] + [(st, names[e["id"]], e) for st, e in stops] + [(line.length, end_node, None)]
         dropped.append(label)
         stats["geteilte_kanten"] += 1
         for (low, start, start_entry), (high, end, end_entry) in zip(chain[:-1], chain[1:]):

@@ -146,6 +146,21 @@ class AutoNodesTest(unittest.TestCase):
         self.assertEqual(sorted(result["element_nr"]), ["1_2.01", "V1-1_1.01"])  # the shorter part gets its own number
         self.assertEqual(result[result["element_nr"] == "1_2.01"].geometry.length.iloc[0], 200.0)
 
+    def test_a_number_is_never_issued_twice(self):
+        """nn counts on top of every number REN+ used before, also of a line that is split and dropped."""
+        lines = gpd.GeoDataFrame({"element_nr": ["1_2.05", "1_2.03", None], "element_nr_berechnet": ["nein"] * 3},
+                                 geometry=[line((0, 0), (200, 0)), line((0, 2), (100, 10), (200, 2)),
+                                           line((0, 0), (100, -8), (200, 0))], crs=CRS)
+        official = gpd.GeoDataFrame({ID: ["1", "2"]}, geometry=[point(0, 0), point(200, 0)], crs=CRS)
+        nodes_2025 = gpd.GeoDataFrame({ID: ["V77"]}, geometry=[point(100, 10)], crs=CRS)
+        result, _, _ = an.snap_and_number(lines, official, nodes_2025, [], ID)
+        numbers = list(result["element_nr"])
+        self.assertEqual(len(numbers), len(set(numbers)))
+        self.assertIn("1_2.05", numbers)
+        # 1_2.03 was split at V77 and dropped; the third line gets .06, not .03 or .04
+        self.assertNotIn("1_2.03", numbers)
+        self.assertIn("1_2.06", numbers)
+
     def test_assert_unique_fails_loudly(self):
         frame = pd.DataFrame({"element_nr": ["1_2.01", "1_2.01", None]})
         with self.assertRaises(RuntimeError):

@@ -80,7 +80,7 @@ In `knotenpunkte/output/`:
 
 ## Virtuelle und fehlende Knoten
 
-Kanten ohne `element_nr` haben noch keine Knoten (siehe Prüfliste). Deckt eine Netzquelle nur einen Teil eines Detailnetz-Elements ab, liegt der Knoten laut `element_nr` abseits des Netzes. Die Prüfliste meldet das mit „Netz erreicht den Knoten nicht“. Die Verzweigung liegt dann mitten auf dem Element. Neue virtuelle Knoten und Knoten an diesen Kanten werden in `data/Virtuelle-Knotenpunkte.gpkg` ergänzt, mit eindeutiger `Knotenpunkt-ID` (`V…`). Danach `build_knotenpunkte.py` erneut ausführen.
+Kanten ohne `element_nr` haben noch keine Knoten (siehe Prüfliste). Deckt eine Netzquelle nur einen Teil eines Detailnetz-Elements ab, liegt der Knoten laut `element_nr` abseits des Netzes. Die Prüfliste meldet das mit „Netz erreicht den Knoten nicht“. Die Verzweigung liegt dann mitten auf dem Element. Virtuelle Knoten kommen aus `netzanpassungen/output/virtuelle_knoten.gpkg` (Schritt 3: die 53 von 2025 aus `data/virtuelle_knoten_2025.gpkg`, die in Schritt 1 automatisch gesetzten und die in der App Netzanpassungen gezeichneten, jeweils mit eindeutiger `Knotenpunkt-ID` `V…`); ein neuer Knoten wird in der App gesetzt, nicht mehr in einer Datei hier. Danach Schritt 3 und `build_knotenpunkte.py` erneut ausführen.
 
 ## Bewertung und Abgabe
 

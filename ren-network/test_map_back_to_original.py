@@ -121,6 +121,22 @@ class MapBackTest(unittest.TestCase):
         self.assertEqual(len(output), 5)
         self.assertNotIn(7, set(output["sfid"]))
 
+    def test_pieces_in_the_result_networks_map_back_to_their_parent(self):
+        """Step 1/3 write ursprung_element_nr: pieces present in both networks map directly and name their parent,
+        without the intermediate file."""
+        for name in ("original", "korrigiert"):
+            frame = network([("C.1", [line((0, 100), (40, 100))]), ("C.2", [line((40, 100), (100, 100))])])
+            frame["ursprung_element_nr"] = "C"
+            frame.to_file(self.dir / f"{name}2.gpkg", layer="ren_netz", driver="GPKG")
+        gpd.GeoDataFrame({"sfid": [1], "element_nr": ["C.2"], "ri": [0], "Länge": [60]},
+                         geometry=[line((40, 100), (100, 100))], crs=zao.CRS).to_file(self.dir / "m2.fgb", driver="FlatGeobuf")
+        output, missing = zao.run(self.dir / "m2.fgb", self.dir / "out2.fgb", self.dir / "original2.gpkg",
+                                  self.dir / "korrigiert2.gpkg", self.dir / "does-not-exist.fgb")
+        self.assertEqual(len(missing), 0)
+        self.assertEqual(output.iloc[0]["ursprung_element_nr"], "C")
+        self.assertAlmostEqual(output.iloc[0]["von_anteil"], 0.0, places=3)
+        self.assertAlmostEqual(output.iloc[0]["bis_anteil"], 1.0, places=3)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -27,7 +27,7 @@ collision `V<nearer>-2`, `-3`, ...; dead ends and junctions `V<nearest official>
 Numbering: an existing element_nr is never changed unless it has to be. An edge keeps its element_nr
 when it was not split (even if an end is off its node) and it is the longest edge with that element_nr.
 All other edges (split pieces, extra separate parts of a multi-part edge, edges without element_nr) get `<von>_<bis>.<nn>`, `nn` counting per unordered node pair on top of the highest
-number used by REN+ and Detailnetz. Direction in the name is the direction of the line. The
+number ever used by the Detailnetz and by REN+ before this step (dropped numbers included, so a number is never issued twice). Direction in the name is the direction of the line. The
 element_nr before the change stays in `ursprung_element_nr`. `von_knoten`/`bis_knoten` of an edge that keeps its
 element_nr are the nodes that number names; where its geometric ends sit on other nodes, those are in
 `knoten_anfang`/`knoten_ende` (else empty).
@@ -391,7 +391,9 @@ def number_pieces(lines, pieces, nodes, detail_element_nrs):
     Returns (element_nr list, kept flags)."""
     names = lambda key: nodes[key]["name"]
     used = defaultdict(int)  # unordered pair -> highest nn
-    for element_nr in detail_element_nrs:
+    # Count on top of every number ever used: Detailnetz and all REN+ numbers before this step, including the ones
+    # that are dropped (split edges, extra lines), so a new number never repeats a string issued earlier
+    for element_nr in list(detail_element_nrs) + list(lines["element_nr"].dropna()):
         parsed = parse_element_nr(element_nr)
         if parsed:
             key = pair_key(parsed[0], parsed[1])
