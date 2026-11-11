@@ -104,7 +104,8 @@ class AutoNodesTest(unittest.TestCase):
         autos = virtual[virtual["quelle"] == "auto"].set_index(ID)
         # C ends 10 m short of node 5: dead end named after the nearest official node (2)
         self.assertEqual(autos.loc["V2-1", "art"], "dead_end")
-        self.assertEqual(result[result["element_nr"] == "2_5.01"].iloc[0]["bis_knoten"], "V2-1")  # kept although off its node
+        c = result[result["element_nr"] == "2_5.01"].iloc[0]  # kept although off its node: nodes stay as named
+        self.assertEqual((c["bis_knoten"], c["knoten_ende"]), ("5", "V2-1"))
         # D and D2 meet at (150,300) without a node: a junction, named after the nearest official node 4
         self.assertEqual(autos.loc["V4-1", "art"], "junction")
         self.assertEqual(report["auto_by_art"], {"dead_end": 3, "junction": 1, "on_edge": 1})
