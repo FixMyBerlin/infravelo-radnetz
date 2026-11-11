@@ -3,7 +3,7 @@
 virtuelle_knoten.py
 Location of the virtual nodes. Three kinds end up in one file:
 - the 53 nodes of the 2025 delivery (data/virtuelle_knoten_2025.gpkg, fixed names),
-- the nodes step 1 sets automatically (ren-network/output/virtuelle_knoten_auto.gpkg),
+- the nodes step 1 sets automatically (ren-network/output/virtuelle_knoten_roh.gpkg),
 - the nodes drawn in the Netzanpassungen app (KV database, export "alle Einträge").
 netzanpassungen/apply_app_result.py (step 3) merges them into
 netzanpassungen/output/virtuelle_knoten.gpkg (layer Virtuelle-Knotenpunkte, column Knotenpunkt-ID,

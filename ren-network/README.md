@@ -45,7 +45,11 @@ Das Touristische Radnetz (Radfernwege) hat weder `element_nr` noch Netzknoten un
 4. **Fehlende `element_nr` berechnen** (`processing/scripts/assign_element_nr_to_rvn.py`): Knotenpunkte (Verbindungspunkte mit ID über `processing/scripts/assign_node_ids.py`) an den Kantenenden suchen, ohne Knotenpunkt entlang verbundener Kanten derselben Quelle weitersuchen. Verbindet das Detailnetz dieselben Knoten, wird dessen `element_nr` übernommen (richtungsunabhängig, bei mehreren die geometrisch nächste), sonst `von_bis.01`. Ohne Knotenpunkt an beiden Enden bleibt die Kante ohne `element_nr`.
 5. **Zusammenführen** zu einer Kante pro `element_nr`. Geometrie aus der Quelle mit höchster Priorität (Radverkehrsnetz > Radschnellverbindungen > Hauptstraßennetz), die die Kante vollständig abdeckt: Ist eine vorrangige Quelle mehr als 10 m kürzer als eine andere, gewinnt die längere. `radverkehrsnetz` nach höchstem Rang (Vorrang > Ergänzung). Kanten ohne `element_nr` bleiben einzeln.
 6. **Detailnetz**: Straßenname und -klasse über `element_nr` ergänzen; Abweichungen zum Hauptstraßennetz werden geloggt.
-7. **Netzknoten** `von_knoten`/`bis_knoten` aus der `element_nr` (`von_bis.NN`).
+7. **Virtual nodes and unique `element_nr`** (`ren-network/auto_nodes.py`, English since this step): every edge gets a unique `element_nr` `<von>_<bis>.<nn>` built from its two end nodes (`nn` counts per unordered node pair above the REN+ and Detailnetz numbers). End nodes are the Detailnetz nodes (end within 3 m), the 53 virtual nodes of 2025 (`data/virtuelle_knoten_2025.gpkg`, fixed names, read-only input) and automatic virtual nodes set by snapping (tolerance 2 m, chosen from the data: 606 of 633 loose ends touch another edge exactly, 621 within 2 m):
+   - **on an edge**: an edge end lies on the interior of another REN+ edge; a node is set there, the other edge is split. A 2025 node within 2 m of such a point is that node and supplies the name; every 2025 node also splits the edges passing through it.
+   - **junction**: edge ends that meet with no official node and no edge passing through share one node.
+   - **dead end**: an end that touches nothing gets an end node.
+   Names like the app (`netzanpassungen/src/network/naming.ts`): `V<A>-<B>` with the nearest official nodes along the host, `-2`, `-3` on collision; junctions and dead ends `V<nearest official>-<n>`. An edge keeps its `element_nr` if it was not split, the number names exactly its two end nodes and it is the longest edge with that number; all others are renumbered and keep the old number in `ursprung_element_nr`. Multi-part edges are split into separate edges (one LineString each). The step fails loudly if an `element_nr` is missing or occurs twice. `von_knoten`/`bis_knoten` are text (virtual names start with `V`).
 8. **Bezirk** nach größtem räumlichen Anteil.
 9. **Abgleich mit der Lieferung 2025** über die Geometrie (siehe [Lieferung 2025](#lieferung-2025)).
 10. **Abschluss**: Länge, Hauptverkehrsstraße (nur Hauptstraßennetz mit Klasse I–III), `lfd_nr`.
@@ -55,6 +59,7 @@ Das Touristische Radnetz (Radfernwege) hat weder `element_nr` noch Netzknoten un
 In `ren-network/output/` schreibt Schritt 1:
 
 - `ren_netz_roh.gpkg` (Layer `ren_netz`), bisher `ren_netz_gesamt.gpkg`
+- `virtuelle_knoten_roh.gpkg` (Layer `Virtuelle-Knotenpunkte`): the virtual nodes of step 1, `quelle` = `2025` or `auto`, `art` = `on_edge` | `junction` | `dead_end`, host edge and station. Step 3 adds the nodes drawn in the app and writes `netzanpassungen/output/virtuelle_knoten.gpkg`; the app input carries them as `knoten` with `ist_virtuell = 1`.
 - `ren_netz_roh.geojson`: dasselbe Netz in WGS84, z. B. für [play.placemark.io](https://play.placemark.io)
 - `bearbeitet_2025_abweichungen.csv`: Prüfliste zum Abgleich mit der Lieferung 2025
 - `element_nr_nicht_im_detailnetz.csv`: Kanten, deren `element_nr` im Detailnetz fehlt

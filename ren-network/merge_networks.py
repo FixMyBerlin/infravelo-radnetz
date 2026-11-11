@@ -20,6 +20,10 @@ wird, bleiben ohne element_nr einzeln erhalten.
 
 Pro element_nr entsteht eine Kante.
 
+Then (auto_nodes.py, English): virtual nodes are set by snapping edge ends to other edges, edges are
+split at them and at the 53 virtual nodes of 2025 (data/virtuelle_knoten_2025.gpkg), and every edge gets a
+unique element_nr from its two end nodes. The step fails if one is missing or duplicated.
+
 Jede Kante wird über die Geometrie mit der Lieferung 2025 verglichen
 (Ergebnisdatensatz C des Radvorrangnetzes): bearbeitet_2025 = ja, teilweise
 oder nein. Das Kartierungs-Netz (Schritt 3) ist das Netz ohne die Kanten mit "ja";
@@ -48,12 +52,14 @@ INPUT:
   daneben, wird der jüngste verwendet)
 - data/Berlin Verbindungspunkte Detailnetz.fgb
 - data/Berlin Bezirke.gpkg
+- data/virtuelle_knoten_2025.gpkg
 - ../tilda-static-data/geojson/region-infravelo/infravelo-datensatz-c-fortlaufend/
   aggregated_rvn_final.geojson.gz (Ergebnis 2025; tilda-static-data muss als
   Schwesterordner ausgecheckt sein)
 
 OUTPUT:
 - ren-network/output/ren_netz_roh.gpkg (Layer: ren_netz)
+- ren-network/output/virtuelle_knoten_roh.gpkg (Layer Virtuelle-Knotenpunkte: 2025 and automatic nodes)
 - ren-network/output/ren_netz_roh.geojson (WGS84, z.B. für play.placemark.io)
 - ren-network/output/element_nr_nicht_im_detailnetz.csv
 - ren-network/output/bearbeitet_2025_abweichungen.csv
@@ -75,6 +81,9 @@ sys.path.append(str(ROOT / "processing"))
 sys.path.append(str(ROOT / "processing" / "scripts"))
 sys.path.append(str(ROOT / "data"))
 
+sys.path.append(str(ROOT / "ren-network"))
+
+import auto_nodes  # noqa: E402
 from assign_element_nr_to_rvn import assign_element_numbers  # noqa: E402
 from assign_node_ids import assign_node_ids_to_points  # noqa: E402
 from helpers.district_assignment import assign_district_to_edges  # noqa: E402
@@ -93,9 +102,14 @@ VERBINDUNGSPUNKTE_PATH = ROOT / "data" / "Berlin Verbindungspunkte Detailnetz.fg
 # Spaltenname aus assign_node_ids / assign_element_nr_to_rvn (mit U+2010 als Bindestrich)
 NODE_ID_COLUMN = "Knotenpunkt‐ID"
 DISTRICTS_PATH = ROOT / "data" / "Berlin Bezirke.gpkg"
+# The 53 virtual nodes of 2025: fixed names, read-only input like the Detailnetz nodes
+NODES_2025_PATH = ROOT / "data" / "virtuelle_knoten_2025.gpkg"
 OUTPUT_DIR = ROOT / "ren-network" / "output"
 OUTPUT_PATH = OUTPUT_DIR / "ren_netz_roh.gpkg"
 OUTPUT_LAYER = "ren_netz"
+# Virtual nodes of step 1: the 2025 nodes (quelle = 2025) and the automatic ones (quelle = auto)
+VIRTUAL_NODES_PATH = OUTPUT_DIR / "virtuelle_knoten_roh.gpkg"
+VIRTUAL_NODES_LAYER = "Virtuelle-Knotenpunkte"
 MISSING_REPORT_PATH = OUTPUT_DIR / "element_nr_nicht_im_detailnetz.csv"
 # Ergebnis 2025 (Datensatz C): lebt nur in tilda-static-data, das als Schwesterordner
 # ausgecheckt sein muss. processing/copy_to_tilda_static.sh schreibt es dorthin.
@@ -141,6 +155,7 @@ FINAL_COLUMNS = [
     "lfd_nr",
     "element_nr",
     "element_nr_berechnet",
+    "ursprung_element_nr",
     "von_knoten",
     "bis_knoten",
     "laenge_m",
@@ -424,17 +439,42 @@ def log_klassen_differences(network, dn_klasse):
 
 
 def add_nodes(network):
-    """von_knoten / bis_knoten als Zahl aus der element_nr (Format: von_bis.NN)."""
-    parts = network["element_nr"].str.extract(ELEMENT_NR_PATTERN)
+    """von_knoten / bis_knoten as text from the element_nr (format von_bis.NN; virtual node names start with V)."""
+    parts = network["element_nr"].str.extract(auto_nodes.ELEMENT_NR_PATTERN.pattern)
     invalid = network.loc[network["element_nr"].notna() & parts[0].isna(), "element_nr"]
     if len(invalid):
         logging.warning(
-            f"{len(invalid)} element_nr entsprechen nicht dem Muster von_bis.NN, "
-            f"von_knoten/bis_knoten bleiben leer: {sorted(invalid)}"
+            f"{len(invalid)} element_nr do not match the pattern von_bis.NN, "
+            f"von_knoten/bis_knoten stay empty: {sorted(invalid)}"
         )
-    network["von_knoten"] = pd.to_numeric(parts[0]).astype("Int64")
-    network["bis_knoten"] = pd.to_numeric(parts[1]).astype("Int64")
+    network["von_knoten"] = parts[0]
+    network["bis_knoten"] = parts[1]
     return network
+
+
+def load_nodes_2025():
+    """The 53 virtual nodes of 2025 (data/virtuelle_knoten_2025.gpkg, column Knotenpunkt-ID)."""
+    nodes = gpd.read_file(NODES_2025_PATH)
+    if nodes.crs is None or nodes.crs.to_epsg() != DEFAULT_CRS:
+        nodes = nodes.to_crs(f"EPSG:{DEFAULT_CRS}")
+    duplicated = nodes["Knotenpunkt-ID"][nodes["Knotenpunkt-ID"].duplicated()]
+    if len(duplicated):
+        raise SystemExit(f"Names of the 2025 nodes are not unique: {sorted(set(duplicated))}")
+    logging.info(f"Virtual nodes of 2025: {len(nodes)}")
+    return nodes
+
+
+def number_edges(network, detail, nodes):
+    """Sets virtual nodes by snapping, splits edges at them and gives every edge a unique element_nr from its end
+    nodes (ren-network/auto_nodes.py). Returns (network with one LineString edge per row, virtual nodes)."""
+    lines = network.explode(index_parts=False).reset_index(drop=True)
+    lines = lines[lines.geometry.geom_type == "LineString"].reset_index(drop=True)
+    result, virtual, report = auto_nodes.snap_and_number(
+        lines, nodes, load_nodes_2025(), detail["element_nr"].dropna(), NODE_ID_COLUMN)
+    auto_nodes.log_report(report)
+    detail_element_nrs = set(detail["element_nr"].dropna())
+    result["in_detailnetz"] = result["element_nr"].isin(detail_element_nrs).map({True: "ja", False: "nein"})
+    return result, virtual
 
 
 def add_district(network):
@@ -544,6 +584,16 @@ def write_network(network, path):
     logging.info(f"Geschrieben: {geojson_path}")
 
 
+def write_virtual_nodes(virtual_nodes, path=None):
+    """Virtual nodes of step 1 (2025 and automatic), schema like netzanpassungen/output/virtuelle_knoten.gpkg."""
+    path = path or VIRTUAL_NODES_PATH
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists():
+        path.unlink()
+    virtual_nodes.to_file(path, layer=VIRTUAL_NODES_LAYER, driver="GPKG")
+    logging.info(f"Virtual nodes: {len(virtual_nodes)} ({virtual_nodes['quelle'].value_counts().to_dict()}): {path}")
+
+
 def write_missing_report(network):
     """Schreibt alle Kanten, deren element_nr nicht im Detailnetz vorkommt, in eine CSV."""
     missing = network.loc[network["in_detailnetz"] == "nein", MISSING_REPORT_COLUMNS]
@@ -558,8 +608,8 @@ def log_summary(network):
         logging.info(f"{column}: {network[column].value_counts(dropna=False).to_dict()}")
     for column in ["element_nr", "von_knoten", "bis_knoten", "bezirksnummer", "strassenname"]:
         logging.info(f"{column}: {network[column].isna().sum()} ohne Wert")
-    duplicated = network["element_nr"].dropna().duplicated().sum()
-    logging.info(f"Doppelte element_nr: {duplicated}")
+    auto_nodes.assert_unique(network)
+    logging.info(f"element_nr: {network['element_nr'].nunique()} different, none missing, none duplicated")
 
 
 def main():
@@ -568,10 +618,11 @@ def main():
     sources = load_sources()
     detail = load_detailnetz()
     sources = remove_motorways(sources, detail)
-    sources = assign_missing_element_nr(sources, detail, load_nodes(detail))
+    nodes = load_nodes(detail)
+    sources = assign_missing_element_nr(sources, detail, nodes)
     network = merge_by_element_nr(sources)
     network = add_detailnetz_attributes(network, detail)
-    network = add_nodes(network)
+    network, virtual_nodes = number_edges(network, detail, nodes)
     network = add_district(network)
     network = add_bearbeitet_2025(network)
     network = finalize(network)
@@ -579,6 +630,7 @@ def main():
 
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     write_network(network, OUTPUT_PATH)
+    write_virtual_nodes(virtual_nodes)
     write_missing_report(network)
 
 
