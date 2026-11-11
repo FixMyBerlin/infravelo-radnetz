@@ -1,19 +1,26 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-app_ergebnis_anwenden.py
+app_ergebnis_anwenden.py  (Schritt 3 der Pipeline, bisher import_app_export.py)
 --------------------------------------------------------------------
 Liest den Export „alle Einträge“ der App Netzanpassungen (Repo knotenpunkte, Ordner
-netzanpassungen/) und bringt die Korrekturen ins REN+:
+netzanpassungen/) und ren_netz_auto.gpkg (Schritt 2) und schreibt die Ergebnisnetze. Gelesen
+wird nie aus data/ zurückgeschrieben: Alles, was von Hand entsteht, lebt in der App
+(KV-Datenbank); die Dateien hier entstehen bei jedem Lauf neu.
 
+Einträge des Exports (Einträge mit geloescht = true werden übersprungen):
 - edge_correction: Korrektur einer REN+-Kante (Geometrie, fahrbahn_typ, fahrbahn_gruppe,
-  verkehrsrichtung, ausgeschlossen). Wird auf ren_netz_gesamt.gpkg abgespielt.
+  verkehrsrichtung, ausgeschlossen). Wird auf ren_netz_auto.gpkg abgespielt.
+- section_assignment: Entscheidung zu einem Abschnitt eines Radfernwegs (radfernweg_abschnitte.gpkg).
+  zugeordnet: routen_fernradweg/routen_quelle (manuell) auf den gewählten Kanten; eine Detailnetzkante,
+  die noch nicht im Netz ist, kommt mit quelle = detailnetz_manuell und grund_aufnahme =
+  radfernweg_manuell dazu. Ersetzt die Entscheidung die automatische Zuordnung des Abschnitts
+  (Umlegung), verliert die bisherige Kante diese Route (und fällt weg, wenn sie nur dafür aufgenommen
+  wurde). keine_aktion: ändert nichts, steht nur in radfernweg_zuordnungen.csv. Unbekannter
+  Abschnitt oder unbekannte Kante: Konflikt, der Eintrag gilt nicht.
 - virtual_node: virtueller Knoten, kommt nach netzanpassungen/output/virtuelle_knoten.gpkg.
   Das ist die Datei, die die Pipeline (processing/, knotenpunkte/) als virtuelle Knoten liest.
 - new_edge: gezeichnete Kante, kommt nach netzanpassungen/output/touristische_kanten.gpkg.
-- Einträge mit geloescht = true werden übersprungen.
-- Der Import schreibt nur nach output/, nie nach data/. Alles, was von Hand entsteht, lebt in der App
-  (KV-Datenbank); die beiden gpkg-Dateien entstehen bei jedem Lauf neu aus dem Export.
 
 Eine Korrektur wird nur angewendet, wenn die Kante im Eingangsnetz liegt (Schlüssel
 kante.ref wie in der App: element_nr, ab der zweiten Linie derselben Nummer `#2`, ...), ihre
@@ -21,29 +28,40 @@ original_coordinates höchstens 5 cm von der Geometrie dort abweichen (nach Umpr
 EPSG:4326 -> EPSG:25833) und original_coordinates + aenderungen den gespeicherten Stand
 ergeben. Sonst bleibt die Kante unverändert und steht in korrekturen_konflikte.csv.
 
-Die Datei ren_netz_korrigiert.gpkg enthält alle Kanten von ren_netz_gesamt.gpkg, mit
-korrigierter Geometrie und den Spalten korrigiert, attribut_korrigiert, fahrbahn_typ,
-fahrbahn_gruppe, verkehrsrichtung (nur wo erfasst), ausgeschlossen (ja/nein), anzahl_vorgaenge,
-letzte_aenderung_am, letzte_aenderung_von, korrektur_kommentar. Ausgeschlossene Kanten bleiben
-darin, sind aber markiert; processing/scripts/split_rvn_at_virtual_nodes.py und die
-Kartierung lassen sie weg.
+Zwei Ergebnisnetze mit denselben Kanten und denselben Spalten; alles, was aus der App kommt, ist
+markiert:
+- ren_netz.gpkg (Kunde): Original-Lage. Mit Radfernwegen (auto und von Hand), aufgenommenen
+  Detailnetzkanten, Richtung, Fahrbahn und Ausschluss, aber ohne Lagekorrekturen.
+- ren_netz_korrigiert.gpkg (Matching, Mapping): dasselbe plus die Lagekorrekturen, mit lage_korrigiert
+  und den Kennzahlen hausdorff_m, max_verschiebung_m, differenzflaeche_m2, laenge_alt_m, laenge_neu_m.
+Spalten (beide): quelle (radnetz | detailnetz_radfernweg | detailnetz_manuell), grund_aufnahme,
+routen_fernradweg, routen_quelle (auto | manuell | auto; manuell), verkehrsrichtung (aktuell),
+verkehrsrichtung_original, verkehrsrichtung_korrigiert (ja/nein), fahrbahn_typ, fahrbahn_gruppe,
+ausgeschlossen (ja/nein), ausschluss_grund, eintrag_ids, anzahl_vorgaenge, letzte_aenderung_am,
+letzte_aenderung_von, korrektur_kommentar. Ausgeschlossene Kanten bleiben in beiden Netzen, sind aber
+markiert; die Kartierung und processing/scripts/split_rvn_at_virtual_nodes.py lassen sie weg.
+
+Zu beiden Netzen gibt es die Kartierung (ohne bearbeitet_2025 = ja und ohne ausgeschlossene Kanten).
 
 INPUT:
-- Export der App (JSON: {gebiet, exported_at, entries})
-- ren-network/output/ren_netz_gesamt.gpkg (netz_zusammenfuehren.py)
-- data/Berlin Straßenabschnitte Detailnetz*.fgb (nur die element_nr, für die Nummern neuer Kanten)
+- Export der App (JSON: {gebiet, exported_at, entries}); mit --ohne-export ohne Einträge
+- netzanpassungen/output/ren_netz_auto.gpkg (radfernwege_zuordnen.py)
+- netzanpassungen/output/radfernweg_abschnitte.gpkg (nur für section_assignment)
+- data/Berlin Straßenabschnitte Detailnetz*.fgb (element_nr für die Nummern neuer Kanten, Linien für
+  von Hand zugeordnete Detailnetzkanten)
 
 OUTPUT:
-- ren-network/output/ren_netz_korrigiert.gpkg / .geojson
-- ren-network/output/ren_netz_kartierung_korrigiert.gpkg / .geojson (ohne bearbeitet_2025 = ja
-  und ohne ausgeschlossene Kanten)
-- ren-network/output/korrekturen_konflikte.csv
+- ren-network/output/ren_netz.gpkg / .geojson, ren_netz_kartierung.gpkg / .geojson
+- ren-network/output/ren_netz_korrigiert.gpkg / .geojson, ren_netz_kartierung_korrigiert.gpkg / .geojson
+- ren-network/output/korrekturen_konflikte.csv, radfernweg_zuordnungen.csv
 - netzanpassungen/output/virtuelle_knoten.gpkg (Layer Virtuelle-Knotenpunkte: Knotenpunkt-ID, ist_virtuell,
   traeger_netz, traeger_element_nr, station_m, kommentar, eintrag_id)
 - netzanpassungen/output/touristische_kanten.gpkg (Layer touristische_kanten)
 
 Aufruf:
     python netzanpassungen/app_ergebnis_anwenden.py netzanpassungen-alle-eintraege-berlin-2026-11-12.json
+    python netzanpassungen/app_ergebnis_anwenden.py --ohne-export    # nur Schritt 2, keine Handarbeit; lässt
+                                                                     # virtuelle_knoten.gpkg unangetastet
 """
 
 import argparse
@@ -66,7 +84,9 @@ sys.path.append(str(ROOT / "ren-network"))
 sys.path.append(str(HERE))
 
 import netz_zusammenfuehren as ren  # noqa: E402
-from app_eingabe_schreiben import detailnetz_path, line_refs  # noqa: E402
+from app_eingabe_schreiben import (  # noqa: E402
+    AUTO_PATH, SECTIONS_LAYER, SECTIONS_PATH, detailnetz_path, line_refs, load_detailnetz)
+from radfernwege_zuordnen import append_detail_rows, routes_text  # noqa: E402
 
 CRS = f"EPSG:{ren.DEFAULT_CRS}"
 
@@ -80,20 +100,27 @@ COORDINATE_GRID = 1e-7
 NODE_ON_EDGE_TOLERANCE_M = 1.0
 
 OUTPUT_DIR = ren.OUTPUT_DIR
-GESAMT_ORIGINAL = ren.OUTPUT_PATH
-GESAMT_KORRIGIERT = OUTPUT_DIR / "ren_netz_korrigiert.gpkg"
-KARTIERUNG_KORRIGIERT = OUTPUT_DIR / "ren_netz_kartierung_korrigiert.gpkg"
+NETZ_PATH = OUTPUT_DIR / "ren_netz.gpkg"
+NETZ_KORRIGIERT_PATH = OUTPUT_DIR / "ren_netz_korrigiert.gpkg"
+KARTIERUNG_PATH = OUTPUT_DIR / "ren_netz_kartierung.gpkg"
+KARTIERUNG_KORRIGIERT_PATH = OUTPUT_DIR / "ren_netz_kartierung_korrigiert.gpkg"
 CONFLICTS_PATH = OUTPUT_DIR / "korrekturen_konflikte.csv"
+ASSIGNMENTS_PATH = OUTPUT_DIR / "radfernweg_zuordnungen.csv"
 APP_OUTPUT_DIR = HERE / "output"
 VIRTUAL_NODES_PATH = APP_OUTPUT_DIR / "virtuelle_knoten.gpkg"  # wie processing/helpers/virtuelle_knoten.py
 VIRTUAL_NODES_LAYER = "Virtuelle-Knotenpunkte"
 NEW_EDGES_PATH = APP_OUTPUT_DIR / "touristische_kanten.gpkg"
 NEW_EDGES_LAYER = "touristische_kanten"
 
-CORRECTION_COLUMNS = ["korrigiert", "attribut_korrigiert", "fahrbahn_typ", "fahrbahn_gruppe", "verkehrsrichtung",
-                      "ausgeschlossen", "anzahl_vorgaenge", "letzte_aenderung_am", "letzte_aenderung_von",
-                      "korrektur_kommentar"]
+# Spalten, die beide Ergebnisnetze zusätzlich zum Netz aus Schritt 2 tragen (Reihenfolge der Datei)
+MARK_COLUMNS = ["verkehrsrichtung_original", "verkehrsrichtung_korrigiert", "fahrbahn_typ", "fahrbahn_gruppe",
+                "ausgeschlossen", "ausschluss_grund", "eintrag_ids", "anzahl_vorgaenge", "letzte_aenderung_am",
+                "letzte_aenderung_von", "korrektur_kommentar"]
+# Nur im korrigierten Netz
+LAGE_COLUMNS = ["lage_korrigiert", "hausdorff_m", "max_verschiebung_m", "differenzflaeche_m2", "laenge_alt_m", "laenge_neu_m"]
 CONFLICT_COLUMNS = ["grund", "art", "eintrag_id", "ref", "element_nr", "abweichung_m", "bearbeitet_von", "bearbeitet_am"]
+ASSIGNMENT_COLUMNS = ["abschnitt_id", "radfernweg", "art", "kanten", "status", "hinweis", "kommentar", "eintrag_id",
+                      "bearbeitet_von", "bearbeitet_am"]
 
 ATTRIBUTE_FIELDS = ("fahrbahn_typ", "fahrbahn_gruppe", "verkehrsrichtung")
 ELEMENT_NR_PATTERN = re.compile(r"^(.+)_(.+)\.(\d+)$")
@@ -193,18 +220,35 @@ class Parts:
 
 
 def blank_correction_columns(network):
+    """Markierungsspalten: leer, wo nichts aus der App kommt. `verkehrsrichtung` (aus dem Detailnetz) bleibt
+    der aktuelle Wert, `verkehrsrichtung_original` hält den Wert vor der Korrektur."""
     network = network.copy()
-    network["korrigiert"] = "nein"
-    network["attribut_korrigiert"] = "nein"
+    if "verkehrsrichtung" not in network.columns:
+        network["verkehrsrichtung"] = None
+    network["verkehrsrichtung_original"] = network["verkehrsrichtung"]
+    network["verkehrsrichtung_korrigiert"] = "nein"
+    network["lage_korrigiert"] = "nein"
     network["fahrbahn_typ"] = None
     network["fahrbahn_gruppe"] = None
-    network["verkehrsrichtung"] = None
     network["ausgeschlossen"] = "nein"
+    network["ausschluss_grund"] = None
+    network["eintrag_ids"] = None
     network["anzahl_vorgaenge"] = pd.array([0] * len(network), dtype="Int64")
     network["letzte_aenderung_am"] = None
     network["letzte_aenderung_von"] = None
     network["korrektur_kommentar"] = None
+    for column in ("quelle", "grund_aufnahme", "routen_fernradweg", "routen_quelle"):
+        if column not in network.columns:
+            network[column] = "radnetz" if column == "quelle" else None
     return network
+
+
+def add_entry_id(network, index, entry_id):
+    """Trägt die KV-Id eines Eintrags in eintrag_ids der Kante ein (ohne Doppelte)."""
+    current = network.at[index, "eintrag_ids"]
+    ids = current.split("; ") if isinstance(current, str) and current else []
+    if entry_id not in ids:
+        network.at[index, "eintrag_ids"] = "; ".join(ids + [entry_id])
 
 
 def conflict(entry, data, reason, deviation=None):
@@ -280,17 +324,23 @@ def apply_corrections(network, entries):
         changed_geometry = not same_coordinates(data["original_coordinates"], data["coordinates"])
         if changed_geometry:
             lines[(row, item["part"])] = to_utm(data["coordinates"])
-            network.at[index, "korrigiert"] = "ja"
+            network.at[index, "lage_korrigiert"] = "ja"
             stats["geometrie"] += 1
         attribute = data.get("attribute", {})
-        for field in ("fahrbahn_typ", "fahrbahn_gruppe", "verkehrsrichtung"):
+        for field in ("fahrbahn_typ", "fahrbahn_gruppe"):
             if attribute.get(field) is not None:
                 network.at[index, field] = attribute[field]
+        direction = attribute.get("verkehrsrichtung")
+        if direction is not None:
+            if direction != network.at[index, "verkehrsrichtung_original"]:
+                network.at[index, "verkehrsrichtung_korrigiert"] = "ja"
+            network.at[index, "verkehrsrichtung"] = direction
         if attribute.get("ausgeschlossen"):
             network.at[index, "ausgeschlossen"] = "ja"
+            network.at[index, "ausschluss_grund"] = data.get("kommentar")
         if significant_attributes(attribute):
-            network.at[index, "attribut_korrigiert"] = "ja"
             stats["attribute"] += 1
+        add_entry_id(network, index, entry["id"])
         changes = data.get("aenderungen", [])
         network.at[index, "anzahl_vorgaenge"] = int(network.at[index, "anzahl_vorgaenge"]) + len({c["vorgang_id"] for c in changes})
         if changes:
@@ -457,52 +507,314 @@ def load_base_element_nrs(network, detail_path):
     return element_nrs
 
 
-def run(export_path, ren_path=GESAMT_ORIGINAL, output_dir=OUTPUT_DIR, virtual_nodes_path=VIRTUAL_NODES_PATH,
-        new_edges_path=NEW_EDGES_PATH, detail_path=None):
-    """Der ganze Import. Gibt Zähler und Konflikte zurück (für Tests)."""
-    export = json.loads(Path(export_path).read_text(encoding="utf-8"))
+def split_routes(text):
+    return [name for name in (text or "").split("; ") if name] if isinstance(text, str) else []
+
+
+def entry_conflict(entry, data, reason, ref=None, element_nr=None):
+    return {"grund": reason, "art": data.get("kind"), "eintrag_id": entry.get("id"), "ref": ref, "element_nr": element_nr,
+            "abweichung_m": None, "bearbeitet_von": entry.get("updated_by"), "bearbeitet_am": entry.get("updated_at")}
+
+
+def read_sections(path):
+    """Abschnitte der Radfernwege aus Schritt 2: id -> {radfernweg, kanten}. Ohne Datei None."""
+    if path is None or not Path(path).exists():
+        return None
+    frame = gpd.read_file(path, layer=SECTIONS_LAYER)
+    return {row.id: {"radfernweg": row.radfernweg, "kanten": [key for key in (row.kanten or "").split("|") if key]}
+            for row in frame.itertuples()}
+
+
+def apply_assignments(network, parts, entries, sections, detail_lines):
+    """Spielt die section_assignment-Einträge auf das Netz ab (nach den Korrekturen).
+
+    `parts`: Linien des Eingangsnetzes mit ihrem Schlüssel `ref` (Parts), `sections`: id -> Abschnitt aus
+    Schritt 2 (oder None), `detail_lines`: Linien des Detailnetzes mit Spalte `ref` (oder None).
+    Gibt (Netz, Konflikte, Zeilen für radfernweg_zuordnungen.csv, Zähler) zurück."""
+    items = [entry for entry in active_entries(entries, "section_assignment") if not entry["data"].get("geloescht")]
+    conflicts, report = [], []
+    stats = {"abschnitte": len(items), "zugeordnet": 0, "keine_aktion": 0, "konflikte": 0, "aufgenommen": 0, "umgelegt": 0}
+    if not items:
+        return network, conflicts, report, stats
+
+    def row_of(entry, data, art, status, hinweis=""):
+        abschnitt = data.get("abschnitt") or {}
+        report.append({"abschnitt_id": abschnitt.get("id"), "radfernweg": abschnitt.get("radfernweg"), "art": art,
+                       "kanten": "|".join(data.get("kanten") or []), "status": status, "hinweis": hinweis,
+                       "kommentar": data.get("kommentar"), "eintrag_id": entry.get("id"),
+                       "bearbeitet_von": entry.get("updated_by"), "bearbeitet_am": entry.get("updated_at")}) 
+
+    def reject(entry, data, reason):
+        conflicts.append(entry_conflict(entry, data, reason, ref=(data.get("abschnitt") or {}).get("id")))
+        stats["konflikte"] += 1
+        row_of(entry, data, data.get("art"), "konflikt", reason)
+
+    detail_by_ref = {}
+    if detail_lines is not None:
+        detail_by_ref = {ref: row for ref, row in zip(detail_lines["ref"], detail_lines.itertuples())}
+    rows_by_element_nr = {}
+    for index, element_nr in zip(network.index, network["element_nr"]):
+        if isinstance(element_nr, str):
+            rows_by_element_nr.setdefault(element_nr, []).append(index)
+
+    # Ein Eintrag je Abschnitt: bei mehreren gilt der jüngste, die anderen sind Konflikte
+    newest = {}
+    for entry in sorted(items, key=lambda item: item.get("updated_at") or ""):
+        newest[(entry["data"].get("abschnitt") or {}).get("id")] = entry
+    valid = []
+    for entry in items:
+        data = entry["data"]
+        abschnitt = data.get("abschnitt") or {}
+        sid = abschnitt.get("id")
+        if newest.get(sid) is not entry:
+            reject(entry, data, f"Mehrere Einträge zum Abschnitt {sid}: der jüngste gilt")
+        elif sections is None:
+            reject(entry, data, "radfernweg_abschnitte.gpkg fehlt: Abschnitt nicht prüfbar (Schritt 2 laufen lassen)")
+        elif sid not in sections:
+            reject(entry, data, f"Abschnitt {sid} nicht in radfernweg_abschnitte.gpkg")
+        elif sections[sid]["radfernweg"] != abschnitt.get("radfernweg"):
+            reject(entry, data, f"Abschnitt {sid} gehört zu {sections[sid]['radfernweg']}, nicht zu {abschnitt.get('radfernweg')}")
+        elif data.get("art") == "keine_aktion":
+            stats["keine_aktion"] += 1
+            row_of(entry, data, "keine_aktion", "angewendet", "keine Änderung am Netz")
+        elif data.get("art") != "zugeordnet" or not data.get("kanten"):
+            reject(entry, data, f"Art {data.get('art')!r} mit {len(data.get('kanten') or [])} Kanten nicht auswertbar")
+        else:
+            valid.append(entry)
+
+    # Kanten-Schlüssel auf Zeilen des Netzes abbilden; unbekannte Kante: der ganze Eintrag gilt nicht
+    resolved = {}
+    for entry in valid:
+        data = entry["data"]
+        targets, problem = [], None
+        for key in data["kanten"]:
+            kind, _, ref = key.partition(":")
+            if kind == "ren" and ref in parts.by_ref:
+                targets.append(("row", network.index[parts.by_ref[ref]["row"]], key))
+            elif kind == "detailnetz" and ref in detail_by_ref:
+                edge = detail_by_ref[ref]
+                if edge.element_nr in rows_by_element_nr:
+                    targets.extend(("row", index, key) for index in rows_by_element_nr[edge.element_nr])
+                else:
+                    targets.append(("detail", ref, key))
+            else:
+                problem = f"Kante {key} nicht im Netz"
+                break
+        if problem:
+            reject(entry, data, problem)
+        else:
+            resolved[entry["id"]] = targets
+
+    # Umlegung: Kanten, die der Abschnitt automatisch trug und die der Eintrag nicht mehr nennt, verlieren die Route.
+    # Behalten wird sie, wo eine andere, nicht ersetzte Zuordnung derselben Route die Kante noch trägt.
+    replaced = {(entry["data"]["abschnitt"]["id"]) for entry in valid if entry["id"] in resolved}
+    still_used = {(sections[sid]["radfernweg"], key) for sid in sections if sid not in replaced for key in sections[sid]["kanten"]}
+    dropped = set()
+    removed_from = {}
+    for entry in valid:
+        if entry["id"] not in resolved:
+            continue
+        data = entry["data"]
+        route = data["abschnitt"]["radfernweg"]
+        for key in sections[data["abschnitt"]["id"]]["kanten"]:
+            if key in data["kanten"] or (route, key) in still_used:
+                continue
+            kind, _, ref = key.partition(":")
+            if kind == "ren" and ref in parts.by_ref:
+                indexes = [network.index[parts.by_ref[ref]["row"]]]
+            elif kind == "detailnetz" and ref in detail_by_ref:
+                indexes = rows_by_element_nr.get(detail_by_ref[ref].element_nr, [])
+            else:
+                continue
+            for index in indexes:
+                names = split_routes(network.at[index, "routen_fernradweg"])
+                if route in names and network.at[index, "routen_quelle"] in ("auto", "auto; manuell"):
+                    names.remove(route)
+                    network.at[index, "routen_fernradweg"] = routes_text(names)
+                    if not names:
+                        network.at[index, "routen_quelle"] = None
+                        if network.at[index, "quelle"] in ("detailnetz_radfernweg", "detailnetz_manuell"):
+                            dropped.add(index)
+                    elif network.at[index, "routen_quelle"] == "auto; manuell":
+                        network.at[index, "routen_quelle"] = "manuell"
+                    removed_from.setdefault(data["abschnitt"]["id"], []).append(key)
+                    add_entry_id(network, index, entry["id"])
+
+    # Zuordnen
+    new_edges = {}  # detailnetz-ref -> (routen, Einträge)
+    for entry in valid:
+        if entry["id"] not in resolved:
+            continue
+        data = entry["data"]
+        route = data["abschnitt"]["radfernweg"]
+        notes = []
+        for kind, target, key in resolved[entry["id"]]:
+            if kind == "row":
+                names = split_routes(network.at[target, "routen_fernradweg"])
+                if route not in names:
+                    previous = network.at[target, "routen_quelle"]
+                    network.at[target, "routen_fernradweg"] = routes_text(names + [route])
+                    network.at[target, "routen_quelle"] = {None: "manuell", "auto": "auto; manuell"}.get(
+                        previous if isinstance(previous, str) else None, previous)
+                add_entry_id(network, target, entry["id"])
+                dropped.discard(target)
+            else:
+                routes, ids = new_edges.setdefault(target, (set(), []))
+                routes.add(route)
+                ids.append(entry["id"])
+                notes.append(f"{key} ins Netz aufgenommen")
+        if removed_from.get(data["abschnitt"]["id"]):
+            stats["umgelegt"] += 1
+            notes.append(f"löst {len(set(removed_from[data['abschnitt']['id']]))} automatisch zugeordnete Kanten ab")
+        stats["zugeordnet"] += 1
+        row_of(entry, data, "zugeordnet", "angewendet", "; ".join(notes))
+
+    if dropped:
+        network = network.drop(index=sorted(dropped))
+    if new_edges:
+        refs = sorted(new_edges)
+        edges = pd.DataFrame([detail_by_ref[ref]._asdict() for ref in refs])
+        edges = gpd.GeoDataFrame(edges, geometry="geometry", crs=CRS)
+        first_new = len(network)
+        network = append_detail_rows(network, edges, "detailnetz_manuell", "radfernweg_manuell",
+                                     [routes_text(new_edges[ref][0]) for ref in refs], "manuell")
+        for offset, ref in enumerate(refs):
+            for entry_id in new_edges[ref][1]:
+                add_entry_id(network, network.index[first_new + offset], entry_id)
+        stats["aufgenommen"] = len(refs)
+    return network, conflicts, report, stats
+
+
+def lage_metrics(old, new):
+    """Kennzahlen zwischen alter und neuer Geometrie einer Kante (Meter, Quadratmeter)."""
+    old_parts = list(old.geoms) if isinstance(old, MultiLineString) else [old]
+    new_parts = list(new.geoms) if isinstance(new, MultiLineString) else [new]
+    hausdorff = shift = area = 0.0
+    for a, b in zip(old_parts, new_parts):
+        if a.equals(b):
+            continue
+        hausdorff = max(hausdorff, a.hausdorff_distance(b))
+        if len(a.coords) == len(b.coords):
+            shift = max(shift, max(Point(p).distance(Point(q)) for p, q in zip(a.coords, b.coords)))
+        else:
+            shift = max(shift, a.hausdorff_distance(b))
+        ring = list(a.coords) + list(b.coords)[::-1]
+        if len(ring) >= 4:
+            polygon = shapely.make_valid(shapely.Polygon(ring))
+            area += sum(part.area for part in getattr(polygon, "geoms", [polygon]) if part.geom_type == "Polygon")
+    return {"hausdorff_m": round(hausdorff, 3), "max_verschiebung_m": round(shift, 3), "differenzflaeche_m2": round(area, 2),
+            "laenge_alt_m": round(old.length, 1), "laenge_neu_m": round(new.length, 1)}
+
+
+def customer_and_working_network(corrected, original_geometry):
+    """(Kundennetz, Arbeitsnetz): gleiche Kanten und Markierungen; das Kundennetz behält die Originallage und
+    kennt weder lage_korrigiert noch die Kennzahlen."""
+    working = corrected.copy()
+    working["laenge_m"] = working.geometry.length.round(1)
+    for column in LAGE_COLUMNS[1:]:
+        working[column] = None
+    for index in working.index[working["lage_korrigiert"] == "ja"]:
+        for column, value in lage_metrics(original_geometry.loc[index], working.geometry.loc[index]).items():
+            working.at[index, column] = value
+    for column in LAGE_COLUMNS[1:]:
+        working[column] = pd.to_numeric(working[column])
+    customer = corrected.set_geometry(original_geometry.reindex(corrected.index)).drop(
+        columns=[column for column in LAGE_COLUMNS if column in corrected.columns])
+    customer["laenge_m"] = customer.geometry.length.round(1)
+    return customer, working
+
+
+def order_columns(network):
+    first = [column for column in network.columns if column not in MARK_COLUMNS + LAGE_COLUMNS + ["geometry"]]
+    rest = [column for column in MARK_COLUMNS + LAGE_COLUMNS if column in network.columns]
+    return network[first + rest + ["geometry"]]
+
+
+def mapping_network(network):
+    """Kartierung: ohne bearbeitet_2025 = ja und ohne ausgeschlossene Kanten."""
+    result = network[network["ausgeschlossen"] != "ja"]
+    if "bearbeitet_2025" in result.columns:
+        result = result[result["bearbeitet_2025"] != "ja"]
+    return result
+
+
+def run(export_path, ren_path=AUTO_PATH, output_dir=OUTPUT_DIR, virtual_nodes_path=VIRTUAL_NODES_PATH,
+        new_edges_path=NEW_EDGES_PATH, detail_path=None, sections_path=SECTIONS_PATH):
+    """Der ganze Schritt 3. `export_path` None: ohne App-Einträge. Gibt Zähler und Konflikte zurück (für Tests)."""
+    if export_path is None:
+        export = {"gebiet": None, "exported_at": None, "entries": []}
+    else:
+        export = json.loads(Path(export_path).read_text(encoding="utf-8"))
     entries = export["entries"]
     logging.info(f"Export {export.get('gebiet')} vom {export.get('exported_at')}: {len(entries)} Einträge")
 
     network = gpd.read_file(ren_path, layer=ren.OUTPUT_LAYER)
     if network.crs is None or network.crs.to_epsg() != ren.DEFAULT_CRS:
         network = network.to_crs(CRS)
+    original_geometry = network.geometry.copy()
     corrected, conflicts, stats, parts = apply_corrections(network, entries)
     logging.info(f"Korrekturen: {stats['angewendet']} von {stats['edge_correction']} angewendet "
                  f"({stats['geometrie']} mit Geometrie, {stats['attribute']} mit Attributen), {stats['konflikte']} Konflikte")
 
     conflicts += check_nodes_on_edges(entries, corrected, parts)
 
+    # Zuordnungen: Detailnetzlinien nur laden, wenn es Zuordnungen gibt
+    assignments = [entry for entry in active_entries(entries, "section_assignment") if not entry["data"].get("geloescht")]
+    detail_lines = None
+    if assignments:
+        detail_lines, _ = load_detailnetz(path=detail_path, extra_columns=("strassenklasse1", "strassenklasse2"))
+        detail_lines["ref"] = line_refs(detail_lines["element_nr"])
+    corrected, assignment_conflicts, assignment_report, assignment_stats = apply_assignments(
+        corrected, parts, entries, read_sections(sections_path), detail_lines)
+    conflicts += assignment_conflicts
+    original_geometry = original_geometry.reindex(corrected.index)
+    for index in corrected.index[original_geometry.isna()]:  # von Hand aufgenommene Kanten: Lage = Lage im Netz
+        original_geometry.loc[index] = corrected.geometry.loc[index]
+    stats.update({f"zuordnung_{key}": value for key, value in assignment_stats.items()})
+
     nodes, node_conflicts = virtual_node_frame(entries, parts)
     new_edges, edge_conflicts = new_edge_frame(entries, load_base_element_nrs(network, detail_path))
     conflicts += node_conflicts + edge_conflicts
     stats["virtuelle_knoten"] = len(nodes)
     stats["neue_kanten"] = len(new_edges)
-    write_virtual_nodes(Path(virtual_nodes_path), nodes)
-    write_new_edges(Path(new_edges_path), new_edges)
-    logging.info(f"Virtuelle Knoten: {len(nodes)} nach {virtual_nodes_path}, neue Kanten: {len(new_edges)} nach {new_edges_path}")
+    if export_path is None:
+        # Ohne Export wüsste die Datei nichts von den virtuellen Knoten: lieber den letzten Stand lassen
+        logging.info("Ohne Export: virtuelle Knoten und gezeichnete Kanten bleiben, wie sie sind")
+    else:
+        write_virtual_nodes(Path(virtual_nodes_path), nodes)
+        write_new_edges(Path(new_edges_path), new_edges)
+        logging.info(f"Virtuelle Knoten: {len(nodes)} nach {virtual_nodes_path}, neue Kanten: {len(new_edges)} nach {new_edges_path}")
 
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    ren.write_network(corrected, output_dir / GESAMT_KORRIGIERT.name)
-    mapping = corrected[corrected["ausgeschlossen"] != "ja"]
-    if "bearbeitet_2025" in mapping.columns:
-        mapping = mapping[mapping["bearbeitet_2025"] != "ja"]
-    ren.write_network(mapping, output_dir / KARTIERUNG_KORRIGIERT.name)
-    logging.info(f"Kartierungs-Netz korrigiert: {len(mapping)} Kanten (ausgeschlossen: {(corrected['ausgeschlossen'] == 'ja').sum()})")
+    customer, working = customer_and_working_network(corrected, original_geometry)
+    for network_frame, path, mapping_path in ((order_columns(customer), NETZ_PATH, KARTIERUNG_PATH),
+                                              (order_columns(working), NETZ_KORRIGIERT_PATH, KARTIERUNG_KORRIGIERT_PATH)):
+        ren.write_network(network_frame, output_dir / path.name)
+        mapping = mapping_network(network_frame)
+        ren.write_network(mapping, output_dir / mapping_path.name)
+        logging.info(f"{path.name}: {len(network_frame)} Kanten, Kartierung {len(mapping)} Kanten "
+                     f"(ausgeschlossen: {(network_frame['ausgeschlossen'] == 'ja').sum()})")
 
     report = pd.DataFrame(conflicts, columns=CONFLICT_COLUMNS)
     report.to_csv(output_dir / CONFLICTS_PATH.name, index=False)
     logging.info(f"Konflikte: {len(report)}: {output_dir / CONFLICTS_PATH.name}")
+    pd.DataFrame(assignment_report, columns=ASSIGNMENT_COLUMNS).to_csv(output_dir / ASSIGNMENTS_PATH.name, index=False)
+    logging.info(f"Zuordnungen zu Abschnitten: {assignment_stats}: {output_dir / ASSIGNMENTS_PATH.name}")
     stats["konflikte_gesamt"] = len(report)
     return stats, conflicts
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("export", type=Path, help="Export „alle Einträge“ der App (JSON)")
-    parser.add_argument("--ren-netz", type=Path, default=GESAMT_ORIGINAL, help="Eingangsnetz (Standard: ren_netz_gesamt.gpkg)")
+    parser.add_argument("export", type=Path, nargs="?", help="Export „alle Einträge“ der App (JSON)")
+    parser.add_argument("--ohne-export", action="store_true",
+                        help="Ohne App-Einträge: nur die Ergebnisnetze aus Schritt 2 (Handarbeit fehlt dann); "
+                             "virtuelle Knoten und gezeichnete Kanten werden nicht neu geschrieben")
+    parser.add_argument("--ren-netz", type=Path, default=AUTO_PATH, help="Eingangsnetz (Standard: ren_netz_auto.gpkg)")
     args = parser.parse_args()
+    if bool(args.export) == args.ohne_export:
+        parser.error("Entweder den Export der App angeben oder --ohne-export")
     run(args.export, ren_path=args.ren_netz, detail_path=detailnetz_path())
 
 

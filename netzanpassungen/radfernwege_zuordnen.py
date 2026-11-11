@@ -507,7 +507,10 @@ def append_detail_rows(network, edges, quelle, grund_aufnahme, routes, routes_qu
     first = int(network["lfd_nr"].max()) + 1 if len(network) else 1
     added["lfd_nr"] = range(first, first + len(added))
     added = added[[column for column in added.columns if column in network.columns]]
-    return gpd.GeoDataFrame(pd.concat([network, added], ignore_index=True), geometry="geometry", crs=CRS)
+    # Die Indexmarken der bestehenden Zeilen bleiben, die neuen folgen dahinter
+    start = int(network.index.max()) + 1 if len(network) else 0
+    added.index = range(start, start + len(added))
+    return gpd.GeoDataFrame(pd.concat([network, added]), geometry="geometry", crs=CRS)
 
 
 def apply_assignment(roh, ren_lines, detail_lines, matches, sections):

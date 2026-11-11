@@ -131,9 +131,9 @@ def detailnetz_path():
     return dated[-1] if dated else ren.DETAILNETZ_PATH
 
 
-def load_detailnetz(extra_columns=()):
+def load_detailnetz(extra_columns=(), path=None):
     """Detailnetz als einzelne Linien in Dateireihenfolge (die Reihenfolge bestimmt die Schlüssel `#2`, ...)."""
-    path = detailnetz_path()
+    path = Path(path) if path else detailnetz_path()
     logging.info(f"Detailnetz: {path.name}")
     detail = gpd.read_file(path, columns=[
         "element_nr", "beginnt_bei_vp", "endet_bei_vp", "strassenname", "verkehrsebene", "okstra_id",
