@@ -24,10 +24,9 @@ Naming like the app (netzanpassungen/src/network/naming.ts in the repo knotenpun
 `V<A>-<B>` with the nearest official nodes A and B along the host edge in both directions, on
 collision `V<nearer>-2`, `-3`, ...; dead ends and junctions `V<nearest official>-<n>`.
 
-Numbering: an edge keeps its element_nr when it was not split, its element_nr names exactly its two
-end nodes, and it is the longest edge with that element_nr. All other edges (split pieces, separate
-parts of a multi-part edge, edges without element_nr, edges whose end nodes differ from their
-element_nr) get `<von>_<bis>.<nn>`, `nn` counting per unordered node pair on top of the highest
+Numbering: an existing element_nr is never changed unless it has to be. An edge keeps its element_nr
+when it was not split (even if an end is off its node) and it is the longest edge with that element_nr.
+All other edges (split pieces, extra separate parts of a multi-part edge, edges without element_nr) get `<von>_<bis>.<nn>`, `nn` counting per unordered node pair on top of the highest
 number used by REN+ and Detailnetz. Direction in the name is the direction of the line. The
 element_nr before the change stays in `ursprung_element_nr`.
 
@@ -384,7 +383,9 @@ def build_nodes_and_pieces(lines, official, nodes_2025, official_column):
 
 
 def number_pieces(lines, pieces, nodes, detail_element_nrs):
-    """element_nr per piece: kept where it is consistent and unique, otherwise `<von>_<bis>.<nn>`.
+    """element_nr per piece: an existing number is never changed unless it has to be (principle agreed with the
+    customer). Kept: edges that were not split, the longest one where a number occurs on several lines. New
+    `<von>_<bis>.<nn>`: edges without number, the pieces of split edges, the extra lines of a duplicated number.
     Returns (element_nr list, kept flags)."""
     names = lambda key: nodes[key]["name"]
     used = defaultdict(int)  # unordered pair -> highest nn
@@ -399,16 +400,16 @@ def number_pieces(lines, pieces, nodes, detail_element_nrs):
         if piece["split"]:
             continue
         element_nr = lines["element_nr"].iloc[piece["parent"]]
-        parsed = parse_element_nr(element_nr)
-        if parsed and pair_key(parsed[0], parsed[1]) == pair_key(names(piece["a"]), names(piece["b"])):
+        if isinstance(element_nr, str) and element_nr != "":
             current = keep.get(element_nr)
             if current is None or piece["length"] > pieces[current]["length"]:
                 keep[element_nr] = index
     kept = set(keep.values())
     for element_nr in keep:
         parsed = parse_element_nr(element_nr)
-        key = pair_key(parsed[0], parsed[1])
-        used[key] = max(used[key], parsed[2])
+        if parsed:
+            key = pair_key(parsed[0], parsed[1])
+            used[key] = max(used[key], parsed[2])
 
     result = [None] * len(pieces)
     for index, piece in enumerate(pieces):

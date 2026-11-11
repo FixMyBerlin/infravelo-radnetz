@@ -46,7 +46,7 @@ def build(extra_2025=True):
         (None, line((100, 100), (100, 1.5))),                        # T arm
         ("2_5.01", line((200, 0), (290, 0))),                        # C: dead end
         ("4_5.01", line((0, 300), (150, 300))),                      # D: meets D2 at (150,300)
-        ("4_5.01", line((150, 300), (300, 300))),                    # D2: same element_nr, other end loose
+        ("4_5.01", line((150, 300), (310, 300))),                    # D2: same element_nr, other end loose
         ("1_4.01", line((0, 0), (0, 300))),                          # E: consistent, kept
         ("3_4.01", line((100, 100), (0, 300), (50, 400))),           # F: end not at node 4
     ]
@@ -68,10 +68,11 @@ class AutoNodesTest(unittest.TestCase):
         an.assert_unique(result)
         self.assertEqual(result["element_nr"].isna().sum(), 0)
         self.assertEqual(result["element_nr"].nunique(), len(result))
-        # every number is built from the two end nodes
+        # every new number is built from the two end nodes; kept numbers are the existing ones
         for row in result.itertuples():
-            parsed = an.parse_element_nr(row.element_nr)
-            self.assertEqual(an.pair_key(parsed[0], parsed[1]), an.pair_key(row.von_knoten, row.bis_knoten), row.element_nr)
+            if row.element_nr_berechnet == "ja":
+                parsed = an.parse_element_nr(row.element_nr)
+                self.assertEqual(an.pair_key(parsed[0], parsed[1]), an.pair_key(row.von_knoten, row.bis_knoten), row.element_nr)
 
     def test_t_node_takes_the_name_of_the_2025_node_and_splits_the_host(self):
         result, virtual, report = self.run_it()
@@ -103,7 +104,7 @@ class AutoNodesTest(unittest.TestCase):
         autos = virtual[virtual["quelle"] == "auto"].set_index(ID)
         # C ends 10 m short of node 5: dead end named after the nearest official node (2)
         self.assertEqual(autos.loc["V2-1", "art"], "dead_end")
-        self.assertIn("2_V2-1.01", set(result["element_nr"]))
+        self.assertEqual(result[result["element_nr"] == "2_5.01"].iloc[0]["bis_knoten"], "V2-1")  # kept although off its node
         # D and D2 meet at (150,300) without a node: a junction, named after the nearest official node 4
         self.assertEqual(autos.loc["V4-1", "art"], "junction")
         self.assertEqual(report["auto_by_art"], {"dead_end": 3, "junction": 1, "on_edge": 1})
@@ -115,13 +116,17 @@ class AutoNodesTest(unittest.TestCase):
         kept = result[result["element_nr"] == "1_4.01"].iloc[0]
         self.assertTrue(pd.isna(kept["ursprung_element_nr"]))
         self.assertEqual(kept["element_nr_berechnet"], "nein")
-        # D and D2 carried 4_5.01 twice and neither names its end nodes: both are renumbered, none keeps the old number
-        self.assertNotIn("4_5.01", numbers)
-        # F ends 50 m beyond node 4: its element_nr names 3 and 4, its ends are 3 and a dead end
-        f = result[result["ursprung_element_nr"] == "3_4.01"].iloc[0]
+        # D and D2 carried 4_5.01 twice: the longer D2 keeps it, D gets its own number from its end nodes
+        self.assertEqual(numbers.count("4_5.01"), 1)
+        d2 = result[result["element_nr"] == "4_5.01"].iloc[0]
+        self.assertAlmostEqual(d2.geometry.length, 160.0, delta=0.1)
+        d = result[result["ursprung_element_nr"] == "4_5.01"].iloc[0]
+        self.assertEqual(d["element_nr_berechnet"], "ja")
+        # F ends 50 m beyond node 4 but was not split: it keeps 3_4.01
+        f = result[result["element_nr"] == "3_4.01"].iloc[0]
+        self.assertTrue(pd.isna(f["ursprung_element_nr"]))
         self.assertEqual(f["von_knoten"], "3")
         self.assertTrue(f["bis_knoten"].startswith("V"))
-        self.assertEqual(f["element_nr_berechnet"], "ja")
 
     def test_nn_counts_per_pair_above_detailnetz(self):
         result, virtual, report = self.run_it(extra_2025=False, detail=["1_V1-2.05", "3_4.01"])
@@ -132,7 +137,7 @@ class AutoNodesTest(unittest.TestCase):
                                  geometry=[line((0, 0), (200, 0)), line((0, 10), (60, 10), (0, 0))], crs=CRS)
         official = gpd.GeoDataFrame({ID: ["1", "2"]}, geometry=[point(0, 0), point(200, 0)], crs=CRS)
         result, _, _ = an.snap_and_number(lines, official, gpd.GeoDataFrame({ID: []}, geometry=[], crs=CRS), [], ID)
-        self.assertEqual(sorted(result["element_nr"]), ["1_2.01", "V1-1_1.01"])
+        self.assertEqual(sorted(result["element_nr"]), ["1_2.01", "V1-1_1.01"])  # the shorter part gets its own number
         self.assertEqual(result[result["element_nr"] == "1_2.01"].geometry.length.iloc[0], 200.0)
 
     def test_assert_unique_fails_loudly(self):
