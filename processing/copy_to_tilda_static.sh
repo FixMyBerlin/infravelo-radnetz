@@ -7,10 +7,12 @@ cd "$(dirname "$0")"
 # Script to copy processed GeoJSON files to tilda-static-data repository
 # and update the dataUpdatedNote field in meta.ts files
 #
-# Verwendung: ./copy_to_tilda_static.sh [--netz rvn|ren] [--use-tilda-date]
-#   --netz rvn  Radvorrangnetz (Standard) nach region-infravelo/infravelo-datensatz-{a,b,c}-fortlaufend
-#   --netz ren  REN+ nach region-infravelo/infravelo-ren-datensatz-{a,b,c}-fortlaufend
-#               (die Ordner mit meta.ts müssen in tilda-static-data angelegt sein)
+# Verwendung: ./copy_to_tilda_static.sh [--netz ren] [--use-tilda-date]
+#   Kopiert das REN+ nach region-infravelo/infravelo-ren-datensatz-{a,b,c}-fortlaufend
+#   (die Ordner mit meta.ts müssen in tilda-static-data angelegt sein).
+#   Das Radvorrangnetz des Projekts 2025 (infravelo-datensatz-{a,b,c}-fortlaufend) wird nicht
+#   mehr automatisch aktualisiert: Es ist das Ergebnis 2025, aus dem ren-network/unify_networks.py
+#   liest. Wenn überhaupt, wird es von Hand in tilda-static-data ersetzt.
 # Voraussetzung: scripts/convert_to_geojson.py mit demselben --netz
 
 # Color output
@@ -21,7 +23,7 @@ NC='\033[0m' # No Color
 
 # Default: use today's date
 USE_TILDA_DATE=false
-NETZ="rvn"
+NETZ="ren"
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -34,7 +36,7 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         *)
-            echo -e "${RED}Unbekanntes Argument: $1${NC} (erlaubt: --netz rvn|ren, --use-tilda-date)"
+            echo -e "${RED}Unbekanntes Argument: $1${NC} (erlaubt: --netz ren, --use-tilda-date)"
             exit 1
             ;;
     esac
@@ -44,10 +46,11 @@ if [[ "$NETZ" == "ren" ]]; then
     SUFFIX="_ren"
     DATASET_PREFIX="infravelo-ren-datensatz"
 elif [[ "$NETZ" == "rvn" ]]; then
-    SUFFIX=""
-    DATASET_PREFIX="infravelo-datensatz"
+    echo -e "${RED}Das Radvorrangnetz 2025 wird nicht mehr nach tilda-static-data kopiert.${NC}"
+    echo "infravelo-datensatz-{a,b,c}-fortlaufend ist das Ergebnis 2025; wenn überhaupt, von Hand ersetzen."
+    exit 1
 else
-    echo -e "${RED}Ungültiges Netz: $NETZ. Erlaubt sind: rvn, ren${NC}"
+    echo -e "${RED}Ungültiges Netz: $NETZ. Erlaubt ist: ren${NC}"
     exit 1
 fi
 

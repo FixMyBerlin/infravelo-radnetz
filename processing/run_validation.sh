@@ -15,7 +15,7 @@
 #   ./run_validation.sh [--netz rvn|ren] [--clip <region>]
 #
 # Argumente:
-#   --netz rvn|ren      Zielnetz: rvn = Radvorrangnetz (Standard), ren = REN+ (Dateien mit _ren)
+#   --netz rvn|ren      Zielnetz: ren = REN+ (Standard, Dateien mit _ren), rvn = Radvorrangnetz 2025
 #   --clip <region>     Regionaler Zuschnitt: neukoelln, norden oder sueden
 #                       (beide werden an validate_datensatz_b.py und validate_datensatz_c.py weitergegeben)
 #
@@ -38,7 +38,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Argumentverarbeitung
-NETZ="rvn"
+NETZ="ren"
 CLIP_REGION=""
 CLIP_ARG=""
 

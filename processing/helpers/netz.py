@@ -3,15 +3,15 @@
 netz.py
 Auswahl des Zielnetzes der Prozessierung (Parameter --netz).
 
-- rvn: Radvorrangnetz (data/Berlin Radvorrangsnetz.fgb), wie bisher
-- ren: REN+, also alle Netzquellen gemeinsam (ren-network/output/ren_netz_gesamt.gpkg)
+- ren: REN+, also alle Netzquellen gemeinsam (ren-network/output/ren_netz_gesamt.gpkg); Standard
+- rvn: Radvorrangnetz des Projekts 2025 (data/Berlin Radvorrangsnetz.fgb)
 
 Beide Netze werden an denselben virtuellen Knotenpunkten geteilt
 (data/Virtuelle-Knotenpunkte.gpkg). Alle Pfade sind relativ zu processing/.
 """
 
 NETZE = ("rvn", "ren")
-DEFAULT_NETZ = "rvn"
+DEFAULT_NETZ = "ren"
 
 # Eingangsnetz und Zwischendateien von process_radnetz.sh je Netz
 PFADE = {
@@ -55,4 +55,4 @@ def datei_zusatz(netz=DEFAULT_NETZ, clip=None):
 def add_netz_argument(parser):
     """Fügt --netz zu einem argparse-Parser hinzu."""
     parser.add_argument("--netz", choices=NETZE, default=DEFAULT_NETZ,
-                        help="Zielnetz: rvn (Radvorrangnetz) oder ren (REN+, alle Netzquellen gemeinsam). Standard: rvn")
+                        help="Zielnetz: rvn (Radvorrangnetz) oder ren (REN+, alle Netzquellen gemeinsam). Standard: ren")

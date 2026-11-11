@@ -10,16 +10,16 @@ set -euo pipefail
 # 3. Zielnetz mit Detailnetz anreichern
 #
 # Verwendung: ./process_radnetz.sh [--netz rvn|ren]
-#   --netz rvn  Radvorrangnetz (Standard), Ausgabe in output/rvn/
-#   --netz ren  REN+, alle Netzquellen gemeinsam (ren-network/output/ren_netz_gesamt.gpkg),
+#   --netz ren  REN+ (Standard), alle Netzquellen gemeinsam (ren-network/output/ren_netz_gesamt.gpkg),
 #               Ausgabe in output/ren/
+#   --netz rvn  Radvorrangnetz des Projekts 2025, Ausgabe in output/rvn/
 # =============================================================================
 
 # Alle Pfade sind relativ zu processing/
 cd "$(dirname "$0")"
 PYTHON="$(cd .. && pwd)/.venv/bin/python"
 
-NETZ="rvn"
+NETZ="ren"
 while [[ $# -gt 0 ]]; do
     case $1 in
         --netz)
