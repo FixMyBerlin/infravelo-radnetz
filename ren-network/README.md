@@ -1,6 +1,6 @@
 # REN+
 
-`merge_networks.py` ist **Schritt 1** der Pipeline (bisher `unify_networks.py`, Gesamtbild: [`docs/netz-ablauf.md`](https://github.com/FixMyBerlin/knotenpunkte/blob/main/docs/netz-ablauf.md) im Repo knotenpunkte): Es führt die Netzquellen zu einem einheitlichen **Rohnetz** für REN+ zusammen (`ren_netz_roh.gpkg`), reine Rohdaten ohne Bezug zur App Netzanpassungen oder zu den Radfernwegen. Danach folgen:
+`merge_networks.py` ist **Schritt 1** der Pipeline (bisher `unify_networks.py`, Gesamtbild: [`docs/network-pipeline.md`](../docs/network-pipeline.md)): Es führt die Netzquellen zu einem einheitlichen **Rohnetz** für REN+ zusammen (`ren_netz_roh.gpkg`), reine Rohdaten ohne Bezug zur App Netzanpassungen oder zu den Radfernwegen. Danach folgen:
 
 | Schritt | Skript | Ergebnis |
 |---|---|---|

@@ -1,6 +1,6 @@
 # Netzanpassungen
 
-Die Skripte hier gehören zur App „Netzanpassungen“ (Repo [knotenpunkte](https://github.com/FixMyBerlin/knotenpunkte), Ordner `netzanpassungen/`) und bilden **Schritt 2, die App-Eingabe und Schritt 3** der Pipeline. Gesamtbild und Regeln: [`docs/netz-ablauf.md`](https://github.com/FixMyBerlin/knotenpunkte/blob/main/docs/netz-ablauf.md) und `NETZKORREKTUR-PLAN.md` im Repo knotenpunkte.
+Die Skripte hier gehören zur App „Netzanpassungen“ (Repo [knotenpunkte](https://github.com/FixMyBerlin/knotenpunkte), Ordner `netzanpassungen/`) und bilden **Schritt 2, die App-Eingabe und Schritt 3** der Pipeline. Gesamtbild und Regeln: [`docs/network-pipeline.md`](../docs/network-pipeline.md), das gemeinsame Datenformat: `NETZKORREKTUR-PLAN.md` im Repo knotenpunkte.
 
 **Grundsatz:** Die Eingabe der App enthält nur Rohdaten und das, was automatisch berechnet wird. Alle Handarbeit (Zuordnungen der Radfernwege, neue Kanten, virtuelle Knoten, Lagekorrekturen, Richtung, Fahrbahn, Ausschluss) liegt ausschließlich in der KV-Datenbank der App und wird dort auf diese Eingabe gelegt. Deshalb darf die Eingabedatei jederzeit neu erzeugt und hochgeladen werden. Schritt 3 schreibt das Ergebnis nur nach `output/`, nie nach `data/`.
 
@@ -23,7 +23,7 @@ python netzanpassungen/test_apply_app_result.py
 
 ## Schritt 2: Radfernwege zuordnen
 
-`match_cycle_routes.py` liest `ren-network/output/ren_netz_roh.gpkg`, das Detailnetz und `data/netzquellen/touristisches_radnetz.gpkg` (GPS-Linien von 8 Routen). Eine Kante gehört zur Route, wenn mindestens **60 %** ihrer Länge höchstens **20 m** von der Route entfernt liegen **und** die Route dort **unter 45°** parallel läuft (Stützpunkte alle 5 m, Richtung über ±8 m). Der Winkel hält Querstraßen an Kreuzungen draußen. Kanten ab 40 % sind Kandidaten für die App. Hausdorff und das 95. Perzentil sind Kennzahlen je Abschnitt, kein Kriterium. Begründung der Werte: Abschnitt „Zuordnungsregel“ in `docs/netz-ablauf.md` (Repo knotenpunkte). Die Werte stehen oben in `match_cycle_routes.py`.
+`match_cycle_routes.py` liest `ren-network/output/ren_netz_roh.gpkg`, das Detailnetz und `data/netzquellen/touristisches_radnetz.gpkg` (GPS-Linien von 8 Routen). Eine Kante gehört zur Route, wenn mindestens **60 %** ihrer Länge höchstens **20 m** von der Route entfernt liegen **und** die Route dort **unter 45°** parallel läuft (Stützpunkte alle 5 m, Richtung über ±8 m). Der Winkel hält Querstraßen an Kreuzungen draußen. Kanten ab 40 % sind Kandidaten für die App. Hausdorff und das 95. Perzentil sind Kennzahlen je Abschnitt, kein Kriterium. Begründung der Werte: Abschnitt „Assignment rule“ in [`docs/network-pipeline.md`](../docs/network-pipeline.md). Die Werte stehen oben in `match_cycle_routes.py`.
 
 - REN+-Kanten bekommen `routen_fernradweg` und `routen_quelle = auto`.
 - Detailnetzkanten, die noch nicht im REN+ sind (z. B. Markgrafenstraße), kommen als Zeilen ins Netz (`quelle = detailnetz_radfernweg`, `grund_aufnahme = radfernweg`), wenn nicht schon eine zugeordnete REN+-Kante dieselbe Strecke trägt (höchstens die Hälfte der Strecke darf schon von REN+ abgedeckt sein). Autobahnen und Zubringer (`AUBA`/`AUTO`) bleiben draußen.

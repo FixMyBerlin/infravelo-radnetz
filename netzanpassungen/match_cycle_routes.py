@@ -7,8 +7,8 @@ Ordnet die Radfernwege (touristisches Radnetz, GPS-Linien) automatisch den Kante
 Rohnetzes und des Detailnetzes zu. Keine Handarbeit in diesem Schritt; was nicht eindeutig
 passt, wird in der App Netzanpassungen gelöst.
 
-Regel (Werte und Begründung: docs/netz-ablauf.md im Repo knotenpunkte, Abschnitt
-„Zuordnungsregel“): Eine Kante gehört zur Route, wenn ein großer Teil ihrer Länge höchstens
+Regel (Werte und Begründung: docs/network-pipeline.md, Abschnitt
+"Assignment rule"): Eine Kante gehört zur Route, wenn ein großer Teil ihrer Länge höchstens
 MATCH_DISTANCE_M von der Route entfernt liegt UND die Route dort ungefähr parallel läuft
 (Winkel unter MAX_ANGLE_DEG). Der Winkel verhindert, dass Querstraßen an Kreuzungen
 mitgenommen werden. Gemessen wird an Stützpunkten alle SAMPLE_STEP_M entlang der Kante.
@@ -69,7 +69,7 @@ from write_app_input import (  # noqa: E402
 CRS = f"EPSG:{ren.DEFAULT_CRS}"
 ROH_PATH = ren.OUTPUT_PATH
 
-# --- Zuordnungsregel (Begründung der Werte: docs/netz-ablauf.md, „Zuordnungsregel“) ---
+# --- Zuordnungsregel (Begründung der Werte: docs/network-pipeline.md, "Assignment rule") ---
 # Eine Kante gilt als nah, wenn ihr Stützpunkt höchstens so weit von der Route liegt
 MATCH_DISTANCE_M = 20.0
 # Anteil der Kantenlänge, der nah UND parallel sein muss; darunter ab CANDIDATE_SHARE: Kandidat

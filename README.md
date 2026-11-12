@@ -40,7 +40,7 @@ cd processing
 # Eingangsdaten aus dem gemeinsamen Google Drive (Link in .env, siehe .env.example; läuft auch zu Beginn von merge_networks.py)
 python data/download_inputs.py
 
-# REN+-Netz: Schritt 1 Rohnetz, Schritt 2 Radfernwege zuordnen, App-Eingabe, Schritt 3 App-Ergebnis (docs/netz-ablauf.md im Repo knotenpunkte)
+# REN+-Netz: Schritt 1 Rohnetz, Schritt 2 Radfernwege zuordnen, App-Eingabe, Schritt 3 App-Ergebnis (docs/network-pipeline.md)
 python ren-network/merge_networks.py
 python netzanpassungen/match_cycle_routes.py
 python netzanpassungen/write_app_input.py   # Datei für die App Netzanpassungen hochladen

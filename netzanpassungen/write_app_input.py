@@ -8,7 +8,7 @@ Ordner netzanpassungen/). In der App werden die Radfernwege den Kanten zugeordne
 und, wo es keine passende Kante gibt, neue Kanten gezeichnet.
 
 Die Eingabe enthält nur Rohdaten und das, was automatisch berechnet wird (Schritte 1 und 2,
-docs/netz-ablauf.md im Repo knotenpunkte). Handarbeit liegt ausschließlich in der KV-Datenbank
+docs/network-pipeline.md). Handarbeit liegt ausschließlich in der KV-Datenbank
 der App und wird dort auf diese Datei gelegt; deshalb darf die Datei jederzeit neu erzeugt
 und hochgeladen werden.
 
