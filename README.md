@@ -9,7 +9,7 @@ Jeder Ordner ist für eine Aufgabe zuständig und hat eine eigene README.
 - [`processing/`](./processing/README.md) – Pipeline TILDA → Radvorrangnetz: TILDA- und RVN-Aufbereitung, Map-Matching (Rust), Schutzstreifen-Konvertierung, Overrides, Aggregation, Validierung. Mit eigenen Outputs.
 - [`ren-network/`](./ren-network/README.md) – Einheitliches Netz für REN+ aus Radverkehrsnetz, Hauptstraßennetz und Radschnellverbindungen.
 - [`knotenpunkte/`](./knotenpunkte/README.md) – Knotenpunkt-Datensatz für alle REN+-Knoten, Abgleich mit der Lieferung 2025, Übergabe an Knotenpunkt-App und ML.
-- [`netzanpassungen/`](./netzanpassungen/README.md) – Eingabedatei für die App „Netzanpassungen“ (neue Kanten entlang der Radfernwege, virtuelle Knoten).
+- [`netzanpassungen/`](./netzanpassungen/README.md) – Eingabedatei für die App „Netzanpassungen“ (neue Kanten entlang der Radfernwege, virtuelle Knoten, Korrekturen am REN+) und Import ihres Exports.
 - [`befahrungsbedarf/`](./befahrungsbedarf/README.md) – OSM-Wege am REN+-Netz ohne aktuelle Fotos, die neu befahren werden müssen.
 - [`maproulette-centerline-tracks/`](./maproulette-centerline-tracks/README.md) – Aufgabenliste für MapRoulette: Radwege, die an der Straßen-Mittellinie erfasst sind.
 - [`mapping-zuteilung/`](./mapping-zuteilung/README.md) – Aufteilung des REN+-Netzes auf die Mapping-Accounts; die Zuteilung steht seit 2026-11-03 in `assignment.csv`, regelmäßig läuft nur das Update.
@@ -37,14 +37,19 @@ Für das Map-Matching wird zusätzlich Rust (`cargo`) benötigt.
 cd processing
 ./process_tilda_data.sh && ./process_radnetz.sh && ./execute_processing.sh && ./run_validation.sh
 
-# Eingangsdaten aus dem gemeinsamen Google Drive (Link in .env, siehe .env.example; läuft auch zu Beginn von unify_networks.py)
+# Eingangsdaten aus dem gemeinsamen Google Drive (Link in .env, siehe .env.example; läuft auch zu Beginn von merge_networks.py)
 python data/download_inputs.py
 
-# REN+-Netz erzeugen
-python ren-network/unify_networks.py
+# REN+-Netz: Schritt 1 Rohnetz, Schritt 2 Radfernwege zuordnen, App-Eingabe, Schritt 3 App-Ergebnis (docs/network-pipeline.md)
+python ren-network/merge_networks.py
+python netzanpassungen/match_cycle_routes.py
+python netzanpassungen/write_app_input.py   # Datei für die App Netzanpassungen hochladen
 
 # Bearbeitungsstand der Mapper nach TILDA (Zuteilung und Mittellinien-Radwege, Upload nach production)
 bearbeitungsstand/update.sh
+
+# Export der App Netzanpassungen einlesen: ren_netz.gpkg (Kunde), ren_netz_korrigiert.gpkg (Matching, Mapping) und die virtuellen Knoten (netzanpassungen/output/virtuelle_knoten.gpkg); vor processing/ und knotenpunkte/
+python netzanpassungen/apply_app_result.py <export-alle-eintraege>.json   # oder --ohne-export
 
 # Knotenpunkte erzeugen
 python knotenpunkte/download_lsa.py && python knotenpunkte/build_knotenpunkte.py

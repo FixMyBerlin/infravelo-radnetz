@@ -5,7 +5,7 @@ audit_double_edges.py
 --------------------------------------------------------------------
 Sucht im vereinheitlichten REN+-Netz Kanten, die denselben Weg doppelt
 abbilden, und schreibt sie als Prüfliste. Es wird nichts entfernt: Was
-wegfallen soll, kommt nach der Prüfung in ausschluss_element_nr.csv.
+wegfallen soll, wird nach der Prüfung in der App Netzanpassungen ausgeschlossen.
 
 Zwei Fälle:
 - ueberlappend: Zwei Kanten liegen aufeinander (mindestens OVERLAP_MIN_SHARE
@@ -17,7 +17,7 @@ Zwei Fälle:
   53490017_54490002.01 neben den Kanten des Radergänzungsnetzes.
 
 INPUT:
-- ren-network/output/ren_netz_gesamt.gpkg
+- ren-network/output/ren_netz_roh.gpkg
 
 OUTPUT:
 - ren-network/output/doppelte_kanten.csv      (eine Zeile je Fund)
@@ -33,7 +33,7 @@ import pandas as pd
 import shapely
 
 ROOT = Path(__file__).resolve().parent.parent
-NETWORK_PATH = ROOT / "ren-network" / "output" / "ren_netz_gesamt.gpkg"
+NETWORK_PATH = ROOT / "ren-network" / "output" / "ren_netz_roh.gpkg"
 CSV_PATH = NETWORK_PATH.with_name("doppelte_kanten.csv")
 GEOJSON_PATH = NETWORK_PATH.with_name("doppelte_kanten.geojson")
 

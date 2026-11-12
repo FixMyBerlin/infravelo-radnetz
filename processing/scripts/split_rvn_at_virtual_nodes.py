@@ -13,9 +13,14 @@ Mit --netz ren wird statt des Radvorrangsnetzes das REN+ geteilt. Dessen element
 heißt danach elem_nr, damit assign_element_nr_to_rvn.py sie wie die elem_nr des
 Radvorrangsnetzes behandelt (Vorrang vor der berechneten, außer an virtuellen Knotenpunkten).
 
+Mit --quelle wählt man das REN+-Eingangsnetz: die korrigierte Fassung aus der App
+Netzanpassungen (ren_netz_korrigiert.gpkg, Standard, wenn die Datei existiert)
+oder das Original. Im korrigierten Netz entfallen die Kanten mit ausgeschlossen = ja.
+
 INPUT:
-- data/Virtuelle-Knotenpunkte.gpkg (von assign_node_ids erstellt)
-- data/Berlin Radvorrangsnetz.fgb bzw. ../ren-network/output/ren_netz_gesamt.gpkg (--netz ren)
+- netzanpassungen/output/virtuelle_knoten.gpkg (apply_app_result.py, über helpers/virtuelle_knoten.py)
+- data/Berlin Radvorrangsnetz.fgb bzw. ../ren-network/output/ren_netz.gpkg oder
+  ren_netz_korrigiert.gpkg (--netz ren, siehe --quelle)
 - data/Berlin Straßenabschnitte Detailnetz.fgb
 
 OUTPUT (Pfade je Netz in helpers/netz.py):
@@ -33,7 +38,8 @@ from shapely.geometry import LineString, MultiLineString
 from shapely.ops import split
 
 sys.path.append(str(Path(__file__).parent.parent))
-from helpers.netz import PFADE, add_netz_argument  # noqa: E402
+from helpers.netz import PFADE, add_netz_argument, add_quelle_argument, waehle_quelle  # noqa: E402
+from helpers.virtuelle_knoten import virtual_nodes_path as find_virtual_nodes_path  # noqa: E402
 
 # Konfiguration
 DEFAULT_CRS = 25833  # EPSG:25833 (ETRS89 / UTM zone 33N) - aus helpers.globals
@@ -376,15 +382,15 @@ def split_rvn_at_virtual_nodes(rvn_gdf, virtual_nodes_gdf):
     return split_geodataframe_at_virtual_nodes(rvn_gdf, virtual_nodes_gdf, "RVN")
 
 
-def main(netz):
+def main(netz, quelle='auto'):
     """
     Hauptfunktion zur Aufteilung des Zielnetzes und Detailnetzes an virtuellen Knotenpunkten.
     """
     # Dateipfade definieren
     pfade = PFADE[netz]
-    virtual_nodes_path = 'data/Virtuelle-Knotenpunkte.gpkg'
+    virtual_nodes_path = str(find_virtual_nodes_path())
     
-    rvn_path = pfade['quelle']
+    rvn_path, korrigiert = waehle_quelle(netz, quelle)
     rvn_output_path = pfade['geteilt']
     
     detailnetz_path = 'data/Berlin Straßenabschnitte Detailnetz.fgb'
@@ -404,6 +410,10 @@ def main(netz):
         rvn_gdf = load_geodataframe(rvn_path, "Zielnetz", pfade['quelle_layer'])
         if netz == 'ren':
             rvn_gdf = rvn_gdf.rename(columns={'element_nr': 'elem_nr'})
+        if korrigiert and 'ausgeschlossen' in rvn_gdf.columns:
+            excluded = rvn_gdf['ausgeschlossen'] == 'ja'
+            logging.info(f"Ausgeschlossene Kanten (App Netzanpassungen) entfallen: {excluded.sum()}")
+            rvn_gdf = rvn_gdf.loc[~excluded].reset_index(drop=True)
         split_rvn = split_geodataframe_at_virtual_nodes(rvn_gdf, virtual_nodes_gdf, "RVN")
         
         logging.info(f"Speichere aufgeteiltes RVN nach {rvn_output_path}")
@@ -433,4 +443,6 @@ def main(netz):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Teilt Zielnetz und Detailnetz an virtuellen Knotenpunkten")
     add_netz_argument(parser)
-    main(parser.parse_args().netz)
+    add_quelle_argument(parser)
+    args = parser.parse_args()
+    main(args.netz, args.quelle)

@@ -1,38 +1,89 @@
 # Netzanpassungen
 
-`export_app_daten.py` schreibt die Eingabedatei der App „Netzanpassungen“ (Repo [knotenpunkte](https://github.com/FixMyBerlin/knotenpunkte), Ordner `netzanpassungen/`). In der App werden entlang der Radfernwege neue Kanten gezeichnet, wo weder das Detailnetz noch das REN+ eine Kante hat. Dabei entstehen virtuelle Knoten auf vorhandenen Kanten.
+Die Skripte hier gehören zur App „Netzanpassungen“ (Repo [knotenpunkte](https://github.com/FixMyBerlin/knotenpunkte), Ordner `netzanpassungen/`) und bilden **Schritt 2, die App-Eingabe und Schritt 3** der Pipeline. Gesamtbild und Regeln: [`docs/network-pipeline.md`](../docs/network-pipeline.md), das Format der App-Einträge (Korrekturen, Zuordnungen) und der Exporte: [README der App](https://github.com/FixMyBerlin/knotenpunkte/blob/main/netzanpassungen/README.md#storage) im Repo knotenpunkte.
+
+**Grundsatz:** Die Eingabe der App enthält nur Rohdaten und das, was automatisch berechnet wird. Alle Handarbeit (Zuordnungen der Radfernwege, neue Kanten, virtuelle Knoten, Lagekorrekturen, Richtung, Fahrbahn, Ausschluss) liegt ausschließlich in der KV-Datenbank der App und wird dort auf diese Eingabe gelegt. Deshalb darf die Eingabedatei jederzeit neu erzeugt und hochgeladen werden. Schritt 3 schreibt das Ergebnis nur nach `output/`, nie nach `data/`.
 
 ```bash
-python ren-network/unify_networks.py                  # nur bei geändertem REN+
-python netzanpassungen/export_app_daten.py            # ganz Berlin
-python netzanpassungen/export_app_daten.py --bezirk Neukölln
+python ren-network/merge_networks.py                  # Schritt 1 (nur bei geänderten Quellen): ren_netz_roh.gpkg
+python netzanpassungen/match_cycle_routes.py              # Schritt 2: ren_netz_auto.gpkg, radfernweg_abschnitte.gpkg
+python netzanpassungen/write_app_input.py             # App-Eingabe, ganz Berlin
+python netzanpassungen/write_app_input.py --bezirk Neukölln
+python netzanpassungen/apply_app_result.py <export-alle-eintraege>.json   # Schritt 3: Export der App zurück
+python netzanpassungen/apply_app_result.py --ohne-export                  # Schritt 3 ohne Handarbeit
+python netzanpassungen/test_match_cycle_routes.py         # Selbsttests
+python netzanpassungen/test_apply_app_result.py
 ```
 
-## Eingangsdaten
+| Skript (bisher) | Aufgabe |
+|---|---|
+| `match_cycle_routes.py` (neu) | Schritt 2: Radfernwege automatisch auf Rohnetz und Detailnetz legen, in Abschnitte zerlegen |
+| `write_app_input.py` (`export_app_daten.py`) | schreibt `netzanpassungen_<gebiet>.json` für die App |
+| `apply_app_result.py` (`import_app_export.py`) | Schritt 3: App-Export auf `ren_netz_auto.gpkg` anwenden, Ergebnisnetze und Kartierung schreiben |
+
+## Schritt 2: Radfernwege zuordnen
+
+`match_cycle_routes.py` liest `ren-network/output/ren_netz_roh.gpkg`, das Detailnetz und `data/netzquellen/touristisches_radnetz.gpkg` (GPS-Linien von 8 Routen). Eine Kante gehört zur Route, wenn mindestens **60 %** ihrer Länge höchstens **20 m** von der Route entfernt liegen **und** die Route dort **unter 45°** parallel läuft (Stützpunkte alle 5 m, Richtung über ±8 m). Der Winkel hält Querstraßen an Kreuzungen draußen. Kanten ab 40 % sind Kandidaten für die App. Hausdorff und das 95. Perzentil sind Kennzahlen je Abschnitt, kein Kriterium. Begründung der Werte: Abschnitt „Assignment rule“ in [`docs/network-pipeline.md`](../docs/network-pipeline.md). Die Werte stehen oben in `match_cycle_routes.py`.
+
+- REN+-Kanten bekommen `routen_fernradweg` und `routen_quelle = auto`.
+- Detailnetzkanten, die noch nicht im REN+ sind (z. B. Markgrafenstraße), kommen als Zeilen ins Netz (`quelle = detailnetz_radfernweg`, `grund_aufnahme = radfernweg`), wenn nicht schon eine zugeordnete REN+-Kante dieselbe Strecke trägt (höchstens die Hälfte der Strecke darf schon von REN+ abgedeckt sein). Autobahnen und Zubringer (`AUBA`/`AUTO`) bleiben draußen.
+- Jede Route wird **lückenlos** in Abschnitte zerlegt: `auf_ren` (auf REN+-Kanten), `aufgenommen` (auf aufgenommenen Detailnetzkanten) oder `luecke` (keine eindeutige Kante). Abschnitte enden, wo die Kantenmenge wechselt; Stücke unter 25 m gleichen Zustands, Lücken unter 20 m und Stücke unter 5 m gehen im Nachbarn auf. Die Id ist fest: `<route-slug>@<von_m>-<bis_m>` (ganze Meter entlang der Route), bei gleichen Eingangsdaten in jedem Lauf gleich.
+
+Ausgabe in `netzanpassungen/output/` (nicht versioniert):
+
+- `ren_netz_auto.gpkg` (Layer `ren_netz`): das Rohnetz plus `verkehrsrichtung` (B/R/G per `element_nr` aus dem Detailnetz), `quelle` (`radnetz` | `detailnetz_radfernweg`), `grund_aufnahme`, `routen_fernradweg` (mehrere Routen mit `; `), `routen_quelle` und die aufgenommenen Detailnetzkanten
+- `radfernweg_abschnitte.gpkg` (Layer `radfernweg_abschnitte`): `id`, `radfernweg`, `station_von_m`, `station_bis_m`, `laenge_m`, `zustand`, `kanten` und `kandidaten` (Kanten-Schlüssel der App mit `|` getrennt: `ren:<ref>`, `detailnetz:<ref>`), `hausdorff_m` und `p95_m` (Abstand vom Abschnitt zu seinen Kanten, einseitig; bei `luecke` leer)
+
+Der Schlüssel `ref` ist der der App (`line_refs` in `write_app_input.py`, entspricht `lineRefs` in `model.ts`): die `element_nr`, ab der zweiten Linie derselben Nummer `#2`, ...; gezählt wird in der Reihenfolge der Datei (REN+: `ren_netz_auto.gpkg`, Detailnetz: jüngste `.fgb`). Mit `--bezirk` kann sich diese Zählung für Nummern mit mehreren Linien gegenüber ganz Berlin verschieben.
+
+## App-Eingabe
+
+`write_app_input.py` schreibt die Eingabedatei der App. Die Datei enthält nur Rohdaten und das Ergebnis von Schritt 2. Der Kopf `ren_netz_stand` hält `datei`, `datum` und `sha256` von `ren_netz_auto.gpkg`, auf dem die Korrekturen der App beruhen.
 
 | Datei | Inhalt |
 |---|---|
-| `data/Berlin Straßenabschnitte Detailnetz*.fgb` | Detailnetzkanten, jüngster Stand wie in `unify_networks.py` |
-| `data/Virtuelle-Knotenpunkte.gpkg` | Virtuelle Knoten im Bestand |
-| `ren-network/output/ren_netz_kartierung.gpkg` | REN+-Kartierungs-Netz |
-| `data/netzquellen/touristisches_radnetz.gpkg` | Radfernwege (8 Routen), aus dem Drive (`data/download_inputs.py`, läuft zu Beginn des Exports) |
+| `data/Berlin Straßenabschnitte Detailnetz*.fgb` | Detailnetzkanten, jüngster Stand wie in `merge_networks.py` |
+| `netzanpassungen/output/ren_netz_auto.gpkg`, `radfernweg_abschnitte.gpkg` | Ergebnis von Schritt 2 |
+| `data/netzquellen/touristisches_radnetz.gpkg` | Radfernwege, aus dem Drive (`data/download_inputs.py`, läuft zu Beginn) |
 | `data/Berlin Bezirke.gpkg` | nur mit `--bezirk` |
 
-## Ausgabe
+Ausgabe in `netzanpassungen/output/`:
 
-In `netzanpassungen/output/` (nicht versioniert):
-
-- `netzanpassungen_<gebiet>.json`: Schema `netzanpassungen-app/v1`, WGS84 mit 7 Nachkommastellen, sechs FeatureCollections:
+- `netzanpassungen_<gebiet>.json`: Schema `netzanpassungen-app/v1`, WGS84 mit 7 Nachkommastellen, FeatureCollections:
   - `detailnetz`: `element_nr`, `beginnt_bei_vp`, `endet_bei_vp`, `strassenname`, `verkehrsebene`, `okstra_id`
-  - `knoten`: `id`, `ist_virtuell`. Die Detailnetzknoten kommen aus den Kantenenden: erster Punkt = `beginnt_bei_vp`, letzter = `endet_bei_vp`. Die Verbindungspunkte aus dem WFS haben keine Knoten-ID.
-  - `ren_netz`: `element_nr`, `von_knoten`, `bis_knoten` (als Text), `radverkehrsnetz`, `strassenname`. MultiLineStrings sind in Teile zerlegt.
+  - `knoten`: Detailnetzknoten (`id`, `ist_virtuell` = 0) aus den Kantenenden plus die virtuellen Knoten aus Schritt 1 (`ren-network/output/virtuelle_knoten_roh.gpkg`: die 53 von 2025 und die automatisch gesetzten, `ist_virtuell` = 1). In der App gezeichnete virtuelle Knoten stehen nicht in der Datei, sie leben in der KV-Datenbank.
+  - `ren_netz`: `element_nr`, `von_knoten`, `bis_knoten` (als Text), `radverkehrsnetz`, `strassenname`, `verkehrsrichtung` (B beide Richtungen, R nur in Linienrichtung, G nur dagegen), und die optionalen Felder `routen_fernradweg`, `routen_quelle` (`auto` oder leer), `quelle` (`radnetz` | `detailnetz_radfernweg`). MultiLineStrings sind in Teile zerlegt. Die Datei ist das ganze Netz aus Schritt 2, nicht nur die Kartierung.
   - `radfernwege`: `name`
-  - `luecken`: Abschnitte der Radfernwege, die weiter als 10 m von jeder Detailnetz- und REN+-Kante liegen, mindestens 20 m lang (Arbeitsliste der App)
-  - `knoten_vorschlaege` (Test): Punkte, an denen ein Radfernweg eine Detailnetzkante kreuzt, mindestens 15 m von jedem Knoten entfernt (Kreuzungen auf derselben Kante unter 10 m werden zusammengelegt). Felder: `element_nr`, `strassenname`, `verkehrsebene`, `routen`, `winkel_grad`, `steil` (Schnittwinkel ab 30°; flachere Kreuzungen sind meist nur ein Radfernweg, der neben der Kante herläuft), `luecke_nah` (Anfang oder Ende einer Lücke innerhalb 25 m), `station_m`, `abstand_ende_m`. Stand 2026-10-23: 592 Vorschläge, 107 steil, 81 davon mit Lücke in der Nähe.
-- `pruefliste_<gebiet>.csv`: Kantenenden, die mehr als 0,5 m neben ihrem Knoten liegen (Stand 2026-10-23: eins)
+  - `radfernweg_abschnitte`: die Abschnitte von Schritt 2 mit Listen in `kanten` und `kandidaten`
+  - `luecken`: die Abschnitte mit `zustand = luecke` ab 20 m Länge (Arbeitsliste der App), mit `id` (= Abschnitts-Id), `name` und `laenge_m`. Der Abgleich ist nicht mehr „10 m um irgendeine Kante“ (bisher `find_gaps`), sondern die Zuordnungsregel von Schritt 2.
+  - `knoten_vorschlaege` (Test): Punkte, an denen ein Radfernweg eine Detailnetzkante kreuzt, mindestens 15 m von jedem Knoten entfernt (Kreuzungen auf derselben Kante unter 10 m werden zusammengelegt). Felder: `element_nr`, `strassenname`, `verkehrsebene`, `routen`, `winkel_grad`, `steil` (Schnittwinkel ab 30°), `luecke_nah` (Anfang oder Ende einer Lücke innerhalb 25 m), `station_m`, `abstand_ende_m`.
+- `pruefliste_<gebiet>.csv`: Kantenenden, die mehr als 0,5 m neben ihrem Knoten liegen (Stand 2026-11-11: eins)
 
-Mit `--bezirk` bleiben Kanten, Knoten und Radfernwege bis 200 m über die Bezirksgrenze hinaus enthalten; die Lücken werden vorher für ganz Berlin berechnet.
+Mit `--bezirk` bleiben Kanten, Knoten und Radfernwege bis 200 m über die Bezirksgrenze hinaus enthalten; Zuordnung und Abschnitte werden vorher für ganz Berlin berechnet.
 
-## Noch offen
+## Schritt 3: App-Ergebnis anwenden
 
-Die Ergebnisse der App zurück in die Pipeline: virtuelle Knoten an `data/Virtuelle-Knotenpunkte.gpkg` anhängen, neue Kanten als Netzquelle in `unify_networks.py` (dort `von_knoten`/`bis_knoten` als Text, weil virtuelle IDs mit `V` beginnen), `routen_fernradweg` füllen.
+`apply_app_result.py` liest den Export „alle Einträge“ der App (`{gebiet, exported_at, entries}`; Einträge mit `geloescht` werden übersprungen) und `ren_netz_auto.gpkg` und schreibt:
+
+- `ren-network/output/ren_netz.gpkg` (**Kunde**: Originallage, mit Radfernwegen, Richtung, Fahrbahn, Ausschluss, alles markiert) und `ren_netz_korrigiert.gpkg` (**Matching und Mapping**: zusätzlich die Lagekorrekturen mit `lage_korrigiert` und Kennzahlen), jeweils mit `.geojson` und der Kartierung (`ren_netz_kartierung.gpkg`, `ren_netz_kartierung_korrigiert.gpkg`: ohne `bearbeitet_2025 = ja` und ohne ausgeschlossene Kanten). Spalten, Prüfungen (5 cm gegen `original_coordinates`, Wiederholung des Protokolls) und die Verwendung: [`ren-network/README.md`](../ren-network/README.md#ergebnisnetze-schritt-3).
+- `ren-network/output/korrekturen_konflikte.csv` und `radfernweg_zuordnungen.csv`
+- `netzanpassungen/output/virtuelle_knoten.gpkg`: all virtual nodes: the 2025 and automatic nodes of step 1 plus the non-deleted nodes of the export (`quelle` = `2025` | `auto` | `app`; `Knotenpunkt-ID`, `ist_virtuell`, `art`, `traeger_netz`, `traeger_element_nr`, `station_m`, `kommentar`, `eintrag_id`; EPSG:25833). A name already used by a step-1 node is a conflict for the app node. Das ist die Datei, die `processing/` und `knotenpunkte/` über `processing/helpers/virtuelle_knoten.py` lesen; fehlt sie, brechen sie mit dem Hinweis ab, erst Schritt 3 laufen zu lassen. Gezeichnete Kanten stehen in `netzanpassungen/output/touristische_kanten.gpkg` (Layer `touristische_kanten`: `entry_id`, `element_nr`, `von_knoten`, `bis_knoten` als Text, `quelle`, `strassenname`, `routen_fernradweg`, `kommentar`). Die `element_nr` zählt wie in der App (`von_bis.NN`, in der Reihenfolge des Zeichnens, nach Detailnetz und REN+); das Teilen an virtuellen Knoten übernimmt `processing/scripts/split_rvn_at_virtual_nodes.py`. Beide Dateien entstehen bei jedem Lauf neu aus dem Export (mit `--ohne-export` bleiben sie unangetastet).
+
+**Zuordnungen** (`section_assignment`, ein Eintrag je Abschnitt aus `radfernweg_abschnitte.gpkg`):
+
+- `zugeordnet`: die gewählten Kanten (`ren:<ref>` oder `detailnetz:<ref>`) bekommen die Route in `routen_fernradweg`; `routen_quelle` wird `manuell`, bei einer Kante mit automatischer Route `auto; manuell`. Eine Detailnetzkante, die noch nicht im Netz liegt, wird als Zeile aufgenommen (`quelle = detailnetz_manuell`, `grund_aufnahme = radfernweg_manuell`); liegt sie als REN+-Kante schon im Netz, bekommt nur diese die Route.
+- **Umlegung:** Ersetzt der Eintrag die automatische Zuordnung des Abschnitts (andere Kanten als die in `kanten` von Schritt 2), verlieren die bisherigen Kanten diese Route, außer eine andere nicht ersetzte Zuordnung derselben Route trägt sie noch. Eine in Schritt 2 aufgenommene Detailnetzkante, die danach keine Route mehr hat, entfällt.
+- `keine_aktion`: ändert nichts am Netz, steht nur in `radfernweg_zuordnungen.csv`.
+- Unbekannter Abschnitt, falscher Radfernweg zum Abschnitt, unbekannte Kante oder mehrere Einträge zum selben Abschnitt: Eintrag gilt nicht, Zeile in `korrekturen_konflikte.csv` (bei mehreren gilt der jüngste).
+
+Achtung Kartierung: Der TILDA-Datensatz `infravelo-ren-netz-kartierung` (Symlink in `tilda-static-data`, außerhalb dieses Repos) muss auf `ren_netz_kartierung_korrigiert.geojson` zeigen.
+
+**Gezeichnete Kanten und virtuelle Knoten in den Ergebnisnetzen.** `ren_netz.gpkg` und `ren_netz_korrigiert.gpkg` enthalten die in der App gezeichneten Kanten (`new_edge`, nicht gelöscht): `quelle = neu_gezeichnet`, `routen_fernradweg` aus dem Eintrag mit `routen_quelle = manuell`, `grund_aufnahme = radfernweg_manuell` bei Herkunft `radfernweg`, `eintrag_ids`, `element_nr` wie in der App (`<von>_<bis>.<nn>`, `nn` zählt je Knotenpaar nach den vorhandenen Kanten, in der Reihenfolge des Zeichnens). Die virtuellen Knoten des Exports teilen ihre Trägerkante (REN+-Kante oder gezeichnete Kante) wie `splitEdges` in der App: Jede Teilkante hat eine neue `element_nr` (zuerst die Teile gezeichneter Kanten) und `ursprung_element_nr`, die Ursprungszeile entfällt. Die Station ergibt sich aus der Lage des Knotens auf der Kante (im Arbeitsnetz auf der korrigierten Linie, im Kundennetz beim gleichen Anteil der Länge); ein Knoten mehr als 1 m neben seiner Kante oder an einer Kante mit mehreren Linien oder ohne Knoten teilt nicht (Hinweis in `korrekturen_konflikte.csv`). `von_knoten`/`bis_knoten` sind in diesen Netzen Text, weil virtuelle IDs mit `V` beginnen. `processing/scripts/split_rvn_at_virtual_nodes.py` teilt weiterhin Detailnetz und Radvorrangsnetz geometrisch (ohne Nummern) und lässt bereits geteilte REN+-Kanten wegen der 1-m-Toleranz an den Enden unberührt.
+
+## Altlisten
+
+[`one_time_import/`](./one_time_import/README.md) enthält die Dateien für die einmalige Übernahme in die App. `altlisten_korrekturen.json` enthält die Altlisten als `edge_correction`-Einträge (`von_nutzer: "Altliste"`) zum Einspielen in der App („Korrekturen einspielen“): `verkehrsrichtung` aus `rvn_korrekturen.csv` und `opposite_edge_overwrite_element_nr.txt` (Modus `remove`, nur Kanten mit Detailnetz-`verkehrsrichtung` B, neu R) sowie die Ausschlüsse aus `ausschluss_element_nr.csv`. Die drei Listen und der Code, der sie las, sind entfernt (darunter `processing/helpers/override_edges.py`, `processing/validation/analyse_einrichtungsfahrbahnen.py` und `processing/qgis/erzeuge_einrichtungsfahrbahnen_projekt.py`); erzeugt hat die Datei ein einmaliges Skript, das nicht im Repo liegt (Stand 2026-11-10).
+
+## QGIS-Stil
+
+`netz-aenderungen.qml` stylt den GeoJSON-Export `netz-aenderungen` der App nach `darstellung`: `alt` grau gestrichelt, `neu` blau, `differenz` rot halbtransparent, `vektor` roter Pfeil von alt nach neu mit `abstand_m` als Beschriftung, `attribut` orange, `gruppe` grün dünn gestrichelt. Der Export enthält Linien und Flächen; QGIS legt dafür zwei Layer an, auf beide den Stil laden (Layer-Eigenschaften, Symbolisierung, Stil, Stil laden).

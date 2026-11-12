@@ -12,12 +12,12 @@ region-berlin/radverkehrsnetz-vorrangnetz-mask), dort in QGIS erstellt:
 Puffer 25 m, Differenz zu Berlin, vereinfachen.
 
 INPUT:
-- ren-network/output/ren_netz_gesamt.gpkg
+- ren-network/output/ren_netz.gpkg
 - ren-network/output/ren_netz_kartierung.gpkg
 - data/Berlin Bezirke.gpkg
 
 OUTPUT (WGS84, je ein MultiPolygon):
-- ren-network/output/ren_netz_gesamt_maske.geojson
+- ren-network/output/ren_netz_maske.geojson
 - ren-network/output/ren_netz_kartierung_maske.geojson
 """
 
@@ -31,7 +31,7 @@ OUTPUT_DIR = ROOT / "ren-network" / "output"
 DISTRICTS_PATH = ROOT / "data" / "Berlin Bezirke.gpkg"
 # Datei des Netzes (ohne Endung) und Name der Maske
 NETWORKS = {
-    "ren_netz_gesamt": "Berlin ohne REN+-Gesamtnetz",
+    "ren_netz": "Berlin ohne REN+-Gesamtnetz",
     "ren_netz_kartierung": "Berlin ohne REN+-Kartierungsnetz",
 }
 

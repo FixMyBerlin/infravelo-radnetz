@@ -20,10 +20,10 @@ und LSA_KP (Open Data und OSM) abgeleitet. Nur diese
 Knoten gehen an die Knotenpunkt-App und die ML-Vorhersage.
 
 INPUT:
-- ren-network/output/ren_netz_gesamt.gpkg (Layer: ren_netz)
+- ren-network/output/ren_netz.gpkg (Layer: ren_netz)
 - data/Berlin Verbindungspunkte Detailnetz.fgb
 - data/Berlin Straßenabschnitte Detailnetz.fgb (jüngster Stand)
-- data/Virtuelle-Knotenpunkte.gpkg (manuell gepflegt)
+- netzanpassungen/output/virtuelle_knoten.gpkg (apply_app_result.py, aus der App Netzanpassungen)
 - data/Berlin Bezirke.gpkg
 - data/netzquellen/knotenpunkte_2025.geojson.gz
   (tilda-static-data: region-infravelo/infravelo-datensatz-knoten-fortlaufend)
@@ -48,14 +48,14 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(ROOT / "ren-network"))
 
-import unify_networks as ren  # noqa: E402
+import merge_networks as ren  # noqa: E402
+from helpers.virtuelle_knoten import virtual_nodes_path  # noqa: E402
 from assign_node_ids import assign_node_ids_to_points  # noqa: E402
 
 CRS = f"EPSG:{ren.DEFAULT_CRS}"
 NODE_ID = ren.NODE_ID_COLUMN  # "Knotenpunkt‐ID" mit U+2010 wie in der Lieferung 2025
 
-NETWORK_PATH = ren.OUTPUT_PATH
-VIRTUAL_NODES_PATH = ROOT / "data" / "Virtuelle-Knotenpunkte.gpkg"
+NETWORK_PATH = ren.OUTPUT_DIR / "ren_netz.gpkg"  # Schritt 3 (netzanpassungen/apply_app_result.py)
 NODES_2025_PATH = ROOT / "data" / "netzquellen" / "knotenpunkte_2025.geojson.gz"
 LSA_PATH = ROOT / "data" / "netzquellen" / "lsa.gpkg"
 OSM_SIGNALS_PATH = ROOT / "data" / "netzquellen" / "osm_ampeln.gpkg"
@@ -126,7 +126,8 @@ def id_text(value):
 
 def load_network():
     if not NETWORK_PATH.exists():
-        raise SystemExit(f"Fehlt: {NETWORK_PATH}\nErst ren-network/unify_networks.py ausführen.")
+        raise SystemExit(f"Fehlt: {NETWORK_PATH}\nErst ren-network/merge_networks.py, netzanpassungen/match_cycle_routes.py und \n"
+                         "netzanpassungen/apply_app_result.py (bzw. mit --ohne-export) ausführen.")
     network = gpd.read_file(NETWORK_PATH, layer=ren.OUTPUT_LAYER).to_crs(CRS)
     logging.info(f"REN+: {len(network)} Kanten")
     return network
@@ -257,9 +258,9 @@ def ren_nodes(network, detail):
 
 
 def virtual_nodes(network):
-    """Manuell gepflegte virtuelle Knoten; anliegende Kanten über den Abstand."""
-    virtual = gpd.read_file(VIRTUAL_NODES_PATH).to_crs(CRS)
-    # Die manuelle Datei schreibt die ID mit normalem Bindestrich
+    """Virtuelle Knoten aus der App Netzanpassungen; anliegende Kanten über den Abstand."""
+    virtual = gpd.read_file(virtual_nodes_path()).to_crs(CRS)
+    # Die Datei aus der App schreibt die ID mit normalem Bindestrich
     virtual = virtual.rename(columns={"Knotenpunkt-ID": NODE_ID})
     virtual[NODE_ID] = virtual[NODE_ID].map(id_text)
     virtual = virtual[virtual[NODE_ID].notna()].reset_index(drop=True)

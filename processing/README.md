@@ -48,7 +48,9 @@ cd processing
 
 ### Zielnetz (`--netz`)
 
-Die Prozessierung läuft auf dem REN+, also allen Netzquellen gemeinsam (`../ren-network/output/ren_netz_gesamt.gpkg`), oder auf dem Radvorrangnetz des Projekts 2025. `process_radnetz.sh`, `execute_processing.sh`, `run_validation.sh` und die Python-Skripte nehmen dafür `--netz rvn|ren`, Standard ist `ren`. Das Rust-Matching ruft `execute_processing.sh` mit `--netz` auf; direkt aufgerufen gilt ohne `--netz` `[paths]` aus der Konfiguration. Beide Netze werden an denselben virtuellen Knotenpunkten geteilt (`data/Virtuelle-Knotenpunkte.gpkg`).
+Die Prozessierung läuft auf dem REN+, also allen Netzquellen gemeinsam (`../ren-network/output/ren_netz.gpkg`), oder auf dem Radvorrangnetz des Projekts 2025. `process_radnetz.sh`, `execute_processing.sh`, `run_validation.sh` und die Python-Skripte nehmen dafür `--netz rvn|ren`, Standard ist `ren`. Das Rust-Matching ruft `execute_processing.sh` mit `--netz` auf; direkt aufgerufen gilt ohne `--netz` `[paths]` aus der Konfiguration. Beide Netze werden an denselben virtuellen Knotenpunkten geteilt. Diese leben in der App Netzanpassungen; `netzanpassungen/apply_app_result.py` schreibt sie nach `netzanpassungen/output/virtuelle_knoten.gpkg`, ohne diese Datei brechen `process_radnetz.sh`, `convert_knotenpunkte.py`, die Validierung und `knotenpunkte/build_knotenpunkte.py` mit einem Hinweis ab (Pfad zentral in `helpers/virtuelle_knoten.py`).
+
+Korrekturen aus der App Netzanpassungen (`netzanpassungen/apply_app_result.py`) gelten nur fürs REN+: Mit `--netz ren` nimmt `process_radnetz.sh` standardmäßig `ren_netz_korrigiert.gpkg` (`--quelle original` erzwingt das Original). **Für `--netz rvn` gibt es keine Richtungskorrekturen mehr.** Die 18 Korrekturen von `verkehrsrichtung`, die bis 2026-11-10 in `data/rvn_korrekturen.csv` standen und auch den RVN-Pfad betrafen, leben jetzt als Korrekturen im korrigierten REN+; das Radvorrangnetz hat keine Spalte `verkehrsrichtung` und der RVN-Pfad ist der Vorläufer, dessen Daten im REN+ enthalten sind. Gelöscht sind außerdem `helpers/override_edges.py`, `validation/analyse_einrichtungsfahrbahnen.py` und `qgis/erzeuge_einrichtungsfahrbahnen_projekt.py`.
 
 ```sh
 ../.venv/bin/python scripts/prepare_tilda_routing.py   # TILDA-Routing ohne RVN-Zuschnitt (Standard ren)
@@ -59,11 +61,11 @@ Die Prozessierung läuft auf dem REN+, also allen Netzquellen gemeinsam (`../ren
 ./copy_to_tilda_static.sh --netz ren   # braucht die Ordner infravelo-ren-datensatz-{a,b,c}-fortlaufend in tilda-static-data
 ```
 
-Das Radvorrangnetz 2025 wird nicht mehr aktualisiert. `copy_to_tilda_static.sh` kopiert nur noch das REN+ und lehnt `--netz rvn` ab: `infravelo-datensatz-{a,b,c}-fortlaufend` in tilda-static-data ist das Ergebnis 2025, aus dem `ren-network/unify_networks.py` `bearbeitet_2025` berechnet. Wenn überhaupt, werden diese Daten von Hand in tilda-static-data ersetzt.
+Das Radvorrangnetz 2025 wird nicht mehr aktualisiert. `copy_to_tilda_static.sh` kopiert nur noch das REN+ und lehnt `--netz rvn` ab: `infravelo-datensatz-{a,b,c}-fortlaufend` in tilda-static-data ist das Ergebnis 2025, aus dem `ren-network/merge_networks.py` `bearbeitet_2025` berechnet. Wenn überhaupt, werden diese Daten von Hand in tilda-static-data ersetzt.
 
 | | `rvn` | `ren` |
 |---|---|---|
-| Eingangsnetz | `data/Berlin Radvorrangsnetz.fgb` | `../ren-network/output/ren_netz_gesamt.gpkg` |
+| Eingangsnetz | `data/Berlin Radvorrangsnetz.fgb` | `../ren-network/output/ren_netz.gpkg` |
 | TILDA-Routing | `output/TILDA-routing/` (auf den RVN-Puffer zugeschnitten) | `output/TILDA-routing-ren/` (ganz Berlin) |
 | Netz für das Matching | `output/rvn/vorrangnetz_details_combined_rvn.fgb` | `output/ren/ren_netz_details_combined.fgb` |
 | Matching | `output/map-matching/` | `output/map-matching-ren/` |
@@ -114,4 +116,3 @@ Prüft virtuelle Knotenpunkte, TILDA-Knotenpunkte, Datensatz B und C sowie Über
 - `district_assignment.py`: Bezirkszuweisung
 - `clipping.py`: Regionale Zuschnitte
 - `convert_*.py`: Schutzstreifen-Konvertierungslogik
-- `override_edges.py`: Override-Verarbeitung

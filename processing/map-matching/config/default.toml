@@ -15,7 +15,6 @@ reference_secondary = "output/reference-legacy/aggregated_rvn_final.gpkg"
 # Nur für die Auswertung (welche Abweichungen gehen auf manuelle Eingriffe zurück).
 # Diese Listen werden im Matching NICHT verwendet.
 manual_way_lists = ["data/exclude_ways.txt", "data/include_ways.txt"]
-manual_element_lists = ["data/opposite_edge_overwrite_element_nr.txt"]
 
 # TILDA-Routing-Netz, vorverarbeitet mit scripts/prepare_tilda_routing.py
 # (Join, Teilung an Knoten, nur Hauptnetz). Siehe docs/tilda-routing.md.
@@ -45,7 +44,7 @@ sueden = "data/Berlin_Gebiet_Süden.gpkg"
 # Radvorrangnetz: wie [paths]
 [netze.rvn]
 
-# REN+: alle Netzquellen gemeinsam (ren-network/output/ren_netz_gesamt.gpkg),
+# REN+: alle Netzquellen gemeinsam (ren-network/output/ren_netz.gpkg),
 # TILDA-Routing ohne Zuschnitt auf den RVN-Puffer
 [netze.ren]
 network = "output/ren/ren_netz_details_combined.fgb"

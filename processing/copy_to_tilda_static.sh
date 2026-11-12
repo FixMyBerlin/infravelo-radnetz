@@ -11,7 +11,7 @@ cd "$(dirname "$0")"
 #   Kopiert das REN+ nach region-infravelo/infravelo-ren-datensatz-{a,b,c}-fortlaufend
 #   (die Ordner mit meta.ts müssen in tilda-static-data angelegt sein).
 #   Das Radvorrangnetz des Projekts 2025 (infravelo-datensatz-{a,b,c}-fortlaufend) wird nicht
-#   mehr automatisch aktualisiert: Es ist das Ergebnis 2025, aus dem ren-network/unify_networks.py
+#   mehr automatisch aktualisiert: Es ist das Ergebnis 2025, aus dem ren-network/merge_networks.py
 #   liest. Wenn überhaupt, wird es von Hand in tilda-static-data ersetzt.
 # Voraussetzung: scripts/convert_to_geojson.py mit demselben --netz
 

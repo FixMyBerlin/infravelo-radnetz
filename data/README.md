@@ -12,7 +12,7 @@ Diese Dateien werden nicht von Skripten generiert und müssen manuell aktualisie
 - `Berlin_Gebiet_Süden.gpkg` – Gebietsgrenze für die Verarbeitung der südlichen Bezirke von Berlin.
 - `Bezirk Neukölln Grenze.fgb` – Bezirksgrenze von Neukölln für gezielte Testverarbeitung.
 - `Verbindungspunkte im RVN.gpkg` – Verbindungspunkte aus dem Radvorrangnetz/Detailnetz zur Netzwerkanalyse.
-- `Virtuelle-Knotenpunkte.gpkg` – Manuell erstellte Knotenpunkte zur Ergänzung der Netzwerktopologie. Wird für neue virtuelle Knoten im [Knotenpunkt-Datensatz](../knotenpunkte/README.md) ergänzt.
+- `virtuelle_knoten_2025.gpkg` – die 53 virtuellen Knoten der Lieferung 2025 (Layer `Virtuelle-Knotenpunkte`, Spalte `Knotenpunkt-ID`). Feste Namen, nur lesen: Schritt 1 (`ren-network/merge_networks.py`) teilt die REN+-Kanten an ihnen und nummeriert von ihnen aus. Die übrigen virtuellen Knoten (automatisch gesetzte und in der App gezeichnete) stehen am Ende von `netzanpassungen/apply_app_result.py` zusammen mit diesen in `netzanpassungen/output/virtuelle_knoten.gpkg`; die Pipeline liest sie von dort.
 - `OSM-highway=bus_stop.geojson` – Bushaltestellen aus OpenStreetMap für Konvertierungen von Schutzstreifen.
 - `Stop-Positions-Bus-OSM.fgb` – Bushaltestellen-Positionen aus OpenStreetMap als FlatGeobuf.
 
@@ -36,8 +36,6 @@ Wir verwenden manuell gepflegte Listen von OpenStreetMap-Way-IDs, die das endgü
 
 * `exclude_ways.txt` enthält in jeder Zeile eine OSM-Way-ID, die aus dem finalen Datensatz **entfernt** werden soll.
 * `include_ways.txt` enthält in jeder Zeile eine OSM-Way-ID, die dem finalen Datensatz **hinzugefügt** werden soll.
-* `rvn_korrekturen.csv` korrigiert Attribute einzelner RVN-Kanten (bisher `verkehrsrichtung`), wo das Detailnetz falsch oder uneinheitlich ist, z. B. Einbahn-Ringe um Plätze. `processing/scripts/enrich_rvn_with_detailnetz.py` wendet sie an. Format und Begründungen stehen in der Datei, Hintergrund in `processing/map-matching/docs/einrichtungsfahrbahnen.md`.
-* `opposite_edge_overwrite_element_nr.txt` enthält in jeder Zeile eine `element_nr`, für die die entgegengesetzte Richtung (ri=1) aus dem finalen Datensatz **entfernt** werden soll. Das ist nützlich, wenn der Snapping-Prozess fälschlicherweise Infrastruktur in beide Richtungen zuordnet, in der Realität aber nur die Vorwärtsrichtung (ri=0) existiert.
 - `override_ways.gpkg` – GeoPackage mit räumlichen Override-Geometrien zur gezielten Überschreibung von Attributen nach dem Snapping.
 - `override_ways.txt` – Textdatei mit Text-Overrides im Format `tilda_id|element_nr|ri|attributes_json` für attributbasierte Überschreibungen.
 
@@ -49,7 +47,7 @@ Einige Eingangsdaten liegen nicht im Repo und werden auch von keinem Skript gela
 .venv/bin/python data/download_inputs.py
 ```
 
-- `ren-network/unify_networks.py` und `netzanpassungen/export_app_daten.py` rufen das zu Beginn jedes Laufs auf. Fehlt der Link, bricht der Lauf ab.
+- `ren-network/merge_networks.py` und `netzanpassungen/write_app_input.py` rufen das zu Beginn jedes Laufs auf. Fehlt der Link, bricht der Lauf ab.
 - Der Ordner im Drive ist flach. `INPUT_FILES` im Skript ordnet jedem Dateinamen dort seinen Pfad im Repo zu:
 
 | Datei im Drive | Pfad im Repo |

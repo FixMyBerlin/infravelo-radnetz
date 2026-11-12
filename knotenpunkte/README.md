@@ -3,7 +3,9 @@
 `build_knotenpunkte.py` erstellt den Knotenpunkt-Datensatz für alle Netzknoten des [REN+-Netzes](../ren-network/README.md). Knoten aus der Lieferung 2025 (Radvorrangnetz) bleiben enthalten, samt ihren Bewertungen, und sind mit `bearbeitet_2025 = ja` markiert. Alle anderen Knoten gehen zur Bewertung an die [Knotenpunkt-App](https://github.com/FixMyBerlin/knotenpunkte) und an [infravelo-ml-knotenpunkte](https://github.com/FixMyBerlin/infravelo-ml-knotenpunkte).
 
 ```bash
-python ren-network/unify_networks.py      # REN+-Netz
+python ren-network/merge_networks.py      # REN+-Netz, Schritt 1
+python netzanpassungen/match_cycle_routes.py   # Schritt 2
+python netzanpassungen/apply_app_result.py --ohne-export   # Schritt 3 (oder mit dem Export der App): ren_netz.gpkg
 python knotenpunkte/download_lsa.py       # Lichtsignalanlagen (einmalig, --neu lädt erneut)
 python knotenpunkte/build_knotenpunkte.py
 ```
@@ -12,7 +14,7 @@ python knotenpunkte/build_knotenpunkte.py
 
 ```bash
 # 1. Knoten bauen (infravelo-radnetz)
-python ren-network/unify_networks.py                  # nur bei geändertem REN+
+python ren-network/merge_networks.py                  # nur bei geändertem REN+ (danach Schritte 2 und 3, siehe oben)
 python knotenpunkte/build_knotenpunkte.py
 
 # 2. ML-Vorschläge auf Luftbild 2026 (infravelo-ml-knotenpunkte)
@@ -31,9 +33,9 @@ python knotenpunkte/merge_bewertungen.py ratings-<bereich>-<datum>.geojson
 
 | Datei | Inhalt |
 |---|---|
-| `ren-network/output/ren_netz_gesamt.gpkg` | REN+-Kanten mit `von_knoten`, `bis_knoten`, `radverkehrsnetz`, `hauptverkehrsstrasse` |
+| `ren-network/output/ren_netz.gpkg` | REN+-Kanten mit `von_knoten`, `bis_knoten`, `radverkehrsnetz`, `hauptverkehrsstrasse` |
 | `data/Berlin Verbindungspunkte Detailnetz.fgb`, `data/Berlin Straßenabschnitte Detailnetz*.fgb` | Lage und `okstra_id` der Knoten |
-| `data/Virtuelle-Knotenpunkte.gpkg` | Manuell gepflegte virtuelle Knoten (`Knotenpunkt-ID`, Punkt) |
+| `netzanpassungen/output/virtuelle_knoten.gpkg` | Virtuelle Knoten aus der App Netzanpassungen (`Knotenpunkt-ID`, Punkt; `netzanpassungen/apply_app_result.py` schreibt sie, ohne die Datei bricht das Skript ab) |
 | `data/Berlin Bezirke.gpkg` | Bezirksnummer |
 | `data/netzquellen/knotenpunkte_2025.geojson.gz` | Lieferung 2025, gzip von `knotenpunkte_mit_id_und_bezirken.geojson` aus `tilda-static-data` (`region-infravelo/infravelo-datensatz-knoten-fortlaufend`) |
 | `data/netzquellen/lsa.gpkg`, `osm_ampeln.gpkg` | Ampeln aus Open Data (WFS `lsa`) und OSM, von `download_lsa.py` |
@@ -78,7 +80,7 @@ In `knotenpunkte/output/`:
 
 ## Virtuelle und fehlende Knoten
 
-Kanten ohne `element_nr` haben noch keine Knoten (siehe Prüfliste). Deckt eine Netzquelle nur einen Teil eines Detailnetz-Elements ab, liegt der Knoten laut `element_nr` abseits des Netzes. Die Prüfliste meldet das mit „Netz erreicht den Knoten nicht“. Die Verzweigung liegt dann mitten auf dem Element. Neue virtuelle Knoten und Knoten an diesen Kanten werden in `data/Virtuelle-Knotenpunkte.gpkg` ergänzt, mit eindeutiger `Knotenpunkt-ID` (`V…`). Danach `build_knotenpunkte.py` erneut ausführen.
+Kanten ohne `element_nr` haben noch keine Knoten (siehe Prüfliste). Deckt eine Netzquelle nur einen Teil eines Detailnetz-Elements ab, liegt der Knoten laut `element_nr` abseits des Netzes. Die Prüfliste meldet das mit „Netz erreicht den Knoten nicht“. Die Verzweigung liegt dann mitten auf dem Element. Virtuelle Knoten kommen aus `netzanpassungen/output/virtuelle_knoten.gpkg` (Schritt 3: die 53 von 2025 aus `data/virtuelle_knoten_2025.gpkg`, die in Schritt 1 automatisch gesetzten und die in der App Netzanpassungen gezeichneten, jeweils mit eindeutiger `Knotenpunkt-ID` `V…`); ein neuer Knoten wird in der App gesetzt, nicht mehr in einer Datei hier. Danach Schritt 3 und `build_knotenpunkte.py` erneut ausführen.
 
 ## Bewertung und Abgabe
 

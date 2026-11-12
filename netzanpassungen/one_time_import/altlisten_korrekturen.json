@@ -1,0 +1,3711 @@
+[
+ {
+  "kind": "edge_correction",
+  "kante": {
+   "art": "ren",
+   "ref": "61460005_61460022.02",
+   "element_nr": "61460005_61460022.02"
+  },
+  "original_coordinates": [
+   [
+    13.6271781,
+    52.4456978
+   ],
+   [
+    13.6272193,
+    52.4457506
+   ],
+   [
+    13.6271961,
+    52.4461214
+   ],
+   [
+    13.6272063,
+    52.4466687
+   ],
+   [
+    13.6271905,
+    52.4467383
+   ]
+  ],
+  "coordinates": [
+   [
+    13.6271781,
+    52.4456978
+   ],
+   [
+    13.6272193,
+    52.4457506
+   ],
+   [
+    13.6271961,
+    52.4461214
+   ],
+   [
+    13.6272063,
+    52.4466687
+   ],
+   [
+    13.6271905,
+    52.4467383
+   ]
+  ],
+  "original_attribute": {
+   "verkehrsrichtung": "B"
+  },
+  "attribute": {
+   "verkehrsrichtung": "R"
+  },
+  "kommentar": "Scharnweberstraße: Richtungsfahrbahn, im Detailnetz nicht als Einbahn geführt",
+  "aenderungen": [
+   {
+    "vorgang_id": "0de017e2-a2c9-4d3c-a476-257ea97c30e9",
+    "art": "attribut",
+    "feld": "verkehrsrichtung",
+    "von_wert": "B",
+    "nach_wert": "R",
+    "beschreibung": "Verkehrsrichtung: nur in Pfeilrichtung (R) – aus Altliste rvn_korrekturen.csv",
+    "kommentar": "Scharnweberstraße: Richtungsfahrbahn, im Detailnetz nicht als Einbahn geführt",
+    "von_nutzer": "Altliste",
+    "am": "2026-11-10T18:22:32Z"
+   }
+  ]
+ },
+ {
+  "kind": "edge_correction",
+  "kante": {
+   "art": "ren",
+   "ref": "59430029_59430035.02",
+   "element_nr": "59430029_59430035.02"
+  },
+  "original_coordinates": [
+   [
+    13.5902645,
+    52.418801
+   ],
+   [
+    13.5903442,
+    52.4187413
+   ],
+   [
+    13.5904941,
+    52.4186765
+   ],
+   [
+    13.5906424,
+    52.4186651
+   ]
+  ],
+  "coordinates": [
+   [
+    13.5902645,
+    52.418801
+   ],
+   [
+    13.5903442,
+    52.4187413
+   ],
+   [
+    13.5904941,
+    52.4186765
+   ],
+   [
+    13.5906424,
+    52.4186651
+   ]
+  ],
+  "original_attribute": {
+   "verkehrsrichtung": "B"
+  },
+  "attribute": {
+   "verkehrsrichtung": "G"
+  },
+  "kommentar": "Müggelbergplatz: Einbahn-Ring, OSM-Einbahn gegen Digitalisierungsrichtung",
+  "aenderungen": [
+   {
+    "vorgang_id": "fb12b968-b4a8-4d0b-822a-4711f7bee146",
+    "art": "attribut",
+    "feld": "verkehrsrichtung",
+    "von_wert": "B",
+    "nach_wert": "G",
+    "beschreibung": "Verkehrsrichtung: nur gegen Pfeilrichtung (G) – aus Altliste rvn_korrekturen.csv",
+    "kommentar": "Müggelbergplatz: Einbahn-Ring, OSM-Einbahn gegen Digitalisierungsrichtung",
+    "von_nutzer": "Altliste",
+    "am": "2026-11-10T18:22:32Z"
+   }
+  ]
+ },
+ {
+  "kind": "edge_correction",
+  "kante": {
+   "art": "ren",
+   "ref": "59430034_59430029.02",
+   "element_nr": "59430034_59430029.02"
+  },
+  "original_coordinates": [
+   [
+    13.5904858,
+    52.4190605
+   ],
+   [
+    13.5903624,
+    52.4190246
+   ],
+   [
+    13.5902768,
+    52.4189046
+   ],
+   [
+    13.5902645,
+    52.418801
+   ]
+  ],
+  "coordinates": [
+   [
+    13.5904858,
+    52.4190605
+   ],
+   [
+    13.5903624,
+    52.4190246
+   ],
+   [
+    13.5902768,
+    52.4189046
+   ],
+   [
+    13.5902645,
+    52.418801
+   ]
+  ],
+  "original_attribute": {
+   "verkehrsrichtung": "B"
+  },
+  "attribute": {
+   "verkehrsrichtung": "G"
+  },
+  "kommentar": "Müggelbergplatz: Einbahn-Ring, OSM-Einbahn gegen Digitalisierungsrichtung",
+  "aenderungen": [
+   {
+    "vorgang_id": "ee3460e0-6824-409d-8705-afc59538d1a3",
+    "art": "attribut",
+    "feld": "verkehrsrichtung",
+    "von_wert": "B",
+    "nach_wert": "G",
+    "beschreibung": "Verkehrsrichtung: nur gegen Pfeilrichtung (G) – aus Altliste rvn_korrekturen.csv",
+    "kommentar": "Müggelbergplatz: Einbahn-Ring, OSM-Einbahn gegen Digitalisierungsrichtung",
+    "von_nutzer": "Altliste",
+    "am": "2026-11-10T18:22:32Z"
+   }
+  ]
+ },
+ {
+  "kind": "edge_correction",
+  "kante": {
+   "art": "ren",
+   "ref": "59430030_59430034.03",
+   "element_nr": "59430030_59430034.03"
+  },
+  "original_coordinates": [
+   [
+    13.5908859,
+    52.4188948
+   ],
+   [
+    13.5908371,
+    52.4189608
+   ],
+   [
+    13.5907579,
+    52.4190051
+   ],
+   [
+    13.5905989,
+    52.4190512
+   ],
+   [
+    13.5904858,
+    52.4190605
+   ]
+  ],
+  "coordinates": [
+   [
+    13.5908859,
+    52.4188948
+   ],
+   [
+    13.5908371,
+    52.4189608
+   ],
+   [
+    13.5907579,
+    52.4190051
+   ],
+   [
+    13.5905989,
+    52.4190512
+   ],
+   [
+    13.5904858,
+    52.4190605
+   ]
+  ],
+  "original_attribute": {
+   "verkehrsrichtung": "B"
+  },
+  "attribute": {
+   "verkehrsrichtung": "R"
+  },
+  "kommentar": "Müggelbergplatz: Einbahn-Ring",
+  "aenderungen": [
+   {
+    "vorgang_id": "8eec75e8-a30d-418b-b37f-2b157ca2cca9",
+    "art": "attribut",
+    "feld": "verkehrsrichtung",
+    "von_wert": "B",
+    "nach_wert": "R",
+    "beschreibung": "Verkehrsrichtung: nur in Pfeilrichtung (R) – aus Altliste rvn_korrekturen.csv",
+    "kommentar": "Müggelbergplatz: Einbahn-Ring",
+    "von_nutzer": "Altliste",
+    "am": "2026-11-10T18:22:32Z"
+   }
+  ]
+ },
+ {
+  "kind": "edge_correction",
+  "kante": {
+   "art": "ren",
+   "ref": "59430035_59430030.03",
+   "element_nr": "59430035_59430030.03"
+  },
+  "original_coordinates": [
+   [
+    13.5906424,
+    52.4186651
+   ],
+   [
+    13.5907465,
+    52.4186937
+   ],
+   [
+    13.5908476,
+    52.4187564
+   ],
+   [
+    13.5908842,
+    52.4188258
+   ],
+   [
+    13.5908859,
+    52.4188948
+   ]
+  ],
+  "coordinates": [
+   [
+    13.5906424,
+    52.4186651
+   ],
+   [
+    13.5907465,
+    52.4186937
+   ],
+   [
+    13.5908476,
+    52.4187564
+   ],
+   [
+    13.5908842,
+    52.4188258
+   ],
+   [
+    13.5908859,
+    52.4188948
+   ]
+  ],
+  "original_attribute": {
+   "verkehrsrichtung": "B"
+  },
+  "attribute": {
+   "verkehrsrichtung": "R"
+  },
+  "kommentar": "Müggelbergplatz: Einbahn-Ring",
+  "aenderungen": [
+   {
+    "vorgang_id": "cec89c0a-ca15-462c-a0b5-198f6eb1b050",
+    "art": "attribut",
+    "feld": "verkehrsrichtung",
+    "von_wert": "B",
+    "nach_wert": "R",
+    "beschreibung": "Verkehrsrichtung: nur in Pfeilrichtung (R) – aus Altliste rvn_korrekturen.csv",
+    "kommentar": "Müggelbergplatz: Einbahn-Ring",
+    "von_nutzer": "Altliste",
+    "am": "2026-11-10T18:22:32Z"
+   }
+  ]
+ },
+ {
+  "kind": "edge_correction",
+  "kante": {
+   "art": "ren",
+   "ref": "57470033_58470010.03",
+   "element_nr": "57470033_58470010.03"
+  },
+  "original_coordinates": [
+   [
+    13.5713484,
+    52.4535842
+   ],
+   [
+    13.5727814,
+    52.4541843
+   ],
+   [
+    13.5728589,
+    52.4542683
+   ]
+  ],
+  "coordinates": [
+   [
+    13.5713484,
+    52.4535842
+   ],
+   [
+    13.5727814,
+    52.4541843
+   ],
+   [
+    13.5728589,
+    52.4542683
+   ]
+  ],
+  "original_attribute": {
+   "verkehrsrichtung": "B"
+  },
+  "attribute": {
+   "verkehrsrichtung": "R"
+  },
+  "kommentar": "Joachimstraße: Richtungsfahrbahn",
+  "aenderungen": [
+   {
+    "vorgang_id": "dcebcc6e-6f97-4f55-9c98-72ea9d9357a7",
+    "art": "attribut",
+    "feld": "verkehrsrichtung",
+    "von_wert": "B",
+    "nach_wert": "R",
+    "beschreibung": "Verkehrsrichtung: nur in Pfeilrichtung (R) – aus Altliste rvn_korrekturen.csv",
+    "kommentar": "Joachimstraße: Richtungsfahrbahn",
+    "von_nutzer": "Altliste",
+    "am": "2026-11-10T18:22:32Z"
+   }
+  ]
+ },
+ {
+  "kind": "edge_correction",
+  "kante": {
+   "art": "ren",
+   "ref": "57470032_57470033.02",
+   "element_nr": "57470032_57470033.02"
+  },
+  "original_coordinates": [
+   [
+    13.5695235,
+    52.4528095
+   ],
+   [
+    13.571303,
+    52.4535444
+   ],
+   [
+    13.5713484,
+    52.4535842
+   ]
+  ],
+  "coordinates": [
+   [
+    13.5695235,
+    52.4528095
+   ],
+   [
+    13.571303,
+    52.4535444
+   ],
+   [
+    13.5713484,
+    52.4535842
+   ]
+  ],
+  "original_attribute": {
+   "verkehrsrichtung": "B"
+  },
+  "attribute": {
+   "verkehrsrichtung": "R"
+  },
+  "kommentar": "Joachimstraße: Richtungsfahrbahn",
+  "aenderungen": [
+   {
+    "vorgang_id": "a8f1e6e7-80d1-48b5-820e-274e12b2a2c5",
+    "art": "attribut",
+    "feld": "verkehrsrichtung",
+    "von_wert": "B",
+    "nach_wert": "R",
+    "beschreibung": "Verkehrsrichtung: nur in Pfeilrichtung (R) – aus Altliste rvn_korrekturen.csv",
+    "kommentar": "Joachimstraße: Richtungsfahrbahn",
+    "von_nutzer": "Altliste",
+    "am": "2026-11-10T18:22:32Z"
+   }
+  ]
+ },
+ {
+  "kind": "edge_correction",
+  "kante": {
+   "art": "ren",
+   "ref": "47500011_47500022.02",
+   "element_nr": "47500011_47500022.02"
+  },
+  "original_coordinates": [
+   [
+    13.4228191,
+    52.4771595
+   ],
+   [
+    13.4227379,
+    52.4772916
+   ],
+   [
+    13.4226411,
+    52.4773854
+   ],
+   [
+    13.4224748,
+    52.4774593
+   ],
+   [
+    13.4221369,
+    52.4775381
+   ]
+  ],
+  "coordinates": [
+   [
+    13.4228191,
+    52.4771595
+   ],
+   [
+    13.4227379,
+    52.4772916
+   ],
+   [
+    13.4226411,
+    52.4773854
+   ],
+   [
+    13.4224748,
+    52.4774593
+   ],
+   [
+    13.4221369,
+    52.4775381
+   ]
+  ],
+  "original_attribute": {
+   "verkehrsrichtung": "B"
+  },
+  "attribute": {
+   "verkehrsrichtung": "R"
+  },
+  "kommentar": "Herrfurthplatz: Einbahn-Ring",
+  "aenderungen": [
+   {
+    "vorgang_id": "08da2976-36b7-4956-b31b-69f9028f8688",
+    "art": "attribut",
+    "feld": "verkehrsrichtung",
+    "von_wert": "B",
+    "nach_wert": "R",
+    "beschreibung": "Verkehrsrichtung: nur in Pfeilrichtung (R) – aus Altliste rvn_korrekturen.csv",
+    "kommentar": "Herrfurthplatz: Einbahn-Ring",
+    "von_nutzer": "Altliste",
+    "am": "2026-11-10T18:22:32Z"
+   }
+  ]
+ },
+ {
+  "kind": "edge_correction",
+  "kante": {
+   "art": "ren",
+   "ref": "47500027_47500010.02",
+   "element_nr": "47500027_47500010.02"
+  },
+  "original_coordinates": [
+   [
+    13.4217297,
+    52.4774851
+   ],
+   [
+    13.4215041,
+    52.4773679
+   ],
+   [
+    13.4214174,
+    52.4772859
+   ],
+   [
+    13.4213697,
+    52.4772043
+   ],
+   [
+    13.4213221,
+    52.4770086
+   ]
+  ],
+  "coordinates": [
+   [
+    13.4217297,
+    52.4774851
+   ],
+   [
+    13.4215041,
+    52.4773679
+   ],
+   [
+    13.4214174,
+    52.4772859
+   ],
+   [
+    13.4213697,
+    52.4772043
+   ],
+   [
+    13.4213221,
+    52.4770086
+   ]
+  ],
+  "original_attribute": {
+   "verkehrsrichtung": "B"
+  },
+  "attribute": {
+   "verkehrsrichtung": "R"
+  },
+  "kommentar": "Herrfurthplatz: Einbahn-Ring",
+  "aenderungen": [
+   {
+    "vorgang_id": "58ef7229-9739-4887-ad3a-bacce2bcecf6",
+    "art": "attribut",
+    "feld": "verkehrsrichtung",
+    "von_wert": "B",
+    "nach_wert": "R",
+    "beschreibung": "Verkehrsrichtung: nur in Pfeilrichtung (R) – aus Altliste rvn_korrekturen.csv",
+    "kommentar": "Herrfurthplatz: Einbahn-Ring",
+    "von_nutzer": "Altliste",
+    "am": "2026-11-10T18:22:32Z"
+   }
+  ]
+ },
+ {
+  "kind": "edge_correction",
+  "kante": {
+   "art": "ren",
+   "ref": "47500024_47500011.02",
+   "element_nr": "47500024_47500011.02"
+  },
+  "original_coordinates": [
+   [
+    13.4224163,
+    52.4766997
+   ],
+   [
+    13.4226425,
+    52.4768026
+   ],
+   [
+    13.422784,
+    52.4769853
+   ],
+   [
+    13.4228191,
+    52.4771595
+   ]
+  ],
+  "coordinates": [
+   [
+    13.4224163,
+    52.4766997
+   ],
+   [
+    13.4226425,
+    52.4768026
+   ],
+   [
+    13.422784,
+    52.4769853
+   ],
+   [
+    13.4228191,
+    52.4771595
+   ]
+  ],
+  "original_attribute": {
+   "verkehrsrichtung": "B"
+  },
+  "attribute": {
+   "verkehrsrichtung": "R"
+  },
+  "kommentar": "Herrfurthplatz: Einbahn-Ring",
+  "aenderungen": [
+   {
+    "vorgang_id": "fbd640d1-ee90-460b-a0b8-0d3e3c6e0d01",
+    "art": "attribut",
+    "feld": "verkehrsrichtung",
+    "von_wert": "B",
+    "nach_wert": "R",
+    "beschreibung": "Verkehrsrichtung: nur in Pfeilrichtung (R) – aus Altliste rvn_korrekturen.csv",
+    "kommentar": "Herrfurthplatz: Einbahn-Ring",
+    "von_nutzer": "Altliste",
+    "am": "2026-11-10T18:22:32Z"
+   }
+  ]
+ },
+ {
+  "kind": "edge_correction",
+  "kante": {
+   "art": "ren",
+   "ref": "47500010_47500025.02",
+   "element_nr": "47500010_47500025.02"
+  },
+  "original_coordinates": [
+   [
+    13.4213221,
+    52.4770086
+   ],
+   [
+    13.4214727,
+    52.4768298
+   ],
+   [
+    13.4217226,
+    52.4767047
+   ],
+   [
+    13.4220132,
+    52.4766396
+   ]
+  ],
+  "coordinates": [
+   [
+    13.4213221,
+    52.4770086
+   ],
+   [
+    13.4214727,
+    52.4768298
+   ],
+   [
+    13.4217226,
+    52.4767047
+   ],
+   [
+    13.4220132,
+    52.4766396
+   ]
+  ],
+  "original_attribute": {
+   "verkehrsrichtung": "B"
+  },
+  "attribute": {
+   "verkehrsrichtung": "R"
+  },
+  "kommentar": "Herrfurthplatz: Einbahn-Ring",
+  "aenderungen": [
+   {
+    "vorgang_id": "6e59c6b0-4c30-4133-a448-ea86a13bea53",
+    "art": "attribut",
+    "feld": "verkehrsrichtung",
+    "von_wert": "B",
+    "nach_wert": "R",
+    "beschreibung": "Verkehrsrichtung: nur in Pfeilrichtung (R) – aus Altliste rvn_korrekturen.csv",
+    "kommentar": "Herrfurthplatz: Einbahn-Ring",
+    "von_nutzer": "Altliste",
+    "am": "2026-11-10T18:22:32Z"
+   }
+  ]
+ },
+ {
+  "kind": "edge_correction",
+  "kante": {
+   "art": "ren",
+   "ref": "48520012_48520025.02",
+   "element_nr": "48520012_48520025.02"
+  },
+  "original_coordinates": [
+   [
+    13.426188,
+    52.494707
+   ],
+   [
+    13.4263104,
+    52.4946622
+   ],
+   [
+    13.4282386,
+    52.4940384
+   ],
+   [
+    13.4285033,
+    52.4939373
+   ],
+   [
+    13.4286491,
+    52.4938928
+   ]
+  ],
+  "coordinates": [
+   [
+    13.426188,
+    52.494707
+   ],
+   [
+    13.4263104,
+    52.4946622
+   ],
+   [
+    13.4282386,
+    52.4940384
+   ],
+   [
+    13.4285033,
+    52.4939373
+   ],
+   [
+    13.4286491,
+    52.4938928
+   ]
+  ],
+  "original_attribute": {
+   "verkehrsrichtung": "B"
+  },
+  "attribute": {
+   "verkehrsrichtung": "R"
+  },
+  "kommentar": "Paul-Lincke-Ufer: Richtungsfahrbahn",
+  "aenderungen": [
+   {
+    "vorgang_id": "9ad9787a-e8e0-466f-8f48-71654e480903",
+    "art": "attribut",
+    "feld": "verkehrsrichtung",
+    "von_wert": "B",
+    "nach_wert": "R",
+    "beschreibung": "Verkehrsrichtung: nur in Pfeilrichtung (R) – aus Altliste rvn_korrekturen.csv",
+    "kommentar": "Paul-Lincke-Ufer: Richtungsfahrbahn",
+    "von_nutzer": "Altliste",
+    "am": "2026-11-10T18:22:32Z"
+   }
+  ]
+ },
+ {
+  "kind": "edge_correction",
+  "kante": {
+   "art": "ren",
+   "ref": "56540008_56540055.01",
+   "element_nr": "56540008_56540055.01"
+  },
+  "original_coordinates": [
+   [
+    13.5545579,
+    52.5135499
+   ],
+   [
+    13.5546449,
+    52.5135105
+   ],
+   [
+    13.5552606,
+    52.5134366
+   ]
+  ],
+  "coordinates": [
+   [
+    13.5545579,
+    52.5135499
+   ],
+   [
+    13.5546449,
+    52.5135105
+   ],
+   [
+    13.5552606,
+    52.5134366
+   ]
+  ],
+  "original_attribute": {
+   "verkehrsrichtung": "B"
+  },
+  "attribute": {
+   "verkehrsrichtung": "R"
+  },
+  "kommentar": "Wuhlgartenweg: Einbahn (OSM deckt nur 12 m der Kante ab, Richtung aus alter Liste)",
+  "aenderungen": [
+   {
+    "vorgang_id": "7bef51c7-bf72-41e4-b738-7146c2ca548e",
+    "art": "attribut",
+    "feld": "verkehrsrichtung",
+    "von_wert": "B",
+    "nach_wert": "R",
+    "beschreibung": "Verkehrsrichtung: nur in Pfeilrichtung (R) – aus Altliste rvn_korrekturen.csv",
+    "kommentar": "Wuhlgartenweg: Einbahn (OSM deckt nur 12 m der Kante ab, Richtung aus alter Liste)",
+    "von_nutzer": "Altliste",
+    "am": "2026-11-10T18:22:32Z"
+   }
+  ]
+ },
+ {
+  "kind": "edge_correction",
+  "kante": {
+   "art": "ren",
+   "ref": "56540055_57540055.01",
+   "element_nr": "56540055_57540055.01"
+  },
+  "original_coordinates": [
+   [
+    13.5552606,
+    52.5134366
+   ],
+   [
+    13.5563653,
+    52.513304
+   ],
+   [
+    13.5566605,
+    52.5133179
+   ]
+  ],
+  "coordinates": [
+   [
+    13.5552606,
+    52.5134366
+   ],
+   [
+    13.5563653,
+    52.513304
+   ],
+   [
+    13.5566605,
+    52.5133179
+   ]
+  ],
+  "original_attribute": {
+   "verkehrsrichtung": "B"
+  },
+  "attribute": {
+   "verkehrsrichtung": "R"
+  },
+  "kommentar": "Wuhlgartenweg: Einbahn",
+  "aenderungen": [
+   {
+    "vorgang_id": "4f0c0155-eec3-4a76-9840-7976c1f88baa",
+    "art": "attribut",
+    "feld": "verkehrsrichtung",
+    "von_wert": "B",
+    "nach_wert": "R",
+    "beschreibung": "Verkehrsrichtung: nur in Pfeilrichtung (R) – aus Altliste rvn_korrekturen.csv",
+    "kommentar": "Wuhlgartenweg: Einbahn",
+    "von_nutzer": "Altliste",
+    "am": "2026-11-10T18:22:32Z"
+   }
+  ]
+ },
+ {
+  "kind": "edge_correction",
+  "kante": {
+   "art": "ren",
+   "ref": "55560007_56560038.02",
+   "element_nr": "55560007_56560038.02"
+  },
+  "original_coordinates": [
+   [
+    13.540086,
+    52.5344689
+   ],
+   [
+    13.5400876,
+    52.5343552
+   ],
+   [
+    13.5400915,
+    52.5337928
+   ],
+   [
+    13.5400922,
+    52.5331438
+   ],
+   [
+    13.5400942,
+    52.532853
+   ],
+   [
+    13.5401064,
+    52.5327158
+   ],
+   [
+    13.5401212,
+    52.5326137
+   ],
+   [
+    13.5401472,
+    52.5325209
+   ],
+   [
+    13.540203,
+    52.5323332
+   ],
+   [
+    13.5402899,
+    52.5321295
+   ],
+   [
+    13.540359,
+    52.5320001
+   ],
+   [
+    13.5404112,
+    52.5319216
+   ],
+   [
+    13.5404592,
+    52.5318547
+   ],
+   [
+    13.5405194,
+    52.5317647
+   ],
+   [
+    13.5406108,
+    52.5316565
+   ],
+   [
+    13.5407097,
+    52.5315507
+   ],
+   [
+    13.5409424,
+    52.5313209
+   ],
+   [
+    13.5412459,
+    52.5310269
+   ],
+   [
+    13.5413634,
+    52.530933
+   ],
+   [
+    13.5414611,
+    52.5308644
+   ],
+   [
+    13.5415775,
+    52.530803
+   ],
+   [
+    13.5417203,
+    52.5307536
+   ]
+  ],
+  "coordinates": [
+   [
+    13.540086,
+    52.5344689
+   ],
+   [
+    13.5400876,
+    52.5343552
+   ],
+   [
+    13.5400915,
+    52.5337928
+   ],
+   [
+    13.5400922,
+    52.5331438
+   ],
+   [
+    13.5400942,
+    52.532853
+   ],
+   [
+    13.5401064,
+    52.5327158
+   ],
+   [
+    13.5401212,
+    52.5326137
+   ],
+   [
+    13.5401472,
+    52.5325209
+   ],
+   [
+    13.540203,
+    52.5323332
+   ],
+   [
+    13.5402899,
+    52.5321295
+   ],
+   [
+    13.540359,
+    52.5320001
+   ],
+   [
+    13.5404112,
+    52.5319216
+   ],
+   [
+    13.5404592,
+    52.5318547
+   ],
+   [
+    13.5405194,
+    52.5317647
+   ],
+   [
+    13.5406108,
+    52.5316565
+   ],
+   [
+    13.5407097,
+    52.5315507
+   ],
+   [
+    13.5409424,
+    52.5313209
+   ],
+   [
+    13.5412459,
+    52.5310269
+   ],
+   [
+    13.5413634,
+    52.530933
+   ],
+   [
+    13.5414611,
+    52.5308644
+   ],
+   [
+    13.5415775,
+    52.530803
+   ],
+   [
+    13.5417203,
+    52.5307536
+   ]
+  ],
+  "original_attribute": {
+   "verkehrsrichtung": null
+  },
+  "attribute": {
+   "verkehrsrichtung": "R"
+  },
+  "kommentar": "RVN-Kante ohne Detailnetz: Einbahn in Digitalisierungsrichtung",
+  "aenderungen": [
+   {
+    "vorgang_id": "b53976c6-a232-46cb-b637-f63b8545abf0",
+    "art": "attribut",
+    "feld": "verkehrsrichtung",
+    "von_wert": null,
+    "nach_wert": "R",
+    "beschreibung": "Verkehrsrichtung: nur in Pfeilrichtung (R) – aus Altliste rvn_korrekturen.csv",
+    "kommentar": "RVN-Kante ohne Detailnetz: Einbahn in Digitalisierungsrichtung",
+    "von_nutzer": "Altliste",
+    "am": "2026-11-10T18:22:32Z"
+   }
+  ]
+ },
+ {
+  "kind": "edge_correction",
+  "kante": {
+   "art": "ren",
+   "ref": "46630029_46630016.02",
+   "element_nr": "46630029_46630016.02"
+  },
+  "original_coordinates": [
+   [
+    13.3952683,
+    52.5918275
+   ],
+   [
+    13.3954193,
+    52.5917477
+   ],
+   [
+    13.3955264,
+    52.5917016
+   ],
+   [
+    13.3956755,
+    52.5916846
+   ],
+   [
+    13.395873,
+    52.5917033
+   ]
+  ],
+  "coordinates": [
+   [
+    13.3952683,
+    52.5918275
+   ],
+   [
+    13.3954193,
+    52.5917477
+   ],
+   [
+    13.3955264,
+    52.5917016
+   ],
+   [
+    13.3956755,
+    52.5916846
+   ],
+   [
+    13.395873,
+    52.5917033
+   ]
+  ],
+  "original_attribute": {
+   "verkehrsrichtung": "B"
+  },
+  "attribute": {
+   "verkehrsrichtung": "R"
+  },
+  "kommentar": "Birkenallee: Einbahn",
+  "aenderungen": [
+   {
+    "vorgang_id": "a0d6d544-73e0-40fc-82b7-47332d170932",
+    "art": "attribut",
+    "feld": "verkehrsrichtung",
+    "von_wert": "B",
+    "nach_wert": "R",
+    "beschreibung": "Verkehrsrichtung: nur in Pfeilrichtung (R) – aus Altliste rvn_korrekturen.csv",
+    "kommentar": "Birkenallee: Einbahn",
+    "von_nutzer": "Altliste",
+    "am": "2026-11-10T18:22:32Z"
+   }
+  ]
+ },
+ {
+  "kind": "edge_correction",
+  "kante": {
+   "art": "ren",
+   "ref": "46630016_46630030.02",
+   "element_nr": "46630016_46630030.02"
+  },
+  "original_coordinates": [
+   [
+    13.395873,
+    52.5917033
+   ],
+   [
+    13.3960084,
+    52.5917664
+   ],
+   [
+    13.3961084,
+    52.5918603
+   ],
+   [
+    13.396096,
+    52.5919992
+   ]
+  ],
+  "coordinates": [
+   [
+    13.395873,
+    52.5917033
+   ],
+   [
+    13.3960084,
+    52.5917664
+   ],
+   [
+    13.3961084,
+    52.5918603
+   ],
+   [
+    13.396096,
+    52.5919992
+   ]
+  ],
+  "original_attribute": {
+   "verkehrsrichtung": "B"
+  },
+  "attribute": {
+   "verkehrsrichtung": "R"
+  },
+  "kommentar": "Birkenallee: Einbahn",
+  "aenderungen": [
+   {
+    "vorgang_id": "2e2c9a4f-211e-4e2c-88df-4078888cbd5b",
+    "art": "attribut",
+    "feld": "verkehrsrichtung",
+    "von_wert": "B",
+    "nach_wert": "R",
+    "beschreibung": "Verkehrsrichtung: nur in Pfeilrichtung (R) – aus Altliste rvn_korrekturen.csv",
+    "kommentar": "Birkenallee: Einbahn",
+    "von_nutzer": "Altliste",
+    "am": "2026-11-10T18:22:32Z"
+   }
+  ]
+ },
+ {
+  "kind": "edge_correction",
+  "kante": {
+   "art": "ren",
+   "ref": "46520017_46520044.03",
+   "element_nr": "46520017_46520044.03"
+  },
+  "original_coordinates": [
+   [
+    13.4067151,
+    52.4948839
+   ],
+   [
+    13.407975,
+    52.4949844
+   ]
+  ],
+  "coordinates": [
+   [
+    13.4067151,
+    52.4948839
+   ],
+   [
+    13.407975,
+    52.4949844
+   ]
+  ],
+  "original_attribute": {
+   "verkehrsrichtung": "B"
+  },
+  "attribute": {
+   "verkehrsrichtung": "R"
+  },
+  "kommentar": "Urbanpark: Einbahn",
+  "aenderungen": [
+   {
+    "vorgang_id": "4e7a5469-7afa-4cdd-b559-7c56243473d3",
+    "art": "attribut",
+    "feld": "verkehrsrichtung",
+    "von_wert": "B",
+    "nach_wert": "R",
+    "beschreibung": "Verkehrsrichtung: nur in Pfeilrichtung (R) – aus Altliste rvn_korrekturen.csv",
+    "kommentar": "Urbanpark: Einbahn",
+    "von_nutzer": "Altliste",
+    "am": "2026-11-10T18:22:32Z"
+   }
+  ]
+ },
+ {
+  "kind": "edge_correction",
+  "kante": {
+   "art": "ren",
+   "ref": "32540042_32540003.01",
+   "element_nr": "32540042_32540003.01"
+  },
+  "original_coordinates": [
+   [
+    13.2009989,
+    52.5121973
+   ],
+   [
+    13.2009268,
+    52.5121036
+   ],
+   [
+    13.2004206,
+    52.5115581
+   ],
+   [
+    13.200365,
+    52.5114883
+   ]
+  ],
+  "coordinates": [
+   [
+    13.2009989,
+    52.5121973
+   ],
+   [
+    13.2009268,
+    52.5121036
+   ],
+   [
+    13.2004206,
+    52.5115581
+   ],
+   [
+    13.200365,
+    52.5114883
+   ]
+  ],
+  "original_attribute": {
+   "verkehrsrichtung": "B"
+  },
+  "attribute": {
+   "verkehrsrichtung": "R"
+  },
+  "kommentar": "Altliste opposite_edge_overwrite_element_nr.txt, Modus remove: Gegenrichtung (ri=1) entfiel im Matching; im Detailnetz in beide Richtungen (B), jetzt nur in Digitalisierungsrichtung.",
+  "aenderungen": [
+   {
+    "vorgang_id": "465c4590-3f4e-438b-aabc-c9102f578c5b",
+    "art": "attribut",
+    "feld": "verkehrsrichtung",
+    "von_wert": "B",
+    "nach_wert": "R",
+    "beschreibung": "Verkehrsrichtung: nur in Pfeilrichtung (R) – aus Altliste opposite_edge_overwrite_element_nr.txt",
+    "kommentar": "Altliste opposite_edge_overwrite_element_nr.txt, Modus remove: Gegenrichtung (ri=1) entfiel im Matching; im Detailnetz in beide Richtungen (B), jetzt nur in Digitalisierungsrichtung.",
+    "von_nutzer": "Altliste",
+    "am": "2026-11-10T18:22:32Z"
+   }
+  ]
+ },
+ {
+  "kind": "edge_correction",
+  "kante": {
+   "art": "ren",
+   "ref": "44530034_44530053.02",
+   "element_nr": "44530034_44530053.02"
+  },
+  "original_coordinates": [
+   [
+    13.372025,
+    52.5051318
+   ],
+   [
+    13.3721451,
+    52.5051665
+   ],
+   [
+    13.372186,
+    52.5053764
+   ],
+   [
+    13.3722448,
+    52.5055794
+   ],
+   [
+    13.3723679,
+    52.5061397
+   ]
+  ],
+  "coordinates": [
+   [
+    13.372025,
+    52.5051318
+   ],
+   [
+    13.3721451,
+    52.5051665
+   ],
+   [
+    13.372186,
+    52.5053764
+   ],
+   [
+    13.3722448,
+    52.5055794
+   ],
+   [
+    13.3723679,
+    52.5061397
+   ]
+  ],
+  "original_attribute": {
+   "verkehrsrichtung": "R"
+  },
+  "attribute": {
+   "ausgeschlossen": true
+  },
+  "kommentar": "Tunnel Tiergarten: Kfz-Tunnel ohne Radverkehr",
+  "aenderungen": [
+   {
+    "vorgang_id": "46a251e5-356f-4fcd-828d-674a9927ac97",
+    "art": "ausgeschlossen",
+    "von_wert": false,
+    "nach_wert": true,
+    "beschreibung": "Kante ausgeschlossen – aus Altliste ausschluss_element_nr.csv",
+    "kommentar": "Tunnel Tiergarten: Kfz-Tunnel ohne Radverkehr",
+    "von_nutzer": "Altliste",
+    "am": "2026-11-10T18:22:32Z"
+   }
+  ]
+ },
+ {
+  "kind": "edge_correction",
+  "kante": {
+   "art": "ren",
+   "ref": "44530051_44530034.02",
+   "element_nr": "44530051_44530034.02"
+  },
+  "original_coordinates": [
+   [
+    13.3722338,
+    52.5061578
+   ],
+   [
+    13.3720027,
+    52.505213
+   ],
+   [
+    13.372025,
+    52.5051318
+   ]
+  ],
+  "coordinates": [
+   [
+    13.3722338,
+    52.5061578
+   ],
+   [
+    13.3720027,
+    52.505213
+   ],
+   [
+    13.372025,
+    52.5051318
+   ]
+  ],
+  "original_attribute": {
+   "verkehrsrichtung": "R"
+  },
+  "attribute": {
+   "ausgeschlossen": true
+  },
+  "kommentar": "Tunnel Tiergarten: Kfz-Tunnel ohne Radverkehr",
+  "aenderungen": [
+   {
+    "vorgang_id": "ed2ea010-528e-4934-aa95-32ab21d26a82",
+    "art": "ausgeschlossen",
+    "von_wert": false,
+    "nach_wert": true,
+    "beschreibung": "Kante ausgeschlossen – aus Altliste ausschluss_element_nr.csv",
+    "kommentar": "Tunnel Tiergarten: Kfz-Tunnel ohne Radverkehr",
+    "von_nutzer": "Altliste",
+    "am": "2026-11-10T18:22:32Z"
+   }
+  ]
+ },
+ {
+  "kind": "edge_correction",
+  "kante": {
+   "art": "ren",
+   "ref": "44530052_44540050.02",
+   "element_nr": "44530052_44540050.02"
+  },
+  "original_coordinates": [
+   [
+    13.3717462,
+    52.5096904
+   ],
+   [
+    13.3713409,
+    52.5109351
+   ],
+   [
+    13.3712993,
+    52.5110598
+   ],
+   [
+    13.371284,
+    52.5111695
+   ]
+  ],
+  "coordinates": [
+   [
+    13.3717462,
+    52.5096904
+   ],
+   [
+    13.3713409,
+    52.5109351
+   ],
+   [
+    13.3712993,
+    52.5110598
+   ],
+   [
+    13.371284,
+    52.5111695
+   ]
+  ],
+  "original_attribute": {
+   "verkehrsrichtung": "R"
+  },
+  "attribute": {
+   "ausgeschlossen": true
+  },
+  "kommentar": "Tunnel Tiergarten: Kfz-Tunnel ohne Radverkehr",
+  "aenderungen": [
+   {
+    "vorgang_id": "b31504bf-55f3-499c-ba04-9a989286205d",
+    "art": "ausgeschlossen",
+    "von_wert": false,
+    "nach_wert": true,
+    "beschreibung": "Kante ausgeschlossen – aus Altliste ausschluss_element_nr.csv",
+    "kommentar": "Tunnel Tiergarten: Kfz-Tunnel ohne Radverkehr",
+    "von_nutzer": "Altliste",
+    "am": "2026-11-10T18:22:32Z"
+   }
+  ]
+ },
+ {
+  "kind": "edge_correction",
+  "kante": {
+   "art": "ren",
+   "ref": "44530053_44530052.02",
+   "element_nr": "44530053_44530052.02"
+  },
+  "original_coordinates": [
+   [
+    13.3723679,
+    52.5061397
+   ],
+   [
+    13.37248,
+    52.506552
+   ],
+   [
+    13.3725272,
+    52.5068282
+   ],
+   [
+    13.3725389,
+    52.5070688
+   ],
+   [
+    13.3725128,
+    52.5072188
+   ],
+   [
+    13.3724563,
+    52.5074159
+   ],
+   [
+    13.3718611,
+    52.5093015
+   ],
+   [
+    13.3717462,
+    52.5096904
+   ]
+  ],
+  "coordinates": [
+   [
+    13.3723679,
+    52.5061397
+   ],
+   [
+    13.37248,
+    52.506552
+   ],
+   [
+    13.3725272,
+    52.5068282
+   ],
+   [
+    13.3725389,
+    52.5070688
+   ],
+   [
+    13.3725128,
+    52.5072188
+   ],
+   [
+    13.3724563,
+    52.5074159
+   ],
+   [
+    13.3718611,
+    52.5093015
+   ],
+   [
+    13.3717462,
+    52.5096904
+   ]
+  ],
+  "original_attribute": {
+   "verkehrsrichtung": "R"
+  },
+  "attribute": {
+   "ausgeschlossen": true
+  },
+  "kommentar": "Tunnel Tiergarten: Kfz-Tunnel ohne Radverkehr",
+  "aenderungen": [
+   {
+    "vorgang_id": "24554ce7-9e1f-471a-9678-64d958baf149",
+    "art": "ausgeschlossen",
+    "von_wert": false,
+    "nach_wert": true,
+    "beschreibung": "Kante ausgeschlossen – aus Altliste ausschluss_element_nr.csv",
+    "kommentar": "Tunnel Tiergarten: Kfz-Tunnel ohne Radverkehr",
+    "von_nutzer": "Altliste",
+    "am": "2026-11-10T18:22:32Z"
+   }
+  ]
+ },
+ {
+  "kind": "edge_correction",
+  "kante": {
+   "art": "ren",
+   "ref": "44540024_44540049.02",
+   "element_nr": "44540024_44540049.02"
+  },
+  "original_coordinates": [
+   [
+    13.371174,
+    52.5111354
+   ],
+   [
+    13.3712196,
+    52.5112095
+   ],
+   [
+    13.3711899,
+    52.5112852
+   ],
+   [
+    13.3709404,
+    52.511884
+   ],
+   [
+    13.3706404,
+    52.5125562
+   ],
+   [
+    13.3704059,
+    52.5131241
+   ],
+   [
+    13.3703408,
+    52.5133862
+   ]
+  ],
+  "coordinates": [
+   [
+    13.371174,
+    52.5111354
+   ],
+   [
+    13.3712196,
+    52.5112095
+   ],
+   [
+    13.3711899,
+    52.5112852
+   ],
+   [
+    13.3709404,
+    52.511884
+   ],
+   [
+    13.3706404,
+    52.5125562
+   ],
+   [
+    13.3704059,
+    52.5131241
+   ],
+   [
+    13.3703408,
+    52.5133862
+   ]
+  ],
+  "original_attribute": {
+   "verkehrsrichtung": "R"
+  },
+  "attribute": {
+   "ausgeschlossen": true
+  },
+  "kommentar": "Tunnel Tiergarten: Kfz-Tunnel ohne Radverkehr",
+  "aenderungen": [
+   {
+    "vorgang_id": "b1c3aa34-f13d-4742-8139-2fff3ab836f3",
+    "art": "ausgeschlossen",
+    "von_wert": false,
+    "nach_wert": true,
+    "beschreibung": "Kante ausgeschlossen – aus Altliste ausschluss_element_nr.csv",
+    "kommentar": "Tunnel Tiergarten: Kfz-Tunnel ohne Radverkehr",
+    "von_nutzer": "Altliste",
+    "am": "2026-11-10T18:22:32Z"
+   }
+  ]
+ },
+ {
+  "kind": "edge_correction",
+  "kante": {
+   "art": "ren",
+   "ref": "44540048_44530051.02",
+   "element_nr": "44540048_44530051.02"
+  },
+  "original_coordinates": [
+   [
+    13.370121,
+    52.5133701
+   ],
+   [
+    13.3701404,
+    52.5130563
+   ],
+   [
+    13.3704527,
+    52.5123089
+   ],
+   [
+    13.370798,
+    52.511512
+   ],
+   [
+    13.3709093,
+    52.5113494
+   ],
+   [
+    13.3711181,
+    52.5110787
+   ],
+   [
+    13.3712541,
+    52.510776
+   ],
+   [
+    13.3714851,
+    52.5101179
+   ],
+   [
+    13.371755,
+    52.5092509
+   ],
+   [
+    13.3719809,
+    52.5085166
+   ],
+   [
+    13.3723436,
+    52.5073535
+   ],
+   [
+    13.3724044,
+    52.5070419
+   ],
+   [
+    13.3724034,
+    52.5068465
+   ],
+   [
+    13.3723836,
+    52.506716
+   ],
+   [
+    13.3723522,
+    52.5065653
+   ],
+   [
+    13.3722338,
+    52.5061578
+   ]
+  ],
+  "coordinates": [
+   [
+    13.370121,
+    52.5133701
+   ],
+   [
+    13.3701404,
+    52.5130563
+   ],
+   [
+    13.3704527,
+    52.5123089
+   ],
+   [
+    13.370798,
+    52.511512
+   ],
+   [
+    13.3709093,
+    52.5113494
+   ],
+   [
+    13.3711181,
+    52.5110787
+   ],
+   [
+    13.3712541,
+    52.510776
+   ],
+   [
+    13.3714851,
+    52.5101179
+   ],
+   [
+    13.371755,
+    52.5092509
+   ],
+   [
+    13.3719809,
+    52.5085166
+   ],
+   [
+    13.3723436,
+    52.5073535
+   ],
+   [
+    13.3724044,
+    52.5070419
+   ],
+   [
+    13.3724034,
+    52.5068465
+   ],
+   [
+    13.3723836,
+    52.506716
+   ],
+   [
+    13.3723522,
+    52.5065653
+   ],
+   [
+    13.3722338,
+    52.5061578
+   ]
+  ],
+  "original_attribute": {
+   "verkehrsrichtung": "R"
+  },
+  "attribute": {
+   "ausgeschlossen": true
+  },
+  "kommentar": "Tunnel Tiergarten: Kfz-Tunnel ohne Radverkehr",
+  "aenderungen": [
+   {
+    "vorgang_id": "4f209099-0fa7-4e04-9b21-6c32c3568c6f",
+    "art": "ausgeschlossen",
+    "von_wert": false,
+    "nach_wert": true,
+    "beschreibung": "Kante ausgeschlossen – aus Altliste ausschluss_element_nr.csv",
+    "kommentar": "Tunnel Tiergarten: Kfz-Tunnel ohne Radverkehr",
+    "von_nutzer": "Altliste",
+    "am": "2026-11-10T18:22:32Z"
+   }
+  ]
+ },
+ {
+  "kind": "edge_correction",
+  "kante": {
+   "art": "ren",
+   "ref": "44540048_44540024.02",
+   "element_nr": "44540048_44540024.02"
+  },
+  "original_coordinates": [
+   [
+    13.370121,
+    52.5133701
+   ],
+   [
+    13.3702692,
+    52.513051
+   ],
+   [
+    13.370635,
+    52.5122282
+   ],
+   [
+    13.3710356,
+    52.5112846
+   ],
+   [
+    13.3710731,
+    52.5112
+   ],
+   [
+    13.371174,
+    52.5111354
+   ]
+  ],
+  "coordinates": [
+   [
+    13.370121,
+    52.5133701
+   ],
+   [
+    13.3702692,
+    52.513051
+   ],
+   [
+    13.370635,
+    52.5122282
+   ],
+   [
+    13.3710356,
+    52.5112846
+   ],
+   [
+    13.3710731,
+    52.5112
+   ],
+   [
+    13.371174,
+    52.5111354
+   ]
+  ],
+  "original_attribute": {
+   "verkehrsrichtung": "R"
+  },
+  "attribute": {
+   "ausgeschlossen": true
+  },
+  "kommentar": "Tunnel Tiergarten: Kfz-Tunnel ohne Radverkehr",
+  "aenderungen": [
+   {
+    "vorgang_id": "c74b0ab1-d30f-41d1-8363-2d94efb4f81c",
+    "art": "ausgeschlossen",
+    "von_wert": false,
+    "nach_wert": true,
+    "beschreibung": "Kante ausgeschlossen – aus Altliste ausschluss_element_nr.csv",
+    "kommentar": "Tunnel Tiergarten: Kfz-Tunnel ohne Radverkehr",
+    "von_nutzer": "Altliste",
+    "am": "2026-11-10T18:22:32Z"
+   }
+  ]
+ },
+ {
+  "kind": "edge_correction",
+  "kante": {
+   "art": "ren",
+   "ref": "44540049_44550045.02",
+   "element_nr": "44540049_44550045.02"
+  },
+  "original_coordinates": [
+   [
+    13.3703408,
+    52.5133862
+   ],
+   [
+    13.370164,
+    52.5137796
+   ],
+   [
+    13.370061,
+    52.5141213
+   ],
+   [
+    13.3699898,
+    52.5144936
+   ],
+   [
+    13.3699535,
+    52.5148035
+   ],
+   [
+    13.3699307,
+    52.5152017
+   ],
+   [
+    13.3699537,
+    52.5155803
+   ],
+   [
+    13.3700078,
+    52.5160043
+   ],
+   [
+    13.3701842,
+    52.5166731
+   ],
+   [
+    13.3703414,
+    52.5170861
+   ],
+   [
+    13.370505,
+    52.5174365
+   ],
+   [
+    13.3706897,
+    52.5177722
+   ],
+   [
+    13.3708278,
+    52.5180346
+   ],
+   [
+    13.3709858,
+    52.5183149
+   ],
+   [
+    13.3716807,
+    52.5195118
+   ],
+   [
+    13.3719034,
+    52.5199307
+   ],
+   [
+    13.3719727,
+    52.5201646
+   ],
+   [
+    13.3719928,
+    52.5204004
+   ],
+   [
+    13.3719742,
+    52.5205679
+   ],
+   [
+    13.3719436,
+    52.5207303
+   ],
+   [
+    13.3718538,
+    52.520937
+   ],
+   [
+    13.3716917,
+    52.5212128
+   ],
+   [
+    13.371448,
+    52.5215827
+   ],
+   [
+    13.3711125,
+    52.5219939
+   ],
+   [
+    13.3701908,
+    52.5230408
+   ],
+   [
+    13.3699367,
+    52.5232478
+   ],
+   [
+    13.3697812,
+    52.5233433
+   ],
+   [
+    13.3695805,
+    52.5234407
+   ]
+  ],
+  "coordinates": [
+   [
+    13.3703408,
+    52.5133862
+   ],
+   [
+    13.370164,
+    52.5137796
+   ],
+   [
+    13.370061,
+    52.5141213
+   ],
+   [
+    13.3699898,
+    52.5144936
+   ],
+   [
+    13.3699535,
+    52.5148035
+   ],
+   [
+    13.3699307,
+    52.5152017
+   ],
+   [
+    13.3699537,
+    52.5155803
+   ],
+   [
+    13.3700078,
+    52.5160043
+   ],
+   [
+    13.3701842,
+    52.5166731
+   ],
+   [
+    13.3703414,
+    52.5170861
+   ],
+   [
+    13.370505,
+    52.5174365
+   ],
+   [
+    13.3706897,
+    52.5177722
+   ],
+   [
+    13.3708278,
+    52.5180346
+   ],
+   [
+    13.3709858,
+    52.5183149
+   ],
+   [
+    13.3716807,
+    52.5195118
+   ],
+   [
+    13.3719034,
+    52.5199307
+   ],
+   [
+    13.3719727,
+    52.5201646
+   ],
+   [
+    13.3719928,
+    52.5204004
+   ],
+   [
+    13.3719742,
+    52.5205679
+   ],
+   [
+    13.3719436,
+    52.5207303
+   ],
+   [
+    13.3718538,
+    52.520937
+   ],
+   [
+    13.3716917,
+    52.5212128
+   ],
+   [
+    13.371448,
+    52.5215827
+   ],
+   [
+    13.3711125,
+    52.5219939
+   ],
+   [
+    13.3701908,
+    52.5230408
+   ],
+   [
+    13.3699367,
+    52.5232478
+   ],
+   [
+    13.3697812,
+    52.5233433
+   ],
+   [
+    13.3695805,
+    52.5234407
+   ]
+  ],
+  "original_attribute": {
+   "verkehrsrichtung": "R"
+  },
+  "attribute": {
+   "ausgeschlossen": true
+  },
+  "kommentar": "Tunnel Tiergarten: Kfz-Tunnel ohne Radverkehr",
+  "aenderungen": [
+   {
+    "vorgang_id": "fced9cdf-d749-47d9-bacd-56dfd970b045",
+    "art": "ausgeschlossen",
+    "von_wert": false,
+    "nach_wert": true,
+    "beschreibung": "Kante ausgeschlossen – aus Altliste ausschluss_element_nr.csv",
+    "kommentar": "Tunnel Tiergarten: Kfz-Tunnel ohne Radverkehr",
+    "von_nutzer": "Altliste",
+    "am": "2026-11-10T18:22:32Z"
+   }
+  ]
+ },
+ {
+  "kind": "edge_correction",
+  "kante": {
+   "art": "ren",
+   "ref": "44540050_44540049.02",
+   "element_nr": "44540050_44540049.02"
+  },
+  "original_coordinates": [
+   [
+    13.371284,
+    52.5111695
+   ],
+   [
+    13.3712092,
+    52.5114969
+   ],
+   [
+    13.3709732,
+    52.5121049
+   ],
+   [
+    13.3705169,
+    52.5131566
+   ],
+   [
+    13.3703408,
+    52.5133862
+   ]
+  ],
+  "coordinates": [
+   [
+    13.371284,
+    52.5111695
+   ],
+   [
+    13.3712092,
+    52.5114969
+   ],
+   [
+    13.3709732,
+    52.5121049
+   ],
+   [
+    13.3705169,
+    52.5131566
+   ],
+   [
+    13.3703408,
+    52.5133862
+   ]
+  ],
+  "original_attribute": {
+   "verkehrsrichtung": "R"
+  },
+  "attribute": {
+   "ausgeschlossen": true
+  },
+  "kommentar": "Tunnel Tiergarten: Kfz-Tunnel ohne Radverkehr",
+  "aenderungen": [
+   {
+    "vorgang_id": "861a713b-dfff-4e0d-a3ed-5a7dab6709e9",
+    "art": "ausgeschlossen",
+    "von_wert": false,
+    "nach_wert": true,
+    "beschreibung": "Kante ausgeschlossen – aus Altliste ausschluss_element_nr.csv",
+    "kommentar": "Tunnel Tiergarten: Kfz-Tunnel ohne Radverkehr",
+    "von_nutzer": "Altliste",
+    "am": "2026-11-10T18:22:32Z"
+   }
+  ]
+ },
+ {
+  "kind": "edge_correction",
+  "kante": {
+   "art": "ren",
+   "ref": "44550039_44550043.02",
+   "element_nr": "44550039_44550043.02"
+  },
+  "original_coordinates": [
+   [
+    13.3680614,
+    52.5282252
+   ],
+   [
+    13.3679293,
+    52.5280772
+   ],
+   [
+    13.367801,
+    52.5278918
+   ],
+   [
+    13.3677412,
+    52.5277796
+   ],
+   [
+    13.3676742,
+    52.5276022
+   ],
+   [
+    13.3676284,
+    52.5273022
+   ],
+   [
+    13.3675508,
+    52.5264281
+   ],
+   [
+    13.3675289,
+    52.526178
+   ],
+   [
+    13.3675488,
+    52.5259571
+   ],
+   [
+    13.3675661,
+    52.5258051
+   ],
+   [
+    13.3676244,
+    52.5256013
+   ],
+   [
+    13.3676594,
+    52.5253924
+   ],
+   [
+    13.3676745,
+    52.5251975
+   ],
+   [
+    13.3676745,
+    52.5248812
+   ],
+   [
+    13.3676918,
+    52.5246245
+   ],
+   [
+    13.3677083,
+    52.5244962
+   ],
+   [
+    13.3677733,
+    52.5243211
+   ],
+   [
+    13.3679056,
+    52.5241183
+   ],
+   [
+    13.3681501,
+    52.523921
+   ]
+  ],
+  "coordinates": [
+   [
+    13.3680614,
+    52.5282252
+   ],
+   [
+    13.3679293,
+    52.5280772
+   ],
+   [
+    13.367801,
+    52.5278918
+   ],
+   [
+    13.3677412,
+    52.5277796
+   ],
+   [
+    13.3676742,
+    52.5276022
+   ],
+   [
+    13.3676284,
+    52.5273022
+   ],
+   [
+    13.3675508,
+    52.5264281
+   ],
+   [
+    13.3675289,
+    52.526178
+   ],
+   [
+    13.3675488,
+    52.5259571
+   ],
+   [
+    13.3675661,
+    52.5258051
+   ],
+   [
+    13.3676244,
+    52.5256013
+   ],
+   [
+    13.3676594,
+    52.5253924
+   ],
+   [
+    13.3676745,
+    52.5251975
+   ],
+   [
+    13.3676745,
+    52.5248812
+   ],
+   [
+    13.3676918,
+    52.5246245
+   ],
+   [
+    13.3677083,
+    52.5244962
+   ],
+   [
+    13.3677733,
+    52.5243211
+   ],
+   [
+    13.3679056,
+    52.5241183
+   ],
+   [
+    13.3681501,
+    52.523921
+   ]
+  ],
+  "original_attribute": {
+   "verkehrsrichtung": "R"
+  },
+  "attribute": {
+   "ausgeschlossen": true
+  },
+  "kommentar": "Tunnel Tiergarten: Kfz-Tunnel ohne Radverkehr",
+  "aenderungen": [
+   {
+    "vorgang_id": "c625ec36-a62d-49a4-99fb-6beee32c9649",
+    "art": "ausgeschlossen",
+    "von_wert": false,
+    "nach_wert": true,
+    "beschreibung": "Kante ausgeschlossen – aus Altliste ausschluss_element_nr.csv",
+    "kommentar": "Tunnel Tiergarten: Kfz-Tunnel ohne Radverkehr",
+    "von_nutzer": "Altliste",
+    "am": "2026-11-10T18:22:32Z"
+   }
+  ]
+ },
+ {
+  "kind": "edge_correction",
+  "kante": {
+   "art": "ren",
+   "ref": "44550040_44550043.02",
+   "element_nr": "44550040_44550043.02"
+  },
+  "original_coordinates": [
+   [
+    13.3676393,
+    52.5259211
+   ],
+   [
+    13.3677996,
+    52.5257155
+   ],
+   [
+    13.3678123,
+    52.5253731
+   ],
+   [
+    13.3678098,
+    52.5248069
+   ],
+   [
+    13.3678168,
+    52.5246191
+   ],
+   [
+    13.3678412,
+    52.5244886
+   ],
+   [
+    13.3679064,
+    52.5243063
+   ],
+   [
+    13.3679738,
+    52.5241716
+   ],
+   [
+    13.3681501,
+    52.523921
+   ]
+  ],
+  "coordinates": [
+   [
+    13.3676393,
+    52.5259211
+   ],
+   [
+    13.3677996,
+    52.5257155
+   ],
+   [
+    13.3678123,
+    52.5253731
+   ],
+   [
+    13.3678098,
+    52.5248069
+   ],
+   [
+    13.3678168,
+    52.5246191
+   ],
+   [
+    13.3678412,
+    52.5244886
+   ],
+   [
+    13.3679064,
+    52.5243063
+   ],
+   [
+    13.3679738,
+    52.5241716
+   ],
+   [
+    13.3681501,
+    52.523921
+   ]
+  ],
+  "original_attribute": {
+   "verkehrsrichtung": "R"
+  },
+  "attribute": {
+   "ausgeschlossen": true
+  },
+  "kommentar": "Tunnel Tiergarten: Kfz-Tunnel ohne Radverkehr",
+  "aenderungen": [
+   {
+    "vorgang_id": "645a02b0-c2e2-4185-8ff8-d62e231895e8",
+    "art": "ausgeschlossen",
+    "von_wert": false,
+    "nach_wert": true,
+    "beschreibung": "Kante ausgeschlossen – aus Altliste ausschluss_element_nr.csv",
+    "kommentar": "Tunnel Tiergarten: Kfz-Tunnel ohne Radverkehr",
+    "von_nutzer": "Altliste",
+    "am": "2026-11-10T18:22:32Z"
+   }
+  ]
+ },
+ {
+  "kind": "edge_correction",
+  "kante": {
+   "art": "ren",
+   "ref": "44550043_44540048.02",
+   "element_nr": "44550043_44540048.02"
+  },
+  "original_coordinates": [
+   [
+    13.3681501,
+    52.523921
+   ],
+   [
+    13.368375,
+    52.5237656
+   ],
+   [
+    13.368681,
+    52.5236104
+   ],
+   [
+    13.3689775,
+    52.5235027
+   ],
+   [
+    13.3694555,
+    52.5233404
+   ],
+   [
+    13.3697093,
+    52.5232273
+   ],
+   [
+    13.3699369,
+    52.523083
+   ],
+   [
+    13.3700745,
+    52.5229469
+   ],
+   [
+    13.3702329,
+    52.5227778
+   ],
+   [
+    13.3706443,
+    52.5223053
+   ],
+   [
+    13.3710019,
+    52.5219153
+   ],
+   [
+    13.3714,
+    52.5213808
+   ],
+   [
+    13.37169,
+    52.5209209
+   ],
+   [
+    13.3717585,
+    52.5207553
+   ],
+   [
+    13.3718128,
+    52.5205539
+   ],
+   [
+    13.3718351,
+    52.520371
+   ],
+   [
+    13.371814,
+    52.5202042
+   ],
+   [
+    13.3717727,
+    52.5200561
+   ],
+   [
+    13.3717193,
+    52.5199174
+   ],
+   [
+    13.3714269,
+    52.5193877
+   ],
+   [
+    13.3711082,
+    52.5188314
+   ],
+   [
+    13.3707273,
+    52.5181648
+   ],
+   [
+    13.3704462,
+    52.5176471
+   ],
+   [
+    13.3702467,
+    52.5172423
+   ],
+   [
+    13.3700531,
+    52.5167853
+   ],
+   [
+    13.3699452,
+    52.5164341
+   ],
+   [
+    13.3698796,
+    52.5162048
+   ],
+   [
+    13.3698297,
+    52.515971
+   ],
+   [
+    13.3697938,
+    52.5156779
+   ],
+   [
+    13.3697729,
+    52.5153993
+   ],
+   [
+    13.3697738,
+    52.5149544
+   ],
+   [
+    13.3698334,
+    52.5143962
+   ],
+   [
+    13.3699927,
+    52.5137799
+   ],
+   [
+    13.370121,
+    52.5133701
+   ]
+  ],
+  "coordinates": [
+   [
+    13.3681501,
+    52.523921
+   ],
+   [
+    13.368375,
+    52.5237656
+   ],
+   [
+    13.368681,
+    52.5236104
+   ],
+   [
+    13.3689775,
+    52.5235027
+   ],
+   [
+    13.3694555,
+    52.5233404
+   ],
+   [
+    13.3697093,
+    52.5232273
+   ],
+   [
+    13.3699369,
+    52.523083
+   ],
+   [
+    13.3700745,
+    52.5229469
+   ],
+   [
+    13.3702329,
+    52.5227778
+   ],
+   [
+    13.3706443,
+    52.5223053
+   ],
+   [
+    13.3710019,
+    52.5219153
+   ],
+   [
+    13.3714,
+    52.5213808
+   ],
+   [
+    13.37169,
+    52.5209209
+   ],
+   [
+    13.3717585,
+    52.5207553
+   ],
+   [
+    13.3718128,
+    52.5205539
+   ],
+   [
+    13.3718351,
+    52.520371
+   ],
+   [
+    13.371814,
+    52.5202042
+   ],
+   [
+    13.3717727,
+    52.5200561
+   ],
+   [
+    13.3717193,
+    52.5199174
+   ],
+   [
+    13.3714269,
+    52.5193877
+   ],
+   [
+    13.3711082,
+    52.5188314
+   ],
+   [
+    13.3707273,
+    52.5181648
+   ],
+   [
+    13.3704462,
+    52.5176471
+   ],
+   [
+    13.3702467,
+    52.5172423
+   ],
+   [
+    13.3700531,
+    52.5167853
+   ],
+   [
+    13.3699452,
+    52.5164341
+   ],
+   [
+    13.3698796,
+    52.5162048
+   ],
+   [
+    13.3698297,
+    52.515971
+   ],
+   [
+    13.3697938,
+    52.5156779
+   ],
+   [
+    13.3697729,
+    52.5153993
+   ],
+   [
+    13.3697738,
+    52.5149544
+   ],
+   [
+    13.3698334,
+    52.5143962
+   ],
+   [
+    13.3699927,
+    52.5137799
+   ],
+   [
+    13.370121,
+    52.5133701
+   ]
+  ],
+  "original_attribute": {
+   "verkehrsrichtung": "R"
+  },
+  "attribute": {
+   "ausgeschlossen": true
+  },
+  "kommentar": "Tunnel Tiergarten: Kfz-Tunnel ohne Radverkehr",
+  "aenderungen": [
+   {
+    "vorgang_id": "02c61a92-9824-4913-b1f1-86037d28c22b",
+    "art": "ausgeschlossen",
+    "von_wert": false,
+    "nach_wert": true,
+    "beschreibung": "Kante ausgeschlossen – aus Altliste ausschluss_element_nr.csv",
+    "kommentar": "Tunnel Tiergarten: Kfz-Tunnel ohne Radverkehr",
+    "von_nutzer": "Altliste",
+    "am": "2026-11-10T18:22:32Z"
+   }
+  ]
+ },
+ {
+  "kind": "edge_correction",
+  "kante": {
+   "art": "ren",
+   "ref": "44550044_44550037.02",
+   "element_nr": "44550044_44550037.02"
+  },
+  "original_coordinates": [
+   [
+    13.3680146,
+    52.5253555
+   ],
+   [
+    13.3679092,
+    52.5255419
+   ],
+   [
+    13.3677869,
+    52.5257381
+   ],
+   [
+    13.3676979,
+    52.5259223
+   ],
+   [
+    13.3676669,
+    52.5260947
+   ],
+   [
+    13.3676828,
+    52.5264406
+   ],
+   [
+    13.3677017,
+    52.5267333
+   ],
+   [
+    13.3677645,
+    52.5273611
+   ],
+   [
+    13.3678093,
+    52.5276041
+   ],
+   [
+    13.3678675,
+    52.5277611
+   ],
+   [
+    13.3679768,
+    52.5279492
+   ],
+   [
+    13.3680832,
+    52.5280837
+   ],
+   [
+    13.3682248,
+    52.5282317
+   ],
+   [
+    13.3683828,
+    52.5283368
+   ]
+  ],
+  "coordinates": [
+   [
+    13.3680146,
+    52.5253555
+   ],
+   [
+    13.3679092,
+    52.5255419
+   ],
+   [
+    13.3677869,
+    52.5257381
+   ],
+   [
+    13.3676979,
+    52.5259223
+   ],
+   [
+    13.3676669,
+    52.5260947
+   ],
+   [
+    13.3676828,
+    52.5264406
+   ],
+   [
+    13.3677017,
+    52.5267333
+   ],
+   [
+    13.3677645,
+    52.5273611
+   ],
+   [
+    13.3678093,
+    52.5276041
+   ],
+   [
+    13.3678675,
+    52.5277611
+   ],
+   [
+    13.3679768,
+    52.5279492
+   ],
+   [
+    13.3680832,
+    52.5280837
+   ],
+   [
+    13.3682248,
+    52.5282317
+   ],
+   [
+    13.3683828,
+    52.5283368
+   ]
+  ],
+  "original_attribute": {
+   "verkehrsrichtung": "R"
+  },
+  "attribute": {
+   "ausgeschlossen": true
+  },
+  "kommentar": "Tunnel Tiergarten: Kfz-Tunnel ohne Radverkehr",
+  "aenderungen": [
+   {
+    "vorgang_id": "cc9b2a38-9a79-4cd8-bb9b-4e6516b75142",
+    "art": "ausgeschlossen",
+    "von_wert": false,
+    "nach_wert": true,
+    "beschreibung": "Kante ausgeschlossen – aus Altliste ausschluss_element_nr.csv",
+    "kommentar": "Tunnel Tiergarten: Kfz-Tunnel ohne Radverkehr",
+    "von_nutzer": "Altliste",
+    "am": "2026-11-10T18:22:32Z"
+   }
+  ]
+ },
+ {
+  "kind": "edge_correction",
+  "kante": {
+   "art": "ren",
+   "ref": "44550045_44550038.02",
+   "element_nr": "44550045_44550038.02"
+  },
+  "original_coordinates": [
+   [
+    13.3695805,
+    52.5234407
+   ],
+   [
+    13.3692319,
+    52.5235386
+   ],
+   [
+    13.368841,
+    52.523671
+   ],
+   [
+    13.3684642,
+    52.5238637
+   ],
+   [
+    13.3682604,
+    52.5240438
+   ],
+   [
+    13.3680687,
+    52.5242632
+   ],
+   [
+    13.3679741,
+    52.5245659
+   ],
+   [
+    13.3679716,
+    52.5258281
+   ],
+   [
+    13.3678903,
+    52.5259954
+   ]
+  ],
+  "coordinates": [
+   [
+    13.3695805,
+    52.5234407
+   ],
+   [
+    13.3692319,
+    52.5235386
+   ],
+   [
+    13.368841,
+    52.523671
+   ],
+   [
+    13.3684642,
+    52.5238637
+   ],
+   [
+    13.3682604,
+    52.5240438
+   ],
+   [
+    13.3680687,
+    52.5242632
+   ],
+   [
+    13.3679741,
+    52.5245659
+   ],
+   [
+    13.3679716,
+    52.5258281
+   ],
+   [
+    13.3678903,
+    52.5259954
+   ]
+  ],
+  "original_attribute": {
+   "verkehrsrichtung": "R"
+  },
+  "attribute": {
+   "ausgeschlossen": true
+  },
+  "kommentar": "Tunnel Tiergarten: Kfz-Tunnel ohne Radverkehr",
+  "aenderungen": [
+   {
+    "vorgang_id": "79452e58-cd1b-42b6-832f-ca49514686bf",
+    "art": "ausgeschlossen",
+    "von_wert": false,
+    "nach_wert": true,
+    "beschreibung": "Kante ausgeschlossen – aus Altliste ausschluss_element_nr.csv",
+    "kommentar": "Tunnel Tiergarten: Kfz-Tunnel ohne Radverkehr",
+    "von_nutzer": "Altliste",
+    "am": "2026-11-10T18:22:32Z"
+   }
+  ]
+ },
+ {
+  "kind": "edge_correction",
+  "kante": {
+   "art": "ren",
+   "ref": "44550045_44550044.02",
+   "element_nr": "44550045_44550044.02"
+  },
+  "original_coordinates": [
+   [
+    13.3695805,
+    52.5234407
+   ],
+   [
+    13.3693372,
+    52.5235777
+   ],
+   [
+    13.3688534,
+    52.5237789
+   ],
+   [
+    13.3685133,
+    52.5239796
+   ],
+   [
+    13.3683649,
+    52.5241053
+   ],
+   [
+    13.3682483,
+    52.524259
+   ],
+   [
+    13.3681652,
+    52.5243957
+   ],
+   [
+    13.3681302,
+    52.5245655
+   ],
+   [
+    13.3680972,
+    52.5247905
+   ],
+   [
+    13.3681025,
+    52.5250912
+   ],
+   [
+    13.3680767,
+    52.5252336
+   ],
+   [
+    13.3680146,
+    52.5253555
+   ]
+  ],
+  "coordinates": [
+   [
+    13.3695805,
+    52.5234407
+   ],
+   [
+    13.3693372,
+    52.5235777
+   ],
+   [
+    13.3688534,
+    52.5237789
+   ],
+   [
+    13.3685133,
+    52.5239796
+   ],
+   [
+    13.3683649,
+    52.5241053
+   ],
+   [
+    13.3682483,
+    52.524259
+   ],
+   [
+    13.3681652,
+    52.5243957
+   ],
+   [
+    13.3681302,
+    52.5245655
+   ],
+   [
+    13.3680972,
+    52.5247905
+   ],
+   [
+    13.3681025,
+    52.5250912
+   ],
+   [
+    13.3680767,
+    52.5252336
+   ],
+   [
+    13.3680146,
+    52.5253555
+   ]
+  ],
+  "original_attribute": {
+   "verkehrsrichtung": "R"
+  },
+  "attribute": {
+   "ausgeschlossen": true
+  },
+  "kommentar": "Tunnel Tiergarten: Kfz-Tunnel ohne Radverkehr",
+  "aenderungen": [
+   {
+    "vorgang_id": "bae0c35e-86d2-4e4e-8de7-ee6f95b42d56",
+    "art": "ausgeschlossen",
+    "von_wert": false,
+    "nach_wert": true,
+    "beschreibung": "Kante ausgeschlossen – aus Altliste ausschluss_element_nr.csv",
+    "kommentar": "Tunnel Tiergarten: Kfz-Tunnel ohne Radverkehr",
+    "von_nutzer": "Altliste",
+    "am": "2026-11-10T18:22:32Z"
+   }
+  ]
+ },
+ {
+  "kind": "edge_correction",
+  "kante": {
+   "art": "ren",
+   "ref": "40580017_39580016.01",
+   "element_nr": "40580017_39580016.01"
+  },
+  "original_coordinates": [
+   [
+    13.3031248,
+    52.5509888
+   ],
+   [
+    13.3037624,
+    52.5515899
+   ]
+  ],
+  "coordinates": [
+   [
+    13.3031248,
+    52.5509888
+   ],
+   [
+    13.3037624,
+    52.5515899
+   ]
+  ],
+  "original_attribute": {
+   "verkehrsrichtung": "R"
+  },
+  "attribute": {
+   "ausgeschlossen": true
+  },
+  "kommentar": "Autobahn-Ausfahrt (im Detailnetz nicht als Autobahn geführt)",
+  "aenderungen": [
+   {
+    "vorgang_id": "4cb7e7b6-e39a-4547-af3f-4c8e7a303728",
+    "art": "ausgeschlossen",
+    "von_wert": false,
+    "nach_wert": true,
+    "beschreibung": "Kante ausgeschlossen – aus Altliste ausschluss_element_nr.csv",
+    "kommentar": "Autobahn-Ausfahrt (im Detailnetz nicht als Autobahn geführt)",
+    "von_nutzer": "Altliste",
+    "am": "2026-11-10T18:22:32Z"
+   }
+  ]
+ },
+ {
+  "kind": "edge_correction",
+  "kante": {
+   "art": "ren",
+   "ref": "53440031_54440038.01",
+   "element_nr": "53440031_54440038.01"
+  },
+  "original_coordinates": [
+   [
+    13.5133095,
+    52.4279829
+   ],
+   [
+    13.5133251,
+    52.4278732
+   ],
+   [
+    13.5133675,
+    52.4277691
+   ],
+   [
+    13.5134328,
+    52.4276795
+   ],
+   [
+    13.5135172,
+    52.4275997
+   ],
+   [
+    13.5136367,
+    52.4275203
+   ],
+   [
+    13.5137673,
+    52.4274541
+   ],
+   [
+    13.5139523,
+    52.427391
+   ],
+   [
+    13.5142348,
+    52.4273244
+   ],
+   [
+    13.5144461,
+    52.427289
+   ],
+   [
+    13.5151807,
+    52.4272007
+   ],
+   [
+    13.5156612,
+    52.4271461
+   ],
+   [
+    13.5165476,
+    52.4270549
+   ],
+   [
+    13.5174005,
+    52.4269764
+   ],
+   [
+    13.5184523,
+    52.4268873
+   ],
+   [
+    13.5188322,
+    52.4268742
+   ],
+   [
+    13.5193839,
+    52.4268407
+   ],
+   [
+    13.5197214,
+    52.426814
+   ],
+   [
+    13.520105,
+    52.426793
+   ]
+  ],
+  "coordinates": [
+   [
+    13.5133095,
+    52.4279829
+   ],
+   [
+    13.5133251,
+    52.4278732
+   ],
+   [
+    13.5133675,
+    52.4277691
+   ],
+   [
+    13.5134328,
+    52.4276795
+   ],
+   [
+    13.5135172,
+    52.4275997
+   ],
+   [
+    13.5136367,
+    52.4275203
+   ],
+   [
+    13.5137673,
+    52.4274541
+   ],
+   [
+    13.5139523,
+    52.427391
+   ],
+   [
+    13.5142348,
+    52.4273244
+   ],
+   [
+    13.5144461,
+    52.427289
+   ],
+   [
+    13.5151807,
+    52.4272007
+   ],
+   [
+    13.5156612,
+    52.4271461
+   ],
+   [
+    13.5165476,
+    52.4270549
+   ],
+   [
+    13.5174005,
+    52.4269764
+   ],
+   [
+    13.5184523,
+    52.4268873
+   ],
+   [
+    13.5188322,
+    52.4268742
+   ],
+   [
+    13.5193839,
+    52.4268407
+   ],
+   [
+    13.5197214,
+    52.426814
+   ],
+   [
+    13.520105,
+    52.426793
+   ]
+  ],
+  "original_attribute": {
+   "verkehrsrichtung": "B"
+  },
+  "attribute": {
+   "ausgeschlossen": true
+  },
+  "kommentar": "Zubringer: führt nur zur Autobahn-Anschlussstelle Adlershof (A 113)",
+  "aenderungen": [
+   {
+    "vorgang_id": "e671243c-c6c1-46ea-a557-d61c221a8f5f",
+    "art": "ausgeschlossen",
+    "von_wert": false,
+    "nach_wert": true,
+    "beschreibung": "Kante ausgeschlossen – aus Altliste ausschluss_element_nr.csv",
+    "kommentar": "Zubringer: führt nur zur Autobahn-Anschlussstelle Adlershof (A 113)",
+    "von_nutzer": "Altliste",
+    "am": "2026-11-10T18:22:32Z"
+   }
+  ]
+ },
+ {
+  "kind": "edge_correction",
+  "kante": {
+   "art": "ren",
+   "ref": "53440032_53440031.01",
+   "element_nr": "53440032_53440031.01"
+  },
+  "original_coordinates": [
+   [
+    13.5133601,
+    52.4284512
+   ],
+   [
+    13.5133368,
+    52.428332
+   ],
+   [
+    13.5133123,
+    52.4281366
+   ],
+   [
+    13.5133095,
+    52.4279829
+   ]
+  ],
+  "coordinates": [
+   [
+    13.5133601,
+    52.4284512
+   ],
+   [
+    13.5133368,
+    52.428332
+   ],
+   [
+    13.5133123,
+    52.4281366
+   ],
+   [
+    13.5133095,
+    52.4279829
+   ]
+  ],
+  "original_attribute": {
+   "verkehrsrichtung": "B"
+  },
+  "attribute": {
+   "ausgeschlossen": true
+  },
+  "kommentar": "Zubringer: führt nur zur Autobahn-Anschlussstelle Adlershof (A 113)",
+  "aenderungen": [
+   {
+    "vorgang_id": "bcfabb09-47e0-42a9-8b23-334534244b86",
+    "art": "ausgeschlossen",
+    "von_wert": false,
+    "nach_wert": true,
+    "beschreibung": "Kante ausgeschlossen – aus Altliste ausschluss_element_nr.csv",
+    "kommentar": "Zubringer: führt nur zur Autobahn-Anschlussstelle Adlershof (A 113)",
+    "von_nutzer": "Altliste",
+    "am": "2026-11-10T18:22:32Z"
+   }
+  ]
+ },
+ {
+  "kind": "edge_correction",
+  "kante": {
+   "art": "ren",
+   "ref": "53490017_54490002.01",
+   "element_nr": "53490017_54490002.01"
+  },
+  "original_coordinates": [
+   [
+    13.5122338,
+    52.4707475
+   ],
+   [
+    13.5128709,
+    52.4701797
+   ],
+   [
+    13.5136304,
+    52.4694878
+   ],
+   [
+    13.5138596,
+    52.4692766
+   ],
+   [
+    13.5141513,
+    52.4690287
+   ],
+   [
+    13.5143518,
+    52.4688884
+   ],
+   [
+    13.5145041,
+    52.4687887
+   ],
+   [
+    13.5147006,
+    52.4686787
+   ],
+   [
+    13.5148909,
+    52.4685812
+   ],
+   [
+    13.5151519,
+    52.4684649
+   ],
+   [
+    13.5159038,
+    52.4681729
+   ],
+   [
+    13.5164986,
+    52.4679466
+   ],
+   [
+    13.5169159,
+    52.4677859
+   ],
+   [
+    13.5174033,
+    52.4676243
+   ],
+   [
+    13.5177165,
+    52.4675408
+   ]
+  ],
+  "coordinates": [
+   [
+    13.5122338,
+    52.4707475
+   ],
+   [
+    13.5128709,
+    52.4701797
+   ],
+   [
+    13.5136304,
+    52.4694878
+   ],
+   [
+    13.5138596,
+    52.4692766
+   ],
+   [
+    13.5141513,
+    52.4690287
+   ],
+   [
+    13.5143518,
+    52.4688884
+   ],
+   [
+    13.5145041,
+    52.4687887
+   ],
+   [
+    13.5147006,
+    52.4686787
+   ],
+   [
+    13.5148909,
+    52.4685812
+   ],
+   [
+    13.5151519,
+    52.4684649
+   ],
+   [
+    13.5159038,
+    52.4681729
+   ],
+   [
+    13.5164986,
+    52.4679466
+   ],
+   [
+    13.5169159,
+    52.4677859
+   ],
+   [
+    13.5174033,
+    52.4676243
+   ],
+   [
+    13.5177165,
+    52.4675408
+   ]
+  ],
+  "original_attribute": {
+   "verkehrsrichtung": "B"
+  },
+  "attribute": {
+   "ausgeschlossen": true
+  },
+  "kommentar": "Parallele Kanten im Radergänzungsnetz ersetzen diese Kante: 54490002_54490014.01, 54490014_53490017.01, 53490017_54490001.02, 54490001_54490002.02",
+  "aenderungen": [
+   {
+    "vorgang_id": "e9beb778-660a-472e-b5b4-708596399066",
+    "art": "ausgeschlossen",
+    "von_wert": false,
+    "nach_wert": true,
+    "beschreibung": "Kante ausgeschlossen – aus Altliste ausschluss_element_nr.csv",
+    "kommentar": "Parallele Kanten im Radergänzungsnetz ersetzen diese Kante: 54490002_54490014.01, 54490014_53490017.01, 53490017_54490001.02, 54490001_54490002.02",
+    "von_nutzer": "Altliste",
+    "am": "2026-11-10T18:22:32Z"
+   }
+  ]
+ }
+]
