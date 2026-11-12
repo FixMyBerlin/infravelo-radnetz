@@ -1,6 +1,6 @@
 # Netzanpassungen
 
-Die Skripte hier gehören zur App „Netzanpassungen“ (Repo [knotenpunkte](https://github.com/FixMyBerlin/knotenpunkte), Ordner `netzanpassungen/`) und bilden **Schritt 2, die App-Eingabe und Schritt 3** der Pipeline. Gesamtbild und Regeln: [`docs/network-pipeline.md`](../docs/network-pipeline.md), das gemeinsame Datenformat: `NETZKORREKTUR-PLAN.md` im Repo knotenpunkte.
+Die Skripte hier gehören zur App „Netzanpassungen“ (Repo [knotenpunkte](https://github.com/FixMyBerlin/knotenpunkte), Ordner `netzanpassungen/`) und bilden **Schritt 2, die App-Eingabe und Schritt 3** der Pipeline. Gesamtbild und Regeln: [`docs/network-pipeline.md`](../docs/network-pipeline.md), das Format der App-Einträge (Korrekturen, Zuordnungen) und der Exporte: [README der App](https://github.com/FixMyBerlin/knotenpunkte/blob/main/netzanpassungen/README.md#storage) im Repo knotenpunkte.
 
 **Grundsatz:** Die Eingabe der App enthält nur Rohdaten und das, was automatisch berechnet wird. Alle Handarbeit (Zuordnungen der Radfernwege, neue Kanten, virtuelle Knoten, Lagekorrekturen, Richtung, Fahrbahn, Ausschluss) liegt ausschließlich in der KV-Datenbank der App und wird dort auf diese Eingabe gelegt. Deshalb darf die Eingabedatei jederzeit neu erzeugt und hochgeladen werden. Schritt 3 schreibt das Ergebnis nur nach `output/`, nie nach `data/`.
 
