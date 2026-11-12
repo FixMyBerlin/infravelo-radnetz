@@ -54,11 +54,11 @@ Das [`enrich_rvn_with_detailnetz.py`](./enrich_rvn_with_detailnetz.py) fügt feh
 
 ## 🚍 OSM-Daten Integration
 
-### Bushaltestellen auf RVN filtern
-Das [`filter_bus_stops_on_rvn.py`](./filter_bus_stops_on_rvn.py) filtert Bushaltestellen, die sich auf dem Radvorrangsnetz befinden (15m Puffer).
+### Bushaltestellen am Zielnetz
+Das [`prepare_bus_stops.py`](./prepare_bus_stops.py) holt alle `highway=bus_stop`-Knoten in Berlin über die Overpass-API und schneidet sie auf das Zielnetz zu (Abstand höchstens 15 m, `--puffer` ändert das). Beim REN+ ist das Zielnetz `ren_netz_gesamt.gpkg`, also alle Netzquellen gemeinsam. Kommt eine Quelle dazu (z. B. das Touristische Radnetz), genügt ein neuer Lauf von `ren-network/unify_networks.py`; `execute_processing.sh` ruft das Skript vor der Schutzstreifen-Konvertierung selbst auf.
 
-- **Input**: `data/Stop-Positions-Bus-OSM.fgb`, `output/matching/vorrangnetz_buffered_15m_round.fgb`
-- **Output**: `output/bus_stops_on_rvn.fgb`
+- **Input**: Overpass-API, danach Cache `data/netzquellen/osm_bushaltestellen.gpkg` (`--neu` lädt erneut), Zielnetz aus `helpers/netz.py`
+- **Output**: `output/bus_stops_on_ren.fgb` bzw. mit `--netz rvn` `output/bus_stops_on_rvn.fgb`
 
 ## 📤 Export-Scripts
 
@@ -81,7 +81,7 @@ python scripts/assign_node_ids.py
 ./execute_processing.sh
 
 # 4. Nachgelagerte Analysen (optional)
-python scripts/filter_bus_stops_on_rvn.py
+python scripts/prepare_bus_stops.py --netz ren
 
 # 5. Export (optional)
 python scripts/convert_to_geojson.py

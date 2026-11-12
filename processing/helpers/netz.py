@@ -40,6 +40,12 @@ TILDA_ROUTING_DIR = {
     "ren": "output/TILDA-routing-ren",
 }
 
+# Bushaltestellen am Zielnetz (scripts/prepare_bus_stops.py), Eingang der Schutzstreifen-Konvertierung
+BUSHALTESTELLEN = {
+    "rvn": "output/bus_stops_on_rvn.fgb",
+    "ren": "output/bus_stops_on_ren.fgb",
+}
+
 # Ausgabeordner des Rust-Matchings je Netz (map-matching/config/default.toml, [netze.*])
 MATCHING_DIR = {
     "rvn": "output/map-matching",

@@ -332,7 +332,10 @@ if [[ $START_STEP -le 3 ]]; then
     echo "  💾 Erstelle Backups der vorhandenen Dateien..."
     create_backup "${BASE_OUT_DIR}/snapping_converted_bikelanes${SUFFIX}.fgb"
     
-    CONVERSION_ARGS=(--input "./output/snapping_network_enriched${SUFFIX}.fgb" --output "./output/snapping_converted_bikelanes${SUFFIX}.fgb")
+    # Bushaltestellen aus OSM (Cache) auf das aktuelle Zielnetz zuschneiden
+    "$VENV/bin/python" scripts/prepare_bus_stops.py --netz "$NETZ"
+
+    CONVERSION_ARGS=(--netz "$NETZ" --input "./output/snapping_network_enriched${SUFFIX}.fgb" --output "./output/snapping_converted_bikelanes${SUFFIX}.fgb")
     if [[ -n "$CLIP_REGION" ]]; then
         CONVERSION_ARGS+=(--clip "$CLIP_REGION")
     fi

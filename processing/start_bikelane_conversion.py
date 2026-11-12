@@ -12,7 +12,7 @@ Dies ist ein eigenständiger Verarbeitungsschritt zwischen Snapping und finaler 
 
 INPUT:
 - output/snapping_network_enriched.fgb (angereicherte Netzwerkdaten nach Snapping)
-- output/bus_stops_on_rvn.fgb (Bushaltestellen auf dem Radvorrangsnetz)
+- output/bus_stops_on_<netz>.fgb (Bushaltestellen am Zielnetz, scripts/prepare_bus_stops.py)
 - data-raw-tilda/knotenpunkte_mit_id_und_bezirken.gpkg (Knotenpunkte)
 
 OUTPUT:
@@ -26,6 +26,7 @@ import os
 import logging
 import geopandas as gpd
 from helpers.globals import DEFAULT_CRS
+from helpers.netz import BUSHALTESTELLEN, DEFAULT_NETZ, add_netz_argument
 from helpers.clipping import clip_to_region
 from helpers.convert_schutzstreifen import convert_short_schutzstreifen_to_radfahrstreifen
 from helpers.convert_schutzstreifen_at_bus_stops import (
@@ -49,7 +50,7 @@ def read_input_file(file_path):
         sys.exit(1)
 
 
-def process_bikelane_conversion(input_path, output_path, clip_region=None, data_dir="./data"):
+def process_bikelane_conversion(input_path, output_path, clip_region=None, data_dir="./data", netz=DEFAULT_NETZ):
     """
     Hauptfunktion: Konvertiert Schutzstreifen zu Radfahrstreifen.
     
@@ -97,9 +98,10 @@ def process_bikelane_conversion(input_path, output_path, clip_region=None, data_
     logging.info(f"Anzahl Schutzstreifen vor Radfahrstreifen-Konvertierung: {schutzstreifen_before}")
     
     # Lade Bushaltestellen-Datei
-    bus_stops_gdf = load_bus_stops_from_path("output/bus_stops_on_rvn.fgb")
+    bus_stops_path = BUSHALTESTELLEN[netz]
+    bus_stops_gdf = load_bus_stops_from_path(bus_stops_path)
     if bus_stops_gdf is None:
-        logging.warning("Bushaltestellen-Datei 'output/bus_stops_on_rvn.fgb' nicht gefunden oder leer; fahre fort ohne Haltestellen-Konvertierung")
+        logging.warning(f"Bushaltestellen-Datei '{bus_stops_path}' nicht gefunden oder leer; fahre fort ohne Haltestellen-Konvertierung")
     else:
         logging.info(f"Bushaltestellen geladen: {len(bus_stops_gdf)} Haltestellen")
     
@@ -206,6 +208,7 @@ if __name__ == "__main__":
                     help="Eingabedatei (Pfad) - Default: ./output/snapping_network_enriched.fgb")
     ap.add_argument("--output", default="./output/snapping_converted_bikelanes.fgb", 
                     help="Ausgabedatei (Pfad) - Default: ./output/snapping_converted_bikelanes.fgb")
+    add_netz_argument(ap)
     ap.add_argument("--clip", type=str, choices=['neukoelln', 'norden', 'sueden'],
                     help="Regionaler Zuschnitt: 'neukoelln', 'norden' oder 'sueden'.")
     ap.add_argument("--data-dir", default="./data", 
@@ -225,5 +228,6 @@ if __name__ == "__main__":
         args.input, 
         args.output, 
         args.clip, 
-        args.data_dir
+        args.data_dir,
+        args.netz
     )
