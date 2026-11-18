@@ -1,0 +1,237 @@
+# Martin: Ergebnisse der Pipeline (README.md). Schema radweg_faltung (radweg_faltung.sh, sql/101_radweg_ergebnis.sql):
+# rvn, strassen, radwege, radweg_traces, strassen_mit_radwegen, stubs, radwege_abgelehnt. Schema datensatz_c
+# (datensatz_c.sh, sql/106_datensatz_c_martin.sql): baseline_c, new_c, diff_c, baseline_wins, neu_wins.
+# Martin startet nur, wenn alle Tabellen existieren: erst beide Skripte laufen lassen.
+# Start (Verbindung aus DATABASE_URL):
+#   docker run -d --name rvn-matching-martin --network host -e DATABASE_URL=postgresql://USER:PASS@localhost:5433/postgres \
+#     -v "$PWD/graph-interface/bikegraph/martin:/cfg:ro" ghcr.io/maplibre/martin:latest --config /cfg/rvn_matching.yaml
+# Vorschau: http://localhost:3000/ · Kacheln: http://localhost:3000/{rvn,strassen,radwege,radweg_traces,strassen_mit_radwegen,stubs,radwege_abgelehnt,baseline_c,new_c,diff_c,baseline_wins,neu_wins}/{z}/{x}/{y}, Übersicht /catalog
+listen_addresses: '0.0.0.0:3000'
+# Kein Kachel-Cache: die Skripte bauen die Tabellen laufend neu, sonst liefert Martin bis zum Neustart alte Kacheln
+cache_size_mb: 0
+# Vorschau im Browser unter http://localhost:3000/
+web_ui: enable-for-all
+postgres:
+  connection_string: ${DATABASE_URL}
+  auto_publish: false
+  tables:
+    rvn:
+      schema: radweg_faltung
+      table: rvn
+      srid: 25833
+      geometry_column: geom
+      geometry_type: LINESTRING
+      id_column: id
+      properties:
+        element_nr: text
+        strassenname: text
+        verkehrsrichtung: text
+        laenge_m: numeric
+    strassen:
+      schema: radweg_faltung
+      table: strassen
+      srid: 25833
+      geometry_column: geom
+      geometry_type: LINESTRING
+      id_column: id
+      minzoom: 12
+      properties:
+        osm_id: text
+        category: text
+        road: text
+        name: text
+        richtung: text
+        dual_carriageway: boolean
+        kreisverkehr: boolean
+        laenge_m: numeric
+    radwege:
+      schema: radweg_faltung
+      table: radwege
+      srid: 25833
+      geometry_column: geom
+      geometry_type: LINESTRING
+      id_column: id
+      minzoom: 12
+      properties:
+        input_ref: text
+        art: text
+        kategorie: text
+        seite: text
+        einrichtung: boolean
+        laenge_m: numeric
+        durchgang: text
+        anteil_gefaltet: numeric
+        status: text
+    radweg_traces:
+      schema: radweg_faltung
+      table: radweg_traces
+      srid: 25833
+      geometry_column: geom
+      geometry_type: MULTILINESTRING
+      id_column: id
+      properties:
+        durchgang: text
+        trace_id: int8
+        n_wege: int8
+        laenge_m: numeric
+        n_obs: numeric
+        n_gematcht: numeric
+        n_brueche: numeric
+        n_seitenobjekte: int8
+    strassen_mit_radwegen:
+      schema: radweg_faltung
+      table: strassen_mit_radwegen
+      srid: 25833
+      geometry_column: geom
+      geometry_type: LINESTRING
+      id_column: id
+      minzoom: 12
+      properties:
+        strassen_kante: int8
+        ri: int4
+        radweg: int8
+        input_ref: text
+        art: text
+        kategorie: text
+        seite: text
+        durchgang: text
+        gespiegelt: int4
+        strasse_m: numeric
+        rad_m: numeric
+        verhaeltnis: numeric
+        breite_m: numeric
+        querung_m: numeric
+        score: numeric
+    stubs:
+      schema: radweg_faltung
+      table: stubs
+      srid: 25833
+      geometry_column: geom
+      geometry_type: LINESTRING
+      id_column: id
+      properties:
+        durchgang: text
+        trace_id: int8
+        strassen_kante: int8
+        ri: int4
+        laenge_m: numeric
+        input_von: int8
+        input_nach: int8
+    radwege_abgelehnt:
+      schema: radweg_faltung
+      table: radwege_abgelehnt
+      srid: 25833
+      geometry_column: geom
+      geometry_type: LINESTRING
+      id_column: id
+      properties:
+        input_ref: text
+        art: text
+        kategorie: text
+        seite: text
+        einrichtung: boolean
+        laenge_m: numeric
+        durchgang: text
+    baseline_c:
+      schema: datensatz_c
+      table: baseline_c
+      srid: 25833
+      geometry_column: geom
+      geometry_type: MULTILINESTRING
+      id_column: id
+      properties:
+        element_nr: text
+        ri: int4
+        strassenname: text
+        fuehr: text
+        pflicht: text
+        breite: text
+        ofm: text
+        protek: text
+        tilda_id: text
+        tilda_ids: text
+        tilda_category: text
+        hmm_regel: text
+        tilda_link: text
+    new_c:
+      schema: datensatz_c
+      table: new_c
+      srid: 25833
+      geometry_column: geom
+      geometry_type: MULTILINESTRING
+      id_column: id
+      properties:
+        element_nr: text
+        ri: int4
+        strassenname: text
+        fuehr: text
+        pflicht: text
+        breite: text
+        ofm: text
+        protek: text
+        tilda_id: text
+        tilda_ids: text
+        tilda_category: text
+        hmm_regel: text
+        tilda_link: text
+    diff_c:
+      schema: datensatz_c
+      table: diff_c
+      srid: 25833
+      geometry_column: geom
+      geometry_type: MULTILINESTRING
+      id_column: id
+      properties:
+        element_nr: text
+        ri: int4
+        strassenname: text
+        fuehr_baseline: text
+        fuehr_neu: text
+        tilda_ids_baseline: text
+        tilda_ids_neu: text
+        urteil: text
+        regel: text
+        laenge_m: numeric
+        tilda_link: text
+    baseline_wins:
+      schema: datensatz_c
+      table: baseline_wins
+      srid: 25833
+      geometry_column: geom
+      geometry_type: MULTILINESTRING
+      id_column: id
+      properties:
+        element_nr: text
+        ri: int4
+        strassenname: text
+        fuehr_baseline: text
+        fuehr_neu: text
+        tilda_ids_baseline: text
+        tilda_ids_neu: text
+        urteil: text
+        regel: text
+        laenge_m: numeric
+        tilda_link: text
+    neu_wins:
+      schema: datensatz_c
+      table: neu_wins
+      srid: 25833
+      geometry_column: geom
+      geometry_type: MULTILINESTRING
+      id_column: id
+      properties:
+        element_nr: text
+        ri: int4
+        strassenname: text
+        fuehr_baseline: text
+        fuehr_neu: text
+        tilda_ids_baseline: text
+        tilda_ids_neu: text
+        urteil: text
+        regel: text
+        laenge_m: numeric
+        tilda_link: text
+# MapLibre-Style mit allen Ebenen in festen Farben (Vorschau im Dashboard unter "Styles")
+styles:
+  sources:
+    rvn_matching: /cfg/styles/rvn_matching.json
