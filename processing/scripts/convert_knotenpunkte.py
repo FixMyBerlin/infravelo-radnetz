@@ -33,6 +33,10 @@ import os
 
 import geopandas as gpd
 import pandas as pd
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parents[2] / "data"))
+import virtuelle_knotenpunkte as vk  # noqa: E402
 
 # Konfiguration für Pfade
 INPUT_FILE = "./data-raw-tilda/knotenpunkte_mit_id_und_bezirken.gpkg"
@@ -73,8 +77,8 @@ def load_and_merge_virtual_knotenpunkte(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFra
     
     logging.info(f"Lade virtuelle Knotenpunkte: {VIRTUAL_KNOTENPUNKTE_FILE}")
     
-    # Lade virtuelle Knotenpunkte
-    virtual_gdf = gpd.read_file(VIRTUAL_KNOTENPUNKTE_FILE)
+    # Lade aktive virtuelle Knotenpunkte (gelöschte bleiben im Verzeichnis, aber nicht im Ergebnis)
+    virtual_gdf = vk.read_active()[[vk.ID_COLUMN, 'ist_virtuell', 'geometry']]
     
     logging.info(f"Anzahl virtuelle Knotenpunkte geladen: {len(virtual_gdf)}")
     logging.info(f"Spalten virtuelle Knotenpunkte: {list(virtual_gdf.columns)}")

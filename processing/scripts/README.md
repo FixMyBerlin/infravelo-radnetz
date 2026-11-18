@@ -35,7 +35,7 @@ Dieses Skript führt die drei Vorverarbeitungsschritte des Zielnetzes (RVN oder 
 ### 1. Virtuelle Knotenpunkte verarbeiten
 Das [`split_rvn_at_virtual_nodes.py`](./split_rvn_at_virtual_nodes.py) teilt das Berliner Radvorrangsnetz an virtuellen Knotenpunkten auf. Virtuelle Knotenpunkte liegen mitten auf Linien und erfordern eine Aufteilung der betroffenen Linien.
 
-- **Input**: `data/Berlin Radvorrangsnetz.fgb`, `data/Virtuelle-Knotenpunkte.gpkg`
+- **Input**: `data/Berlin Radvorrangsnetz.fgb`, `data/Virtuelle-Knotenpunkte.gpkg` (nur `status = aktiv`, Regeln: [VIRTUELLE-KNOTENPUNKTE.md](../../data/VIRTUELLE-KNOTENPUNKTE.md))
 - **Output**: `output/rvn/Berlin Radvorrangsnetz_mit_virtuellen-knotenpunkten.fgb`
 
 Die drei Skripte dieses Abschnitts nehmen `--netz rvn|ren` (Standard `rvn`). Mit `ren` verarbeiten sie das REN+ (`../ren-network/output/ren_netz_gesamt.gpkg`) und schreiben nach `output/ren/`; die Pfade stehen in [`helpers/netz.py`](../helpers/netz.py).

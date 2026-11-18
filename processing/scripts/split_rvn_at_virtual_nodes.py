@@ -14,7 +14,7 @@ heißt danach elem_nr, damit assign_element_nr_to_rvn.py sie wie die elem_nr des
 Radvorrangsnetzes behandelt (Vorrang vor der berechneten, außer an virtuellen Knotenpunkten).
 
 INPUT:
-- data/Virtuelle-Knotenpunkte.gpkg (von assign_node_ids erstellt)
+- data/Virtuelle-Knotenpunkte.gpkg (nur status = aktiv, Regeln in data/VIRTUELLE-KNOTENPUNKTE.md)
 - data/Berlin Radvorrangsnetz.fgb bzw. ../ren-network/output/ren_netz_gesamt.gpkg (--netz ren)
 - data/Berlin Straßenabschnitte Detailnetz.fgb
 
@@ -33,7 +33,9 @@ from shapely.geometry import LineString, MultiLineString
 from shapely.ops import split
 
 sys.path.append(str(Path(__file__).parent.parent))
+sys.path.append(str(Path(__file__).resolve().parents[2] / "data"))
 from helpers.netz import PFADE, add_netz_argument  # noqa: E402
+import virtuelle_knotenpunkte as vk  # noqa: E402
 
 # Konfiguration
 DEFAULT_CRS = 25833  # EPSG:25833 (ETRS89 / UTM zone 33N) - aus helpers.globals
@@ -43,27 +45,37 @@ VIRTUAL_NODE_TOLERANCE = 3.0  # Maximale Entfernung in Metern für virtuellen Kn
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
-def load_virtual_nodes(virtual_nodes_path):
+def load_virtual_nodes(virtual_nodes_path=vk.PATH):
     """
-    Lädt die virtuellen Knotenpunkte.
-    
+    Lädt die aktiven virtuellen Knotenpunkte (gelöschte bleiben im Verzeichnis, teilen aber nichts).
+
     Args:
-        virtual_nodes_path (str): Pfad zu den virtuellen Knotenpunkten
-        
+        virtual_nodes_path: Pfad zum Verzeichnis der virtuellen Knotenpunkte
+
     Returns:
-        GeoDataFrame: Virtuelle Knotenpunkte
+        GeoDataFrame: Aktive virtuelle Knotenpunkte in EPSG:25833
     """
     logging.info(f"Lade virtuelle Knotenpunkte von {virtual_nodes_path}")
-    virtual_nodes_gdf = gpd.read_file(virtual_nodes_path)
-    
-    target_crs = f'EPSG:{DEFAULT_CRS}'
-    if virtual_nodes_gdf.crs != target_crs:
-        logging.info(f"Projiziere virtuelle Knotenpunkte auf {target_crs}")
-        virtual_nodes_gdf = virtual_nodes_gdf.to_crs(target_crs)
-    
-    logging.info(f"Virtuelle Knotenpunkte geladen: {len(virtual_nodes_gdf)} Punkte")
-    
-    return virtual_nodes_gdf
+    return vk.read_active(virtual_nodes_path)
+
+
+def report_unused_virtual_nodes(gdf, virtual_nodes_gdf, dataset_name):
+    """
+    Meldet virtuelle Knotenpunkte, die auf keiner Linie des Datensatzes liegen.
+
+    Nach einer Aktualisierung des Detailnetzes kann eine Kante weggerückt sein; der Knoten
+    teilt dann nichts mehr, und die element_nr an dieser Stelle fehlt. Dann den Punkt in
+    QGIS auf die neue Kante schieben (Nummer bleibt) oder ihn mit
+    data/virtuelle_knotenpunkte.py loeschen als gelöscht markieren.
+    """
+    near = gpd.sjoin(
+        virtual_nodes_gdf[[vk.ID_COLUMN, 'geometry']].set_geometry(virtual_nodes_gdf.buffer(VIRTUAL_NODE_TOLERANCE)),
+        gdf[['geometry']], predicate='intersects')
+    unused = sorted(set(virtual_nodes_gdf[vk.ID_COLUMN]) - set(near[vk.ID_COLUMN]))
+    if unused:
+        logging.warning(f"{dataset_name}: {len(unused)} virtuelle Knotenpunkte liegen weiter als "
+                        f"{VIRTUAL_NODE_TOLERANCE} m von jeder Linie und teilen nichts: {unused}")
+    return unused
 
 
 def load_geodataframe(path, name="Datensatz", layer=None):
@@ -382,8 +394,6 @@ def main(netz):
     """
     # Dateipfade definieren
     pfade = PFADE[netz]
-    virtual_nodes_path = 'data/Virtuelle-Knotenpunkte.gpkg'
-    
     rvn_path = pfade['quelle']
     rvn_output_path = pfade['geteilt']
     
@@ -395,7 +405,7 @@ def main(netz):
     
     try:
         # Lade virtuelle Knotenpunkte (einmal für beide Datensätze)
-        virtual_nodes_gdf = load_virtual_nodes(virtual_nodes_path)
+        virtual_nodes_gdf = load_virtual_nodes()
         
         # 1. RVN splitten
         logging.info("=" * 60)
@@ -404,6 +414,7 @@ def main(netz):
         rvn_gdf = load_geodataframe(rvn_path, "Zielnetz", pfade['quelle_layer'])
         if netz == 'ren':
             rvn_gdf = rvn_gdf.rename(columns={'element_nr': 'elem_nr'})
+        report_unused_virtual_nodes(rvn_gdf, virtual_nodes_gdf, f"Zielnetz ({netz})")
         split_rvn = split_geodataframe_at_virtual_nodes(rvn_gdf, virtual_nodes_gdf, "RVN")
         
         logging.info(f"Speichere aufgeteiltes RVN nach {rvn_output_path}")
@@ -415,6 +426,7 @@ def main(netz):
         logging.info("SCHRITT 2: Detailnetz splitten")
         logging.info("=" * 60)
         detailnetz_gdf = load_geodataframe(detailnetz_path, "Detailnetz")
+        report_unused_virtual_nodes(detailnetz_gdf, virtual_nodes_gdf, "Detailnetz")
         split_detailnetz = split_geodataframe_at_virtual_nodes(detailnetz_gdf, virtual_nodes_gdf, "Detailnetz")
         
         logging.info(f"Speichere aufgeteiltes Detailnetz nach {detailnetz_output_path}")
