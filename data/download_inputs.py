@@ -47,7 +47,10 @@ INPUT_FILES = {
     'netzquellen_radverkehrsnetz.gpkg': 'data/netzquellen/radverkehrsnetz.gpkg',
     'netzquellen_radschnellverbindungen.gpkg': 'data/netzquellen/radschnellverbindungen.gpkg',
     'netzquellen_touristisches_radnetz.gpkg': 'data/netzquellen/touristisches_radnetz.gpkg',
+    'netzquellen_2600924_RSV.gpkg': 'data/netzquellen/2600924_RSV.gpkg',
+    'netzquellen_260414_Radfernwege_SenMVKU.gpkg': 'data/netzquellen/260414_Radfernwege_SenMVKU.gpkg',
     'detailnetz_strassenabschnitte_2026-10-06.fgb': 'data/Berlin Straßenabschnitte Detailnetz 2026-10-06.fgb',
+    'detailnetz_strassenabschnitte_2025-11-17.fgb': 'data/Berlin Straßenabschnitte Detailnetz 2025-11-17.fgb',
     'detailnetz_verbindungspunkte.fgb': 'data/Berlin Verbindungspunkte Detailnetz.fgb',
     'lor_planungsraeume_2021.geojson': 'mapping-zuteilung/data/lor_plr_2021.geojson',
 }
