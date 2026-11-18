@@ -18,6 +18,8 @@ Jeder Ordner ist für eine Aufgabe zuständig und hat eine eigene README.
 - [`inspector/`](./inspector/README.md) – Web-Tool zur Qualitätssicherung der verarbeiteten Daten.
 - [`data/`](./data/README.md) – Gemeinsame Eingangsdaten (Detailnetz, Radvorrangsnetz, Bezirke, manuelle Listen).
 
+**Virtuelle Knotenpunkte:** Nummern, Anlegen, Löschen und `element_nr` regelt [`data/VIRTUELLE-KNOTENPUNKTE.md`](./data/VIRTUELLE-KNOTENPUNKTE.md). Gilt für alle Repos des Projekts.
+
 ## Setup
 
 Python-Abhängigkeiten werden in einem gemeinsamen virtuellen Environment im Projekt-Root installiert:
