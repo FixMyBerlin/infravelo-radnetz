@@ -33,7 +33,7 @@ python knotenpunkte/merge_bewertungen.py ratings-<bereich>-<datum>.geojson
 |---|---|
 | `ren-network/output/ren_netz_gesamt.gpkg` | REN+-Kanten mit `von_knoten`, `bis_knoten`, `radverkehrsnetz`, `hauptverkehrsstrasse` |
 | `data/Berlin Verbindungspunkte Detailnetz.fgb`, `data/Berlin Straßenabschnitte Detailnetz*.fgb` | Lage und `okstra_id` der Knoten |
-| `data/Virtuelle-Knotenpunkte.gpkg` | Manuell gepflegte virtuelle Knoten (`Knotenpunkt-ID`, Punkt) |
+| `data/Virtuelle-Knotenpunkte.gpkg` | Verzeichnis der virtuellen Knoten, nur `status = aktiv` (Regeln: [VIRTUELLE-KNOTENPUNKTE.md](../data/VIRTUELLE-KNOTENPUNKTE.md)) |
 | `data/Berlin Bezirke.gpkg` | Bezirksnummer |
 | `data/netzquellen/knotenpunkte_2025.geojson.gz` | Lieferung 2025, gzip von `knotenpunkte_mit_id_und_bezirken.geojson` aus `tilda-static-data` (`region-infravelo/infravelo-datensatz-knoten-fortlaufend`) |
 | `data/netzquellen/lsa.gpkg`, `osm_ampeln.gpkg` | Ampeln aus Open Data (WFS `lsa`) und OSM, von `download_lsa.py` |
@@ -64,7 +64,7 @@ In `knotenpunkte/output/`:
 | Spalte | Inhalt | Herkunft |
 |---|---|---|
 | `lfd_nr` | Laufende Nummer | |
-| `Knotenpunkt‐ID` | Detailnetz-Knotennummer, bei virtuellen Knoten `V…` (Bindestrich U+2010 wie 2025) | Detailnetz / manuell |
+| `Knotenpunkt‐ID` | Detailnetz-Knotennummer (8 Ziffern), bei virtuellen Knoten 4-stellige Nummer wie `0012`, immer Text (Bindestrich U+2010 wie 2025) | Detailnetz / Verzeichnis |
 | `okstra_id` | Referenz im Detailnetz | Verbindungspunkt |
 | `Bezirksnummer` | `01`–`12` | abgeleitet |
 | `ist_radvorrangnetz` | Radvorrangnetz, Radergänzungsnetz oder Kein Radverkehrsnetz vorhanden | REN+ |
@@ -72,13 +72,13 @@ In `knotenpunkte/output/`:
 | `LSA_KP`, `LSA_Konflikt` | 0/1, Lichtsignalanlage; Konflikt `nur_OSM` oder `nur_OpenData` | 2025 / App, sonst Open Data und OSM |
 | `Mar_RVF_KP`, `Furt_rot`, `Fl_Linksab`, `vorgez_Fl`, `RFS_Mitte` | `keine`, `teilweise` oder `gänzlich` | 2025 / App (mit ML-Vorschlägen) |
 | `KP_Nichtbetrachten`, `Mapillary-ID`, `Kommentar` | Bewertung | 2025 / App |
-| `ist_virtuell` | 1 für virtuelle Knoten | manuell / App |
+| `ist_virtuell` | 1 für virtuelle Knoten, sonst 0; nur aus dem Verzeichnis, nicht aus der App | Verzeichnis |
 | `bearbeitet_2025`, `knotenpunkt_id_2025` | In der Lieferung 2025 enthalten, ID dort | Abgleich |
 | `netz_quellen`, `anzahl_kanten` | Netzquellen und Zahl der anliegenden REN+-Kanten | REN+ |
 
 ## Virtuelle und fehlende Knoten
 
-Kanten ohne `element_nr` haben noch keine Knoten (siehe Prüfliste). Deckt eine Netzquelle nur einen Teil eines Detailnetz-Elements ab, liegt der Knoten laut `element_nr` abseits des Netzes. Die Prüfliste meldet das mit „Netz erreicht den Knoten nicht“. Die Verzweigung liegt dann mitten auf dem Element. Neue virtuelle Knoten und Knoten an diesen Kanten werden in `data/Virtuelle-Knotenpunkte.gpkg` ergänzt, mit eindeutiger `Knotenpunkt-ID` (`V…`). Danach `build_knotenpunkte.py` erneut ausführen.
+Kanten ohne `element_nr` haben noch keine Knoten (siehe Prüfliste). Deckt eine Netzquelle nur einen Teil eines Detailnetz-Elements ab, liegt der Knoten laut `element_nr` abseits des Netzes. Die Prüfliste meldet das mit „Netz erreicht den Knoten nicht“. Die Verzweigung liegt dann mitten auf dem Element. Neue virtuelle Knoten werden in `data/Virtuelle-Knotenpunkte.gpkg` ohne Nummer angelegt und mit `data/virtuelle_knotenpunkte.py nummerieren` nummeriert, siehe [VIRTUELLE-KNOTENPUNKTE.md](../data/VIRTUELLE-KNOTENPUNKTE.md). Danach `build_knotenpunkte.py` erneut ausführen. Bewertungen mit alter `V…`-Kennung übersetzt `merge_bewertungen.py`.
 
 ## Bewertung und Abgabe
 

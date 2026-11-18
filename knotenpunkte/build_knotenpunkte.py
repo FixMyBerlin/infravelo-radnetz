@@ -47,15 +47,17 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(ROOT / "ren-network"))
+sys.path.append(str(ROOT / "data"))
 
 import unify_networks as ren  # noqa: E402
+import virtuelle_knotenpunkte as vk  # noqa: E402
 from assign_node_ids import assign_node_ids_to_points  # noqa: E402
 
 CRS = f"EPSG:{ren.DEFAULT_CRS}"
 NODE_ID = ren.NODE_ID_COLUMN  # "Knotenpunkt‐ID" mit U+2010 wie in der Lieferung 2025
 
 NETWORK_PATH = ren.OUTPUT_PATH
-VIRTUAL_NODES_PATH = ROOT / "data" / "Virtuelle-Knotenpunkte.gpkg"
+VIRTUAL_NODES_PATH = vk.PATH
 NODES_2025_PATH = ROOT / "data" / "netzquellen" / "knotenpunkte_2025.geojson.gz"
 LSA_PATH = ROOT / "data" / "netzquellen" / "lsa.gpkg"
 OSM_SIGNALS_PATH = ROOT / "data" / "netzquellen" / "osm_ampeln.gpkg"
@@ -257,12 +259,11 @@ def ren_nodes(network, detail):
 
 
 def virtual_nodes(network):
-    """Manuell gepflegte virtuelle Knoten; anliegende Kanten über den Abstand."""
-    virtual = gpd.read_file(VIRTUAL_NODES_PATH).to_crs(CRS)
-    # Die manuelle Datei schreibt die ID mit normalem Bindestrich
-    virtual = virtual.rename(columns={"Knotenpunkt-ID": NODE_ID})
-    virtual[NODE_ID] = virtual[NODE_ID].map(id_text)
-    virtual = virtual[virtual[NODE_ID].notna()].reset_index(drop=True)
+    """Aktive virtuelle Knoten aus dem Verzeichnis; anliegende Kanten über den Abstand.
+    Die ID ist 4-stellig mit führenden Nullen und bleibt Text (data/VIRTUELLE-KNOTENPUNKTE.md)."""
+    virtual = vk.read_active().to_crs(CRS)[[vk.ID_COLUMN, "geometry"]]
+    # Das Verzeichnis schreibt die ID mit normalem Bindestrich
+    virtual = virtual.rename(columns={vk.ID_COLUMN: NODE_ID}).reset_index(drop=True)
 
     buffers = gpd.GeoDataFrame({NODE_ID: virtual[NODE_ID]}, geometry=virtual.buffer(VIRTUAL_EDGE_TOLERANCE_M), crs=CRS)
     hits = gpd.sjoin(buffers, network[["radverkehrsnetz", "hauptverkehrsstrasse", "netz_quellen", "geometry"]],

@@ -31,6 +31,7 @@ import pandas as pd
 
 from build_knotenpunkte import (BINARY_COLUMNS, DERIVED_COLUMNS, FINAL_COLUMNS, NODE_ID, OUTPUT_DIR, OUTPUT_LAYER,
                                 OUTPUT_PATH, id_text)
+import virtuelle_knotenpunkte as vk  # Pfad setzt build_knotenpunkte
 
 OUTPUT_DELIVERY_PATH = OUTPUT_DIR / "knotenpunkte_abgabe.gpkg"
 
@@ -47,6 +48,13 @@ def load_ratings(path):
     if id_column is None:
         raise SystemExit(f"Keine ID-Spalte {APP_ID_COLUMNS} in {path}")
     ratings["node_id"] = ratings[id_column].map(id_text)
+    # Bewertungen aus der Zeit vor der Umnummerierung tragen noch die alte V-Kennung
+    old_to_new = vk.old_to_new()
+    renamed = ratings["node_id"].isin(old_to_new.keys())
+    if renamed.any():
+        logging.info(f"{renamed.sum()} virtuelle Knoten mit alter ID umbenannt: "
+                     f"{dict(zip(ratings.loc[renamed, 'node_id'], ratings.loc[renamed, 'node_id'].map(old_to_new)))}")
+        ratings.loc[renamed, "node_id"] = ratings.loc[renamed, "node_id"].map(old_to_new)
     logging.info(f"App-Export: {len(ratings)} Knoten, status {ratings['status'].value_counts().to_dict()}, "
                  f"qa {ratings['qa'].value_counts().to_dict()}")
     return ratings[ratings["status"] == "complete"].set_index("node_id")
@@ -75,8 +83,13 @@ def merge(nodes, ratings):
         nodes.loc[values.index, column] = values
         if column == "LSA_KP":
             nodes.loc[values.index, "LSA_Konflikt"] = None
-    # Die App setzt ist_virtuell standardmäßig auf 0, gepflegte virtuelle Knoten bleiben virtuell
-    nodes.loc[rows, "ist_virtuell"] = nodes.loc[rows, "ist_virtuell"].combine(source["ist_virtuell"].fillna(0).astype(int), max)
+    # ist_virtuell kommt nur aus dem Verzeichnis der virtuellen Knotenpunkte, nie aus der App
+    # (data/VIRTUELLE-KNOTENPUNKTE.md); ein Wert der App wird nur gemeldet
+    if "ist_virtuell" in source.columns:
+        differs = source["ist_virtuell"].fillna(0).astype(int) != nodes.loc[rows, "ist_virtuell"].fillna(0).astype(int)
+        if differs.any():
+            logging.warning(f"{differs.sum()} Knoten mit abweichendem ist_virtuell aus der App, ignoriert: "
+                            f"{sorted(nodes.loc[differs[differs].index, NODE_ID])[:10]}")
 
     open_nodes = (nodes["bearbeitet_2025"] == "nein") & ~rows
     logging.info(f"Übernommen: {rows.sum()} Knoten, noch offen: {open_nodes.sum()}")
