@@ -82,6 +82,11 @@ TRENNSTREIFEN_HIERARCHY = [
     "entfällt"
 ]
 
+# OSM-Reihenfolge der Fahrqualität (beste zuerst) für `tilda_smoothness_worst`
+SMOOTHNESS_ORDER = [
+    "excellent", "good", "intermediate", "bad", "very_bad", "horrible", "very_horrible", "impassable"
+]
+
 # Spalten, die nach der Aggregation gelöscht werden sollen
 COLUMNS_TO_DROP = [
     "okstra_id", "existenz", "ist_radvorrangnetz", "elem_nr", "gisid", "gueltig_von", 
@@ -464,6 +469,27 @@ def aggregate_tilda_attributes(segments_group, attribute):
     return ';'.join(unique_values) if len(unique_values) > 0 else None
 
 
+def worst_smoothness(segments_group):
+    """
+    Schlechteste Fahrqualität (`tilda_smoothness`) der Segmente einer Kante nach der OSM-Reihenfolge
+    (excellent < good < ... < impassable). Unbekannte Werte werden ignoriert.
+    """
+    if 'tilda_smoothness' not in segments_group.columns:
+        return None
+    ranks = segments_group['tilda_smoothness'].map({value: rank for rank, value in enumerate(SMOOTHNESS_ORDER)}).dropna()
+    return SMOOTHNESS_ORDER[int(ranks.max())] if len(ranks) > 0 else None
+
+
+def highest_maxspeed(segments_group):
+    """Höchste numerische `tilda_maxspeed` der Segmente einer Kante (km/h), sonst None.
+    Werte über 200 sind Tippfehler in OSM (z. B. eine Telefonnummer im Tag) und zählen nicht."""
+    if 'tilda_maxspeed' not in segments_group.columns:
+        return None
+    speeds = pd.to_numeric(segments_group['tilda_maxspeed'], errors='coerce').dropna()
+    speeds = speeds[speeds <= 200]
+    return int(speeds.max()) if len(speeds) > 0 else None
+
+
 def aggregate_edge_group(edge_group):
     """
     Aggregiert alle Segmente einer Kante (gleiche element_nr und ri) zu einer finalen Kante.
@@ -535,6 +561,10 @@ def aggregate_edge_group(edge_group):
         tilda_attributes = [col for col in edge_group.columns if col.startswith('tilda_')]
         for attr in tilda_attributes:
             aggregated[attr] = aggregate_tilda_attributes(edge_group, attr)
+
+    # Ein Wert je Kante und Richtung neben der Semikolon-Liste (auch bei Einzelsegmenten)
+    aggregated['tilda_maxspeed_max'] = highest_maxspeed(edge_group)
+    aggregated['tilda_smoothness_worst'] = worst_smoothness(edge_group)
     
     # Berechne die Länge für ALLE Kanten (Einzelsegmente und aggregierte Kanten)
     aggregated['Länge'] = int(round(calculate_segment_length(aggregated.geometry)))

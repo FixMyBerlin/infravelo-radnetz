@@ -15,7 +15,7 @@ use crate::io;
 use crate::model::{AttrSchema, TildaWay, Trace};
 
 /// Felder, die intern für das Matching benötigt werden (zusätzlich zu `transfer_attributes`).
-const INTERNAL_FIELDS: [&str; 9] = [
+const INTERNAL_FIELDS: [&str; 11] = [
     "tilda_id",
     "fuehr",
     "verkehrsri",
@@ -25,6 +25,8 @@ const INTERNAL_FIELDS: [&str; 9] = [
     "tilda_name",
     "from_node",
     "to_node",
+    "tilda_maxspeed_forward",
+    "tilda_maxspeed_backward",
 ];
 
 /// Lädt alle konfigurierten TILDA-Quellen. `keep` filtert Wege (z. B. `--clip`).
@@ -61,6 +63,8 @@ pub fn load_ways(cfg: &Config, schema: &AttrSchema, keep: impl Fn(&Polyline) -> 
                     name_norm: normalize_name(internal[6].as_deref().unwrap_or("")),
                     from_node: internal[7].as_deref().and_then(|v| v.parse().ok()),
                     to_node: internal[8].as_deref().and_then(|v| v.parse().ok()),
+                    maxspeed_forward: internal[9].clone(),
+                    maxspeed_backward: internal[10].clone(),
                 });
             }
         }

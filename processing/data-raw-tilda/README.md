@@ -30,6 +30,8 @@ for t in bikelanes roads roadsPathClasses; do
 done
 ```
 
+Der Export muss `smoothness`, `smoothness_source`, `surface`, `maxspeed`, `maxspeed_source`, `osm_maxspeed_forward`, `osm_maxspeed_backward` und `osm_maxspeed_conditional` (roads) sowie `parent_maxspeed` (bikelanes) und `adjoining_maxspeed` (bikelanes, roadsPathClasses) enthalten. Sie gehen als `tilda_surface`, `tilda_smoothness*`, `tilda_maxspeed*` in Datensatz B und C. Die beiden `*_maxspeed`-Spalten der Radwege und Wege fehlen in den Exporten bis 2026-10-05; dann bleibt `tilda_maxspeed` an Radwegen und Wegen leer.
+
 Der Datenstand steht im Dateinamen der Antwort (`Content-Disposition`, z. B. `infravelo_bikelanes_2026-11-03.fgb`).
 Aktueller Stand in diesem Ordner: **2026-11-03**.
 

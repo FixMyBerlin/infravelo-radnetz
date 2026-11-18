@@ -102,8 +102,13 @@ TRAFFIC_SIGNS_NUTZ_BESCHR = ["Gehwegschäden", "Radwegschäden", "Geh- und Radwe
 
 # Liste der zu entfernenden Attribute (ohne tilda-Prefix)
 # Enthält sowohl Attribute von Bikelanes, Roads und Paths
+# (`maxspeed*` und `smoothness_source` bleiben, siehe add_maxspeed_attributes; die rohen
+# `osm_maxspeed*`-Spalten gehen darin auf)
 CONFIG_REMOVE_TILDA_ATTRIBUTES = [
-    "lit", "description", "maxspeed_name_ref", "maxspeed_confidence", "maxspeed_conditional", "maxspeed_source", "mapillary_coverage",  "bridge", "tunnel", "todos", "updated_age", "updated_at", "surface_confidence", "surface_source", "smoothness_confidence", "smoothness_source", "length", "offset", "_parent_highway"
+    "lit", "description", "maxspeed_name_ref", "maxspeed_confidence", "mapillary_coverage",  "bridge", "tunnel", "todos", "updated_age", "updated_at", "surface_confidence", "surface_source", "smoothness_confidence", "length", "offset", "_parent_highway",
+    "osm_maxspeed_forward", "osm_maxspeed_backward", "osm_maxspeed_conditional",
+    "osm_maxspeed:forward", "osm_maxspeed:backward", "osm_maxspeed:conditional",
+    "parent_maxspeed", "adjoining_maxspeed",
 ]
 
 # RVN-Buffer Cache (wird einmal geladen und wiederverwendet)
@@ -625,6 +630,59 @@ def assign_prefix_and_remove_unnecessary_attrs(gdf: gpd.GeoDataFrame) -> gpd.Geo
     return gdf.rename(columns=rename_mapping)
 
 
+def _text_or_none(series: pd.Series) -> pd.Series:
+    """Werte als Text ohne Nachkommastelle bei ganzen Zahlen (30.0 -> "30"), leere Werte als None."""
+    def convert(value):
+        if pd.isna(value):
+            return None
+        if isinstance(value, (int, float)) and float(value).is_integer():
+            return str(int(value))
+        text = str(value).strip()
+        return text or None
+    return series.map(convert).astype(object)
+
+
+def _first_column(gdf: gpd.GeoDataFrame, *names: str) -> pd.Series:
+    """Erste vorhandene Spalte (Exporte nennen OSM-Tags mit `:` mal mit `_`), sonst leere Serie."""
+    for name in names:
+        if name in gdf.columns:
+            return _text_or_none(gdf[name])
+    return pd.Series([None] * len(gdf), index=gdf.index, dtype=object)
+
+
+def add_maxspeed_attributes(gdf: gpd.GeoDataFrame, data_source: str) -> gpd.GeoDataFrame:
+    """
+    Bildet die Höchstgeschwindigkeit der Fahrbahn für das Map-Matching ab (danach `tilda_`-Präfix):
+    - `maxspeed` / `maxspeed_source`: roads (Fahrbahn): TILDA `maxspeed` und `maxspeed_source`.
+      bikelanes: `parent_maxspeed`, sonst `adjoining_maxspeed` (Quelle = Name der Spalte).
+      Wege: `adjoining_maxspeed`.
+    - `maxspeed_forward` / `maxspeed_backward`: OSM `maxspeed:forward|backward` (roads), gelten in bzw.
+      gegen die Digitalisierungsrichtung des TILDA-Wegs. Das Map-Matching entscheidet je Teilsegment
+      über die Fahrtrichtung, ob sie `maxspeed` ersetzen.
+    - `maxspeed_conditional`: OSM `maxspeed:conditional`.
+    """
+    gdf = gdf.copy()
+    n = len(gdf)
+    empty = pd.Series([None] * n, index=gdf.index, dtype=object)
+    if data_source == "streets":
+        maxspeed = _first_column(gdf, "maxspeed")
+        source = _first_column(gdf, "maxspeed_source")
+    else:
+        parent = _first_column(gdf, "parent_maxspeed") if data_source == "bikelanes" else empty
+        adjoining = _first_column(gdf, "adjoining_maxspeed")
+        maxspeed = parent.where(parent.notna(), adjoining)
+        source = pd.Series(
+            ["parent_maxspeed" if pd.notna(p) else "adjoining_maxspeed" if pd.notna(a) else None for p, a in zip(parent, adjoining)],
+            index=gdf.index, dtype=object,
+        )
+    gdf["maxspeed"] = maxspeed
+    gdf["maxspeed_source"] = source
+    gdf["maxspeed_forward"] = _first_column(gdf, "osm_maxspeed_forward", "osm_maxspeed:forward")
+    gdf["maxspeed_backward"] = _first_column(gdf, "osm_maxspeed_backward", "osm_maxspeed:backward")
+    gdf["maxspeed_conditional"] = _first_column(gdf, "osm_maxspeed_conditional", "osm_maxspeed:conditional")
+    return gdf
+
+
 def calculate_segment_length(geometry):
     """
     Berechnet die Länge eines Segments in Metern.
@@ -724,6 +782,9 @@ def translate_tilda_attributes(gdf: gpd.GeoDataFrame, data_source: str) -> gpd.G
         total_length = result_gdf['Länge'].sum()
         avg_length = result_gdf['Länge'].mean()
         logging.info(f"Längenstatistiken für {data_source}: Gesamtlänge={total_length:.0f}m, Durchschnitt={avg_length:.0f}m")
+    
+    # Höchstgeschwindigkeit der Fahrbahn (surface/smoothness bleiben als Rohwerte stehen)
+    result_gdf = add_maxspeed_attributes(result_gdf, data_source)
     
     # Füge tilda_ Prefix zu ursprünglichen Attributen hinzu
     result_gdf = assign_prefix_and_remove_unnecessary_attrs(result_gdf)

@@ -61,6 +61,9 @@ pub struct TildaWay {
     pub traffic_sign: String,
     /// Normalisierter Straßenname (leer, wenn unbekannt).
     pub name_norm: String,
+    /// OSM `maxspeed:forward|backward` des Wegs: gilt in bzw. gegen dessen Digitalisierungsrichtung.
+    pub maxspeed_forward: Option<String>,
+    pub maxspeed_backward: Option<String>,
     /// Knoten am Anfang/Ende im TILDA-Routing-Netz (nur bei vorverarbeiteten Routing-Daten).
     pub from_node: Option<u64>,
     pub to_node: Option<u64>,
