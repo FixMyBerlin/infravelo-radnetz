@@ -13,7 +13,7 @@ python netzanpassungen/export_app_daten.py --bezirk Neukölln
 | Datei | Inhalt |
 |---|---|
 | `data/Berlin Straßenabschnitte Detailnetz*.fgb` | Detailnetzkanten, jüngster Stand wie in `unify_networks.py` |
-| `data/Virtuelle-Knotenpunkte.gpkg` | Virtuelle Knoten im Bestand |
+| `data/Virtuelle-Knotenpunkte.gpkg` | Virtuelle Knoten im Bestand (aktive als Knoten, gelöschte in `virtuelle_knoten_geloescht`) |
 | `ren-network/output/ren_netz_kartierung.gpkg` | REN+-Kartierungs-Netz |
 | `data/netzquellen/touristisches_radnetz.gpkg` | Radfernwege (8 Routen), aus dem Drive (`data/download_inputs.py`, läuft zu Beginn des Exports) |
 | `data/Berlin Bezirke.gpkg` | nur mit `--bezirk` |
@@ -24,7 +24,7 @@ In `netzanpassungen/output/` (nicht versioniert):
 
 - `netzanpassungen_<gebiet>.json`: Schema `netzanpassungen-app/v1`, WGS84 mit 7 Nachkommastellen, sechs FeatureCollections:
   - `detailnetz`: `element_nr`, `beginnt_bei_vp`, `endet_bei_vp`, `strassenname`, `verkehrsebene`, `okstra_id`
-  - `knoten`: `id`, `ist_virtuell`. Die Detailnetzknoten kommen aus den Kantenenden: erster Punkt = `beginnt_bei_vp`, letzter = `endet_bei_vp`. Die Verbindungspunkte aus dem WFS haben keine Knoten-ID.
+  - `knoten`: `id`, `ist_virtuell`, bei virtuellen Knoten außerdem `alte_id` (Kennung vor 2026-11) und `app_eintrag` (Eintrags-ID der App, aus der der Knoten übernommen wurde). Die Detailnetzknoten kommen aus den Kantenenden: erster Punkt = `beginnt_bei_vp`, letzter = `endet_bei_vp`. Die Verbindungspunkte aus dem WFS haben keine Knoten-ID.
   - `ren_netz`: `element_nr`, `von_knoten`, `bis_knoten` (als Text), `radverkehrsnetz`, `strassenname`. MultiLineStrings sind in Teile zerlegt.
   - `radfernwege`: `name`
   - `luecken`: Abschnitte der Radfernwege, die weiter als 10 m von jeder Detailnetz- und REN+-Kante liegen, mindestens 20 m lang (Arbeitsliste der App)
@@ -35,4 +35,4 @@ Mit `--bezirk` bleiben Kanten, Knoten und Radfernwege bis 200 m über die Bezirk
 
 ## Noch offen
 
-Die Ergebnisse der App zurück in die Pipeline: virtuelle Knoten an `data/Virtuelle-Knotenpunkte.gpkg` anhängen, neue Kanten als Netzquelle in `unify_networks.py` (dort `von_knoten`/`bis_knoten` als Text, weil virtuelle IDs mit `V` beginnen), `routen_fernradweg` füllen.
+Virtuelle Knoten aus der App übernimmt `data/virtuelle_knotenpunkte.py uebernehmen <export>.geojson` und vergibt dabei die Nummern ([Regeln](../data/VIRTUELLE-KNOTENPUNKTE.md)). Noch offen: neue Kanten als Netzquelle in `unify_networks.py` (`von_knoten`/`bis_knoten` sind dort schon Text), `routen_fernradweg` füllen.

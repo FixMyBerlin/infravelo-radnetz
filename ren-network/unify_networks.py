@@ -438,7 +438,9 @@ def log_klassen_differences(network, dn_klasse):
 
 
 def add_nodes(network):
-    """von_knoten / bis_knoten als Zahl aus der element_nr (Format: von_bis.NN)."""
+    """von_knoten / bis_knoten als Text aus der element_nr (Format: von_bis.NN).
+    Text, weil virtuelle Knotenpunkte 4-stellig mit führenden Nullen sind (0012),
+    siehe data/VIRTUELLE-KNOTENPUNKTE.md."""
     parts = network["element_nr"].str.extract(ELEMENT_NR_PATTERN)
     invalid = network.loc[network["element_nr"].notna() & parts[0].isna(), "element_nr"]
     if len(invalid):
@@ -446,8 +448,8 @@ def add_nodes(network):
             f"{len(invalid)} element_nr entsprechen nicht dem Muster von_bis.NN, "
             f"von_knoten/bis_knoten bleiben leer: {sorted(invalid)}"
         )
-    network["von_knoten"] = pd.to_numeric(parts[0]).astype("Int64")
-    network["bis_knoten"] = pd.to_numeric(parts[1]).astype("Int64")
+    network["von_knoten"] = parts[0].astype("string")
+    network["bis_knoten"] = parts[1].astype("string")
     return network
 
 

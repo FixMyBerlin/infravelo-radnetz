@@ -10,7 +10,9 @@ Kanten gezeichnet, wo das Detailnetz und das REN+ keine haben.
 Die Datei enthält sechs FeatureCollections in WGS84:
 - detailnetz: Kanten mit element_nr, beginnt_bei_vp, endet_bei_vp
 - knoten: Detailnetzknoten aus den Kantenenden (erster Punkt =
-  beginnt_bei_vp, letzter = endet_bei_vp) und die virtuellen Knoten
+  beginnt_bei_vp, letzter = endet_bei_vp) und die aktiven virtuellen Knoten
+  (mit alte_id und app_eintrag, siehe data/VIRTUELLE-KNOTENPUNKTE.md)
+- virtuelle_knoten_geloescht: Liste der gelöschten virtuellen Knoten
 - ren_netz: Kartierungs-Netz mit element_nr, von_knoten, bis_knoten
 - radfernwege: touristisches Radnetz
 - luecken: Abschnitte der Radfernwege ohne Kante in GAP_DISTANCE_M
@@ -49,13 +51,15 @@ from shapely.geometry import MultiLineString, Point
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(ROOT / "ren-network"))
+sys.path.append(str(ROOT / "data"))
 
 import unify_networks as ren  # noqa: E402
+import virtuelle_knotenpunkte as vk  # noqa: E402
 
 CRS = f"EPSG:{ren.DEFAULT_CRS}"
 SCHEMA = "netzanpassungen-app/v1"
 
-VIRTUAL_NODES_PATH = ROOT / "data" / "Virtuelle-Knotenpunkte.gpkg"
+VIRTUAL_NODES_PATH = vk.PATH
 RADFERNWEGE_PATH = ROOT / "data" / "netzquellen" / "touristisches_radnetz.gpkg"
 OUTPUT_DIR = Path(__file__).resolve().parent / "output"
 
@@ -137,20 +141,37 @@ def nodes_from_edges(detail):
     return nodes, off
 
 
+def _app_entry(quelle):
+    """Eintrags-ID der Netzanpassungen-App, wenn der Knoten von dort übernommen wurde."""
+    if quelle and quelle.startswith(vk.APP_SOURCE_PREFIX):
+        return quelle[len(vk.APP_SOURCE_PREFIX):]
+    return None
+
+
 def load_virtual_nodes():
-    virtual = gpd.read_file(VIRTUAL_NODES_PATH)
-    if virtual.crs is None or virtual.crs.to_epsg() != ren.DEFAULT_CRS:
-        virtual = virtual.to_crs(CRS)
-    virtual = virtual[virtual["Knotenpunkt-ID"].notna()]
-    logging.info(f"Virtuelle Knoten: {len(virtual)}")
-    return gpd.GeoDataFrame({
-        "id": virtual["Knotenpunkt-ID"].astype(str).str.strip(),
+    """Aktive virtuelle Knoten für die Karte, gelöschte nur als Liste (die App blendet sie aus)."""
+    registry = vk.read_all()
+    if vk.check(registry):
+        vk.read_active()  # bricht mit der Liste der Regelverstöße ab
+    active = registry[registry["status"] == vk.STATUS_ACTIVE]
+    deleted = registry[registry["status"] == vk.STATUS_DELETED]
+    logging.info(f"Virtuelle Knoten: {len(active)} aktiv, {len(deleted)} gelöscht")
+    virtual = gpd.GeoDataFrame({
+        "id": active[vk.ID_COLUMN],
         "ist_virtuell": 1,
-    }, geometry=virtual.geometry.to_numpy(), crs=virtual.crs)
+        "alte_id": active["alte_id"],
+        "app_eintrag": active["quelle"].map(_app_entry),
+    }, geometry=active.geometry.to_numpy(), crs=registry.crs)
+    deleted_list = [
+        {"id": row[vk.ID_COLUMN], "alte_id": row["alte_id"], "app_eintrag": _app_entry(row["quelle"]),
+         "geloescht_am": row["geloescht_am"], "grund": row["grund"]}
+        for _, row in deleted.iterrows()
+    ]
+    return virtual, deleted_list
 
 
 def node_id_text(value):
-    """von_knoten / bis_knoten sind Integer64 im REN+; in der App sind Knoten-IDs Text."""
+    """Knoten-IDs sind Text (ältere REN+-Dateien haben von_knoten / bis_knoten als Integer64)."""
     if pd.isna(value):
         return None
     return str(int(value)) if isinstance(value, float) else str(value)
@@ -309,7 +330,7 @@ def main():
     ren.download_inputs()
     detail, detail_source = load_detailnetz()
     nodes, off_nodes = nodes_from_edges(detail)
-    virtual = load_virtual_nodes()
+    virtual, virtual_deleted = load_virtual_nodes()
     duplicates = sorted(set(virtual["id"]) & set(nodes["id"]))
     if duplicates:
         logging.warning(f"Virtuelle Knoten mit der ID eines Detailnetzknotens: {duplicates}")
@@ -340,6 +361,7 @@ def main():
         },
         "detailnetz": feature_collection(detail),
         "knoten": feature_collection(all_nodes),
+        "virtuelle_knoten_geloescht": virtual_deleted,
         "ren_netz": feature_collection(ren_netz),
         "radfernwege": feature_collection(routes),
         "luecken": feature_collection(gaps),
