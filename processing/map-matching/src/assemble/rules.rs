@@ -126,6 +126,7 @@ mod tests {
 
     fn way(idx: u32, source: &str, fuehr: &str, sign: &str) -> TildaWay {
         TildaWay {
+            db_id: None,
             idx,
             data_source: Arc::from(source),
             tilda_id: format!("way/{idx}"),

@@ -47,6 +47,8 @@ impl AttrSchema {
 #[derive(Debug, Clone)]
 pub struct TildaWay {
     pub idx: u32,
+    /// `id` der Zeile in der PostGIS-Eingangstabelle (nur bei `--pg`).
+    pub db_id: Option<i64>,
     pub data_source: Arc<str>,
     pub tilda_id: String,
     pub line: Polyline,
@@ -83,13 +85,19 @@ pub struct Observation {
     pub way: u32,
     /// Position entlang der gesamten Trace (m).
     pub trace_s: f64,
+    /// Kontext-Beobachtung (Anlauf/Auslauf auf dem Weg einer anderen Trace): zählt im Viterbi, erzeugt aber keine
+    /// Intervalle, Verbindungsstücke, Brüche oder Statistik.
+    pub kontext: bool,
 }
 
 /// Eine Trace: Folge von Beobachtungen über einen oder mehrere TILDA-Wege.
 #[derive(Debug, Clone)]
 pub struct Trace {
     pub id: u32,
+    /// Eigene Wege (Eigentümer dieser Trace), in Fahrtrichtung.
     pub ways: Vec<u32>,
+    /// Kontext-Wege (Anlauf und Auslauf aus anderen Traces), in Fahrtrichtung.
+    pub kontext_ways: Vec<u32>,
     pub obs: Vec<Observation>,
 }
 

@@ -37,7 +37,35 @@ cargo run --release -- run --set hmm.beta_m=6 --set trace.sample_interval_m=4
 
 # REN+ (alle Netzquellen gemeinsam) statt Radvorrangnetz
 cargo run --release -- --netz ren run
+
+# Eingang aus PostGIS (pgRouting-Tabellen aus ../../graph-interface/) statt aus Dateien
+MATCHING_PG="host=127.0.0.1 port=5432 dbname=… user=…" PGPASSWORD=… cargo run --release -- --pg run
 ```
+
+### Eingang aus PostGIS (`--pg`)
+
+Mit `--pg` (oder `--set postgres.enabled=true`) liest das Matching Referenz- und Eingangsnetz aus den Tabellen `matching.reference_edges` und `matching.input_edges` (`[postgres]` in `config/default.toml`), die `graph-interface/load.sh` im pgRouting-Format anlegt. Die Verbindung kommt aus der Umgebungsvariable `MATCHING_PG` (libpq), das Passwort aus `PGPASSWORD` oder `~/.pgpass`.
+
+- Referenznetz: Knoten aus `source`/`target` statt aus Endpunkten innerhalb `network.node_tolerance_m`; Name aus `match_key`. `reverse_cost` wird nicht ausgewertet, gematcht wird gegen beide Richtungen.
+- Eingangsnetz: je `paths.tilda[].data_source` die Zeilen mit gleicher `trace_group`, Knoten aus `source`/`target`, Einrichtungswege aus `reverse_cost < 0`, Name aus `match_key`, übertragene Attribute aus `attrs`.
+- Bezirke und Zuschnitte (`--clip`) bleiben Dateien aus `[paths]`; die Ausgabe bleibt FlatGeobuf.
+
+### Zwischenergebnis nach dem Matching und `assemble`
+
+Mit `--pg` schreibt `run` zusätzlich die Intervalle nach dem Matching (Stufe 6) nach `postgres.intervals` (Standard `matching.intervals`): je Intervall `ref_id` (id in `reference_edges`), `ri`, `from_m`/`to_m` in Digitalisierungsrichtung der Referenzkante, `input_id` (id in `input_edges`), `input_ref`, `trace_group`, `trace_id`, `score`, `n_obs`, `mirrored` und das Stück der Referenzkante als Geometrie.
+
+`assemble --pg` führt nur die fachliche Stufe 7 (Regel-Engine, Lücken, kurze Stücke, Einbahn-Regel) auf dieser Tabelle aus und schreibt das Ergebnis wie `run`. So lassen sich die Intervalle in PostGIS ändern oder aus anderen Schritten erzeugen (z. B. verkettete Matchings, siehe `graph-interface/osmnexus/`), ohne neu zu matchen.
+
+```sh
+cargo run --release -- --pg run                                              # schreibt matching.intervals
+cargo run --release -- --pg assemble --set postgres.intervals=matching.intervals_union
+```
+
+`network.respect_direction = true` (nur `--pg`) beachtet die Fahrtrichtung des Referenznetzes: `cost < 0` sperrt die Digitalisierungsrichtung, `reverse_cost < 0` die Gegenrichtung, für Kandidaten und Routing. Gespiegelte Intervalle von Zweirichtungswegen landen weiter in beiden Richtungen.
+
+Für ganz Berlin ist das Ergebnis von `assemble` auf den Intervallen eines Laufs in allen Zeilen, Geometrien und Attributen gleich dem Ergebnis des Laufs selbst. Positionen und Güte werden dafür exakt übertragen (GDAL schreibt Gleitkommazahlen sonst nur mit 15 Stellen).
+
+Stand 2026-11-10 (Radvorrangnetz, ganz Berlin): gleiche Kanten-, Knoten- und Trace-Zahlen und eine Ausgabe, die in allen Zeilen, Geometrien und Attributen mit dem Lauf aus den Dateien übereinstimmt.
 
 `--netz rvn|ren` wählt das Zielnetz aus `[netze.*]` in `config/default.toml`. Die Werte dort ersetzen die gleichnamigen in `[paths]` (Netz, TILDA-Routing, Ausgabeordner), `--set` wirkt danach. Ohne `--netz` gilt `[paths]`, also das Radvorrangnetz. `ren` schreibt nach `output/map-matching-ren/` und braucht `../process_radnetz.sh --netz ren` und `../scripts/prepare_tilda_routing.py --netz ren`.
 
