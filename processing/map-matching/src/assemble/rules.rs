@@ -139,6 +139,8 @@ mod tests {
             category: String::new(),
             traffic_sign: sign.into(),
             name_norm: String::new(),
+            maxspeed_forward: None,
+            maxspeed_backward: None,
         }
     }
 
