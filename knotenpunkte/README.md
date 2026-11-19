@@ -43,7 +43,7 @@ python knotenpunkte/merge_bewertungen.py ratings-<bereich>-<datum>.geojson
 ## Ablauf
 
 1. **Knoten**: alle `von_knoten`/`bis_knoten` des REN+. Die Lage kommt vom Verbindungspunkt, sonst vom Kantenende im Detailnetz und zuletzt vom Kantenende im REN+.
-2. **Virtuelle Knoten** aus der manuellen Datei. Anliegende Kanten werden im Umkreis von 3 m gesucht.
+2. **Virtuelle Knoten** aus `netzanpassungen/output/virtuelle_knoten.gpkg` (nur aktive). Anliegende Kanten werden im Umkreis von 3 m gesucht.
 3. **Netzattribute** der anliegenden Kanten: `ist_radvorrangnetz` nach höchstem Rang (Vorrang > Ergänzung > keins). `KP_HVS` ist 1, wenn eine Kante Hauptverkehrsstraße ist.
 4. **Bezirk** aus den Bezirksgrenzen. Liegt ein Punkt außerhalb, gilt der nächste Bezirk.
 5. **LSA**: Ampel aus Open Data und OSM im Umkreis von 25 m. Melden beide eine Ampel, ist `LSA_KP` 1, meldet keine, ist es 0. Melden die Quellen Widersprüchliches, bleibt es leer, und der Grund steht in `LSA_Konflikt`. Der Radius ist gegen die Lieferung 2025 kalibriert.
@@ -66,7 +66,7 @@ In `knotenpunkte/output/`:
 | Spalte | Inhalt | Herkunft |
 |---|---|---|
 | `lfd_nr` | Laufende Nummer | |
-| `Knotenpunkt‐ID` | Detailnetz-Knotennummer (8 Ziffern), bei virtuellen Knoten 4-stellige Nummer wie `0012`, immer Text (Bindestrich U+2010 wie 2025) | Detailnetz / Verzeichnis |
+| `Knotenpunkt‐ID` | Detailnetz-Knotennummer (8 Ziffern), bei virtuellen Knoten 4-stellige Nummer wie `0012`, immer Text (Bindestrich U+2010 wie 2025) | Detailnetz / `virtuelle_knoten.gpkg` |
 | `okstra_id` | Referenz im Detailnetz | Verbindungspunkt |
 | `Bezirksnummer` | `01`–`12` | abgeleitet |
 | `ist_radvorrangnetz` | Radvorrangnetz, Radergänzungsnetz oder Kein Radverkehrsnetz vorhanden | REN+ |
@@ -74,13 +74,13 @@ In `knotenpunkte/output/`:
 | `LSA_KP`, `LSA_Konflikt` | 0/1, Lichtsignalanlage; Konflikt `nur_OSM` oder `nur_OpenData` | 2025 / App, sonst Open Data und OSM |
 | `Mar_RVF_KP`, `Furt_rot`, `Fl_Linksab`, `vorgez_Fl`, `RFS_Mitte` | `keine`, `teilweise` oder `gänzlich` | 2025 / App (mit ML-Vorschlägen) |
 | `KP_Nichtbetrachten`, `Mapillary-ID`, `Kommentar` | Bewertung | 2025 / App |
-| `ist_virtuell` | 1 für virtuelle Knoten, sonst 0; nur aus dem Verzeichnis, nicht aus der App | Verzeichnis |
+| `ist_virtuell` | 1 für virtuelle Knoten, sonst 0; nur aus `virtuelle_knoten.gpkg` (die 53 von 2025 und die Knoten der App, Schritt 3) | `virtuelle_knoten.gpkg` |
 | `bearbeitet_2025`, `knotenpunkt_id_2025` | In der Lieferung 2025 enthalten, ID dort | Abgleich |
 | `netz_quellen`, `anzahl_kanten` | Netzquellen und Zahl der anliegenden REN+-Kanten | REN+ |
 
 ## Virtuelle und fehlende Knoten
 
-Kanten ohne `element_nr` haben noch keine Knoten (siehe Prüfliste). Deckt eine Netzquelle nur einen Teil eines Detailnetz-Elements ab, liegt der Knoten laut `element_nr` abseits des Netzes. Die Prüfliste meldet das mit „Netz erreicht den Knoten nicht“. Die Verzweigung liegt dann mitten auf dem Element. Virtuelle Knoten kommen aus `netzanpassungen/output/virtuelle_knoten.gpkg` (Schritt 3: die 53 von 2025 aus `data/Virtuelle-Knotenpunkte.gpkg` und die in der App Netzanpassungen gesetzten, jeweils mit 4-stelliger Nummer). Ein neuer Knoten wird nur in der App gesetzt, siehe [VIRTUELLE-KNOTENPUNKTE.md](../data/VIRTUELLE-KNOTENPUNKTE.md). Danach Schritt 3 und `build_knotenpunkte.py` erneut ausführen. Bewertungen mit alter `V…`-Kennung übersetzt `merge_bewertungen.py`.
+Kanten ohne `element_nr` haben noch keine Knoten (siehe Prüfliste). Deckt eine Netzquelle nur einen Teil eines Detailnetz-Elements ab, liegt der Knoten laut `element_nr` abseits des Netzes. Die Prüfliste meldet das mit „Netz erreicht den Knoten nicht“. Die Verzweigung liegt dann mitten auf dem Element. Virtuelle Knoten kommen aus `netzanpassungen/output/virtuelle_knoten.gpkg` (Schritt 3: die 53 von 2025 aus `data/Virtuelle-Knotenpunkte.gpkg` und die in der App Netzanpassungen gesetzten, jeweils mit 4-stelliger Nummer). Ein neuer Knoten wird nur in der App gesetzt, siehe [VIRTUELLE-KNOTENPUNKTE.md](../data/VIRTUELLE-KNOTENPUNKTE.md). Danach Schritt 3 und `build_knotenpunkte.py` erneut ausführen. Kantenenden an offenen Knotenvorschlägen von Schritt 1 (Kennung `P<x>-<y>`) sind noch keine Knotenpunkte und werden übersprungen; sie kommen mit ihrer Nummer dazu, sobald die App den Vorschlag übernimmt. Bewertungen mit alter `V…`-Kennung (`id_rvn_2025`) übersetzt `merge_bewertungen.py`.
 
 ## Bewertung und Abgabe
 

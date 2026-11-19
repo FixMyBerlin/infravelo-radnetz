@@ -50,6 +50,7 @@ sys.path.append(str(ROOT / "ren-network"))
 sys.path.append(str(ROOT / "data"))
 
 import merge_networks as ren  # noqa: E402
+from auto_nodes import is_proposal  # noqa: E402
 import virtuelle_knotenpunkte as vk  # noqa: E402
 from assign_node_ids import assign_node_ids_to_points  # noqa: E402
 
@@ -222,6 +223,11 @@ def network_end_points(network, nodes):
 def ren_nodes(network, detail):
     """Alle Netzknoten des REN+ mit Lage und Netzattributen."""
     attributes = network_attributes(edges_by_node(network))
+    # Open node proposals of step 1 (P<x>-<y>, not yet accepted in the Netzanpassungen app) are no Knotenpunkte yet
+    proposals = [node_id for node_id in attributes.index if is_proposal(node_id)]
+    if proposals:
+        attributes = attributes.drop(index=proposals)
+        logging.info(f"{len(proposals)} offene Knotenvorschläge (P…) übersprungen: erst nach Übernahme in der App Knotenpunkte")
     points = load_connection_points(detail)
     nodes = attributes.join(points, how="left")
 
