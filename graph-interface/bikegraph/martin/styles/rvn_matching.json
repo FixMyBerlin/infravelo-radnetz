@@ -70,6 +70,14 @@
   "wege": {
    "type": "vector",
    "url": "http://localhost:3000/wege"
+  },
+  "new_b": {
+   "type": "vector",
+   "url": "http://localhost:3000/new_b"
+  },
+  "strassen_traces": {
+   "type": "vector",
+   "url": "http://localhost:3000/strassen_traces"
   }
  },
  "layers": [
@@ -896,6 +904,126 @@
    },
    "layout": {
     "visibility": "none"
+   }
+  },
+  {
+   "id": "new_b",
+   "type": "line",
+   "source": "new_b",
+   "source-layer": "new_b",
+   "layout": {
+    "visibility": "none"
+   },
+   "paint": {
+    "line-color": [
+     "match",
+     [
+      "get",
+      "fuehr"
+     ],
+     [
+      "Radweg",
+      "Radfahrstreifen",
+      "Schutzstreifen",
+      "Geschützter Radfahrstreifen",
+      "Gemeinsamer Geh- und Radweg mit Z240"
+     ],
+     "#1f6fff",
+     "Fahrradstraße /-zone (Z 244)",
+     "#17becf",
+     "Mischverkehr mit motorisiertem Verkehr",
+     "#7f7f7f",
+     "Sonstige Wege (Gehwege, Wege durch Grünflächen, Plätze)",
+     "#2ca02c",
+     "Keine Radinfrastruktur vorhanden",
+     "#d62728",
+     "#9467bd"
+    ],
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     10,
+     1.5,
+     16,
+     4
+    ],
+    "line-offset": [
+     "match",
+     [
+      "get",
+      "ri"
+     ],
+     0,
+     [
+      "interpolate",
+      [
+       "linear"
+      ],
+      [
+       "zoom"
+      ],
+      12,
+      1.5,
+      16,
+      5
+     ],
+     [
+      "interpolate",
+      [
+       "linear"
+      ],
+      [
+       "zoom"
+      ],
+      12,
+      -1.5,
+      16,
+      -5
+     ]
+    ]
+   }
+  },
+  {
+   "id": "strassen_traces",
+   "type": "line",
+   "source": "strassen_traces",
+   "source-layer": "strassen_traces",
+   "paint": {
+    "line-color": [
+     "case",
+     [
+      ">",
+      [
+       "get",
+       "n_brueche"
+      ],
+      0
+     ],
+     "#d62728",
+     "#333333"
+    ],
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     12,
+     1,
+     17,
+     3
+    ]
+   },
+   "layout": {
+    "visibility": "none",
+    "line-cap": "round"
    }
   }
  ]

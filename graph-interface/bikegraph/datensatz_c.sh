@@ -67,5 +67,10 @@ echo "   -> $PROCESSING/$OUT_DIR/post/aggregated.gpkg"
 echo "== 5. Vergleich mit der Baseline"
 "$HERE/compare_c.sh" "$BASELINE" "$PROCESSING/$OUT_DIR/post/aggregated.gpkg" "$PROCESSING/$OUT_DIR/vergleich_baseline.csv"
 
-echo "== 6. Datensatz C (Baseline, neu, Abweichungen) für Martin"
+echo "== 6. Datensatz B und C (Baseline, neu, Abweichungen) für Martin"
+# Datensatz B wie konvertiert, ohne die Mapillary- und Quellfelder
+ogr2ogr -f PostgreSQL "PG:$MATCHING_PG" "$PROCESSING/$OUT_DIR/post/converted.fgb" -overwrite -lco SCHEMA=datensatz_c \
+    -lco GEOMETRY_NAME=geom -lco FID=id -nln new_b -nlt LINESTRING -t_srs EPSG:25833 \
+    -sql "SELECT element_nr, ri, strassenname, fuehr, pflicht, breite, ofm, farbe, protek, trennstreifen, nutz_beschr, verkehrsri,
+          tilda_id, tilda_name, tilda_category, tilda_ids, data_source, hmm_regel, hmm_konfidenz FROM converted"
 sql -f "$HERE/sql/106_datensatz_c_martin.sql"

@@ -17,10 +17,13 @@
 --               Reste; je Stück Art, TILDA-Objekt, Führungsform und Kategorie aus dem Eingang, rvn_m (auf dem RVN
 --               gemessene Länge der eigenen, nicht gespiegelten Intervalle aus bikegraph.dc_iv_raw; 0 = nicht gematcht)
 --               und rvn (getroffene Kanten mit ri)
+--   strassen_traces  je Trace der trace_group strassen (bikegraph.dc_iv_raw_traces, ohne Kontext) eine Linie: Wege in
+--               Reihenfolge, Zahl der Wege, Beobachtungen, gematchte Beobachtungen, HMM-Brüche
+--   new_b       (datensatz_c.sh, vor dieser Datei) Datensatz B des neuen Laufs
 CREATE SCHEMA IF NOT EXISTS datensatz_c;
 BEGIN;
 DROP TABLE IF EXISTS datensatz_c.baseline_c, datensatz_c.new_c, datensatz_c.diff_c, datensatz_c.baseline_wins, datensatz_c.neu_wins,
-    datensatz_c.diff_alle, datensatz_c.wege;
+    datensatz_c.diff_alle, datensatz_c.wege, datensatz_c.strassen_traces;
 
 -- Intervalle der Wege je Eingangsstück, vorab verdichtet (gematcht_m nur aus nicht gespiegelten Intervallen)
 CREATE TEMP TABLE wege_iv ON COMMIT DROP AS
@@ -115,6 +118,16 @@ FROM p
 WHERE fuehr_anders OR pflicht_anders OR breite_anders OR ofm_anders OR farbe_anders OR protek_anders OR trennstreifen_anders
    OR nutz_beschr_anders OR verkehrsri_anders;
 
+-- Straßen-Traces des RVN-Matchings (input_id 100000000 + Kante, sql/104), je Trace eine Linie in Reihenfolge der Wege
+CREATE TABLE datensatz_c.strassen_traces AS
+SELECT t.trace_id AS id, count(*)::int AS n_stuecke, max(t.n_wege)::int AS n_wege, sum(t.n_obs)::int AS n_obs,
+       sum(t.n_gematcht)::int AS n_gematcht, sum(t.n_brueche)::int AS n_brueche,
+       string_agg(t.input_ref, ', ' ORDER BY t.seq) AS wege,
+       ST_Multi(ST_LineMerge(ST_Collect(t.geom ORDER BY t.seq)))::geometry(MultiLineString, 25833) AS geom
+FROM bikegraph.dc_iv_raw_traces t
+WHERE t.kontext = 0 AND t.input_id BETWEEN 100000000 AND 199999999
+GROUP BY t.trace_id;
+
 ALTER TABLE datensatz_c.baseline_c ADD PRIMARY KEY (id);
 ALTER TABLE datensatz_c.new_c ADD PRIMARY KEY (id);
 ALTER TABLE datensatz_c.diff_c ADD PRIMARY KEY (id);
@@ -122,6 +135,8 @@ ALTER TABLE datensatz_c.baseline_wins ADD PRIMARY KEY (id);
 ALTER TABLE datensatz_c.neu_wins ADD PRIMARY KEY (id);
 ALTER TABLE datensatz_c.diff_alle ADD PRIMARY KEY (id);
 ALTER TABLE datensatz_c.wege ADD PRIMARY KEY (id);
+ALTER TABLE datensatz_c.strassen_traces ADD PRIMARY KEY (id);
+CREATE INDEX ON datensatz_c.strassen_traces USING gist (geom);
 CREATE INDEX ON datensatz_c.wege USING gist (geom);
 CREATE INDEX ON datensatz_c.diff_alle USING gist (geom);
 CREATE INDEX ON datensatz_c.baseline_c USING gist (geom);
@@ -131,12 +146,13 @@ CREATE INDEX ON datensatz_c.baseline_wins USING gist (geom);
 CREATE INDEX ON datensatz_c.neu_wins USING gist (geom);
 COMMIT;
 ANALYZE datensatz_c.baseline_c, datensatz_c.new_c, datensatz_c.diff_c, datensatz_c.baseline_wins, datensatz_c.neu_wins,
-    datensatz_c.diff_alle, datensatz_c.wege;
+    datensatz_c.diff_alle, datensatz_c.wege, datensatz_c.strassen_traces;
 
 SELECT 'baseline_c' AS tabelle, count(*) FROM datensatz_c.baseline_c UNION ALL SELECT 'new_c', count(*) FROM datensatz_c.new_c
 UNION ALL SELECT 'diff_c', count(*) FROM datensatz_c.diff_c UNION ALL SELECT 'baseline_wins', count(*) FROM datensatz_c.baseline_wins
 UNION ALL SELECT 'neu_wins', count(*) FROM datensatz_c.neu_wins UNION ALL SELECT 'diff_alle', count(*) FROM datensatz_c.diff_alle
-UNION ALL SELECT 'wege', count(*) FROM datensatz_c.wege;
+UNION ALL SELECT 'wege', count(*) FROM datensatz_c.wege
+UNION ALL SELECT 'strassen_traces', count(*) FROM datensatz_c.strassen_traces;
 SELECT a.attribut, count(*) AS richtungen FROM datensatz_c.diff_alle, unnest(string_to_array(abweichend, ', ')) a(attribut)
 GROUP BY 1 ORDER BY 2 DESC;
 SELECT urteil, count(*) AS richtungen, round(sum(laenge_m) / 1000, 1) AS km FROM datensatz_c.diff_c GROUP BY 1 ORDER BY 2 DESC;
