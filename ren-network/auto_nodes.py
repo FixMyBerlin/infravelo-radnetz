@@ -35,6 +35,12 @@ Direction in the name is the direction of the line. The element_nr before the ch
 number names; where its geometric ends sit on other nodes, those are in `knoten_anfang`/`knoten_ende`
 (else empty).
 
+Before that, merge_networks.py moves line ends that lie within NAMED_NODE_TOL_M of the official node their
+element_nr names onto that node (snap_ends_to_named_nodes), so they do not become proposals, and merges lines of
+different sources between the same two nodes (parallel_clusters). After splitting, edges of different sources between
+the same two end nodes are merged once more (merge_parallel_pieces, e.g. a numbered line split at two 2025 nodes and a
+line without element_nr between them); the surviving edge keeps a kept number, else the lowest `nn`.
+
 Nodes set in the app are not part of this step; step 3 adds them (netzanpassungen/apply_app_result.py).
 """
 
@@ -59,6 +65,17 @@ NODE_2025_TOL_M = 2.0
 CLUSTER_STATION_M = 3.0
 # Two split points on one edge closer than this count as one
 MIN_STOP_GAP_M = 0.5
+# An edge end this close to an official node its element_nr names ends on that node (the line is extended to it,
+# an overshoot is cut). Chosen from the data (Berlin, 2026-11-19): of the line ends more than OFFICIAL_TOL_M from
+# every official node, 95 lie within 10 m of a node their element_nr names, 126 within 15 m, 138 within 20 m, the
+# rest farther (up to several km). Example: Radverkehrsnetz 27570001_28560007.01 ends 10.1 m before 27570001.
+NAMED_NODE_TOL_M = 15.0
+# Lines of different sources between the same two nodes within this Hausdorff distance are one edge. Chosen from the
+# data (Berlin, 2026-11-19): in ren_netz_roh.gpkg before this rule, 149 node pairs had lines of different sources;
+# 145 of them lie within 13.8 m, then 16.1 m (twice), 22.2 and 35.3 m. At the merge (after NAMED_NODE_TOL_M) 149 of
+# 154 such pairs lie within 15 m (134 within 5 m), the next at 16.1 m (an end 16.1 m from its node). Lines of the
+# same source between the same nodes stay separate (real parallel edges).
+PARALLEL_TOL_M = 15.0
 
 ELEMENT_NR_PATTERN = re.compile(r"^(.+)_(.+)\.(\d+)$")
 PROPOSAL_PREFIX = "P"
@@ -88,6 +105,135 @@ def parse_element_nr(element_nr):
 
 def pair_key(a, b):
     return tuple(sorted((a, b)))
+
+
+def _parts(geometry):
+    return list(geometry.geoms) if geometry.geom_type == "MultiLineString" else [geometry]
+
+
+def end_at(line, side, point, max_cut_m=NAMED_NODE_TOL_M):
+    """`line` with its start (side 0) or end (side 1) moved onto `point`: a tail beyond the point's projection
+    (overshoot, at most `max_cut_m`) is cut, then the point is added as the new end vertex."""
+    station = line.project(point)
+    if side == 1:
+        if 0 < station < line.length and line.length - station <= max_cut_m:
+            line = substring(line, 0, station)
+        coords = list(line.coords) + [(point.x, point.y)]
+    else:
+        if 0 < station < line.length and station <= max_cut_m:
+            line = substring(line, station, line.length)
+        coords = [(point.x, point.y)] + list(line.coords)
+    deduped = [coords[0]] + [c for prev, c in zip(coords, coords[1:]) if c != prev]
+    return shapely.LineString(deduped)
+
+
+def snap_ends_to_named_nodes(network, official, official_column, nodes_2025=None, tolerance=NAMED_NODE_TOL_M):
+    """Moves every line end that is not on a node (farther than OFFICIAL_TOL_M from every official node and than
+    NODE_2025_TOL_M from every 2025 node in `nodes_2025`) but within `tolerance` of
+    an official node its element_nr `<von>_<bis>.<nn>` names onto that node. Each named node takes at most one end of
+    a row, the closest, and none if another end of the row already sits on it. Ends of other rows that met a moved end
+    (within SNAP_TOL_M of its old position, also not on a node) move with it, unless the other end of their line is
+    already at that node. Without this, such an end
+    becomes a node proposal (or splits the edge it lies on) although its number says where it belongs.
+
+    `network`: GeoDataFrame with `element_nr` and LineString or MultiLineString geometry. Returns (copy with the
+    geometry changed, list of (element_nr, node id, distance in m) of the moved ends)."""
+    positions = dict(zip(official[official_column].astype(str), official.geometry))
+    official_tree = shapely.STRtree(official.geometry.to_numpy())
+
+    tree_2025 = shapely.STRtree(nodes_2025.geometry.to_numpy()) if nodes_2025 is not None and len(nodes_2025) else None
+
+    def on_official(point):
+        """On an official node or a 2025 node: such an end stays where it is."""
+        if len(official_tree.query(point, predicate="dwithin", distance=OFFICIAL_TOL_M)):
+            return True
+        return tree_2025 is not None and len(tree_2025.query(point, predicate="dwithin", distance=NODE_2025_TOL_M)) > 0
+
+    parts = {index: _parts(geometry) for index, geometry in network.geometry.items()}
+    moves = {}  # (row, part, side) -> (node id, point)
+    moved = []
+    for index, element_nr in network["element_nr"].items():
+        parsed = parse_element_nr(element_nr)
+        named = [n for n in dict.fromkeys(parsed[:2]) if n in positions] if parsed else []
+        if not named:
+            continue
+        ends = [(p, side, shapely.get_point(part, -side)) for p, part in enumerate(parts[index]) for side in (0, 1)]
+        taken = {n for n in named if any(point.distance(positions[n]) <= OFFICIAL_TOL_M for _, _, point in ends)}
+        options = sorted((point.distance(positions[n]), p, side, n) for p, side, point in ends
+                         for n in named if n not in taken and not on_official(point))
+        used_ends = set()
+        for distance, p, side, n in options:
+            if distance > tolerance or n in taken or (p, side) in used_ends:
+                continue
+            moves[(index, p, side)] = (n, positions[n])
+            moved.append((element_nr, n, distance))
+            taken.add(n)
+            used_ends.add((p, side))
+
+    # Ends of other rows that met a moved end at its old position follow it to the node
+    old_points = [shapely.get_point(parts[index][p], -side) for index, p, side in moves]
+    targets = list(moves.values())
+    if old_points:
+        old_tree = shapely.STRtree(old_points)
+        for index in network.index:
+            for p, part in enumerate(parts[index]):
+                for side in (0, 1):
+                    if (index, p, side) in moves:
+                        continue
+                    point = shapely.get_point(part, -side)
+                    near = old_tree.query_nearest(point, max_distance=SNAP_TOL_M, all_matches=False)
+                    if len(near) and not on_official(point):
+                        node, node_point = targets[int(near[0])]
+                        other = shapely.get_point(part, -(1 - side))
+                        if (point.distance(node_point) <= tolerance + SNAP_TOL_M
+                                and other.distance(node_point) > OFFICIAL_TOL_M
+                                and moves.get((index, p, 1 - side), (None,))[0] != node):
+                            moves[(index, p, side)] = (node, node_point)
+                            moved.append((network.at[index, "element_nr"], node, point.distance(node_point)))
+
+    network = network.copy()
+    for index in {index for index, _, _ in moves}:
+        new_parts = list(parts[index])
+        for p in range(len(new_parts)):
+            for side in (0, 1):
+                if (index, p, side) in moves:
+                    new_parts[p] = end_at(new_parts[p], side, moves[(index, p, side)][1])
+        geometry = network.at[index, "geometry"]
+        network.at[index, "geometry"] = (shapely.MultiLineString(new_parts) if geometry.geom_type == "MultiLineString"
+                                         else new_parts[0])
+    return network, moved
+
+
+def parallel_clusters(geometries, pairs, sources, tolerance=PARALLEL_TOL_M):
+    """Groups of lines that are one stretch of street: same unordered node pair (`pairs[i]`), no source in common
+    (`sources[i]` a set) and Hausdorff distance at most `tolerance`. The closest pairs join first; a group never holds
+    two lines of the same source. Returns a list of index lists with at least two members."""
+    by_pair = defaultdict(list)
+    for index, pair in enumerate(pairs):
+        if pair is not None:
+            by_pair[pair].append(index)
+    clusters = []
+    for members in by_pair.values():
+        if len(members) < 2:
+            continue
+        candidates = sorted(
+            (geometries[i].hausdorff_distance(geometries[j]), i, j)
+            for k, i in enumerate(members) for j in members[k + 1:] if not sources[i] & sources[j])
+        group = {i: {i} for i in members}
+        group_sources = {i: set(sources[i]) for i in members}
+        for distance, i, j in candidates:
+            if distance > tolerance:
+                break
+            a, b = min(group[i]), min(group[j])
+            if a == b or group_sources[a] & group_sources[b]:
+                continue
+            root, other = min(a, b), max(a, b)
+            merged = group[root] | group[other]
+            group_sources[root] = group_sources[root] | group_sources[other]
+            for member in merged:
+                group[member] = merged
+        clusters.extend(sorted(g) for g in {id(g): g for g in group.values()}.values() if len(g) > 1)
+    return clusters
 
 
 def find_hosts(point, own_line, geoms, tree, starts, ends):
@@ -413,9 +559,14 @@ def proposal_frame(nodes, proposal_keys, pieces, element_nrs, lines, crs):
     return frame.sort_values("id").reset_index(drop=True)
 
 
-def snap_and_number(network, official, nodes_2025, detail_element_nrs, official_column):
+def snap_and_number(network, official, nodes_2025, detail_element_nrs, official_column, combine=None,
+                    parallel_tolerance=PARALLEL_TOL_M):
     """The whole sub-step: `network` (one LineString per row, `element_nr` possibly empty) ->
-    (network with unique element_nr, von_knoten, bis_knoten, ursprung_element_nr; node proposals; report)."""
+    (network with unique element_nr, von_knoten, bis_knoten, ursprung_element_nr; node proposals; report).
+
+    With `combine`, edges of different sources (`netz_quellen`, `;`-separated) between the same two end nodes within
+    `parallel_tolerance` (Hausdorff) become one edge (see merge_parallel_pieces); `combine(rows, owner)` merges their
+    rows."""
     lines = network.reset_index(drop=True)
     nodes, pieces, proposal_keys, report = build_nodes_and_pieces(lines, official, nodes_2025, official_column)
     element_nrs, kept = number_pieces(lines, pieces, nodes, detail_element_nrs)
@@ -439,14 +590,37 @@ def snap_and_number(network, official, nodes_2025, detail_element_nrs, official_
             "geometry": MultiLineString([piece["geometry"]]),
         })
         rows.append(row)
-    result = gpd.GeoDataFrame(rows, geometry="geometry", crs=network.crs)
+    dropped = merge_parallel_pieces(rows, pieces, element_nrs, kept, combine, parallel_tolerance) if combine else set()
+    remaining = [index for index in range(len(pieces)) if index not in dropped]
+    kept = kept - dropped
+    result = gpd.GeoDataFrame([rows[i] for i in remaining], geometry="geometry", crs=network.crs)
     assert_unique(result)
 
+    report["merged_parallel"] = len(dropped)
+    report["pieces"] = len(remaining)
     report["kept"] = len(kept)
-    report["renumbered"] = len(pieces) - len(kept)
+    report["renumbered"] = len(remaining) - len(kept)
     report["renumbered_without_original"] = int(result["ursprung_element_nr"].isna().sum() - len(kept))
-    proposals = proposal_frame(nodes, proposal_keys, pieces, element_nrs, lines, network.crs)
+    proposals = proposal_frame(nodes, proposal_keys, [pieces[i] for i in remaining], [element_nrs[i] for i in remaining],
+                               lines, network.crs)
     return result, proposals, report
+
+
+def merge_parallel_pieces(rows, pieces, element_nrs, kept, combine, tolerance=PARALLEL_TOL_M):
+    """Edges of different sources between the same two end nodes (after splitting) within `tolerance` become one
+    (e.g. a Radverkehrsnetz line split at two 2025 nodes and a Radschnellverbindung without element_nr between the same
+    nodes). The surviving edge keeps the number of a member that kept its element_nr, else the lowest `nn`; geometry
+    and attributes come from `combine(member rows, owner position)`. Changes `rows` in place, returns the dropped piece
+    indexes. Their numbers are not issued again: they were counted before."""
+    sources = [set(str(row.get("netz_quellen") or "").split(";")) - {""} for row in rows]
+    pairs = [pair_key(piece["a"], piece["b"]) if sources[i] else None for i, piece in enumerate(pieces)]
+    dropped = set()
+    for cluster in parallel_clusters([piece["geometry"] for piece in pieces], pairs, sources, tolerance):
+        owner = min(cluster, key=lambda i: (i not in kept, parse_element_nr(element_nrs[i])[2], element_nrs[i]))
+        rows[owner] = combine([rows[i] for i in cluster], cluster.index(owner))
+        pieces[owner]["length"] = rows[owner]["geometry"].length
+        dropped |= set(cluster) - {owner}
+    return dropped
 
 
 def log_report(report):
@@ -455,4 +629,5 @@ def log_report(report):
         f"({report['nodes_2025_matched']} at a snap point of an edge end, {report['nodes_2025_split_edge']} split an edge, "
         f"{len(report['nodes_2025_unused'])} without any edge: {report['nodes_2025_unused']}). "
         f"{report['lines']} lines -> {report['pieces']} edges ({report['split_lines']} lines split), "
-        f"element_nr kept for {report['kept']}, newly numbered {report['renumbered']}")
+        f"element_nr kept for {report['kept']}, newly numbered {report['renumbered']}, "
+        f"{report.get('merged_parallel', 0)} edges merged into a parallel edge of another source between the same nodes")

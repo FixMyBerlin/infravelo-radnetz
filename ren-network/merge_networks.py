@@ -18,7 +18,11 @@ Detailnetz dieselben zwei Knotenpunkte, wird dessen element_nr übernommen,
 sonst entsteht von_bis.01. Kanten, an deren Enden kein Knotenpunkt gefunden
 wird, bleiben ohne element_nr einzeln erhalten.
 
-Pro element_nr entsteht eine Kante.
+Pro element_nr entsteht eine Kante. Kantenenden bis 15 m vor dem Knoten, den ihre element_nr nennt, enden auf
+diesem Knoten. Linien verschiedener Quellen zwischen denselben zwei Knoten, die höchstens 15 m (Hausdorff)
+auseinander liegen, werden eine Kante, auch wenn die Quellen verschiedene element_nr tragen (z. B. Radverkehrsnetz
+27570001_28560007.01, Hauptstraßennetz 27570001_28560007.02); sie behält die niedrigste Nummer. Linien derselben
+Quelle bleiben getrennt.
 
 Then (auto_nodes.py, English): edges are split at the 53 virtual nodes of 2025
 (data/Virtuelle-Knotenpunkte.gpkg, read-only) and at node proposals found by snapping edge ends to other
@@ -404,6 +408,83 @@ def merge_by_element_nr(sources):
     return merged
 
 
+def _sources(value):
+    return set(value.split(";")) if isinstance(value, str) and value else set()
+
+
+def _line_ends(geometry):
+    parts = list(geometry.geoms) if geometry.geom_type == "MultiLineString" else [geometry]
+    return shapely.get_point(parts[0], 0), shapely.get_point(parts[-1], -1)
+
+
+def combine_parallel(rows, owner):
+    """Eine Kante aus parallelen Linien verschiedener Quellen zwischen denselben Knoten (Zeilen als dict).
+    Wie beim Zusammenführen pro element_nr: Geometrie aus der vorrangigen Quelle, außer sie ist mehr als
+    GEOMETRY_LENGTH_TOLERANCE_M kürzer; radverkehrsnetz nach höchstem Rang; netz_quellen alle Quellen;
+    strassenname/strassenklasse aus der Quelle, die sie hat. element_nr und Knoten bleiben die von rows[owner],
+    die Geometrie wird in dessen Richtung gedreht."""
+    prio = {name: i for i, name in enumerate(SOURCE_PRIORITY)}
+    ranks = [min((prio.get(s, len(prio)) for s in _sources(row["netz_quellen"])), default=len(prio)) for row in rows]
+    lengths = [row["geometry"].length for row in rows]
+    complete = [i for i in range(len(rows)) if lengths[i] >= max(lengths) - GEOMETRY_LENGTH_TOLERANCE_M]
+    best = min(complete, key=lambda i: (ranks[i], i))
+
+    geometry = rows[best]["geometry"]
+    start, end = _line_ends(geometry)
+    owner_start, owner_end = _line_ends(rows[owner]["geometry"])
+    if start.distance(owner_end) + end.distance(owner_start) < start.distance(owner_start) + end.distance(owner_end):
+        geometry = shapely.reverse(geometry)
+
+    sources = set().union(*(_sources(row["netz_quellen"]) for row in rows))
+    partial = set().union(*(_sources(row.get("netz_quellen_teilweise")) for row in rows))
+    partial |= set().union(*(_sources(rows[i]["netz_quellen"]) for i in range(len(rows)) if i not in complete))
+    by_low_priority = [rows[i] for i in sorted(range(len(rows)), key=lambda i: -ranks[i])]
+    return {
+        **rows[owner],
+        "geometry": geometry,
+        "radverkehrsnetz": _best_rvn([row["radverkehrsnetz"] for row in rows]),
+        "strassenname": _first_valid([row["strassenname"] for row in by_low_priority]),
+        "strassenklasse": _first_valid([row["strassenklasse"] for row in by_low_priority]),
+        "netz_quellen": ";".join(sorted(sources)),
+        "netz_quellen_teilweise": ";".join(sorted(partial)) or None,
+    }
+
+
+def merge_parallel_edges(network):
+    """Linien verschiedener Quellen zwischen denselben zwei Knoten (laut element_nr), die höchstens
+    auto_nodes.PARALLEL_TOL_M (Hausdorff) auseinander liegen, werden eine Kante. Das Zusammenführen pro element_nr
+    erfasst sie nicht, wenn die Quellen für dieselbe Strecke verschiedene element_nr tragen (z. B. Radverkehrsnetz
+    27570001_28560007.01, Hauptstraßennetz und Detailnetz 27570001_28560007.02). Die Kante behält die niedrigste
+    Nummer (.01). Linien derselben Quelle zwischen denselben Knoten bleiben getrennt."""
+    network = network.reset_index(drop=True)
+    parsed = [auto_nodes.parse_element_nr(nr) for nr in network["element_nr"]]
+    pairs = [auto_nodes.pair_key(p[0], p[1]) if p else None for p in parsed]
+    sources = [_sources(value) for value in network["netz_quellen"]]
+    clusters = auto_nodes.parallel_clusters(list(network.geometry), pairs, sources)
+
+    records = network.to_dict("records")
+    dropped = set()
+    for cluster in clusters:
+        owner = min(cluster, key=lambda i: (parsed[i][2], network.at[i, "element_nr"]))
+        records[owner] = combine_parallel([records[i] for i in cluster], cluster.index(owner))
+        dropped |= set(cluster) - {owner}
+        logging.debug(f"Parallel: {[network.at[i, 'element_nr'] for i in cluster]} -> {network.at[owner, 'element_nr']}")
+    merged = gpd.GeoDataFrame([r for i, r in enumerate(records) if i not in dropped], geometry="geometry", crs=network.crs)
+    logging.info(f"Parallele Linien verschiedener Quellen zwischen denselben Knoten: {len(clusters)} Strecken, "
+                 f"{len(dropped)} element_nr entfallen (Toleranz {auto_nodes.PARALLEL_TOL_M:g} m Hausdorff)")
+    return merged
+
+
+def snap_ends_to_named_nodes(network, nodes, nodes_2025):
+    """Kantenenden nahe dem Knoten, den ihre element_nr nennt, enden auf diesem Knoten (auto_nodes)."""
+    network, moved = auto_nodes.snap_ends_to_named_nodes(network.reset_index(drop=True), nodes, NODE_ID_COLUMN,
+                                                         nodes_2025)
+    distances = pd.Series([distance for _, _, distance in moved], dtype=float)
+    logging.info(f"{len(moved)} Kantenenden auf den Knoten ihrer element_nr gelegt (bis "
+                 f"{auto_nodes.NAMED_NODE_TOL_M:g} m, Median {distances.median():.1f} m)")
+    return network
+
+
 def add_detailnetz_attributes(network, detail):
     """Ergänzt Straßenname und Straßenklasse aus dem Detailnetz über die element_nr."""
     detail = detail.drop_duplicates("element_nr").set_index("element_nr")
@@ -465,13 +546,13 @@ def load_nodes_2025():
     return nodes
 
 
-def number_edges(network, detail, nodes):
+def number_edges(network, detail, nodes, nodes_2025):
     """Sets virtual nodes by snapping, splits edges at them and gives every edge a unique element_nr from its end
     nodes (ren-network/auto_nodes.py). Returns (network with one LineString edge per row, node proposals)."""
     lines = network.explode(index_parts=False).reset_index(drop=True)
     lines = lines[lines.geometry.geom_type == "LineString"].reset_index(drop=True)
     result, proposals, report = auto_nodes.snap_and_number(
-        lines, nodes, load_nodes_2025(), detail["element_nr"].dropna(), NODE_ID_COLUMN)
+        lines, nodes, nodes_2025, detail["element_nr"].dropna(), NODE_ID_COLUMN, combine=combine_parallel)
     auto_nodes.log_report(report)
     detail_element_nrs = set(detail["element_nr"].dropna())
     result["in_detailnetz"] = result["element_nr"].isin(detail_element_nrs).map({True: "ja", False: "nein"})
@@ -622,8 +703,11 @@ def main():
     nodes = load_nodes(detail)
     sources = assign_missing_element_nr(sources, detail, nodes)
     network = merge_by_element_nr(sources)
+    nodes_2025 = load_nodes_2025()
+    network = snap_ends_to_named_nodes(network, nodes, nodes_2025)
+    network = merge_parallel_edges(network)
     network = add_detailnetz_attributes(network, detail)
-    network, proposals = number_edges(network, detail, nodes)
+    network, proposals = number_edges(network, detail, nodes, nodes_2025)
     network = add_district(network)
     network = add_bearbeitet_2025(network)
     network = finalize(network)
