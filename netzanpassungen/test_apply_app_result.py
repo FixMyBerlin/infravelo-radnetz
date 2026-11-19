@@ -216,7 +216,7 @@ def build_entries():
         stored("k1", {"kind": "new_edge", "vorgang_id": "vorgang-k1", "von": "k:10000001", "bis": "v:n1", "coordinates": coords((50, 7), (60, 30)),
                       "quelle": "gezeichnet", "strassenname": "Testweg"}, created="2026-11-12T09:30:00Z"),
         stored("k2", {"kind": "new_edge", "von": "k:10000001", "bis": "v:n1", "coordinates": coords((50, 7), (70, 30)),
-                      "quelle": "radfernweg", "routen_fernradweg": "D3"}, created="2026-11-12T09:40:00Z"),
+                      "quelle": "radfernweg", "routen_fernradweg": "D3", "verkehrsrichtung": "R"}, created="2026-11-12T09:40:00Z"),
         # gezeichnet zwischen zwei vorhandenen Knoten, vom virtuellen Knoten n4 auf ihr selbst geteilt
         stored("k4", {"kind": "new_edge", "von": "k:10000003", "bis": "k:10000005", "coordinates": coords((0, 40), (50, 50), (100, 60)),
                       "quelle": "radfernweg", "routen_fernradweg": "D4"}, created="2026-11-12T09:50:00Z"),
@@ -450,6 +450,8 @@ class ImportTest(unittest.TestCase):
             self.assertEqual(k2["bearbeitet_2025"], "nein", name)
             k1 = network.loc["10000001_0054.01"]
             self.assertEqual((k1["quelle"], k1["strassenname"]), ("neu_gezeichnet", "Testweg"), name)
+            # Fahrtrichtung: aus dem Eintrag, ohne Angabe beide Richtungen
+            self.assertEqual((k1["verkehrsrichtung"], k2["verkehrsrichtung"]), ("B", "R"), name)
             self.assertTrue(pd.isna(k1["routen_fernradweg"]) and pd.isna(k1["routen_quelle"]), name)
             # die gelöschte k3 fehlt
             self.assertNotIn("10000001_10000009.01", network.index, name)

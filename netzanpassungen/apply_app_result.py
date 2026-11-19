@@ -31,7 +31,8 @@ Einträge des Exports (Einträge mit geloescht = true werden übersprungen):
   ersetzt (element_nr der Eingabe in element_nr_eingabe). Nicht übernommene Vorschläge bleiben mit ihrer
   P-Id und stehen als „Knotenvorschlag noch nicht übernommen“ in korrekturen_konflikte.csv.
 - new_edge: gezeichnete Kante. Steht in beiden Ergebnisnetzen (quelle = neu_gezeichnet, routen_fernradweg aus dem
-  Eintrag mit routen_quelle = manuell, element_nr `<von>_<bis>.<nn>` wie in der App) und weiterhin in
+  Eintrag mit routen_quelle = manuell, verkehrsrichtung aus dem Eintrag, ohne Angabe B, element_nr `<von>_<bis>.<nn>`
+  wie in der App) und weiterhin in
   netzanpassungen/output/touristische_kanten.gpkg.
 - Virtuelle Knoten teilen ihre Trägerkante (REN+-Kante oder gezeichnete Kante) in beiden Ergebnisnetzen: Jede Teilkante
   bekommt eine neue element_nr und `ursprung_element_nr`, wie splitEdges in der App. REN+-Kanten teilt auch jedes
@@ -693,11 +694,13 @@ def new_edge_frame(entries, base_element_nrs, app_nodes, known_ids):
             "quelle": data.get("quelle"),
             "strassenname": data.get("strassenname"),
             "routen_fernradweg": data.get("routen_fernradweg"),
+            # Ohne Angabe gilt eine gezeichnete Kante in beide Richtungen (wie in der App)
+            "verkehrsrichtung": data.get("verkehrsrichtung") or "B",
             "kommentar": data.get("kommentar"),
             "geometry": to_utm(data["coordinates"]),
         })
     columns = ["entry_id", "element_nr", "von_knoten", "bis_knoten", "quelle", "strassenname", "routen_fernradweg",
-               "kommentar", "geometry"]
+               "verkehrsrichtung", "kommentar", "geometry"]
     return gpd.GeoDataFrame(rows, columns=columns, geometry="geometry", crs=CRS), conflicts
 
 
@@ -1196,6 +1199,7 @@ def add_drawn_edges(network, original_geometry, new_edges, entries, extra_routes
             "bearbeitet_2025": "nein", "anteil_2025": 0.0, "quelle": "neu_gezeichnet",
             "grund_aufnahme": "radfernweg_manuell" if data.get("quelle") == "radfernweg" else None,
             "routen_fernradweg": routes, "routen_quelle": "manuell" if routes else None,
+            "verkehrsrichtung": edge.verkehrsrichtung, "verkehrsrichtung_original": edge.verkehrsrichtung,
             "eintrag_ids": "; ".join(dict.fromkeys(entry_ids)),
             "aenderung": "; ".join(changes),
             "geometry": MultiLineString([edge.geometry]),
