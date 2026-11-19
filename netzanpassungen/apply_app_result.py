@@ -50,7 +50,9 @@ markiert; die Kartierung und processing/scripts/split_rvn_at_virtual_nodes.py la
 Zu beiden Netzen gibt es die Kartierung (ohne bearbeitet_2025 = ja und ohne ausgeschlossene Kanten).
 
 INPUT:
-- Export der App (JSON: {gebiet, exported_at, entries}); mit --ohne-export ohne Einträge
+- Einträge der App: standardmäßig direkt aus ihrer KV-Datenbank (kv_entries.py, Gebiet --gebiet, Zugang aus .env),
+  mit --export aus einer JSON-Datei des App-Exports „Alle Einträge“ ({gebiet, exported_at, entries});
+  mit --ohne-export ohne Einträge
 - netzanpassungen/output/ren_netz_auto.gpkg (match_cycle_routes.py)
 - netzanpassungen/output/radfernweg_abschnitte.gpkg (nur für section_assignment)
 - data/Berlin Straßenabschnitte Detailnetz*.fgb (element_nr für die Nummern neuer Kanten, Linien für
@@ -65,7 +67,8 @@ OUTPUT:
 - netzanpassungen/output/touristische_kanten.gpkg (Layer touristische_kanten)
 
 Aufruf:
-    python netzanpassungen/apply_app_result.py netzanpassungen-alle-eintraege-berlin-2026-11-12.json
+    python netzanpassungen/apply_app_result.py                       # Einträge aus der KV-Datenbank, Gebiet berlin
+    python netzanpassungen/apply_app_result.py --export netzanpassungen-alle-eintraege-berlin-2026-11-12.json
     python netzanpassungen/apply_app_result.py --ohne-export    # nur Schritt 2, keine Handarbeit; ein
                                                                      # vorhandenes virtuelle_knoten.gpkg bleibt, fehlt es,
                                                                      # entsteht es nur mit den Knoten aus Schritt 1
@@ -91,6 +94,7 @@ ROOT = HERE.parent
 sys.path.append(str(ROOT / "ren-network"))
 sys.path.append(str(HERE))
 
+import kv_entries  # noqa: E402
 import merge_networks as ren  # noqa: E402
 from auto_nodes import NODE_COLUMNS, assert_unique  # noqa: E402
 from write_app_input import (  # noqa: E402
@@ -964,13 +968,21 @@ def mapping_network(network):
     return result
 
 
+def load_entries(export_path=None, gebiet=None):
+    """App entries: from the KV database of the app (`gebiet`, default), from a JSON file of the app export
+    „Alle Einträge“ (`export_path`), or none (both None)."""
+    if export_path is not None:
+        return json.loads(Path(export_path).read_text(encoding="utf-8"))
+    if gebiet is not None:
+        return kv_entries.fetch_entries(gebiet)
+    return {"gebiet": None, "exported_at": None, "entries": []}
+
+
 def run(export_path, ren_path=AUTO_PATH, output_dir=OUTPUT_DIR, virtual_nodes_path=VIRTUAL_NODES_PATH,
         new_edges_path=NEW_EDGES_PATH, detail_path=None, sections_path=SECTIONS_PATH, step1_nodes_path=None):
-    """Der ganze Schritt 3. `export_path` None: ohne App-Einträge. Gibt Zähler und Konflikte zurück (für Tests)."""
-    if export_path is None:
-        export = {"gebiet": None, "exported_at": None, "entries": []}
-    else:
-        export = json.loads(Path(export_path).read_text(encoding="utf-8"))
+    """Der ganze Schritt 3. `export_path`: JSON-Datei wie der App-Export oder schon gelesene Einträge
+    ({gebiet, exported_at, entries}); None: ohne App-Einträge. Gibt Zähler und Konflikte zurück (für Tests)."""
+    export = export_path if isinstance(export_path, dict) else load_entries(export_path)
     entries = export["entries"]
     logging.info(f"Export {export.get('gebiet')} vom {export.get('exported_at')}: {len(entries)} Einträge")
 
@@ -1054,15 +1066,19 @@ def run(export_path, ren_path=AUTO_PATH, output_dir=OUTPUT_DIR, virtual_nodes_pa
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("export", type=Path, nargs="?", help="Export „alle Einträge“ der App (JSON)")
+    parser.add_argument("--gebiet", default="berlin",
+                        help="Gebiet der App, dessen Einträge aus der KV-Datenbank gelesen werden (Standard: berlin)")
+    parser.add_argument("--export", type=Path,
+                        help="Statt der KV-Datenbank: Export „Alle Einträge“ der App (JSON, Rückfall)")
     parser.add_argument("--ohne-export", action="store_true",
                         help="Ohne App-Einträge: nur die Ergebnisnetze aus Schritt 2 (Handarbeit fehlt dann); "
                              "virtuelle Knoten und gezeichnete Kanten werden nicht neu geschrieben")
     parser.add_argument("--ren-netz", type=Path, default=AUTO_PATH, help="Eingangsnetz (Standard: ren_netz_auto.gpkg)")
     args = parser.parse_args()
-    if bool(args.export) == args.ohne_export:
-        parser.error("Entweder den Export der App angeben oder --ohne-export")
-    run(args.export, ren_path=args.ren_netz, detail_path=detailnetz_path())
+    if args.export and args.ohne_export:
+        parser.error("Entweder --export oder --ohne-export")
+    export = None if args.ohne_export else load_entries(args.export, args.gebiet)
+    run(export, ren_path=args.ren_netz, detail_path=detailnetz_path())
 
 
 if __name__ == "__main__":
