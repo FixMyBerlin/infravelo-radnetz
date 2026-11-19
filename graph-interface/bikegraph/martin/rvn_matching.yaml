@@ -1,11 +1,11 @@
 # Martin: Ergebnisse der Pipeline (README.md). Schema radweg_faltung (radweg_faltung.sh, sql/101_radweg_ergebnis.sql):
 # rvn, strassen, radwege, radweg_traces, strassen_mit_radwegen, stubs, radwege_abgelehnt. Schema datensatz_c
-# (datensatz_c.sh, sql/106_datensatz_c_martin.sql): baseline_c, new_c, diff_c, baseline_wins, neu_wins, diff_alle.
+# (datensatz_c.sh, sql/106_datensatz_c_martin.sql): baseline_c, new_c, diff_c, baseline_wins, neu_wins, diff_alle, wege.
 # Martin startet nur, wenn alle Tabellen existieren: erst beide Skripte laufen lassen.
 # Start (Verbindung aus DATABASE_URL):
 #   docker run -d --name rvn-matching-martin --network host -e DATABASE_URL=postgresql://USER:PASS@localhost:5433/postgres \
 #     -v "$PWD/graph-interface/bikegraph/martin:/cfg:ro" ghcr.io/maplibre/martin:latest --config /cfg/rvn_matching.yaml
-# Vorschau: http://localhost:3000/ · Kacheln: http://localhost:3000/{rvn,strassen,radwege,radweg_traces,strassen_mit_radwegen,stubs,radwege_abgelehnt,baseline_c,new_c,diff_c,baseline_wins,neu_wins,diff_alle}/{z}/{x}/{y}, Übersicht /catalog
+# Vorschau: http://localhost:3000/ · Kacheln: http://localhost:3000/{rvn,strassen,radwege,radweg_traces,strassen_mit_radwegen,stubs,radwege_abgelehnt,baseline_c,new_c,diff_c,baseline_wins,neu_wins,diff_alle,wege}/{z}/{x}/{y}, Übersicht /catalog
 listen_addresses: '0.0.0.0:3000'
 # Kein Kachel-Cache: die Skripte bauen die Tabellen laufend neu, sonst liefert Martin bis zum Neustart alte Kacheln
 cache_size_mb: 0
@@ -266,6 +266,22 @@ postgres:
         tilda_ids_neu: text
         laenge_m: numeric
         tilda_link: text
+    wege:
+      schema: datensatz_c
+      table: wege
+      srid: 25833
+      geometry_column: geom
+      geometry_type: LINESTRING
+      id_column: id
+      properties:
+        art: text
+        tilda_id: text
+        fuehr: text
+        kategorie: text
+        einrichtung: bool
+        laenge_m: numeric
+        rvn_m: numeric
+        rvn: text
 # MapLibre-Style mit allen Ebenen in festen Farben (Vorschau im Dashboard unter "Styles")
 styles:
   sources:

@@ -13,10 +13,36 @@
 --               nur für die abweichenden Attribute (übereinstimmende bleiben leer, Martin lässt sie aus den Kacheln weg),
 --               abweichend = Liste der Attribute; Breite als Zahl verglichen (2 und 2.0 gleich); dieselben Richtungen
 --               wie diff_c
+--   wege        Eingang der trace_group wege (bikegraph.dc_input, sql/104): TILDA-Wege, ungefaltete Radwege, ungefaltete
+--               Reste; je Stück Art, TILDA-Objekt, Führungsform und Kategorie aus dem Eingang, rvn_m (auf dem RVN
+--               gemessene Länge der eigenen, nicht gespiegelten Intervalle aus bikegraph.dc_iv_raw; 0 = nicht gematcht)
+--               und rvn (getroffene Kanten mit ri)
 CREATE SCHEMA IF NOT EXISTS datensatz_c;
 BEGIN;
 DROP TABLE IF EXISTS datensatz_c.baseline_c, datensatz_c.new_c, datensatz_c.diff_c, datensatz_c.baseline_wins, datensatz_c.neu_wins,
-    datensatz_c.diff_alle;
+    datensatz_c.diff_alle, datensatz_c.wege;
+
+-- Intervalle der Wege je Eingangsstück, vorab verdichtet (gematcht_m nur aus nicht gespiegelten Intervallen)
+CREATE TEMP TABLE wege_iv ON COMMIT DROP AS
+SELECT input_id, sum(to_m - from_m) FILTER (WHERE mirrored = 0) AS gematcht_m,
+       string_agg(DISTINCT element_nr || ' ri ' || ri, ', ') AS rvn
+FROM bikegraph.dc_iv_raw WHERE trace_group = 'wege' GROUP BY input_id;
+CREATE INDEX ON wege_iv (input_id);
+-- Führungsform und Kategorie je TILDA-Objekt aus dem Eingang
+CREATE TEMP TABLE wege_attr ON COMMIT DROP AS
+SELECT DISTINCT ON (input_ref) input_ref, attrs->>'fuehr' AS fuehr, attrs->>'tilda_category' AS kategorie
+FROM bikegraph.input_edges ORDER BY input_ref, id;
+CREATE INDEX ON wege_attr (input_ref);
+ANALYZE wege_iv, wege_attr;
+
+CREATE TABLE datensatz_c.wege AS
+SELECT d.id, d.art, d.input_ref AS tilda_id, a.fuehr, a.kategorie, d.reverse_cost < 0 AS einrichtung,
+       round(ST_Length(d.geom)::numeric, 1) AS laenge_m, round(coalesce(v.gematcht_m, 0)::numeric, 1) AS rvn_m, v.rvn,
+       d.geom::geometry(LineString, 25833) AS geom
+FROM bikegraph.dc_input d
+LEFT JOIN wege_iv v ON v.input_id = d.id
+LEFT JOIN wege_attr a ON a.input_ref = d.input_ref
+WHERE d.trace_group = 'wege';
 
 CREATE TABLE datensatz_c.baseline_c AS
 SELECT row_number() OVER (ORDER BY element_nr, ri)::bigint AS id, element_nr, ri::int AS ri, strassenname, fuehr, pflicht, breite, ofm,
@@ -95,6 +121,8 @@ ALTER TABLE datensatz_c.diff_c ADD PRIMARY KEY (id);
 ALTER TABLE datensatz_c.baseline_wins ADD PRIMARY KEY (id);
 ALTER TABLE datensatz_c.neu_wins ADD PRIMARY KEY (id);
 ALTER TABLE datensatz_c.diff_alle ADD PRIMARY KEY (id);
+ALTER TABLE datensatz_c.wege ADD PRIMARY KEY (id);
+CREATE INDEX ON datensatz_c.wege USING gist (geom);
 CREATE INDEX ON datensatz_c.diff_alle USING gist (geom);
 CREATE INDEX ON datensatz_c.baseline_c USING gist (geom);
 CREATE INDEX ON datensatz_c.new_c USING gist (geom);
@@ -103,11 +131,12 @@ CREATE INDEX ON datensatz_c.baseline_wins USING gist (geom);
 CREATE INDEX ON datensatz_c.neu_wins USING gist (geom);
 COMMIT;
 ANALYZE datensatz_c.baseline_c, datensatz_c.new_c, datensatz_c.diff_c, datensatz_c.baseline_wins, datensatz_c.neu_wins,
-    datensatz_c.diff_alle;
+    datensatz_c.diff_alle, datensatz_c.wege;
 
 SELECT 'baseline_c' AS tabelle, count(*) FROM datensatz_c.baseline_c UNION ALL SELECT 'new_c', count(*) FROM datensatz_c.new_c
 UNION ALL SELECT 'diff_c', count(*) FROM datensatz_c.diff_c UNION ALL SELECT 'baseline_wins', count(*) FROM datensatz_c.baseline_wins
-UNION ALL SELECT 'neu_wins', count(*) FROM datensatz_c.neu_wins UNION ALL SELECT 'diff_alle', count(*) FROM datensatz_c.diff_alle;
+UNION ALL SELECT 'neu_wins', count(*) FROM datensatz_c.neu_wins UNION ALL SELECT 'diff_alle', count(*) FROM datensatz_c.diff_alle
+UNION ALL SELECT 'wege', count(*) FROM datensatz_c.wege;
 SELECT a.attribut, count(*) AS richtungen FROM datensatz_c.diff_alle, unnest(string_to_array(abweichend, ', ')) a(attribut)
 GROUP BY 1 ORDER BY 2 DESC;
 SELECT urteil, count(*) AS richtungen, round(sum(laenge_m) / 1000, 1) AS km FROM datensatz_c.diff_c GROUP BY 1 ORDER BY 2 DESC;

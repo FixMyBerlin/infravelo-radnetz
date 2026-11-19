@@ -66,6 +66,10 @@
   "diff_alle": {
    "type": "vector",
    "url": "http://localhost:3000/diff_alle"
+  },
+  "wege": {
+   "type": "vector",
+   "url": "http://localhost:3000/wege"
   }
  },
  "layers": [
@@ -839,6 +843,55 @@
       16,
       -5
      ]
+    ]
+   },
+   "layout": {
+    "visibility": "none"
+   }
+  },
+  {
+   "id": "wege",
+   "type": "line",
+   "source": "wege",
+   "source-layer": "wege",
+   "paint": {
+    "line-color": [
+     "match",
+     [
+      "get",
+      "art"
+     ],
+     "radweg_ungefaltet",
+     "#2ca02c",
+     "radweg_rest",
+     "#17becf",
+     "#7f7f7f"
+    ],
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     12,
+     1,
+     16,
+     3
+    ],
+    "line-opacity": [
+     "case",
+     [
+      ">",
+      [
+       "get",
+       "rvn_m"
+      ],
+      0
+     ],
+     0.9,
+     0.3
     ]
    },
    "layout": {
