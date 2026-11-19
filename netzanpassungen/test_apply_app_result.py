@@ -825,5 +825,207 @@ class ImportTest(unittest.TestCase):
         self.assertEqual((coordinates, attribute), (original, {}))
 
 
+def part_network():
+    """Netz für die Teile von Kanten: REN+-Kante mit der element_nr der Detailnetzkante (nur die ersten 265 m, ihr Ende ist der
+    Vorschlag P389311-5821624), zu teilende und nicht geteilte Kanten."""
+    rows = [
+        # element_nr, Geometrie, Routen (auto), knoten_ende
+        ("47550027_47550059.01", MultiLineString([line((0, 1000), (265, 1000))]), None, "P389311-5821624"),
+        ("10000001_10000002.01", MultiLineString([line((0, 0), (100, 0))]), None, None),
+        ("10000003_10000004.01", MultiLineString([line((0, 40), (100, 40))]), "Route B; Route Z", None),
+        ("10000005_10000006.01", MultiLineString([line((0, 80), (100, 80))]), None, None),
+    ]
+    network = gpd.GeoDataFrame(
+        {"lfd_nr": list(range(1, len(rows) + 1)), "element_nr": [r[0] for r in rows], "bearbeitet_2025": ["nein"] * len(rows),
+         "laenge_m": [round(r[1].length, 1) for r in rows], "element_nr_berechnet": ["nein"] * len(rows),
+         "von_knoten": pd.array([int(r[0].split("_")[0]) for r in rows], dtype="Int64"),
+         "bis_knoten": pd.array([int(r[0].split("_")[1].split(".")[0]) for r in rows], dtype="Int64"),
+         "knoten_anfang": [None] * len(rows), "knoten_ende": [r[3] for r in rows],
+         "bezirksnummer": pd.array([1] * len(rows), dtype="Int64"), "strassenname": [None] * len(rows),
+         "radverkehrsnetz": ["Radvorrangnetz"] * len(rows), "strassenklasse": [None] * len(rows),
+         "netz_quellen": ["radverkehrsnetz"] * len(rows), "in_detailnetz": ["ja"] * len(rows),
+         "hauptverkehrsstrasse": ["nein"] * len(rows), "anteil_2025": [0.0] * len(rows), "verkehrsrichtung": ["B"] * len(rows),
+         "quelle": ["radnetz"] * len(rows), "grund_aufnahme": [None] * len(rows),
+         "routen_fernradweg": [r[2] for r in rows], "routen_quelle": [("auto" if r[2] else None) for r in rows]},
+        geometry=[r[1] for r in rows], crs=imp.CRS)
+    return network
+
+
+def part_detailnetz():
+    """Die Detailnetzkante ist 390 m lang, REN+ trägt nur die ersten 265 m unter derselben element_nr."""
+    return gpd.GeoDataFrame(
+        {"element_nr": ["47550027_47550059.01"], "beginnt_bei_vp": ["47550027"], "endet_bei_vp": ["47550059"],
+         "strassenname": ["Testweg"], "verkehrsebene": [0], "okstra_id": ["x"], "verkehrsrichtung": ["R"],
+         "strassenklasse1": ["V"], "strassenklasse2": ["STRA"]},
+        geometry=[MultiLineString([line((0, 1000), (390, 1000))])], crs=imp.CRS)
+
+
+def part_sections():
+    rows = [("route-a@0-100", "Route A", ""), ("route-b@0-100", "Route B", "ren:10000003_10000004.01"),
+            ("route-z@0-100", "Route Z", "ren:10000003_10000004.01")]
+    rows += [(f"route-{name}@0-100", f"Route {name.upper()}", "") for name in "cdefghijkl"]
+    return gpd.GeoDataFrame(
+        {"id": [r[0] for r in rows], "radfernweg": [r[1] for r in rows], "kanten": [r[2] for r in rows]},
+        geometry=[line((0, 500 + 10 * i), (100, 500 + 10 * i)) for i in range(len(rows))], crs=imp.CRS)
+
+
+def part_entries():
+    def node(entry_id, number, x, y, host):
+        return stored(entry_id, {"kind": "virtual_node", "name": number, "name_vorschlag": number, "nummer": number,
+                                 "lngLat": lnglat(x, y), "traeger": host})
+
+    def part(entry_id, section, route, *keys):
+        return assignment(entry_id, f"route-{section}@0-100", route, "zugeordnet", list(keys))
+
+    detail = "detailnetz:47550027_47550059.01"
+    return [
+        node("nA", "0054", 40, 0, {"art": "ren", "ref": "10000001_10000002.01", "station_m": 40.0}),
+        node("nB", "0055", 50, 40, {"art": "ren", "ref": "10000003_10000004.01", "station_m": 50.0}),
+        node("nC", "0060", 100, 1000, {"art": "detailnetz", "ref": "47550027_47550059.01", "station_m": 100.0}),
+        stored("k5", {"kind": "new_edge", "von": "k:10000001", "bis": "k:10000002", "coordinates": coords((0, 200), (100, 200)),
+                      "quelle": "gezeichnet"}, created="2026-11-12T09:30:00Z"),
+        node("nD", "0057", 50, 200, {"art": "neu", "ref": "k5", "station_m": 50.0}),
+        # REN+ und gezeichnete Kante: die Route bekommt nur die Teilkante innerhalb von a-b
+        part("zA", "a", "Route A", "ren:10000001_10000002.01@40-100"),
+        part("zK", "k", "Route K", "neu:k5@50-100"),
+        # Detailnetzkante: nur das Stück ab 265 m kommt ins Netz; dasselbe Stück (264 rastet bei 265 ein) einmal, mit beiden Routen
+        part("zC", "c", "Route C", detail + "@265-390"),
+        part("zD", "d", "Route D", detail + "@264-391"),
+        # Stück zwischen Kantenanfang und virtuellem Knoten 0060
+        part("zE", "e", "Route E", detail + "@0-100"),
+        # Umlegung: Route B liegt automatisch auf 10000003_10000004.01, ein Teil davon nennt die Kante, Route Z wird auf eine
+        # andere Kante gelegt und verliert sie dort
+        part("zB", "b", "Route B", "ren:10000003_10000004.01@0-50"),
+        part("zZ", "z", "Route Z", "ren:10000001_10000002.01@0-40"),
+        # Konflikte: leerer Bereich, fehlende Kanten, kein Knoten an der Grenze, Kante nicht geteilt, keine Teilkante im Bereich
+        part("zF", "f", "Route F", detail + "@500-600"),
+        part("zG", "g", "Route G", "detailnetz:99999999_99999998.01@0-10"),
+        part("zH", "h", "Route H", detail + "@150-390"),
+        part("zI", "i", "Route I", "ren:10000005_10000006.01@0-50"),
+        part("zJ", "j", "Route J", "ren:99999999_99999999.01@0-10"),
+        part("zL", "l", "Route L", "neu:k5@0-10"),
+    ]
+
+
+class PartAssignmentTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.dir = Path(self.tmp.name)
+        part_network().to_file(self.dir / "ren_netz_auto.gpkg", layer="ren_netz", driver="GPKG")
+        part_sections().to_file(self.dir / "radfernweg_abschnitte.gpkg", layer=imp.SECTIONS_LAYER, driver="GPKG")
+        part_detailnetz().to_file(self.dir / "detailnetz.gpkg", driver="GPKG")
+        build_registry().to_file(self.dir / "registry.gpkg", layer=imp.VIRTUAL_NODES_LAYER, driver="GPKG")
+        build_proposals().iloc[0:0].to_file(self.dir / "proposals.gpkg", layer=imp.ren.PROPOSALS_LAYER, driver="GPKG")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def run_import(self, entries=None):
+        export = {"gebiet": "test", "exported_at": "x", "entries": part_entries() if entries is None else entries}
+        stats, conflicts = imp.run(export, ren_path=self.dir / "ren_netz_auto.gpkg", output_dir=self.dir / "out",
+                                   virtual_nodes_path=self.dir / "app-output" / "virtuelle_knoten.gpkg",
+                                   new_edges_path=self.dir / "app-output" / "touristische_kanten.gpkg",
+                                   detail_path=self.dir / "detailnetz.gpkg", sections_path=self.dir / "radfernweg_abschnitte.gpkg",
+                                   registry_path=self.dir / "registry.gpkg", proposals_path=self.dir / "proposals.gpkg")
+        networks = {name: gpd.read_file(self.dir / "out" / name, layer="ren_netz") for name in
+                    ("ren_netz.gpkg", "ren_netz_korrigiert.gpkg")}
+        return stats, conflicts, networks
+
+    def test_split_key(self):
+        self.assertEqual(imp.split_part_key("detailnetz:47550027_47550059.01@265-390"), ("detailnetz:47550027_47550059.01", 265, 390))
+        self.assertEqual(imp.split_part_key("ren:P389311-5821624_44560041.01@0-50"), ("ren:P389311-5821624_44560041.01", 0, 50))
+        self.assertEqual(imp.split_part_key("neu:abc#2@5-9"), ("neu:abc#2", 5, 9))
+        self.assertEqual(imp.split_part_key("ren:10000001_10000002.01"), ("ren:10000001_10000002.01", None, None))
+
+    def test_detailnetz_part_is_a_new_row_with_its_own_element_nr(self):
+        _, conflicts, networks = self.run_import()
+        for name, network in networks.items():
+            by_nr = network.set_index("element_nr")
+            self.assertTrue(by_nr.index.is_unique, name)
+            # the REN+ row with the same element_nr as the Detailnetz edge gets no route
+            ren_row = by_nr.loc["47550027_47550059.01"]
+            self.assertTrue(pd.isna(ren_row["routen_fernradweg"]), name)
+            self.assertEqual(ren_row["quelle"], "radnetz")
+            # the piece 265-390 m: node at the end of REN+ and the end of the edge, both routes, taken in once
+            piece = by_nr.loc["P389311-5821624_47550059.01"]
+            self.assertEqual(piece["quelle"], "detailnetz_manuell")
+            self.assertEqual(piece["grund_aufnahme"], "radfernweg_manuell")
+            self.assertEqual(piece["routen_fernradweg"], "Route C; Route D")
+            self.assertEqual(piece["routen_quelle"], "manuell")
+            self.assertAlmostEqual(piece["laenge_m"], 125.0, delta=0.1)
+            self.assertEqual(piece["ursprung_element_nr"], "47550027_47550059.01")
+            self.assertEqual(piece["eintrag_ids"], "zC; zD")
+            self.assertIn("Stück 265–390 m der Detailnetzkante 47550027_47550059.01", piece["aenderung"])
+            self.assertEqual((piece["von_knoten"], piece["bis_knoten"]), ("P389311-5821624", "47550059"))
+            geometry = piece.geometry.geoms[0]
+            self.assertAlmostEqual(geometry.coords[0][0] - X0, 265.0, delta=0.1)
+            self.assertAlmostEqual(geometry.coords[-1][0] - X0, 390.0, delta=0.1)
+            # the piece before the virtual node of the app 0060 at 100 m: named by the number of the node
+            first = by_nr.loc["47550027_0060.01"]
+            self.assertEqual(first["routen_fernradweg"], "Route E")
+            self.assertAlmostEqual(first["laenge_m"], 100.0, delta=0.1)
+            self.assertEqual(list(network["element_nr"]).count("P389311-5821624_47550059.01"), 1)
+
+    def test_part_of_ren_edge_gets_the_route_only_where_it_lies(self):
+        _, conflicts, networks = self.run_import()
+        for name, network in networks.items():
+            by_nr = network.set_index("element_nr")
+            # 10000001_10000002.01 is split at 40 m: Route A (40-100) only on the second part, Route Z (0-40) only on the first
+            self.assertEqual(by_nr.loc["0054_10000002.01", "routen_fernradweg"], "Route A")
+            self.assertEqual(by_nr.loc["10000001_0054.01", "routen_fernradweg"], "Route Z")
+            self.assertIn("Teil 40–100 m der Kante", by_nr.loc["0054_10000002.01", "aenderung"])
+            self.assertTrue(pd.isna(by_nr.loc["10000005_10000006.01", "routen_fernradweg"]))
+
+    def test_part_of_a_drawn_edge(self):
+        _, conflicts, networks = self.run_import()
+        for name, network in networks.items():
+            drawn = network[network["quelle"] == "neu_gezeichnet"]
+            self.assertEqual(len(drawn), 2, name)  # the drawn edge is split at its node 0057
+            routes = {nr: row for nr, row in zip(drawn["element_nr"], drawn["routen_fernradweg"])}
+            carrying = [nr for nr, route in routes.items() if isinstance(route, str) and "Route K" in route]
+            self.assertEqual(len(carrying), 1, name)
+            second = drawn[drawn["element_nr"] == carrying[0]].iloc[0]
+            self.assertAlmostEqual(second.geometry.geoms[0].coords[0][0] - X0, 50.0, delta=0.1)
+
+    def test_part_names_its_whole_edge_for_the_relaying(self):
+        _, conflicts, networks = self.run_import()
+        for name, network in networks.items():
+            by_nr = network.set_index("element_nr")
+            # Route B lay automatically on 10000003_10000004.01; the part names the edge: both parts keep the route
+            for nr in ("10000003_0055.01", "0055_10000004.01"):
+                self.assertIn("Route B", by_nr.loc[nr, "routen_fernradweg"].split("; "), name)
+                self.assertNotIn("Radfernweg Route B entfernt", str(by_nr.loc[nr, "aenderung"]), name)
+            # Route Z moved to another edge: the edge that the entry names in no way loses it
+            for nr in ("10000003_0055.01", "0055_10000004.01"):
+                self.assertNotIn("Route Z", by_nr.loc[nr, "routen_fernradweg"].split("; "), name)
+                self.assertIn("Radfernweg Route Z entfernt", by_nr.loc[nr, "aenderung"], name)
+
+    def test_conflicts_of_parts(self):
+        stats, conflicts, networks = self.run_import()
+        reasons = {c["eintrag_id"]: c["grund"] for c in conflicts if str(c["eintrag_id"]).startswith("z")}
+        self.assertIn("Bereich 500–600 m ist leer", reasons["zF"])
+        self.assertIn("Kante detailnetz:99999999_99999998.01 nicht im Netz", reasons["zG"])
+        self.assertIn("bei 150 m liegt kein Knoten", reasons["zH"])
+        self.assertIn("keine Teilkante liegt ganz zwischen 0 und 50 m", reasons["zI"])
+        self.assertIn("Kante ren:99999999_99999999.01 nicht im Netz", reasons["zJ"])
+        self.assertIn("keine Teilkante liegt ganz zwischen 0 und 10 m", reasons["zL"])
+        for key in ("zA", "zC", "zD", "zE", "zB", "zZ", "zK"):
+            self.assertNotIn(key, reasons)
+        for network in networks.values():
+            routes = "; ".join(network["routen_fernradweg"].dropna())
+            for name in "FGHIJL":
+                self.assertNotIn(f"Route {name}", routes)
+            self.assertNotIn("Route F", "; ".join(network["aenderung"].dropna()))
+
+    def test_without_part_keys_nothing_changes(self):
+        """A whole key still gives the route to the REN+ row with that element_nr (existing behaviour)."""
+        entries = [entry for entry in part_entries() if not entry["id"].startswith("z")]
+        entries.append(assignment("zW", "route-a@0-100", "Route A", "zugeordnet", ["detailnetz:47550027_47550059.01"]))
+        _, conflicts, networks = self.run_import(entries)
+        by_nr = networks["ren_netz.gpkg"].set_index("element_nr")
+        self.assertEqual(by_nr.loc["47550027_47550059.01", "routen_fernradweg"], "Route A")
+        self.assertNotIn("P389311-5821624_47550059.01", by_nr.index)
+
+
 if __name__ == "__main__":
     unittest.main()
