@@ -14,7 +14,8 @@
 # Standard output/mm-datensatz-c-a), BASELINE (Standard processing/output/post-baseline/aggregated.gpkg des
 # Hauptcheckouts), JOBS (Standard 8), MAX_TURN_DEG (größte Richtungsänderung beim Verketten der Traces an
 # Abzweigungen, Standard 45 wie die Baseline), KNICK_OHNE_ABZWEIG (Standard true: an Knoten ohne Abzweigung setzt die
-# Trace auch über MAX_TURN_DEG hinaus fort; false wie die Baseline)
+# Trace auch über MAX_TURN_DEG hinaus fort; false wie die Baseline), CONTEXT_M (Kontext je Trace in m: Anlauf und
+# Auslauf aus benachbarten Wegen anderer Traces, stützt nur das Viterbi, erzeugt keine Intervalle; Standard 0 = aus)
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 PROCESSING="${PROCESSING:-$(cd "$HERE/../.." && pwd)/processing}"
@@ -23,6 +24,7 @@ PY="${PY:-$HOME/Documents/infravelo-radnetz/.venv/bin/python}"
 REST_MIN_M="${REST_MIN_M:-10}"
 MAX_TURN_DEG="${MAX_TURN_DEG:-45}"
 KNICK_OHNE_ABZWEIG="${KNICK_OHNE_ABZWEIG:-true}"
+CONTEXT_M="${CONTEXT_M:-0}"
 OUT_DIR="${OUT_DIR:-output/mm-datensatz-c-a}"
 BASELINE="${BASELINE:-$HOME/Documents/infravelo-radnetz/processing/output/post-baseline/aggregated.gpkg}"
 JOBS="${JOBS:-8}"
@@ -38,7 +40,7 @@ echo "== 2. Matching auf das RVN"
 (cd "$PROCESSING" && "$MATCHER" --pg run --set paths.root="\"$PROCESSING\"" \
     --set postgres.input_edges=bikegraph.dc_input --set postgres.reference_edges=matching.reference_edges \
     --set postgres.intervals=bikegraph.dc_iv_raw --set postgres.intervals_only=true --set network.topology_report=false \
-    --set trace.max_turn_deg="$MAX_TURN_DEG" --set trace.knick_ohne_abzweig="$KNICK_OHNE_ABZWEIG" \
+    --set trace.max_turn_deg="$MAX_TURN_DEG" --set trace.knick_ohne_abzweig="$KNICK_OHNE_ABZWEIG" --set trace.context_m="$CONTEXT_M" \
     --set 'paths.tilda=[{data_source="strassen", path="-"}, {data_source="wege", path="-"}]' \
     --set paths.output_dir="\"$OUT_DIR/matching\"" > "$LOG/matching.log" 2>&1)
 sed 's/\x1b\[[0-9;]*m//g' "$LOG/matching.log" | grep -E "Topologie-Traces|Traces:" | sed 's/^.*INFO /   /'
