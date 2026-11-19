@@ -636,7 +636,7 @@ def create_element_numbers_for_rvn(netz=DEFAULT_NETZ):
     # Dateipfade definieren
     radvorrangsnetz_path = PFADE[netz]['geteilt']
     knotenpunkte_path = 'output/knotenpunkte/knotenpunkte_mit_id.gpkg'
-    virtuelle_knotenpunkte_path = vk.PATH
+    virtuelle_knotenpunkte_path = vk.OUTPUT_PATH
     output_path = PFADE[netz]['mit_element_nr']
     
     # Stelle sicher, dass das Ausgabeverzeichnis existiert

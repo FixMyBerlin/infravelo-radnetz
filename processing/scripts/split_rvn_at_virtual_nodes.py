@@ -51,7 +51,7 @@ VIRTUAL_NODE_TOLERANCE = 3.0  # Maximale Entfernung in Metern für virtuellen Kn
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
-def load_virtual_nodes(virtual_nodes_path=vk.PATH):
+def load_virtual_nodes(virtual_nodes_path=vk.OUTPUT_PATH):
     """
     Lädt die aktiven virtuellen Knotenpunkte (gelöschte bleiben im Verzeichnis, teilen aber nichts).
 
@@ -70,9 +70,8 @@ def report_unused_virtual_nodes(gdf, virtual_nodes_gdf, dataset_name):
     Meldet virtuelle Knotenpunkte, die auf keiner Linie des Datensatzes liegen.
 
     Nach einer Aktualisierung des Detailnetzes kann eine Kante weggerückt sein; der Knoten
-    teilt dann nichts mehr, und die element_nr an dieser Stelle fehlt. Dann den Punkt in
-    QGIS auf die neue Kante schieben (Nummer bleibt) oder ihn mit
-    data/virtuelle_knotenpunkte.py loeschen als gelöscht markieren.
+    teilt dann nichts mehr, und die element_nr an dieser Stelle fehlt. Dann den Knoten in der
+    App Netzanpassungen auf die neue Kante schieben (Nummer bleibt) oder ihn dort löschen.
     """
     near = gpd.sjoin(
         virtual_nodes_gdf[[vk.ID_COLUMN, 'geometry']].set_geometry(virtual_nodes_gdf.buffer(VIRTUAL_NODE_TOLERANCE)),

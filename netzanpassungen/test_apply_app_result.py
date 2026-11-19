@@ -123,17 +123,22 @@ def build_detailnetz():
         geometry=[r[1] for r in rows], crs=imp.CRS)
 
 
-def build_step1_nodes():
-    """Virtual nodes of step 1 (virtuelle_knoten_roh.gpkg): one from 2025, one set automatically."""
-    rows = [
-        {"Knotenpunkt-ID": "V2025-1", "ist_virtuell": 1, "quelle": "2025", "art": "on_edge", "traeger_netz": "ren",
-         "traeger_element_nr": "10000007_10000008.01", "station_m": 50.0, "kommentar": "Delivery 2025", "eintrag_id": None,
-         "geometry": Point(X0 + 50, Y0 + 120)},
-        {"Knotenpunkt-ID": "V10000005-1", "ist_virtuell": 1, "quelle": "auto", "art": "dead_end", "traeger_netz": None,
-         "traeger_element_nr": None, "station_m": None, "kommentar": "Set automatically", "eintrag_id": None,
-         "geometry": Point(X0 + 100, Y0 + 60)},
-    ]
-    return gpd.GeoDataFrame(rows, columns=imp.NODE_COLUMNS, geometry="geometry", crs=imp.CRS)
+DEAD_END = "P392100-5815060"  # proposal of step 1 at the open end of 10000004_10000005.01
+
+
+def build_registry():
+    """The frozen registry (data/Virtuelle-Knotenpunkte.gpkg): here one node of 2025 on 10000007_10000008.01."""
+    return gpd.GeoDataFrame({"Knotenpunkt-ID": ["0001"], "ist_virtuell": [1], "status": ["aktiv"], "angelegt_am": [None],
+                             "geloescht_am": [None], "grund": [None], "id_rvn_2025": ["V2025-1"],
+                             "quelle": ["Bestand (vor 2026-11 mit V-Kennung)"], "kommentar": [None]},
+                            geometry=[Point(X0 + 50, Y0 + 120)], crs=imp.CRS)
+
+
+def build_proposals():
+    """Node proposals of step 1 (virtuelle_knoten_vorschlaege.gpkg)."""
+    return gpd.GeoDataFrame({"id": [DEAD_END], "art": ["dead_end"], "traeger_element_nr": ["10000004_10000005.01"],
+                             "station_m": [100.0], "geteilte_element_nr": [None], "kanten": ["10000004_10000005.01"]},
+                            geometry=[Point(X0 + 100, Y0 + 60)], crs=imp.CRS)
 
 
 def build_sections():
@@ -200,11 +205,11 @@ def build_entries():
         stored("e8", {**correction("10000001_10000002.01", "10000001_10000002.01", a0, a1, {"ausgeschlossen": True}, []),
                       "geloescht": True}),
         # teilt die REN+-Kante 10000009_10000010.01 bei 40 m; die gezeichneten Kanten k1 und k2 enden an ihm
-        stored("n1", {"kind": "virtual_node", "vorgang_id": "vorgang-n1", "unbekanntes_feld": 1, "name": "V10000001-10000002", "name_vorschlag": "V10000001-10000002",
+        stored("n1", {"kind": "virtual_node", "vorgang_id": "vorgang-n1", "unbekanntes_feld": 1, "name": "V10000001-10000002", "name_vorschlag": "V10000001-10000002", "nummer": "0054",
                       "lngLat": lnglat(40, 160), "traeger": {"art": "ren", "ref": "10000009_10000010.01", "station_m": 40.0}}),
-        stored("n2", {"kind": "virtual_node", "name": "V99", "name_vorschlag": "V99", "lngLat": lnglat(50, 60),
+        stored("n2", {"kind": "virtual_node", "name": "V99", "name_vorschlag": "V99", "nummer": "0055", "lngLat": lnglat(50, 60),
                       "traeger": {"art": "ren", "ref": "10000001_10000002.01", "station_m": 10.0}}),
-        stored("n3", {"kind": "virtual_node", "name": "V404", "name_vorschlag": "V404", "lngLat": lnglat(1, 1),
+        stored("n3", {"kind": "virtual_node", "name": "V404", "name_vorschlag": "V404", "nummer": "0056", "lngLat": lnglat(1, 1),
                       "traeger": {"art": "ren", "ref": "10000001_10000002.01", "station_m": 1.0}, "geloescht": True}),
         stored("k1", {"kind": "new_edge", "vorgang_id": "vorgang-k1", "von": "k:10000001", "bis": "v:n1", "coordinates": coords((50, 7), (60, 30)),
                       "quelle": "gezeichnet", "strassenname": "Testweg"}, created="2026-11-12T09:30:00Z"),
@@ -213,7 +218,7 @@ def build_entries():
         # gezeichnet zwischen zwei vorhandenen Knoten, vom virtuellen Knoten n4 auf ihr selbst geteilt
         stored("k4", {"kind": "new_edge", "von": "k:10000003", "bis": "k:10000005", "coordinates": coords((0, 40), (50, 50), (100, 60)),
                       "quelle": "radfernweg", "routen_fernradweg": "D4"}, created="2026-11-12T09:50:00Z"),
-        stored("n4", {"kind": "virtual_node", "name": "V10000003-10000005", "name_vorschlag": "V10000003-10000005", "lngLat": lnglat(50, 50),
+        stored("n4", {"kind": "virtual_node", "name": "V10000003-10000005", "name_vorschlag": "V10000003-10000005", "nummer": "0057", "lngLat": lnglat(50, 50),
                       "traeger": {"art": "neu", "ref": "k4", "station_m": 70.0}}),
         stored("k3", {"kind": "new_edge", "von": "k:10000001", "bis": "k:10000009", "coordinates": coords((0, 0), (1, 1)),
                       "quelle": "gezeichnet", "geloescht": True}),
@@ -257,7 +262,8 @@ class ImportTest(unittest.TestCase):
         build_network().to_file(self.dir / "ren_netz_auto.gpkg", layer="ren_netz", driver="GPKG")
         build_sections().to_file(self.dir / "radfernweg_abschnitte.gpkg", layer=imp.SECTIONS_LAYER, driver="GPKG")
         build_detailnetz().to_file(self.dir / "detailnetz.gpkg", driver="GPKG")
-        build_step1_nodes().to_file(self.dir / "step1_nodes.gpkg", layer=imp.ren.VIRTUAL_NODES_LAYER, driver="GPKG")
+        build_registry().to_file(self.dir / "registry.gpkg", layer=imp.VIRTUAL_NODES_LAYER, driver="GPKG")
+        build_proposals().to_file(self.dir / "proposals.gpkg", layer=imp.ren.PROPOSALS_LAYER, driver="GPKG")
         self.export = self.dir / "export.json"
         self.export.write_text(json.dumps({"gebiet": "test", "exported_at": "2026-11-12T12:00:00Z", "entries": build_entries()}),
                                encoding="utf-8")
@@ -271,7 +277,7 @@ class ImportTest(unittest.TestCase):
                        virtual_nodes_path=self.dir / "app-output" / "virtuelle_knoten.gpkg",
                        new_edges_path=self.dir / "app-output" / "touristische_kanten.gpkg",
                        detail_path=self.dir / "detailnetz.gpkg", sections_path=self.dir / "radfernweg_abschnitte.gpkg",
-                       step1_nodes_path=self.dir / "step1_nodes.gpkg")
+                       registry_path=self.dir / "registry.gpkg", proposals_path=self.dir / "proposals.gpkg")
 
     def read(self, name):
         return gpd.read_file(self.dir / "out" / name, layer="ren_netz").set_index("element_nr")
@@ -354,29 +360,37 @@ class ImportTest(unittest.TestCase):
         self.assertAlmostEqual(parts[0].coords[-1][1] - Y0, 100.0, delta=0.001)
         self.assertAlmostEqual(parts[1].coords[-1][1] - Y0, 103.0, delta=0.02)
 
-        # virtuelle Knoten: alle nicht gelöschten Einträge stehen in output/virtuelle_knoten.gpkg (n1 liegt auf der
-        # korrigierten Kante, n2 steht weit daneben und bekommt einen Hinweis), der gelöschte n3 fehlt
+        # virtuelle Knoten: alle nummerierten Einträge stehen in output/virtuelle_knoten.gpkg (n1 liegt auf der
+        # korrigierten Kante, n2 steht weit daneben und bekommt einen Hinweis), der gelöschte n3 mit status geloescht
         nodes = gpd.read_file(self.dir / "app-output" / "virtuelle_knoten.gpkg").set_index("Knotenpunkt-ID")
-        # plus die zwei Knoten aus Schritt 1 (2025 und automatisch): alle drei Quellen stehen in einer Datei
-        self.assertEqual(sorted(nodes.index), ["V10000001-10000002", "V10000003-10000005", "V10000005-1", "V2025-1", "V99"])
-        self.assertEqual(nodes["quelle"].to_dict(), {"V10000001-10000002": "app", "V10000003-10000005": "app", "V99": "app",
-                                                      "V2025-1": "2025", "V10000005-1": "auto"})
-        self.assertEqual(nodes.loc["V10000001-10000002", "traeger_element_nr"], "10000009_10000010.01")
-        self.assertEqual(nodes.loc["V10000001-10000002", "ist_virtuell"], 1)
-        self.assertEqual(nodes.loc["V10000001-10000002", "eintrag_id"], "n1")
-        self.assertAlmostEqual(nodes.loc["V10000001-10000002", "station_m"], 40.0)
+        # plus der Knoten von 2025 aus dem Verzeichnis; Vorschläge stehen nicht darin
+        self.assertEqual(sorted(nodes.index), ["0001", "0054", "0055", "0056", "0057"])
+        self.assertEqual(nodes["herkunft"].fillna("-").to_dict(), {"0054": "-", "0055": "-", "0056": "-", "0057": "-", "0001": "2025"})
+        self.assertEqual(nodes["status"].to_dict(), {"0054": "aktiv", "0055": "aktiv", "0056": "geloescht", "0057": "aktiv",
+                                                      "0001": "aktiv"})
+        self.assertEqual(nodes.loc["0056", "grund"], "in der App gelöscht")
+        self.assertEqual(nodes.loc["0001", "id_rvn_2025"], "V2025-1")
+        self.assertEqual(nodes.loc["0054", "traeger_element_nr"], "10000009_10000010.01")
+        self.assertEqual(nodes.loc["0054", "ist_virtuell"], 1)
+        self.assertEqual(nodes.loc["0054", "app_eintrag"], "n1")
+        self.assertEqual(nodes.loc["0054", "angelegt_am"], "2026-11-12")
+        self.assertEqual(len(imp.vk.read_active(self.dir / "app-output" / "virtuelle_knoten.gpkg")), 4)
+        self.assertAlmostEqual(nodes.loc["0054", "station_m"], 40.0)
         self.assertEqual(nodes.crs.to_epsg(), 25833)
         self.assertFalse((self.dir / "Virtuelle-Knotenpunkte.gpkg").exists())
         self.assertIn("neben seiner Trägerkante", by_entry.loc["n2", "grund"])
         self.assertNotIn("n1", by_entry.index)
-        self.assertEqual(stats["virtuelle_knoten"], 3)
+        self.assertEqual(stats["virtuelle_knoten_app"], 3)
+        # the dead end proposal of step 1 is not accepted: listed as open
+        self.assertTrue(any(c["ref"] == DEAD_END and imp.OPEN_PROPOSAL_REASON in c["grund"] for c in conflicts))
+        self.assertEqual(stats["vorschlaege_offen"], 1)
 
         # neue Kanten: Nummern zählen je Knotenpaar, gelöschte fehlt
         edges = gpd.read_file(self.dir / "app-output" / "touristische_kanten.gpkg", layer=imp.NEW_EDGES_LAYER).set_index("entry_id")
         self.assertEqual(sorted(edges.index), ["k1", "k2", "k4"])
-        self.assertEqual(edges.loc["k1", "element_nr"], "10000001_V10000001-10000002.01")
-        self.assertEqual(edges.loc["k2", "element_nr"], "10000001_V10000001-10000002.02")
-        self.assertEqual((edges.loc["k2", "von_knoten"], edges.loc["k2", "bis_knoten"]), ("10000001", "V10000001-10000002"))
+        self.assertEqual(edges.loc["k1", "element_nr"], "10000001_0054.01")
+        self.assertEqual(edges.loc["k2", "element_nr"], "10000001_0054.02")
+        self.assertEqual((edges.loc["k2", "von_knoten"], edges.loc["k2", "bis_knoten"]), ("10000001", "0054"))
         self.assertEqual(edges.loc["k2", "routen_fernradweg"], "D3")
 
         self.assertEqual(stats["angewendet"], 5)
@@ -390,44 +404,44 @@ class ImportTest(unittest.TestCase):
         mappings = {"ren_netz": customer, "ren_netz_korrigiert": corrected}
         for name, network in mappings.items():
             # k1/k2: zwischen einem vorhandenen Knoten und dem virtuellen Knoten n1; nn zählt je Knotenpaar
-            k2 = network.loc["10000001_V10000001-10000002.02"]
+            k2 = network.loc["10000001_0054.02"]
             self.assertEqual((k2["quelle"], k2["routen_fernradweg"], k2["routen_quelle"], k2["eintrag_ids"]),
                              ("neu_gezeichnet", "D3", "manuell", "k2"), name)
-            self.assertEqual((k2["von_knoten"], k2["bis_knoten"]), ("10000001", "V10000001-10000002"), name)
+            self.assertEqual((k2["von_knoten"], k2["bis_knoten"]), ("10000001", "0054"), name)
             self.assertEqual(k2["bearbeitet_2025"], "nein", name)
-            k1 = network.loc["10000001_V10000001-10000002.01"]
+            k1 = network.loc["10000001_0054.01"]
             self.assertEqual((k1["quelle"], k1["strassenname"]), ("neu_gezeichnet", "Testweg"), name)
             self.assertTrue(pd.isna(k1["routen_fernradweg"]) and pd.isna(k1["routen_quelle"]), name)
             # die gelöschte k3 fehlt
             self.assertNotIn("10000001_10000009.01", network.index, name)
             # REN+-Kante vom virtuellen Knoten n1 bei 40 m geteilt: die Ursprungskante entfällt
             self.assertNotIn("10000009_10000010.01", network.index, name)
-            first, second = network.loc["10000009_V10000001-10000002.01"], network.loc["V10000001-10000002_10000010.01"]
+            first, second = network.loc["10000009_0054.01"], network.loc["0054_10000010.01"]
             self.assertEqual((first["ursprung_element_nr"], second["ursprung_element_nr"]), ("10000009_10000010.01",) * 2, name)
             self.assertAlmostEqual(first["laenge_m"], 40.0, delta=0.1, msg=name)
             self.assertAlmostEqual(second["laenge_m"], 60.0, delta=0.1, msg=name)
             self.assertAlmostEqual(first.geometry.geoms[0].coords[-1][0] - X0, 40.0, delta=0.05, msg=name)
-            self.assertEqual((first["von_knoten"], first["bis_knoten"]), ("10000009", "V10000001-10000002"), name)
+            self.assertEqual((first["von_knoten"], first["bis_knoten"]), ("10000009", "0054"), name)
             self.assertEqual(first["eintrag_ids"], "n1", name)
             self.assertEqual(first["quelle"], "radnetz", name)
             self.assertNotEqual(first["lfd_nr"], second["lfd_nr"], name)
             # k4: zwischen zwei vorhandenen Knoten gezeichnet, an n4 selbst geteilt: der Teil trägt die Route
             self.assertNotIn("10000003_10000005.01", network.index, name)
-            part = network.loc["10000003_V10000003-10000005.01"]
-            other = network.loc["V10000003-10000005_10000005.01"]
+            part = network.loc["10000003_0057.01"]
+            other = network.loc["0057_10000005.01"]
             self.assertEqual(part["ursprung_element_nr"], "10000003_10000005.01", name)
             self.assertEqual((part["quelle"], part["routen_fernradweg"], part["routen_quelle"], part["grund_aufnahme"]),
                              ("neu_gezeichnet", "D4", "manuell", "radfernweg_manuell"), name)
             self.assertEqual(part["eintrag_ids"], "k4; n4", name)
-            self.assertEqual(other["von_knoten"], "V10000003-10000005", name)
+            self.assertEqual(other["von_knoten"], "0057", name)
             self.assertAlmostEqual(part["laenge_m"] + other["laenge_m"], LineString([(0, 40), (50, 50), (100, 60)]).length, delta=0.1, msg=name)
             # n2 liegt 60 m neben seiner Trägerkante: sie bleibt ganz
-            self.assertFalse(any("V99" in str(number) for number in network.index), name)
+            self.assertFalse(any("0055" in str(number) for number in network.index), name)
         for name in ("ren_netz_kartierung", "ren_netz_kartierung_korrigiert"):
             mapping = gpd.read_file(self.dir / "out" / f"{name}.gpkg", layer="ren_netz")
             numbers = set(mapping["element_nr"])
-            self.assertIn("10000009_V10000001-10000002.01", numbers, name)
-            self.assertIn("10000003_V10000003-10000005.01", numbers, name)
+            self.assertIn("10000009_0054.01", numbers, name)
+            self.assertIn("10000003_0057.01", numbers, name)
             self.assertNotIn("10000009_10000010.01", numbers, name)
         self.assertEqual(stats["geteilte_kanten"], 2)
         self.assertEqual(stats["teilkanten"], 4)
@@ -487,34 +501,34 @@ class ImportTest(unittest.TestCase):
     def test_split_on_a_corrected_edge(self):
         """Der Knoten sitzt auf der verschobenen Kante: das Arbeitsnetz teilt am Knick, das Kundennetz bei gleichem Anteil."""
         entries = [e for e in build_entries() if e["id"] == "e1"]
-        entries.append(stored("nx", {"kind": "virtual_node", "name": "VX", "name_vorschlag": "VX", "lngLat": lnglat(50, 7),
+        entries.append(stored("nx", {"kind": "virtual_node", "name": "VX", "name_vorschlag": "0060", "nummer": "0060", "lngLat": lnglat(50, 7),
                                      "traeger": {"art": "ren", "ref": "10000001_10000002.01", "station_m": 50.5}}))
         self.export.write_text(json.dumps({"gebiet": "test", "exported_at": "x", "entries": entries}), encoding="utf-8")
         self.run_import()
         corrected, customer = self.read("ren_netz_korrigiert.gpkg"), self.read("ren_netz.gpkg")
         for network in (corrected, customer):
             self.assertNotIn("10000001_10000002.01", network.index)
-        first = corrected.loc["10000001_VX.01"]
+        first = corrected.loc["10000001_0060.01"]
         self.assertEqual(first["lage_korrigiert"], "ja")
         self.assertNotIn("lage_korrigiert", customer.columns)
         self.assertAlmostEqual(first.geometry.geoms[0].coords[-1][1] - Y0, 7.0, delta=0.02)
         self.assertAlmostEqual(first["laenge_alt_m"], 49.5, delta=0.7)  # Anteil der Originallänge
         self.assertGreater(first["hausdorff_m"], 1.0)
         # Kundennetz: Originallage, Teilung bei 50/100,5 des Originals
-        self.assertAlmostEqual(customer.loc["10000001_VX.01"].geometry.geoms[0].coords[-1][1] - Y0, 0.0, delta=0.001)
-        self.assertAlmostEqual(customer.loc["10000001_VX.01", "laenge_m"] + customer.loc["VX_10000002.01", "laenge_m"], 100.0, delta=0.1)
-        self.assertEqual(customer.loc["VX_10000002.01", "ursprung_element_nr"], "10000001_10000002.01")
+        self.assertAlmostEqual(customer.loc["10000001_0060.01"].geometry.geoms[0].coords[-1][1] - Y0, 0.0, delta=0.001)
+        self.assertAlmostEqual(customer.loc["10000001_0060.01", "laenge_m"] + customer.loc["0060_10000002.01", "laenge_m"], 100.0, delta=0.1)
+        self.assertEqual(customer.loc["0060_10000002.01", "ursprung_element_nr"], "10000001_10000002.01")
 
     def test_without_export_gives_the_auto_network(self):
         """Ohne App-Einträge: beide Netze sind das Netz aus Schritt 2, ohne Markierungen."""
         stats, conflicts = imp.run(None, ren_path=self.dir / "ren_netz_auto.gpkg", output_dir=self.dir / "out",
                                    virtual_nodes_path=self.dir / "app-output" / "virtuelle_knoten.gpkg",
                                    new_edges_path=self.dir / "app-output" / "touristische_kanten.gpkg",
-                                   step1_nodes_path=self.dir / "step1_nodes.gpkg")
-        self.assertEqual(conflicts, [])
-        # ohne Export enthält die Datei nur die Knoten aus Schritt 1 (und überschreibt nichts, was schon da ist)
+                                   registry_path=self.dir / "registry.gpkg", proposals_path=self.dir / "proposals.gpkg")
+        self.assertEqual([c["grund"] for c in conflicts], [imp.OPEN_PROPOSAL_REASON + " (dead_end)"])
+        # ohne Export enthält die Datei nur die Knoten von 2025 (und überschreibt nichts, was schon da ist)
         nodes = gpd.read_file(self.dir / "app-output" / "virtuelle_knoten.gpkg")
-        self.assertEqual(sorted(nodes["Knotenpunkt-ID"]), ["V10000005-1", "V2025-1"])
+        self.assertEqual(sorted(nodes["Knotenpunkt-ID"]), ["0001"])
         customer, working = self.read("ren_netz.gpkg"), self.read("ren_netz_korrigiert.gpkg")
         self.assertEqual(len(customer), len(build_network()))
         self.assertEqual(set(customer.columns) | set(imp.LAGE_COLUMNS), set(working.columns))
@@ -542,30 +556,81 @@ class ImportTest(unittest.TestCase):
         self.assertEqual(imp.VIRTUAL_NODES_PATH.parent, imp.HERE / "output")
         self.assertEqual(imp.NEW_EDGES_PATH.parent, imp.HERE / "output")
         self.run_import()
-        self.assertEqual(sorted(path.name for path in self.dir.iterdir() if path.is_file()), ["detailnetz.gpkg", "export.json", "radfernweg_abschnitte.gpkg", "ren_netz_auto.gpkg", "step1_nodes.gpkg"])
+        self.assertEqual(sorted(path.name for path in self.dir.iterdir() if path.is_file()), ["detailnetz.gpkg", "export.json", "proposals.gpkg", "radfernweg_abschnitte.gpkg", "registry.gpkg", "ren_netz_auto.gpkg"])
 
-    def test_duplicate_node_name(self):
+    def test_duplicate_number(self):
         entries = build_entries()
-        entries.append(stored("n9", {"kind": "virtual_node", "name": "V99", "name_vorschlag": "V99", "lngLat": lnglat(10, 7),
-                                     "traeger": {"art": "ren", "ref": "10000001_10000002.01", "station_m": 10.0}}))
+        entries.append(stored("n9", {"kind": "virtual_node", "name": "V99", "nummer": "0055", "lngLat": lnglat(10, 7),
+                                     "traeger": {"art": "ren", "ref": "10000001_10000002.01", "station_m": 10.0}},
+                              created="2026-11-13T09:00:00Z"))
         self.export.write_text(json.dumps({"gebiet": "test", "exported_at": "x", "entries": entries}), encoding="utf-8")
         _, conflicts = self.run_import()
-        self.assertTrue(any(c["eintrag_id"] == "n9" and "kommt schon vor" in c["grund"] for c in conflicts))
+        self.assertTrue(any(c["eintrag_id"] == "n9" and "schon vergeben" in c["grund"] for c in conflicts))
         nodes = gpd.read_file(self.dir / "app-output" / "virtuelle_knoten.gpkg")
-        self.assertEqual(sorted(nodes["Knotenpunkt-ID"]).count("V99"), 1)
+        self.assertEqual(sorted(nodes["Knotenpunkt-ID"]).count("0055"), 1)
 
-    def test_node_name_of_step_1_is_taken(self):
-        """A node drawn in the app with the name of a 2025 or automatic node is a conflict; the node from step 1 stays."""
-        entries = [stored("nx", {"kind": "virtual_node", "name": "V2025-1", "name_vorschlag": "V2025-1", "lngLat": lnglat(10, 160),
+    def test_number_of_2025_is_taken(self):
+        """A node of the app with the number of a 2025 node is a conflict; the 2025 node stays."""
+        entries = [stored("nx", {"kind": "virtual_node", "name": "x", "nummer": "1", "lngLat": lnglat(10, 160),
                                  "traeger": {"art": "ren", "ref": "10000009_10000010.01", "station_m": 10.0}})]
         self.export.write_text(json.dumps({"gebiet": "test", "exported_at": "x", "entries": entries}), encoding="utf-8")
         _, conflicts = self.run_import()
-        self.assertTrue(any(c["eintrag_id"] == "nx" and "kommt schon vor" in c["grund"] for c in conflicts))
+        self.assertTrue(any(c["eintrag_id"] == "nx" and "schon vergeben" in c["grund"] for c in conflicts))
         nodes = gpd.read_file(self.dir / "app-output" / "virtuelle_knoten.gpkg").set_index("Knotenpunkt-ID")
-        self.assertEqual(nodes.loc["V2025-1", "quelle"], "2025")
-        self.assertEqual(len(nodes), 2)
+        self.assertEqual(nodes.loc["0001", "herkunft"], "2025")
+        self.assertEqual(len(nodes), 1)
         # the rejected node does not split its host
         self.assertIn("10000009_10000010.01", self.read("ren_netz.gpkg").index)
+
+    def test_node_without_number_does_not_count(self):
+        entries = [stored("nx", {"kind": "virtual_node", "name": "neu-1", "lngLat": lnglat(40, 160),
+                                 "traeger": {"art": "ren", "ref": "10000009_10000010.01", "station_m": 40.0}}),
+                   stored("kx", {"kind": "new_edge", "von": "k:10000001", "bis": "v:nx", "coordinates": coords((0, 0), (40, 160)),
+                                 "quelle": "gezeichnet"})]
+        self.export.write_text(json.dumps({"gebiet": "test", "exported_at": "x", "entries": entries}), encoding="utf-8")
+        _, conflicts = self.run_import()
+        self.assertTrue(any(c["eintrag_id"] == "nx" and "keine Nummer" in c["grund"] for c in conflicts))
+        self.assertTrue(any(c["eintrag_id"] == "kx" and "nicht auffindbar" in c["grund"] for c in conflicts))
+        self.assertIn("10000009_10000010.01", self.read("ren_netz.gpkg").index)
+
+    def test_accepted_proposal_gets_its_number(self):
+        """The app accepted the dead end proposal as 0070: the proposal id is replaced by the number in both networks,
+        the element_nr of the input stays in element_nr_eingabe; a drawn edge on the old 2025 id V2025-1 ends at 0001."""
+        network = build_network()
+        row = network.index[network["element_nr"] == "10000004_10000005.01"][0]
+        network["von_knoten"] = network["von_knoten"].astype(str)
+        network["bis_knoten"] = network["bis_knoten"].astype(str)
+        network.loc[row, "element_nr"] = f"10000004_{DEAD_END}.01"
+        network.loc[row, "bis_knoten"] = DEAD_END
+        network.to_file(self.dir / "ren_netz_auto.gpkg", layer="ren_netz", driver="GPKG")
+        entries = [stored("np", {"kind": "virtual_node", "name": "0070", "nummer": "0070", "herkunft": "vorschlag",
+                                 "vorschlag_id": DEAD_END, "lngLat": lnglat(100, 60),
+                                 "traeger": {"art": "ren", "ref": f"10000004_{DEAD_END}.01", "station_m": 100.0}}),
+                   stored("kv", {"kind": "new_edge", "von": f"k:{DEAD_END}", "bis": "k:V2025-1",
+                                 "coordinates": coords((100, 60), (50, 120)), "quelle": "gezeichnet"})]
+        self.export.write_text(json.dumps({"gebiet": "test", "exported_at": "x", "entries": entries}), encoding="utf-8")
+        stats, conflicts = self.run_import()
+        for name in ("ren_netz.gpkg", "ren_netz_korrigiert.gpkg"):
+            out = self.read(name)
+            edge = out.loc["10000004_0070.01"]
+            self.assertEqual((edge["von_knoten"], edge["bis_knoten"], edge["element_nr_eingabe"]),
+                             ("10000004", "0070", f"10000004_{DEAD_END}.01"), name)
+            self.assertFalse(any(DEAD_END in str(number) for number in out.index), name)
+            drawn = out[out["eintrag_ids"] == "kv"].iloc[0]
+            self.assertEqual((drawn["von_knoten"], drawn["bis_knoten"]), ("0070", "0001"), name)
+            self.assertEqual(out.index[out["eintrag_ids"] == "kv"][0], "0070_0001.01", name)
+        self.assertFalse(any(imp.OPEN_PROPOSAL_REASON in c["grund"] for c in conflicts))
+        self.assertEqual(stats["vorschlaege_uebernommen"], 1)
+        nodes = gpd.read_file(self.dir / "app-output" / "virtuelle_knoten.gpkg").set_index("Knotenpunkt-ID")
+        self.assertEqual((nodes.loc["0070", "herkunft"], nodes.loc["0070", "vorschlag_id"]), ("vorschlag", DEAD_END))
+
+    def test_renamed_element_nr_never_collides(self):
+        network = imp.gpd.GeoDataFrame({"element_nr": ["P1-2_5.01", "0070_5.01"], "von_knoten": ["P1-2", "0070"],
+                                        "bis_knoten": ["5", "5"]}, geometry=[LineString([(0, 0), (1, 1)])] * 2, crs=imp.CRS)
+        out, changed = imp.apply_accepted_proposals(network, {"P1-2": "0070"}, [])
+        self.assertEqual(changed, 1)
+        self.assertEqual(sorted(out["element_nr"]), ["0070_5.01", "0070_5.02"])
+        self.assertEqual(out.loc[0, "element_nr_eingabe"], "P1-2_5.01")
 
     def test_split_uses_the_actual_end_nodes_of_a_kept_edge(self):
         """A kept edge whose element_nr names other nodes than its ends (knoten_anfang V9): the pieces use the real
@@ -576,29 +641,29 @@ class ImportTest(unittest.TestCase):
         row = network.index[network["element_nr"] == "10000001_10000002.01"][0]
         network.loc[row, ["knoten_anfang", "knoten_ende"]] = ["V9", "10000002"]
         network.to_file(self.dir / "ren_netz_auto.gpkg", layer="ren_netz", driver="GPKG")
-        entries = [stored("nx", {"kind": "virtual_node", "name": "VX", "name_vorschlag": "VX", "lngLat": lnglat(50, 0),
+        entries = [stored("nx", {"kind": "virtual_node", "name": "VX", "name_vorschlag": "0060", "nummer": "0060", "lngLat": lnglat(50, 0),
                                  "traeger": {"art": "ren", "ref": "10000001_10000002.01", "station_m": 50.0}})]
         self.export.write_text(json.dumps({"gebiet": "test", "exported_at": "x", "entries": entries}), encoding="utf-8")
         self.run_import()
         out = self.read("ren_netz.gpkg")
         self.assertNotIn("10000001_10000002.01", out.index)
-        first, second = out.loc["V9_VX.01"], out.loc["VX_10000002.01"]
-        self.assertEqual((first["von_knoten"], first["bis_knoten"]), ("V9", "VX"))
-        self.assertEqual((second["von_knoten"], second["bis_knoten"]), ("VX", "10000002"))
+        first, second = out.loc["V9_0060.01"], out.loc["0060_10000002.01"]
+        self.assertEqual((first["von_knoten"], first["bis_knoten"]), ("V9", "0060"))
+        self.assertEqual((second["von_knoten"], second["bis_knoten"]), ("0060", "10000002"))
         self.assertEqual(first["ursprung_element_nr"], "10000001_10000002.01")
         self.assertAlmostEqual(first["laenge_m"], 50.0, delta=0.1)
 
     def test_two_nodes_closer_than_half_a_metre_split_once(self):
-        entries = [stored("na", {"kind": "virtual_node", "name": "VA", "name_vorschlag": "VA", "lngLat": lnglat(40, 160),
+        entries = [stored("na", {"kind": "virtual_node", "name": "VA", "name_vorschlag": "0061", "nummer": "0061", "lngLat": lnglat(40, 160),
                                  "traeger": {"art": "ren", "ref": "10000009_10000010.01", "station_m": 40.0}}),
-                   stored("nb", {"kind": "virtual_node", "name": "VB", "name_vorschlag": "VB", "lngLat": lnglat(40.3, 160),
+                   stored("nb", {"kind": "virtual_node", "name": "VB", "name_vorschlag": "0062", "nummer": "0062", "lngLat": lnglat(40.3, 160),
                                  "traeger": {"art": "ren", "ref": "10000009_10000010.01", "station_m": 40.3}})]
         self.export.write_text(json.dumps({"gebiet": "test", "exported_at": "x", "entries": entries}), encoding="utf-8")
         _, conflicts = self.run_import()
         out = self.read("ren_netz.gpkg")
-        self.assertIn("10000009_VA.01", out.index)
-        self.assertIn("VA_10000010.01", out.index)
-        self.assertFalse(any("VB" in str(number) for number in out.index))
+        self.assertIn("10000009_0061.01", out.index)
+        self.assertIn("0061_10000010.01", out.index)
+        self.assertFalse(any("0062" in str(number) for number in out.index))
         self.assertTrue(any(c["eintrag_id"] == "nb" and "teilt die Kante nicht" in c["grund"] for c in conflicts))
         self.assertGreater(out.geometry.length.min(), 0.5)
 
@@ -612,7 +677,7 @@ class ImportTest(unittest.TestCase):
         network["bis_knoten"] = network["bis_knoten"].astype("string").astype("str")
         network.loc[network["element_nr"] == "10000009_10000010.01", ["von_knoten", "bis_knoten"]] = float("nan")
         network.to_file(self.dir / "ren_netz_auto.gpkg", layer="ren_netz", driver="GPKG")
-        entries = [stored("nh", {"kind": "virtual_node", "name": "VH", "name_vorschlag": "VH", "lngLat": lnglat(40, 160),
+        entries = [stored("nh", {"kind": "virtual_node", "name": "VH", "name_vorschlag": "0063", "nummer": "0063", "lngLat": lnglat(40, 160),
                                  "traeger": {"art": "ren", "ref": "10000009_10000010.01", "station_m": 40.0}})]
         self.export.write_text(json.dumps({"gebiet": "test", "exported_at": "x", "entries": entries}), encoding="utf-8")
         _, conflicts = self.run_import()

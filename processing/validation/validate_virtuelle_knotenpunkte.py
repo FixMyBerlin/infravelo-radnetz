@@ -3,12 +3,12 @@
 """
 validate_virtuelle_knotenpunkte.py
 --------------------------------------------------------------------
-Prüft das Verzeichnis der virtuellen Knotenpunkte gegen die Regeln in
-data/VIRTUELLE-KNOTENPUNKTE.md:
+Prüft die virtuellen Knotenpunkte gegen die Regeln in data/VIRTUELLE-KNOTENPUNKTE.md: das
+eingefrorene Verzeichnis der 53 von 2025 und die Ausgabe von Schritt 3 (alle Knoten):
 
 - Nummer 4-stellig, eindeutig über alle Zeilen einschließlich der gelöschten
 - status aktiv oder geloescht, Gelöschte mit geloescht_am und grund
-- alte_id passt zu data/virtuelle_knotenpunkte_alt_neu.csv
+- id_rvn_2025 passt zu data/virtuelle_knotenpunkte_alt_neu.csv; die 53 sind unverändert
 - jeder aktive Knoten liegt auf einer Kante des REN+ (Warnung, z. B. nach einem neuen
   Detailnetz; Knoten auf neuen Kanten der Netzanpassungen-App liegen dort erst, wenn die
   Kanten im REN+ sind). Gegen das Detailnetz wird nicht geprüft: Viele Knoten von 2025
@@ -16,6 +16,7 @@ data/VIRTUELLE-KNOTENPUNKTE.md:
 
 INPUT:
 - data/Virtuelle-Knotenpunkte.gpkg
+- netzanpassungen/output/virtuelle_knoten.gpkg (Schritt 3)
 - data/virtuelle_knotenpunkte_alt_neu.csv
 - ren-network/output/ren_netz.gpkg
 
@@ -46,13 +47,13 @@ logger = logging.getLogger(__name__)
 
 
 def check_old_to_new(gdf):
-    """Die Zuordnungstabelle alt -> neu darf sich nie ändern; sie muss zu alte_id passen."""
+    """Die Zuordnungstabelle alt -> neu darf sich nie ändern; sie muss zu id_rvn_2025 passen."""
     if not vk.OLD_TO_NEW_PATH.exists():
         return [f"{vk.OLD_TO_NEW_PATH.name} fehlt"]
     table = pd.read_csv(vk.OLD_TO_NEW_PATH, dtype=str)
-    in_registry = dict(zip(gdf["alte_id"], gdf[vk.ID_COLUMN]))
-    wrong = [f"{row.alte_id} -> {row.neue_id}" for row in table.itertuples()
-             if in_registry.get(row.alte_id) != row.neue_id]
+    in_registry = dict(zip(gdf["id_rvn_2025"], gdf[vk.ID_COLUMN]))
+    wrong = [f"{row.id_rvn_2025} -> {row.neue_id}" for row in table.itertuples()
+             if in_registry.get(row.id_rvn_2025) != row.neue_id]
     return [f"Zuordnung alt -> neu passt nicht zum Verzeichnis: {wrong}"] if wrong else []
 
 
@@ -72,15 +73,20 @@ def main():
     logger.info("VALIDIERUNG: Virtuelle Knotenpunkte (data/VIRTUELLE-KNOTENPUNKTE.md)")
     logger.info("=" * 80)
 
-    if not vk.PATH.exists():
-        logger.error(f"{RED}❌ Datei nicht gefunden: {vk.PATH}{RESET}")
+    registry = vk.read_all(vk.REGISTRY_PATH)
+    errors = [f"{vk.REGISTRY_PATH.name}: {error}"
+              for error in vk.check(registry) + vk.check_registry_frozen(registry) + check_old_to_new(registry)]
+    if not vk.OUTPUT_PATH.exists():
+        logger.error(f"{RED}❌ {vk.MISSING_OUTPUT_MESSAGE}{RESET}")
         return 1
-    gdf = vk.read_all()
+    gdf = vk.read_all(vk.OUTPUT_PATH)
     active = gdf[gdf["status"] == vk.STATUS_ACTIVE]
-    logger.info(f"{len(gdf)} Zeilen, {len(active)} aktiv, nächste Nummer "
-                f"{str(vk.next_number(gdf)).zfill(vk.ID_DIGITS)}")
-
-    errors = vk.check(gdf) + check_old_to_new(gdf)
+    logger.info(f"{vk.OUTPUT_PATH.name}: {len(gdf)} Zeilen, {len(active)} aktiv, höchste Nummer "
+                f"{str(vk.highest_number(gdf)).zfill(vk.ID_DIGITS)}")
+    errors += [f"{vk.OUTPUT_PATH.name}: {error}" for error in vk.check(gdf)]
+    missing_2025 = sorted(set(registry[vk.ID_COLUMN]) - set(gdf[vk.ID_COLUMN]))
+    if missing_2025:
+        errors.append(f"{vk.OUTPUT_PATH.name}: Knoten von 2025 fehlen: {missing_2025}")
     for error in errors:
         logger.error(f"{RED}❌ {error}{RESET}")
 

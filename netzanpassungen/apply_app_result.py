@@ -18,8 +18,14 @@ Einträge des Exports (Einträge mit geloescht = true werden übersprungen):
   (Umlegung), verliert die bisherige Kante diese Route (und fällt weg, wenn sie nur dafür aufgenommen
   wurde). keine_aktion: ändert nichts, steht nur in radfernweg_zuordnungen.csv. Unbekannter
   Abschnitt oder unbekannte Kante: Konflikt, der Eintrag gilt nicht.
-- virtual_node: virtueller Knoten, kommt nach netzanpassungen/output/virtuelle_knoten.gpkg.
-  Das ist die Datei, die die Pipeline (processing/, knotenpunkte/) als virtuelle Knoten liest.
+- virtual_node: virtueller Knoten mit seiner Nummer (`nummer`, vergibt nur die App). Alle nummerierten
+  Knoten (aktiv und gelöscht) kommen mit den 53 von 2025 (data/Virtuelle-Knotenpunkte.gpkg) nach
+  netzanpassungen/output/virtuelle_knoten.gpkg; das ist die Datei, die processing/ und knotenpunkte/ über
+  read_active() aus data/virtuelle_knotenpunkte.py lesen. Ein Knoten ohne Nummer zählt nicht (Konflikt).
+  Übernommene Knotenvorschläge von Schritt 1 (herkunft = vorschlag, vorschlag_id = P<x>-<y>): die
+  Vorschlags-Id wird in von_knoten/bis_knoten/knoten_anfang/knoten_ende/element_nr durch die Nummer
+  ersetzt (element_nr der Eingabe in element_nr_eingabe). Nicht übernommene Vorschläge bleiben mit ihrer
+  P-Id und stehen als „Knotenvorschlag noch nicht übernommen“ in korrekturen_konflikte.csv.
 - new_edge: gezeichnete Kante. Steht in beiden Ergebnisnetzen (quelle = neu_gezeichnet, routen_fernradweg aus dem
   Eintrag mit routen_quelle = manuell, element_nr `<von>_<bis>.<nn>` wie in der App) und weiterhin in
   netzanpassungen/output/touristische_kanten.gpkg.
@@ -55,6 +61,7 @@ INPUT:
   mit --ohne-export ohne Einträge
 - netzanpassungen/output/ren_netz_auto.gpkg (match_cycle_routes.py)
 - netzanpassungen/output/radfernweg_abschnitte.gpkg (nur für section_assignment)
+- data/Virtuelle-Knotenpunkte.gpkg (die 53 von 2025), ren-network/output/virtuelle_knoten_vorschlaege.gpkg
 - data/Berlin Straßenabschnitte Detailnetz*.fgb (element_nr für die Nummern neuer Kanten, Linien für
   von Hand zugeordnete Detailnetzkanten)
 
@@ -62,8 +69,8 @@ OUTPUT:
 - ren-network/output/ren_netz.gpkg / .geojson, ren_netz_kartierung.gpkg / .geojson
 - ren-network/output/ren_netz_korrigiert.gpkg / .geojson, ren_netz_kartierung_korrigiert.gpkg / .geojson
 - ren-network/output/korrekturen_konflikte.csv, radfernweg_zuordnungen.csv
-- netzanpassungen/output/virtuelle_knoten.gpkg (Layer Virtuelle-Knotenpunkte: Knotenpunkt-ID, ist_virtuell,
-  traeger_netz, traeger_element_nr, station_m, kommentar, eintrag_id)
+- netzanpassungen/output/virtuelle_knoten.gpkg (Layer Virtuelle-Knotenpunkte: die Spalten des Verzeichnisses
+  plus herkunft, app_eintrag, vorschlag_id, traeger_netz, traeger_element_nr, station_m)
 - netzanpassungen/output/touristische_kanten.gpkg (Layer touristische_kanten)
 
 Aufruf:
@@ -71,7 +78,7 @@ Aufruf:
     python netzanpassungen/apply_app_result.py --export netzanpassungen-alle-eintraege-berlin-2026-11-12.json
     python netzanpassungen/apply_app_result.py --ohne-export    # nur Schritt 2, keine Handarbeit; ein
                                                                      # vorhandenes virtuelle_knoten.gpkg bleibt, fehlt es,
-                                                                     # entsteht es nur mit den Knoten aus Schritt 1
+                                                                     # entsteht es nur mit den 53 von 2025
 """
 
 import argparse
@@ -93,10 +100,12 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 sys.path.append(str(ROOT / "ren-network"))
 sys.path.append(str(HERE))
+sys.path.append(str(ROOT / "data"))
 
 import kv_entries  # noqa: E402
 import merge_networks as ren  # noqa: E402
-from auto_nodes import NODE_COLUMNS, assert_unique  # noqa: E402
+from auto_nodes import assert_unique, is_proposal  # noqa: E402
+import virtuelle_knotenpunkte as vk  # noqa: E402
 from write_app_input import (  # noqa: E402
     AUTO_PATH, SECTIONS_LAYER, SECTIONS_PATH, detailnetz_path, line_refs, load_detailnetz)
 from match_cycle_routes import append_detail_rows, routes_text  # noqa: E402
@@ -120,8 +129,10 @@ KARTIERUNG_KORRIGIERT_PATH = OUTPUT_DIR / "ren_netz_kartierung_korrigiert.gpkg"
 CONFLICTS_PATH = OUTPUT_DIR / "korrekturen_konflikte.csv"
 ASSIGNMENTS_PATH = OUTPUT_DIR / "radfernweg_zuordnungen.csv"
 APP_OUTPUT_DIR = HERE / "output"
-VIRTUAL_NODES_PATH = APP_OUTPUT_DIR / "virtuelle_knoten.gpkg"  # wie processing/helpers/virtuelle_knoten.py
-VIRTUAL_NODES_LAYER = "Virtuelle-Knotenpunkte"
+VIRTUAL_NODES_PATH = vk.OUTPUT_PATH  # netzanpassungen/output/virtuelle_knoten.gpkg, read by read_active()
+VIRTUAL_NODES_LAYER = vk.LAYER
+VIRTUAL_NODE_COLUMNS = vk.COLUMNS + vk.OUTPUT_EXTRA_COLUMNS + ["geometry"]
+OPEN_PROPOSAL_REASON = "Knotenvorschlag noch nicht übernommen"
 NEW_EDGES_PATH = APP_OUTPUT_DIR / "touristische_kanten.gpkg"
 NEW_EDGES_LAYER = "touristische_kanten"
 
@@ -393,56 +404,121 @@ def has_text(value):
     return isinstance(value, str) and value != ""
 
 
-def virtual_node_frame(entries, parts, taken_names=()):
-    """All virtual nodes drawn in the app (export, not deleted) in the fields of virtuelle_knoten.gpkg.
-    `taken_names`: names of the nodes from step 1 (2025 and automatic). Returns (nodes, conflicts); a name used
-    twice stays once (the earlier entry, or the node from step 1)."""
-    rows, conflicts, names = [], [], {}
-    for entry in active_entries(entries, "virtual_node"):
-        data = entry["data"]
-        if data.get("geloescht"):
-            continue
-        name = data["name"]
-        if name in taken_names or name in names:
-            origin = "a node from step 1 (2025 or automatic)" if name in taken_names else f"entry {names[name]}"
-            conflicts.append({"grund": f"Virtueller Knoten {name} kommt schon vor ({origin}); der erste gilt",
-                              "art": "virtual_node", "eintrag_id": entry["id"], "ref": None, "element_nr": None, "abweichung_m": None,
-                              "bearbeitet_von": entry.get("updated_by"), "bearbeitet_am": entry.get("updated_at")})
-            continue
-        names[name] = entry["id"]
-        x, y = _to_utm.transform(*data["lngLat"])
-        host = data.get("traeger") or {}
-        item = parts.by_ref.get(host.get("ref")) if host.get("art") == "ren" else None
-        if item is not None:
-            host_element_nr = item["element_nr"]
-        elif host.get("art") == "detailnetz":
-            host_element_nr = str(host.get("ref", "")).split("#")[0] or None
-        else:
-            host_element_nr = None
-        rows.append({
-            "Knotenpunkt-ID": name,
-            "ist_virtuell": 1,
-            "quelle": "app",
-            "art": None,
-            "traeger_netz": host.get("art"),
-            "traeger_element_nr": host_element_nr,
-            "station_m": round(host["station_m"], 2) if host.get("station_m") is not None else None,
-            "kommentar": data.get("kommentar"),
-            "eintrag_id": entry["id"],
-            "geometry": Point(x, y),
-        })
-    return gpd.GeoDataFrame(rows, columns=NODE_COLUMNS, geometry="geometry", crs=CRS), conflicts
+def short_id(entry_id):
+    """The app refers to entries by the last part of their KV id: `berlin:vk:<uuid>` -> `<uuid>`."""
+    return entry_id.rsplit(":", 1)[-1] if isinstance(entry_id, str) else entry_id
 
 
-def read_step1_nodes(path=None):
-    """Virtual nodes of step 1 (2025 and automatic): ren-network/output/virtuelle_knoten_roh.gpkg."""
-    path = Path(path or ren.VIRTUAL_NODES_PATH)
+def entry_date(value):
+    """'2026-11-19T10:00:00Z' -> '2026-11-19'."""
+    return value[:10] if isinstance(value, str) and len(value) >= 10 else None
+
+
+class AppNodes:
+    """The virtual nodes of the app entries with their numbers (contract: every node has `nummer`).
+
+    `by_entry`: entry id -> number of the active, numbered nodes; `accepted`: proposal id of step 1 ->
+    number (nodes with herkunft = vorschlag); `rows`: every numbered node (active and deleted) for
+    virtuelle_knoten.gpkg. A node without number, or with a number that is taken already, is a conflict and
+    does not count."""
+
+    def __init__(self, entries, registry, parts):
+        self.old_to_number = dict(zip(registry["id_rvn_2025"].dropna(), registry.loc[registry["id_rvn_2025"].notna(), vk.ID_COLUMN]))
+        taken = set(registry[vk.ID_COLUMN])
+        self.by_entry, self.by_short, self.accepted, self.rows, self.conflicts = {}, {}, {}, [], []
+        self.accepted_entry_ids = set()
+        for entry in sorted(active_entries(entries, "virtual_node"), key=lambda item: item.get("created_at") or ""):
+            data = entry["data"]
+            number = vk.pad_id(data.get("nummer"))
+            deleted = bool(data.get("geloescht"))
+            if number is None or not vk.ID_PATTERN.match(number):
+                if not deleted:
+                    self.conflict(entry, f"Virtueller Knoten {data.get('name')} hat noch keine Nummer "
+                                         "(die App vergibt sie, wenn ein Admin das Gebiet öffnet): zählt nicht")
+                continue
+            if number in taken:
+                self.conflict(entry, f"Virtueller Knoten {number} ist schon vergeben: der Eintrag zählt nicht")
+                continue
+            taken.add(number)
+            x, y = _to_utm.transform(*data["lngLat"])
+            host = data.get("traeger") or {}
+            item = parts.by_ref.get(host.get("ref")) if host.get("art") == "ren" else None
+            if item is not None:
+                host_element_nr = item["element_nr"]
+            elif host.get("art") == "detailnetz":
+                host_element_nr = str(host.get("ref", "")).split("#")[0] or None
+            else:
+                host_element_nr = host.get("ref")
+            herkunft = data.get("herkunft")
+            proposal = data.get("vorschlag_id") if herkunft == "vorschlag" else None
+            self.rows.append({
+                vk.ID_COLUMN: number, "ist_virtuell": 1,
+                "status": vk.STATUS_DELETED if deleted else vk.STATUS_ACTIVE,
+                "angelegt_am": entry_date(entry.get("created_at")),
+                "geloescht_am": (data.get("geloescht_am") or entry_date(entry.get("updated_at"))) if deleted else None,
+                "grund": (data.get("grund") or "in der App gelöscht") if deleted else None,
+                "id_rvn_2025": None, "quelle": "Netzanpassungen-App", "kommentar": data.get("kommentar"),
+                "herkunft": herkunft, "app_eintrag": entry["id"], "vorschlag_id": proposal,
+                "traeger_netz": host.get("art"), "traeger_element_nr": host_element_nr,
+                "station_m": round(host["station_m"], 2) if host.get("station_m") is not None else None,
+                "geometry": Point(x, y),
+            })
+            if deleted:
+                continue
+            self.by_entry[entry["id"]] = number
+            self.by_short[short_id(entry["id"])] = number
+            if proposal:
+                self.accepted[proposal] = number
+                self.accepted_entry_ids.add(entry["id"])
+
+    def conflict(self, entry, reason):
+        self.conflicts.append({"grund": reason, "art": "virtual_node", "eintrag_id": entry["id"], "ref": None,
+                               "element_nr": None, "abweichung_m": None, "bearbeitet_von": entry.get("updated_by"),
+                               "bearbeitet_am": entry.get("updated_at")})
+
+    @property
+    def splitting_ids(self):
+        """Entries whose node splits its host edge: all active numbered nodes except accepted proposals (the input
+        is already split there)."""
+        return set(self.by_entry) - self.accepted_entry_ids
+
+    def node_of_key(self, key, known_ids):
+        """Node id of an edge end in the app (`k:<id>` input node, `v:<entry id>` app node), or None.
+        `k:` with a 2025 id (V…) resolves to its number; other `k:` ids must be in `known_ids`."""
+        if key.startswith("k:"):
+            node = self.old_to_number.get(key[2:], key[2:])
+            return node if node in known_ids else None
+        if key.startswith("v:"):
+            return self.by_entry.get(key[2:]) or self.by_short.get(key[2:])
+        return None
+
+
+def read_proposals(path=None):
+    """Node proposals of step 1 (ren-network/output/virtuelle_knoten_vorschlaege.gpkg); empty without the file."""
+    path = Path(path or ren.PROPOSALS_PATH)
     if not path.exists():
-        raise SystemExit(f"Missing: {path}\nRun ren-network/merge_networks.py first (step 1).")
-    nodes = gpd.read_file(path, layer=ren.VIRTUAL_NODES_LAYER)
-    if nodes.crs is None or nodes.crs.to_epsg() != ren.DEFAULT_CRS:
-        nodes = nodes.to_crs(CRS)
-    return nodes[[column for column in NODE_COLUMNS if column in nodes.columns]]
+        logging.warning(f"Missing: {path} (step 1): open node proposals are not listed")
+        return gpd.GeoDataFrame({"id": [], "art": [], "traeger_element_nr": []}, geometry=[], crs=CRS)
+    proposals = gpd.read_file(path, layer=ren.PROPOSALS_LAYER)
+    return proposals.to_crs(CRS) if proposals.crs is not None and proposals.crs.to_epsg() != ren.DEFAULT_CRS else proposals
+
+
+def proposal_conflicts(proposals, app_nodes):
+    """Open proposals (not accepted in the app) and accepted proposals that step 1 no longer has."""
+    found = []
+    for row in proposals.itertuples():
+        if row.id not in app_nodes.accepted:
+            found.append({"grund": OPEN_PROPOSAL_REASON + f" ({row.art})", "art": "vorschlag", "eintrag_id": None,
+                          "ref": row.id, "element_nr": row.traeger_element_nr, "abweichung_m": None,
+                          "bearbeitet_von": None, "bearbeitet_am": None})
+    known = set(proposals["id"])
+    for proposal, number in app_nodes.accepted.items():
+        if proposal not in known:
+            found.append({"grund": f"Übernommener Knotenvorschlag {proposal} (Knoten {number}) ist nicht mehr unter den "
+                                   "Vorschlägen von Schritt 1: das Netz hat sich dort geändert",
+                          "art": "vorschlag", "eintrag_id": None, "ref": proposal, "element_nr": None,
+                          "abweichung_m": None, "bearbeitet_von": None, "bearbeitet_am": None})
+    return found
 
 
 def check_nodes_on_edges(entries, network, parts, accepted_ids=None):
@@ -473,10 +549,34 @@ def check_nodes_on_edges(entries, network, parts, accepted_ids=None):
     return found
 
 
-def write_virtual_nodes(path, step1_nodes, app_nodes):
-    """Writes all virtual nodes: 2025 + automatic (step 1) + drawn in the app. The file is rebuilt on every run."""
+def virtual_node_rows(registry, app_nodes):
+    """The 53 of 2025 + every numbered node of the app (active and deleted), in the columns of the registry plus
+    herkunft, app_eintrag, vorschlag_id and the host."""
+    base = registry.copy()
+    base["herkunft"] = "2025"
+    frames = [base]
+    if app_nodes.rows:
+        frames.append(gpd.GeoDataFrame(app_nodes.rows, geometry="geometry", crs=CRS))
+    nodes = gpd.GeoDataFrame(pd.concat(frames, ignore_index=True), geometry="geometry", crs=CRS)
+    for column in VIRTUAL_NODE_COLUMNS:
+        if column not in nodes.columns:
+            nodes[column] = None
+    nodes = nodes[VIRTUAL_NODE_COLUMNS]
+    nodes["ist_virtuell"] = 1
+    for column in vk.TEXT_COLUMNS + [vk.ID_COLUMN]:
+        nodes[column] = nodes[column].astype("string")
+    nodes["station_m"] = pd.to_numeric(nodes["station_m"])
+    return nodes.sort_values(vk.ID_COLUMN).reset_index(drop=True)
+
+
+def write_virtual_nodes(path, nodes):
+    """Writes netzanpassungen/output/virtuelle_knoten.gpkg; the file is rebuilt on every run."""
+    errors = vk.check(nodes)
+    if errors:
+        raise RuntimeError("virtuelle_knoten.gpkg would break the rules:\n- " + "\n- ".join(errors))
     path.parent.mkdir(parents=True, exist_ok=True)
-    nodes = gpd.GeoDataFrame(pd.concat([step1_nodes, app_nodes], ignore_index=True), geometry="geometry", crs=CRS)
+    if path.exists():
+        path.unlink()
     nodes.to_file(path, layer=VIRTUAL_NODES_LAYER, driver="GPKG")
     return nodes
 
@@ -496,27 +596,19 @@ def element_nr_counts(element_nrs):
     return counts
 
 
-def node_name(key, virtual_names):
-    if key.startswith("k:"):
-        return key[2:]
-    if key.startswith("v:"):
-        return virtual_names.get(key[2:])
-    return None
-
-
-def new_edge_frame(entries, base_element_nrs):
+def new_edge_frame(entries, base_element_nrs, app_nodes, known_ids):
     """Gezeichnete Kanten als Zeilen für touristische_kanten.gpkg. Die element_nr zählt wie in der App
-    (Reihenfolge des Zeichnens); Teilungen an virtuellen Knoten macht split_rvn_at_virtual_nodes.py."""
-    virtual_names = {entry["id"]: entry["data"]["name"] for entry in active_entries(entries, "virtual_node")
-                     if not entry["data"].get("geloescht")}
+    (Reihenfolge des Zeichnens). Knoten: `k:<id>` aus der Eingabedatei (`known_ids`; 2025-Kennungen V… über
+    id_rvn_2025), `v:<Eintrag>` mit der Nummer des App-Knotens."""
     counts = element_nr_counts(base_element_nrs)
     rows, conflicts = [], []
     drawn = [entry for entry in active_entries(entries, "new_edge") if not entry["data"].get("geloescht")]
     for entry in sorted(drawn, key=lambda item: item.get("created_at") or ""):
         data = entry["data"]
-        von, bis = node_name(data["von"], virtual_names), node_name(data["bis"], virtual_names)
+        von, bis = app_nodes.node_of_key(data["von"], known_ids), app_nodes.node_of_key(data["bis"], known_ids)
         if not von or not bis:
-            conflicts.append({"grund": f"Neue Kante: Knoten {data['von'] if not von else data['bis']} nicht auffindbar (gelöschter virtueller Knoten?)",
+            conflicts.append({"grund": f"Neue Kante: Knoten {data['von'] if not von else data['bis']} nicht auffindbar "
+                                       "(gelöschter oder nicht nummerierter virtueller Knoten, oder Knoten einer älteren Eingabedatei)",
                               "art": "new_edge", "eintrag_id": entry["id"], "ref": None, "element_nr": None, "abweichung_m": None,
                               "bearbeitet_von": entry.get("updated_by"), "bearbeitet_am": entry.get("updated_at")})
             continue
@@ -786,7 +878,7 @@ def add_drawn_edges(network, original_geometry, new_edges, entries):
 
 
 def split_at_virtual_nodes(network, original_geometry, labels_of_ref, drawn_labels, entries, base_element_nrs,
-                           accepted_ids=None):
+                           accepted_ids=None, numbers=None):
     """Teilt REN+-Kanten und gezeichnete Kanten an den virtuellen Knoten des Exports (wie splitEdges in der App,
     netzanpassungen/src/network/element-nr.ts im Repo knotenpunkte).
 
@@ -801,6 +893,8 @@ def split_at_virtual_nodes(network, original_geometry, labels_of_ref, drawn_labe
     nodes = [entry for entry in active_entries(entries, "virtual_node") if not entry["data"].get("geloescht")
              and (accepted_ids is None or entry["id"] in accepted_ids)]
     drawn_data = {entry["id"]: entry["data"] for entry in active_entries(entries, "new_edge")}
+    drawn_data.update({short_id(entry_id): data for entry_id, data in list(drawn_data.items())})
+    drawn_labels = {**drawn_labels, **{short_id(entry_id): label for entry_id, label in drawn_labels.items()}}
     conflicts, stats = [], {"geteilte_kanten": 0, "teilkanten": 0, "traeger_ohne_netz": 0, "knoten_neben_traeger": 0}
     hosts = {}  # Indexmarke -> [(Knoteneintrag)], in der Reihenfolge des Exports
     for entry in nodes:
@@ -811,7 +905,7 @@ def split_at_virtual_nodes(network, original_geometry, labels_of_ref, drawn_labe
         elif host.get("art") == "neu" and host.get("ref") in drawn_labels:
             label = drawn_labels[host["ref"]]
             edge = drawn_data[host["ref"]]
-            if f"v:{entry['id']}" in (edge["von"], edge["bis"]):
+            if {f"v:{entry['id']}", f"v:{short_id(entry['id'])}"} & {edge["von"], edge["bis"]}:
                 continue  # freier Endknoten der gezeichneten Kante: teilt sie nicht
         else:
             stats["traeger_ohne_netz"] += 1
@@ -825,7 +919,8 @@ def split_at_virtual_nodes(network, original_geometry, labels_of_ref, drawn_labe
     network = network.copy()
     network["von_knoten"] = network["von_knoten"].map(node_text)
     network["bis_knoten"] = network["bis_knoten"].map(node_text)
-    names = {entry["id"]: entry["data"]["name"] for entry in nodes}
+    names = {entry["id"]: (numbers or {}).get(entry["id"]) or entry["data"].get("nummer") or entry["data"]["name"]
+             for entry in nodes}
     next_label = int(network.index.max()) + 1
     next_lfd = int(network["lfd_nr"].max()) + 1
     pieces, piece_geometry, dropped = [], [], []
@@ -915,6 +1010,42 @@ def split_at_virtual_nodes(network, original_geometry, labels_of_ref, drawn_labe
     return network, original_geometry, conflicts, stats
 
 
+def apply_accepted_proposals(network, accepted, base_element_nrs):
+    """Replaces the proposal ids of step 1 that the app accepted by their numbers in von_knoten, bis_knoten,
+    knoten_anfang, knoten_ende and element_nr. Where the element_nr changes, the one of the input stays in
+    element_nr_eingabe. A renamed element_nr that is taken already gets the next free nn of its node pair."""
+    network = network.copy()
+    if "element_nr_eingabe" not in network.columns:
+        network["element_nr_eingabe"] = None
+    if not accepted:
+        return network, 0
+    for column in ("von_knoten", "bis_knoten", "knoten_anfang", "knoten_ende"):
+        if column in network.columns:
+            network[column] = network[column].map(lambda value: accepted.get(value, value) if isinstance(value, str) else value)
+    used = set(network["element_nr"].dropna()) | {nr for nr in base_element_nrs if isinstance(nr, str)}
+    counts = element_nr_counts(used)
+    changed = 0
+    for label in network.index:
+        element_nr = network.at[label, "element_nr"]
+        match = ELEMENT_NR_PATTERN.match(element_nr) if isinstance(element_nr, str) else None
+        if not match or (match.group(1) not in accepted and match.group(2) not in accepted):
+            continue
+        von, bis = accepted.get(match.group(1), match.group(1)), accepted.get(match.group(2), match.group(2))
+        new = f"{von}_{bis}.{match.group(3)}"
+        if new in used:
+            key = pair_key(von, bis)
+            counts[key] = counts.get(key, 0) + 1
+            new = f"{von}_{bis}.{counts[key]:02d}"
+        else:
+            key = pair_key(von, bis)
+            counts[key] = max(counts.get(key, 0), int(match.group(3)))
+        used.add(new)
+        network.at[label, "element_nr_eingabe"] = element_nr
+        network.at[label, "element_nr"] = new
+        changed += 1
+    return network, changed
+
+
 def lage_metrics(old, new):
     """Kennzahlen zwischen alter und neuer Geometrie einer Kante (Meter, Quadratmeter)."""
     old_parts = list(old.geoms) if isinstance(old, MultiLineString) else [old]
@@ -979,7 +1110,8 @@ def load_entries(export_path=None, gebiet=None):
 
 
 def run(export_path, ren_path=AUTO_PATH, output_dir=OUTPUT_DIR, virtual_nodes_path=VIRTUAL_NODES_PATH,
-        new_edges_path=NEW_EDGES_PATH, detail_path=None, sections_path=SECTIONS_PATH, step1_nodes_path=None):
+        new_edges_path=NEW_EDGES_PATH, detail_path=None, sections_path=SECTIONS_PATH, registry_path=None,
+        proposals_path=None):
     """Der ganze Schritt 3. `export_path`: JSON-Datei wie der App-Export oder schon gelesene Einträge
     ({gebiet, exported_at, entries}); None: ohne App-Einträge. Gibt Zähler und Konflikte zurück (für Tests)."""
     export = export_path if isinstance(export_path, dict) else load_entries(export_path)
@@ -995,9 +1127,10 @@ def run(export_path, ren_path=AUTO_PATH, output_dir=OUTPUT_DIR, virtual_nodes_pa
     logging.info(f"Korrekturen: {stats['angewendet']} von {stats['edge_correction']} angewendet "
                  f"({stats['geometrie']} mit Geometrie, {stats['attribute']} mit Attributen), {stats['konflikte']} Konflikte")
 
-    step1_nodes = read_step1_nodes(step1_nodes_path)
-    nodes, node_conflicts = virtual_node_frame(entries, parts, set(step1_nodes["Knotenpunkt-ID"]))
-    accepted_ids = set(nodes["eintrag_id"])
+    registry = vk.read_registry(registry_path or vk.REGISTRY_PATH)
+    proposals = read_proposals(proposals_path)
+    app_nodes = AppNodes(entries, registry, parts)
+    accepted_ids = app_nodes.splitting_ids
     conflicts += check_nodes_on_edges(entries, corrected, parts, accepted_ids)
 
     # Zuordnungen: Detailnetzlinien nur laden, wenn es Zuordnungen gibt
@@ -1015,32 +1148,54 @@ def run(export_path, ren_path=AUTO_PATH, output_dir=OUTPUT_DIR, virtual_nodes_pa
     stats.update({f"zuordnung_{key}": value for key, value in assignment_stats.items()})
 
     base_element_nrs = load_base_element_nrs(network, detail_path)
-    new_edges, edge_conflicts = new_edge_frame(entries, base_element_nrs)
-    conflicts += node_conflicts + edge_conflicts
-    stats["virtuelle_knoten"] = len(nodes)
-    stats["virtuelle_knoten_schritt1"] = len(step1_nodes)
+    known_ids = set(registry[vk.ID_COLUMN]) | set(proposals["id"])
+    for column in ("von_knoten", "bis_knoten", "knoten_anfang", "knoten_ende"):
+        if column in network.columns:
+            known_ids |= {value for value in network[column].map(node_text) if has_text(value)}
+    for element_nr in base_element_nrs:
+        match = ELEMENT_NR_PATTERN.match(element_nr) if isinstance(element_nr, str) else None
+        if match:
+            known_ids |= {match.group(1), match.group(2)}
+    new_edges, edge_conflicts = new_edge_frame(entries, base_element_nrs, app_nodes, known_ids)
+    conflicts += app_nodes.conflicts + edge_conflicts + proposal_conflicts(proposals, app_nodes)
+    stats["virtuelle_knoten_app"] = len(app_nodes.by_entry)
+    stats["vorschlaege"] = len(proposals)
+    stats["vorschlaege_uebernommen"] = len(app_nodes.accepted)
+    stats["vorschlaege_offen"] = int((~proposals["id"].isin(list(app_nodes.accepted))).sum())
     stats["neue_kanten"] = len(new_edges)
 
     # Gezeichnete Kanten in die Ergebnisnetze, dann REN+-Kanten und gezeichnete Kanten an den virtuellen Knoten teilen
     corrected, original_geometry, drawn_labels = add_drawn_edges(corrected, original_geometry, new_edges, entries)
     corrected, original_geometry, split_conflicts, split_stats = split_at_virtual_nodes(
         corrected, original_geometry, {item["ref"]: (labels[item["row"]], item["part"]) for item in parts.items},
-        drawn_labels, entries, base_element_nrs, accepted_ids)
+        drawn_labels, entries, base_element_nrs, accepted_ids, app_nodes.by_entry)
     conflicts += split_conflicts
     stats.update(split_stats)
     corrected["von_knoten"] = corrected["von_knoten"].map(node_text)
     corrected["bis_knoten"] = corrected["bis_knoten"].map(node_text)
+    corrected, stats["element_nr_umbenannt"] = apply_accepted_proposals(corrected, app_nodes.accepted, base_element_nrs)
+    if app_nodes.accepted and len(new_edges):
+        rename = lambda value: app_nodes.accepted.get(value, value)
+        new_edges["von_knoten"] = new_edges["von_knoten"].map(rename)
+        new_edges["bis_knoten"] = new_edges["bis_knoten"].map(rename)
+        by_entry = dict(zip(corrected["eintrag_ids"], corrected["element_nr"]))
+        new_edges["element_nr"] = [by_entry.get(entry_id, element_nr)
+                                   for entry_id, element_nr in zip(new_edges["entry_id"], new_edges["element_nr"])]
+    all_nodes = virtual_node_rows(registry, app_nodes)
+    stats["virtuelle_knoten_datei"] = len(all_nodes)
     logging.info(f"Gezeichnete Kanten im Netz: {len(drawn_labels)}, geteilt an virtuellen Knoten: "
                  f"{split_stats['geteilte_kanten']} Kanten in {split_stats['teilkanten']} Teilkanten")
     if export_path is None:
         # Without an export the file would not know the nodes drawn in the app: keep the last state, if there is one
         logging.info("Without export: nodes drawn in the app and drawn edges stay as they are")
         if not Path(virtual_nodes_path).exists():
-            write_virtual_nodes(Path(virtual_nodes_path), step1_nodes, nodes)
+            write_virtual_nodes(Path(virtual_nodes_path), all_nodes)
     else:
-        all_nodes = write_virtual_nodes(Path(virtual_nodes_path), step1_nodes, nodes)
+        write_virtual_nodes(Path(virtual_nodes_path), all_nodes)
         write_new_edges(Path(new_edges_path), new_edges)
-        logging.info(f"Virtual nodes: {len(all_nodes)} ({all_nodes['quelle'].value_counts().to_dict()}) to {virtual_nodes_path}, "
+        logging.info(f"Virtual nodes: {len(all_nodes)} ({all_nodes['herkunft'].value_counts(dropna=False).to_dict()}, "
+                     f"{all_nodes['status'].value_counts().to_dict()}) to {virtual_nodes_path}; proposals: "
+                     f"{stats['vorschlaege_uebernommen']} accepted, {stats['vorschlaege_offen']} open; "
                      f"drawn edges: {len(new_edges)} to {new_edges_path}")
 
     output_dir = Path(output_dir)

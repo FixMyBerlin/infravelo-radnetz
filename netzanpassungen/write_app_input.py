@@ -15,10 +15,12 @@ und hochgeladen werden.
 Die Datei enthält FeatureCollections in WGS84:
 - detailnetz: Kanten mit element_nr, beginnt_bei_vp, endet_bei_vp
 - knoten: Detailnetzknoten aus den Kantenenden (erster Punkt =
-  beginnt_bei_vp, letzter = endet_bei_vp, ist_virtuell = 0) plus die virtuellen Knoten aus Schritt 1
-  (ren-network/output/virtuelle_knoten_roh.gpkg: die 53 von 2025 und die automatisch gesetzten,
-  ist_virtuell = 1). Von Hand in der App gezeichnete virtuelle Knoten stehen nicht in der Datei,
-  sie leben in der App (KV-Datenbank)
+  beginnt_bei_vp, letzter = endet_bei_vp, ist_virtuell = 0), die 53 virtuellen Knoten von 2025
+  (data/Virtuelle-Knotenpunkte.gpkg: ist_virtuell = 1, id = Nummer, id_rvn_2025, vorschlag = false) und
+  die Knotenvorschläge von Schritt 1 (ren-network/output/virtuelle_knoten_vorschlaege.gpkg:
+  ist_virtuell = 1, id = Vorschlags-Id P<x>-<y>, vorschlag = true, art on_edge | junction | dead_end,
+  traeger_element_nr und station_m). In der App gesetzte virtuelle Knoten stehen nicht in der Datei,
+  sie leben in der App (KV-Datenbank), die ihnen auch die Nummern gibt
 - ren_netz: ren_netz_auto.gpkg (Rohnetz mit automatischer Radfernweg-Zuordnung plus automatisch
   aufgenommene Detailnetzkanten) mit element_nr, von_knoten, bis_knoten, verkehrsrichtung (B/R/G
   aus dem Detailnetz) und den optionalen Feldern routen_fernradweg, routen_quelle (auto) und
@@ -34,7 +36,8 @@ Die Datei enthält FeatureCollections in WGS84:
 
 INPUT:
 - data/Berlin Straßenabschnitte Detailnetz.fgb (jüngster Stand)
-- ren-network/output/virtuelle_knoten_roh.gpkg (merge_networks.py, Schritt 1)
+- data/Virtuelle-Knotenpunkte.gpkg (die 53 von 2025, eingefroren)
+- ren-network/output/virtuelle_knoten_vorschlaege.gpkg (merge_networks.py, Schritt 1)
 - netzanpassungen/output/ren_netz_auto.gpkg und radfernweg_abschnitte.gpkg (match_cycle_routes.py)
 - data/netzquellen/touristisches_radnetz.gpkg (aus dem Drive, data/download_inputs.py)
 - data/Berlin Bezirke.gpkg (nur mit --bezirk)
@@ -68,6 +71,7 @@ sys.path.append(str(ROOT / "ren-network"))
 sys.path.append(str(ROOT / "data"))
 
 import merge_networks as ren  # noqa: E402
+import virtuelle_knotenpunkte as vk  # noqa: E402
 
 CRS = f"EPSG:{ren.DEFAULT_CRS}"
 SCHEMA = "netzanpassungen-app/v1"
@@ -172,18 +176,27 @@ def nodes_from_edges(detail):
     return nodes, off
 
 
-def load_virtual_nodes():
-    """Virtual nodes of step 1 (the 2025 nodes and the automatic ones) as `knoten` with ist_virtuell = 1.
-    Nodes drawn in the app are not part of the input; they live in the KV database."""
-    if not ren.VIRTUAL_NODES_PATH.exists():
-        raise SystemExit(f"Missing: {ren.VIRTUAL_NODES_PATH}\nRun ren-network/merge_networks.py first (step 1).")
-    nodes = gpd.read_file(ren.VIRTUAL_NODES_PATH, layer=ren.VIRTUAL_NODES_LAYER)
-    if nodes.crs is None or nodes.crs.to_epsg() != ren.DEFAULT_CRS:
-        nodes = nodes.to_crs(CRS)
-    virtual = gpd.GeoDataFrame({"id": nodes["Knotenpunkt-ID"].astype(str), "ist_virtuell": 1},
-                               geometry=nodes.geometry.to_numpy(), crs=nodes.crs)
-    logging.info(f"Virtual nodes of step 1: {len(virtual)} ({nodes['quelle'].value_counts().to_dict()})")
-    return virtual
+def load_virtual_nodes(registry_path=None, proposals_path=None):
+    """The 53 virtual nodes of 2025 (id = number, id_rvn_2025) and the node proposals of step 1 (id = P<x>-<y>,
+    vorschlag = true, art, traeger_element_nr, station_m) as `knoten` with ist_virtuell = 1. Nodes set in the
+    app are not part of the input; they live in the KV database."""
+    registry = vk.read_registry(registry_path or vk.REGISTRY_PATH)
+    proposals_path = Path(proposals_path or ren.PROPOSALS_PATH)
+    if not proposals_path.exists():
+        raise SystemExit(f"Missing: {proposals_path}\nRun ren-network/merge_networks.py first (step 1).")
+    proposals = gpd.read_file(proposals_path, layer=ren.PROPOSALS_LAYER)
+    if proposals.crs is None or proposals.crs.to_epsg() != ren.DEFAULT_CRS:
+        proposals = proposals.to_crs(CRS)
+    nodes_2025 = gpd.GeoDataFrame({
+        "id": registry[vk.ID_COLUMN], "ist_virtuell": 1, "id_rvn_2025": registry["id_rvn_2025"], "vorschlag": False,
+    }, geometry=registry.geometry.to_numpy(), crs=CRS)
+    proposal_nodes = gpd.GeoDataFrame({
+        "id": proposals["id"].astype(str), "ist_virtuell": 1, "vorschlag": True, "art": proposals["art"],
+        "traeger_element_nr": proposals["traeger_element_nr"], "station_m": proposals["station_m"],
+    }, geometry=proposals.geometry.to_numpy(), crs=CRS)
+    logging.info(f"Virtual nodes: {len(nodes_2025)} of 2025, {len(proposal_nodes)} proposals of step 1 "
+                 f"({proposal_nodes['art'].value_counts().to_dict()})")
+    return gpd.GeoDataFrame(pd.concat([nodes_2025, proposal_nodes], ignore_index=True), geometry="geometry", crs=CRS)
 
 
 def node_id_text(value):

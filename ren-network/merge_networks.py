@@ -20,8 +20,9 @@ wird, bleiben ohne element_nr einzeln erhalten.
 
 Pro element_nr entsteht eine Kante.
 
-Then (auto_nodes.py, English): virtual nodes are set by snapping edge ends to other edges, edges are
-split at them and at the 53 virtual nodes of 2025 (data/Virtuelle-Knotenpunkte.gpkg), and every edge gets a
+Then (auto_nodes.py, English): edges are split at the 53 virtual nodes of 2025
+(data/Virtuelle-Knotenpunkte.gpkg, read-only) and at node proposals found by snapping edge ends to other
+edges (ids P<x>-<y>, no numbers: numbers are given only in the Netzanpassungen app), and every edge gets a
 unique element_nr from its two end nodes. The step fails if one is missing or duplicated.
 
 Jede Kante wird über die Geometrie mit der Lieferung 2025 verglichen
@@ -59,7 +60,8 @@ INPUT:
 
 OUTPUT:
 - ren-network/output/ren_netz_roh.gpkg (Layer: ren_netz)
-- ren-network/output/virtuelle_knoten_roh.gpkg (Layer Virtuelle-Knotenpunkte: 2025 and automatic nodes)
+- ren-network/output/virtuelle_knoten_vorschlaege.gpkg (Layer virtuelle_knoten_vorschlaege: node proposals
+  with id, art, host edge and station)
 - ren-network/output/ren_netz_roh.geojson (WGS84, z.B. für play.placemark.io)
 - ren-network/output/element_nr_nicht_im_detailnetz.csv
 - ren-network/output/bearbeitet_2025_abweichungen.csv
@@ -108,9 +110,9 @@ NODES_2025_PATH = ROOT / "data" / "Virtuelle-Knotenpunkte.gpkg"
 OUTPUT_DIR = ROOT / "ren-network" / "output"
 OUTPUT_PATH = OUTPUT_DIR / "ren_netz_roh.gpkg"
 OUTPUT_LAYER = "ren_netz"
-# Virtual nodes of step 1: the 2025 nodes (quelle = 2025) and the automatic ones (quelle = auto)
-VIRTUAL_NODES_PATH = OUTPUT_DIR / "virtuelle_knoten_roh.gpkg"
-VIRTUAL_NODES_LAYER = "Virtuelle-Knotenpunkte"
+# Node proposals of step 1 (where edges meet without a node); the app accepts them and gives numbers
+PROPOSALS_PATH = OUTPUT_DIR / "virtuelle_knoten_vorschlaege.gpkg"
+PROPOSALS_LAYER = "virtuelle_knoten_vorschlaege"
 MISSING_REPORT_PATH = OUTPUT_DIR / "element_nr_nicht_im_detailnetz.csv"
 # Ergebnis 2025 (Datensatz C): lebt nur in tilda-static-data, das als Schwesterordner
 # ausgecheckt sein muss. processing/copy_to_tilda_static.sh schreibt es dorthin.
@@ -457,23 +459,23 @@ def add_nodes(network):
 
 
 def load_nodes_2025():
-    """The active virtual nodes of the registry (data/Virtuelle-Knotenpunkte.gpkg, column Knotenpunkt-ID)."""
-    nodes = vk.read_active(NODES_2025_PATH)
+    """The 53 virtual nodes of 2025 (data/Virtuelle-Knotenpunkte.gpkg, frozen, column Knotenpunkt-ID)."""
+    nodes = vk.read_registry(NODES_2025_PATH)
     logging.info(f"Virtual nodes of 2025: {len(nodes)}")
     return nodes
 
 
 def number_edges(network, detail, nodes):
     """Sets virtual nodes by snapping, splits edges at them and gives every edge a unique element_nr from its end
-    nodes (ren-network/auto_nodes.py). Returns (network with one LineString edge per row, virtual nodes)."""
+    nodes (ren-network/auto_nodes.py). Returns (network with one LineString edge per row, node proposals)."""
     lines = network.explode(index_parts=False).reset_index(drop=True)
     lines = lines[lines.geometry.geom_type == "LineString"].reset_index(drop=True)
-    result, virtual, report = auto_nodes.snap_and_number(
+    result, proposals, report = auto_nodes.snap_and_number(
         lines, nodes, load_nodes_2025(), detail["element_nr"].dropna(), NODE_ID_COLUMN)
     auto_nodes.log_report(report)
     detail_element_nrs = set(detail["element_nr"].dropna())
     result["in_detailnetz"] = result["element_nr"].isin(detail_element_nrs).map({True: "ja", False: "nein"})
-    return result, virtual
+    return result, proposals
 
 
 def add_district(network):
@@ -583,14 +585,14 @@ def write_network(network, path):
     logging.info(f"Geschrieben: {geojson_path}")
 
 
-def write_virtual_nodes(virtual_nodes, path=None):
-    """Virtual nodes of step 1 (2025 and automatic), schema like netzanpassungen/output/virtuelle_knoten.gpkg."""
-    path = path or VIRTUAL_NODES_PATH
+def write_proposals(proposals, path=None):
+    """Node proposals of step 1 (id P<x>-<y>, art, host edge, station)."""
+    path = path or PROPOSALS_PATH
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists():
         path.unlink()
-    virtual_nodes.to_file(path, layer=VIRTUAL_NODES_LAYER, driver="GPKG")
-    logging.info(f"Virtual nodes: {len(virtual_nodes)} ({virtual_nodes['quelle'].value_counts().to_dict()}): {path}")
+    proposals.to_file(path, layer=PROPOSALS_LAYER, driver="GPKG")
+    logging.info(f"Node proposals: {len(proposals)} ({proposals['art'].value_counts().to_dict()}): {path}")
 
 
 def write_missing_report(network):
@@ -621,7 +623,7 @@ def main():
     sources = assign_missing_element_nr(sources, detail, nodes)
     network = merge_by_element_nr(sources)
     network = add_detailnetz_attributes(network, detail)
-    network, virtual_nodes = number_edges(network, detail, nodes)
+    network, proposals = number_edges(network, detail, nodes)
     network = add_district(network)
     network = add_bearbeitet_2025(network)
     network = finalize(network)
@@ -629,7 +631,7 @@ def main():
 
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     write_network(network, OUTPUT_PATH)
-    write_virtual_nodes(virtual_nodes)
+    write_proposals(proposals)
     write_missing_report(network)
 
 

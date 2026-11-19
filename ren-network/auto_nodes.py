@@ -8,35 +8,36 @@ two end nodes. For that, every edge end must sit on a node:
 
 - official nodes: the Detailnetz nodes (Verbindungspunkte with Knotenpunkt-ID), end within
   OFFICIAL_TOL_M;
-- the 53 virtual nodes of 2025 (data/Virtuelle-Knotenpunkte.gpkg): fixed names, fixed input like the
-  Detailnetz nodes;
-- automatic virtual nodes, set here by snapping:
+- the 53 virtual nodes of 2025 (data/Virtuelle-Knotenpunkte.gpkg, numbers 0001-0053): frozen input like
+  the Detailnetz nodes;
+- node proposals (Knotenvorschläge), found here by snapping:
   * on an edge: an edge end (not at an official node) lies on the interior of another REN+ edge
-    (within SNAP_TOL_M). A node is set there and the other edge is split. Ends that meet the same
-    spot on the same edge share one node.
+    (within SNAP_TOL_M). The other edge is split there. Ends that meet the same spot on the same edge
+    share one proposal.
   * junction: edge ends that meet each other (within SNAP_TOL_M) with no official node and no
-    edge passing through share one node.
-  * dead end: an end that touches nothing gets an end node.
-  A 2025 node within NODE_2025_TOL_M of such a point supplies the name (and is the node).
+    edge passing through share one proposal.
+  * dead end: an end that touches nothing gets a proposal.
+  A 2025 node within NODE_2025_TOL_M of such a point is that node (no proposal).
   Every 2025 node also splits the edges that pass through it.
 
-Naming like the app (netzanpassungen/src/network/naming.ts in the repo knotenpunkte): on an edge
-`V<A>-<B>` with the nearest official nodes A and B along the host edge in both directions, on
-collision `V<nearer>-2`, `-3`, ...; dead ends and junctions `V<nearest official>-<n>`.
+Step 1 gives no node names or numbers of its own (numbers are given only in the Netzanpassungen app). A
+proposal is named by its position: `P<x>-<y>` with the coordinates in EPSG:25833 rounded to whole metres
+(e.g. P391234-5818765), stable as long as the network does not change at that spot. When the app accepts
+a proposal it gives it a number; step 3 replaces the proposal id by that number.
 
 Numbering: an existing element_nr is never changed unless it has to be. An edge keeps its element_nr
 when it was not split (even if an end is off its node) and it is the longest edge with that element_nr.
-All other edges (split pieces, extra separate parts of a multi-part edge, edges without element_nr) get `<von>_<bis>.<nn>`, `nn` counting per unordered node pair on top of the highest
-number ever used by the Detailnetz and by REN+ before this step (dropped numbers included, so a number is never issued twice). Direction in the name is the direction of the line. The
-element_nr before the change stays in `ursprung_element_nr`. `von_knoten`/`bis_knoten` of an edge that keeps its
-element_nr are the nodes that number names; where its geometric ends sit on other nodes, those are in
-`knoten_anfang`/`knoten_ende` (else empty).
+All other edges (split pieces, extra separate parts of a multi-part edge, edges without element_nr) get
+`<von>_<bis>.<nn>`, `nn` counting per unordered node pair on top of the highest number ever used by the
+Detailnetz and by REN+ before this step (dropped numbers included, so a number is never issued twice).
+Direction in the name is the direction of the line. The element_nr before the change stays in
+`ursprung_element_nr`. `von_knoten`/`bis_knoten` of an edge that keeps its element_nr are the nodes that
+number names; where its geometric ends sit on other nodes, those are in `knoten_anfang`/`knoten_ende`
+(else empty).
 
-Manual virtual nodes drawn in the app are not part of this step; step 3 adds them
-(netzanpassungen/apply_app_result.py).
+Nodes set in the app are not part of this step; step 3 adds them (netzanpassungen/apply_app_result.py).
 """
 
-import heapq
 import logging
 import re
 from collections import defaultdict
@@ -58,16 +59,15 @@ NODE_2025_TOL_M = 2.0
 CLUSTER_STATION_M = 3.0
 # Two split points on one edge closer than this count as one
 MIN_STOP_GAP_M = 0.5
-# Dijkstra limit when looking for the nearest official node
-MAX_SEARCH_STEPS = 20000
 
 ELEMENT_NR_PATTERN = re.compile(r"^(.+)_(.+)\.(\d+)$")
-NODE_COLUMNS = ["Knotenpunkt-ID", "ist_virtuell", "quelle", "art", "traeger_netz", "traeger_element_nr",
-                "station_m", "kommentar", "eintrag_id", "geometry"]
+PROPOSAL_PREFIX = "P"
+# Columns of ren-network/output/virtuelle_knoten_vorschlaege.gpkg
+PROPOSAL_COLUMNS = ["id", "art", "traeger_element_nr", "station_m", "geteilte_element_nr", "kanten", "geometry"]
 
 
 class Nodes:
-    """Registry of all nodes with a key, kind (official | 2025 | auto), name and position."""
+    """All nodes with a key, kind (official | 2025 | proposal), name and position."""
 
     def __init__(self):
         self.items = {}
@@ -185,71 +185,34 @@ def snap_candidates(unresolved, geoms, tree, starts, ends):
     return candidates
 
 
-def nearest_official(adjacency, nodes, start, start_distance, blocked):
-    """Nearest official node from `start` (Dijkstra, not passing `blocked`): (name, distance) or None."""
-    if start in blocked:
-        return None
-    best = {start: start_distance}
-    heap = [(start_distance, start)]
-    done = set()
-    for _ in range(MAX_SEARCH_STEPS):
-        if not heap:
-            return None
-        distance, key = heapq.heappop(heap)
-        if key in done:
-            continue
-        done.add(key)
-        if nodes[key]["kind"] == "official":
-            return nodes[key]["name"], distance
-        for other, length in adjacency.get(key, ()):
-            if other in blocked or other in done:
-                continue
-            candidate = distance + length
-            if candidate < best.get(other, float("inf")):
-                best[other] = candidate
-                heapq.heappush(heap, (candidate, other))
-    return None
+def proposal_id(point):
+    """`P<x>-<y>` with the coordinates in EPSG:25833 rounded to whole metres."""
+    return f"{PROPOSAL_PREFIX}{int(round(point.x))}-{int(round(point.y))}"
 
 
-def name_auto_nodes(auto_keys, nodes, pieces, adjacency, taken, host_of):
-    """Names the automatic nodes (like suggestVirtualNodeName in the app). `host_of`: key -> original element_nr."""
-    sort_key = lambda key: (0 if nodes[key]["art"] == "on_edge" else 1, host_of.get(key) or "",
-                            nodes[key]["station"] if nodes[key]["station"] is not None else 0.0,
-                            round(nodes[key]["point"].x, 1), round(nodes[key]["point"].y, 1))
-    by_parent = defaultdict(list)
-    for piece in pieces:
-        by_parent[piece["parent"]].append(piece)
-    for key in sorted(auto_keys, key=sort_key):
-        node = nodes[key]
-        name = None
-        near = None
-        if node["art"] == "on_edge":
-            host = node["hosts"][0][0]
-            left = next((p for p in by_parent[host] if p["b"] == key), None)
-            right = next((p for p in by_parent[host] if p["a"] == key), None)
-            side_a = nearest_official(adjacency, nodes, left["a"], left["length"], {key}) if left else None
-            side_b = nearest_official(adjacency, nodes, right["b"], right["length"], {key}) if right else None
-            if side_a and side_b and side_a[0] != side_b[0]:
-                candidate = f"V{side_a[0]}-{side_b[0]}"
-                if candidate not in taken:
-                    name = candidate
-            sides = [side for side in (side_a, side_b) if side]
-            near = min(sides, key=lambda side: side[1])[0] if sides else None
-        else:
-            found = nearest_official(adjacency, nodes, key, 0.0, set())
-            near = found[0] if found else None
-        if name is None:
-            prefix = f"V{near}" if near else "V"
-            count = 2 if node["art"] == "on_edge" else 1
-            while f"{prefix}-{count}" in taken:
+def is_proposal(node_id):
+    """True for a proposal id of step 1 (`P<x>-<y>`)."""
+    return isinstance(node_id, str) and re.match(rf"^{PROPOSAL_PREFIX}\d+-\d+(-\d+)?$", node_id) is not None
+
+
+def name_proposals(proposal_keys, nodes):
+    """Gives every proposal its id. Two proposals in the same square metre (rare) get `-2`, `-3`, ... on the
+    later one, sorted by position."""
+    taken = set()
+    for key in sorted(proposal_keys, key=lambda k: (nodes[k]["point"].x, nodes[k]["point"].y)):
+        name = proposal_id(nodes[key]["point"])
+        if name in taken:
+            count = 2
+            while f"{name}-{count}" in taken:
                 count += 1
-            name = f"{prefix}-{count}"
-        node["name"] = name
+            logging.warning(f"Two node proposals round to {name}; the second is {name}-{count}")
+            name = f"{name}-{count}"
+        nodes[key]["name"] = name
         taken.add(name)
 
 
 def build_nodes_and_pieces(lines, official, nodes_2025, official_column):
-    """Steps 1 to 4 of the module docstring: nodes, split pieces. Returns (nodes, pieces, report)."""
+    """Nodes and split pieces. Returns (nodes, pieces, proposal keys, report)."""
     geoms = lines.geometry.to_numpy()
     count = len(geoms)
     starts = shapely.get_point(geoms, 0)
@@ -315,7 +278,7 @@ def build_nodes_and_pieces(lines, official, nodes_2025, official_column):
             nodes[key]["matched"] = True
         else:
             key = f"a:{len(auto_keys)}"
-            nodes.add(key, "auto", None, candidate["point"], art=candidate["art"],
+            nodes.add(key, "proposal", None, candidate["point"], art=candidate["art"],
                       hosts=candidate["hosts"], station=candidate["hosts"][0][1] if candidate["hosts"] else None)
             auto_keys.append(key)
             for line, station in candidate["hosts"]:
@@ -360,28 +323,17 @@ def build_nodes_and_pieces(lines, official, nodes_2025, official_column):
             pieces.append({"parent": line, "a": start_key, "b": end_key, "geometry": part,
                            "length": part.length, "split": len(chain) > 2})
 
-    adjacency = defaultdict(list)
-    for piece in pieces:
-        adjacency[piece["a"]].append((piece["b"], piece["length"]))
-        adjacency[piece["b"]].append((piece["a"], piece["length"]))
-    taken = {node["name"] for node in nodes.items.values() if node["kind"] in ("official", "2025")}
-    host_of = {}
-    for key in auto_keys:
-        hosts = nodes[key]["hosts"]
-        if hosts:
-            parent_element_nr = lines["element_nr"].iloc[hosts[0][0]]
-            host_of[key] = parent_element_nr if isinstance(parent_element_nr, str) else None
-    name_auto_nodes(auto_keys, nodes, pieces, adjacency, taken, host_of)
+    name_proposals(auto_keys, nodes)
 
     report = {
         "lines": count, "pieces": len(pieces), "split_lines": sum(1 for line in stops if stops[line]),
-        "auto_nodes": len(auto_keys), "auto_by_art": pd.Series([nodes[k]["art"] for k in auto_keys]).value_counts().to_dict(),
+        "proposals": len(auto_keys), "proposals_by_art": pd.Series([nodes[k]["art"] for k in auto_keys]).value_counts().to_dict(),
         "nodes_2025": len(v_names), "nodes_2025_matched": len(matched_node),
         "nodes_2025_split_edge": sum(1 for v in v_names if any(key == f"v:{v}" for line in stops for _, key in stops[line])),
         "nodes_2025_unused": [v for v in v_names if not any(key == f"v:{v}" for line in stops for _, key in stops[line])
                               and not any(k == f"v:{v}" for k in end_node.values())],
     }
-    return nodes, pieces, auto_keys, host_of, report
+    return nodes, pieces, auto_keys, report
 
 
 def number_pieces(lines, pieces, nodes, detail_element_nrs):
@@ -436,39 +388,36 @@ def assert_unique(frame, column="element_nr"):
                            f"{len(duplicated)} values on several rows, e.g. {duplicated[:5]}")
 
 
-def node_frame(nodes, auto_keys, pieces, lines, crs):
-    """The virtual nodes (2025 and automatic) with the schema of virtuelle_knoten.gpkg."""
+def proposal_frame(nodes, proposal_keys, pieces, element_nrs, lines, crs):
+    """The node proposals: id, art, an edge of the result that ends there (`traeger_element_nr`, station at that
+    end), the element_nr of the edge split there (`geteilte_element_nr`, on_edge only) and all edges ending there."""
+    ending = defaultdict(list)  # node key -> [(element_nr, station)]
+    for index, piece in enumerate(pieces):
+        ending[piece["a"]].append((element_nrs[index], 0.0))
+        ending[piece["b"]].append((element_nrs[index], piece["length"]))
     rows = []
-    for key, node in nodes.items.items():
-        if node["kind"] == "official":
-            continue
+    for key in proposal_keys:
+        node = nodes[key]
+        edges = sorted(ending.get(key, []))
         host = node["hosts"][0] if node.get("hosts") else None
-        host_element_nr = lines["element_nr"].iloc[host[0]] if host else None
-        host_element_nr = host_element_nr if isinstance(host_element_nr, str) else None
-        if node["kind"] == "2025":
-            comment = ("Delivery 2025, fixed name; " +
-                       (f"on {host_element_nr or 'an edge without element_nr'}" if host else "no REN+ edge within reach"))
-        else:
-            comment = {"on_edge": "Set automatically: an edge end lies on this edge",
-                       "junction": "Set automatically: edge ends meet here",
-                       "dead_end": "Set automatically: end of an edge that touches nothing"}[node["art"]]
+        split = lines["element_nr"].iloc[host[0]] if host else None
         rows.append({
-            "Knotenpunkt-ID": node["name"], "ist_virtuell": 1, "quelle": node["kind"],
-            "art": node.get("art") or ("on_edge" if host else None),
-            "traeger_netz": "ren" if host else None,
-            "traeger_element_nr": host_element_nr,
-            "station_m": round(host[1], 2) if host else None, "kommentar": comment, "eintrag_id": None,
+            "id": node["name"], "art": node["art"],
+            "traeger_element_nr": edges[0][0] if edges else None,
+            "station_m": round(edges[0][1], 2) if edges else None,
+            "geteilte_element_nr": split if isinstance(split, str) else None,
+            "kanten": "; ".join(element_nr for element_nr, _ in edges),
             "geometry": node["point"],
         })
-    frame = gpd.GeoDataFrame(rows, columns=NODE_COLUMNS, geometry="geometry", crs=crs)
-    return frame.sort_values(["quelle", "Knotenpunkt-ID"]).reset_index(drop=True)
+    frame = gpd.GeoDataFrame(rows, columns=PROPOSAL_COLUMNS, geometry="geometry", crs=crs)
+    return frame.sort_values("id").reset_index(drop=True)
 
 
 def snap_and_number(network, official, nodes_2025, detail_element_nrs, official_column):
     """The whole sub-step: `network` (one LineString per row, `element_nr` possibly empty) ->
-    (network with unique element_nr, von_knoten, bis_knoten, ursprung_element_nr; virtual nodes; report)."""
+    (network with unique element_nr, von_knoten, bis_knoten, ursprung_element_nr; node proposals; report)."""
     lines = network.reset_index(drop=True)
-    nodes, pieces, auto_keys, host_of, report = build_nodes_and_pieces(lines, official, nodes_2025, official_column)
+    nodes, pieces, proposal_keys, report = build_nodes_and_pieces(lines, official, nodes_2025, official_column)
     element_nrs, kept = number_pieces(lines, pieces, nodes, detail_element_nrs)
 
     rows = []
@@ -496,13 +445,13 @@ def snap_and_number(network, official, nodes_2025, detail_element_nrs, official_
     report["kept"] = len(kept)
     report["renumbered"] = len(pieces) - len(kept)
     report["renumbered_without_original"] = int(result["ursprung_element_nr"].isna().sum() - len(kept))
-    virtual = node_frame(nodes, auto_keys, pieces, lines, network.crs)
-    return result, virtual, report
+    proposals = proposal_frame(nodes, proposal_keys, pieces, element_nrs, lines, network.crs)
+    return result, proposals, report
 
 
 def log_report(report):
     logging.info(
-        f"Virtual nodes: {report['auto_nodes']} automatic {report['auto_by_art']}, {report['nodes_2025']} from 2025 "
+        f"Node proposals: {report['proposals']} {report['proposals_by_art']}, virtual nodes of 2025: {report['nodes_2025']} "
         f"({report['nodes_2025_matched']} at a snap point of an edge end, {report['nodes_2025_split_edge']} split an edge, "
         f"{len(report['nodes_2025_unused'])} without any edge: {report['nodes_2025_unused']}). "
         f"{report['lines']} lines -> {report['pieces']} edges ({report['split_lines']} lines split), "

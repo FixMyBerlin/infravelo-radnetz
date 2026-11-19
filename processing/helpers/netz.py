@@ -10,7 +10,7 @@ Auswahl des Zielnetzes der Prozessierung (Parameter --netz).
 - rvn: Radvorrangnetz des Projekts 2025 (data/Berlin Radvorrangsnetz.fgb)
 
 Beide Netze werden an denselben virtuellen Knotenpunkten geteilt
-(netzanpassungen/output/virtuelle_knoten.gpkg, siehe helpers/virtuelle_knoten.py). Alle Pfade sind relativ zu processing/.
+(netzanpassungen/output/virtuelle_knoten.gpkg, read_active() aus data/virtuelle_knotenpunkte.py). Alle Pfade sind relativ zu processing/.
 """
 
 import logging

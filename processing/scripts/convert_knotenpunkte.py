@@ -69,7 +69,7 @@ def load_and_merge_virtual_knotenpunkte(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFra
     Returns:
         GeoDataFrame mit regulären und virtuellen Knotenpunkten zusammengeführt
     """
-    logging.info(f"Lade virtuelle Knotenpunkte: {vk.PATH}")
+    logging.info(f"Lade virtuelle Knotenpunkte: {vk.OUTPUT_PATH}")
     
     # Lade aktive virtuelle Knotenpunkte (gelöschte bleiben im Verzeichnis, aber nicht im Ergebnis)
     virtual_gdf = vk.read_active()[[vk.ID_COLUMN, 'ist_virtuell', 'geometry']]
