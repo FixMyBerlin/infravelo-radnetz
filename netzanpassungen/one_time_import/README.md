@@ -10,6 +10,6 @@ Converted on 2026-11-11 from the old override lists. It is uploaded in the "Gebi
 
 ## The 53 virtual nodes of 2025 are not in this folder
 
-They were delivered with fixed names, so they are **not** imported into the app. They are a fixed, read-only input of step 1 (like the Detailnetz nodes): [`data/virtuelle_knoten_2025.gpkg`](../../data/virtuelle_knoten_2025.gpkg) (layer `Virtuelle-Knotenpunkte`, column `Knotenpunkt-ID`, EPSG:25833). `ren-network/merge_networks.py` splits the REN+ edges at them and numbers the edges from them; they reach the app as `knoten` with `ist_virtuell = 1` in the app input.
+They were delivered with fixed names, so they are **not** imported into the app. They are a fixed, read-only input of step 1 (like the Detailnetz nodes): [`data/Virtuelle-Knotenpunkte.gpkg`](../../data/Virtuelle-Knotenpunkte.gpkg) (layer `Virtuelle-Knotenpunkte`, column `Knotenpunkt-ID`, EPSG:25833). `ren-network/merge_networks.py` splits the REN+ edges at them and numbers the edges from them; they reach the app as `knoten` with `ist_virtuell = 1` in the app input.
 
 Where all virtual nodes end up: `apply_app_result.py` writes the 2025 nodes, the automatic nodes of step 1 and the nodes drawn in the app to `netzanpassungen/output/virtuelle_knoten.gpkg`. `processing/` and `knotenpunkte/` read that file through `processing/helpers/virtuelle_knoten.py`. If it is missing, the scripts stop and say that step 3 has to run first.

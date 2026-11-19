@@ -12,7 +12,7 @@ Diese Dateien werden nicht von Skripten generiert und müssen manuell aktualisie
 - `Berlin_Gebiet_Süden.gpkg` – Gebietsgrenze für die Verarbeitung der südlichen Bezirke von Berlin.
 - `Bezirk Neukölln Grenze.fgb` – Bezirksgrenze von Neukölln für gezielte Testverarbeitung.
 - `Verbindungspunkte im RVN.gpkg` – Verbindungspunkte aus dem Radvorrangnetz/Detailnetz zur Netzwerkanalyse.
-- `virtuelle_knoten_2025.gpkg` – die 53 virtuellen Knoten der Lieferung 2025 (Layer `Virtuelle-Knotenpunkte`, Spalte `Knotenpunkt-ID`). Feste Namen, nur lesen: Schritt 1 (`ren-network/merge_networks.py`) teilt die REN+-Kanten an ihnen und nummeriert von ihnen aus. Die übrigen virtuellen Knoten (automatisch gesetzte und in der App gezeichnete) stehen am Ende von `netzanpassungen/apply_app_result.py` zusammen mit diesen in `netzanpassungen/output/virtuelle_knoten.gpkg`; die Pipeline liest sie von dort.
+- `Virtuelle-Knotenpunkte.gpkg` – die 53 virtuellen Knotenpunkte der Lieferung 2025 mit 4-stelligen Nummern `0001`–`0053` (Spalte `id_rvn_2025`: Kennung in der Lieferung 2025). Eingefroren, nur lesen: Schritt 1 (`ren-network/merge_networks.py`) teilt die REN+-Kanten an ihnen. Neue virtuelle Knoten entstehen nur in der App Netzanpassungen; Schritt 3 schreibt alle zusammen nach `netzanpassungen/output/virtuelle_knoten.gpkg`. Regeln: [VIRTUELLE-KNOTENPUNKTE.md](./VIRTUELLE-KNOTENPUNKTE.md). Die Zuordnung der alten `V…`-Kennungen steht auch in `virtuelle_knotenpunkte_alt_neu.csv`.
 - `OSM-highway=bus_stop.geojson` – Bushaltestellen aus OpenStreetMap für Konvertierungen von Schutzstreifen.
 - `Stop-Positions-Bus-OSM.fgb` – Bushaltestellen-Positionen aus OpenStreetMap als FlatGeobuf.
 

@@ -16,7 +16,10 @@ Mit --netz ren für das REN+ (Pfade je Netz in helpers/netz.py).
 INPUT:
 - output/rvn/Berlin Radvorrangsnetz_mit_virtuellen-knotenpunkten.fgb
 - output/knotenpunkte/knotenpunkte_mit_id.gpkg
-- netzanpassungen/output/virtuelle_knoten.gpkg (apply_app_result.py, über helpers/virtuelle_knoten.py)
+- virtuelle Knotenpunkte über read_active() aus data/virtuelle_knotenpunkte.py (nur status = aktiv)
+
+Virtuelle Knotenpunkte erkennt das Skript an ist_virtuell = 1, nicht an der Form der ID
+(Regeln in data/VIRTUELLE-KNOTENPUNKTE.md).
 
 OUTPUT:
 - output/rvn/Berlin Vorrangnetz_with_element_nr.fgb
@@ -33,8 +36,9 @@ from shapely.geometry import Point
 import networkx as nx
 
 sys.path.append(str(Path(__file__).parent.parent))
+sys.path.append(str(Path(__file__).resolve().parents[2] / "data"))
 from helpers.netz import DEFAULT_NETZ, PFADE, add_netz_argument  # noqa: E402
-from helpers.virtuelle_knoten import virtual_nodes_path  # noqa: E402
+import virtuelle_knotenpunkte as vk  # noqa: E402
 
 # Konfiguration
 DEFAULT_CRS = 25833  # EPSG:25833 (ETRS89 / UTM zone 33N) - aus helpers.globals
@@ -63,7 +67,7 @@ def load_data(radvorrangsnetz_path, knotenpunkte_path, virtuelle_knotenpunkte_pa
     nodes_gdf = gpd.read_file(knotenpunkte_path)
     
     logging.info(f"Lade virtuelle Knotenpunkte von {virtuelle_knotenpunkte_path}")
-    virtual_nodes_gdf = gpd.read_file(virtuelle_knotenpunkte_path)
+    virtual_nodes_gdf = vk.read_active(virtuelle_knotenpunkte_path)
     
     # Sicherstellen, dass alle Datensätze das gleiche CRS haben
     target_crs = f'EPSG:{DEFAULT_CRS}'
@@ -75,20 +79,18 @@ def load_data(radvorrangsnetz_path, knotenpunkte_path, virtuelle_knotenpunkte_pa
         logging.info(f"Projiziere Knotenpunkte auf {target_crs}")
         nodes_gdf = nodes_gdf.to_crs(target_crs)
     
-    if virtual_nodes_gdf.crs != target_crs:
-        logging.info(f"Projiziere virtuelle Knotenpunkte auf {target_crs}")
-        virtual_nodes_gdf = virtual_nodes_gdf.to_crs(target_crs)
-    
     # Kombiniere normale und virtuelle Knotenpunkte
     # Normalisiere Spaltennamen (verschiedene Bindestriche)
     if 'Knotenpunkt-ID' in virtual_nodes_gdf.columns:
         virtual_nodes_gdf = virtual_nodes_gdf.rename(columns={'Knotenpunkt-ID': 'Knotenpunkt‐ID'})
         logging.info(f"Spaltennamen der virtuellen Knotenpunkte normalisiert")
     
-    # Stelle sicher, dass beide die gleichen Spalten haben (zumindest geometry und Knotenpunkt‐ID)
+    # Gemeinsame Spalten: geometry, Knotenpunkt‐ID (als Text) und ist_virtuell
     essential_columns = ['geometry', 'Knotenpunkt‐ID']
     nodes_subset = nodes_gdf[essential_columns].copy()
+    nodes_subset['ist_virtuell'] = 0
     virtual_subset = virtual_nodes_gdf[essential_columns].copy()
+    virtual_subset['ist_virtuell'] = 1
     
     combined_nodes_gdf = pd.concat([nodes_subset, virtual_subset], ignore_index=True)
     combined_nodes_gdf = gpd.GeoDataFrame(combined_nodes_gdf, crs=target_crs)
@@ -128,6 +130,13 @@ def find_node_at_point(point, nodes_gdf, tolerance=NODE_SEARCH_TOLERANCE):
         return str(node_id)
     
     return None
+
+
+def virtual_node_ids(nodes_gdf):
+    """IDs der virtuellen Knotenpunkte (ist_virtuell = 1) als Text; ohne Spalte keine."""
+    if 'ist_virtuell' not in nodes_gdf.columns:
+        return set()
+    return set(nodes_gdf.loc[nodes_gdf['ist_virtuell'] == 1, 'Knotenpunkt‐ID'].astype(str))
 
 
 def get_line_endpoints(line_geom):
@@ -198,7 +207,7 @@ def assign_element_numbers(rvn_gdf, nodes_gdf):
     Weist jedem Segment im Radvorrangsnetz eine element_nr zu.
     Optimierte Version, die den Graph nur einmal erstellt.
     
-    WICHTIG: Virtuelle Knotenpunkte (IDs beginnen mit "V") werden speziell behandelt:
+    WICHTIG: Virtuelle Knotenpunkte (ist_virtuell = 1 in nodes_gdf) werden speziell behandelt:
     - Segmente MIT virtuellen Knotenpunkten: Jedes Segment bekommt seine eigenen,
       korrekten beginnt_bei_vp und endet_bei_vp Werte (keine Propagierung)
     - Segmente OHNE virtuelle Knotenpunkte: Verbundene Segmente können gemeinsame
@@ -226,6 +235,8 @@ def assign_element_numbers(rvn_gdf, nodes_gdf):
     logging.info("Erstelle NetworkX-Graph...")
     G = create_network_graph(rvn_gdf)
     
+    virtual_ids = virtual_node_ids(nodes_gdf)
+
     processed_segments = set()
     element_counter = 1
     segments_with_virtual_nodes = 0  # Zähler für Segmente mit virtuellen Knotenpunkten
@@ -247,8 +258,8 @@ def assign_element_numbers(rvn_gdf, nodes_gdf):
         
         # Prüfe SOFORT, ob virtuelle Knotenpunkte direkt an den Endpunkten sind
         # Falls ja: explore_direction NICHT aufrufen (keine Propagierung über virtuelle Knotenpunkte hinweg)
-        start_is_virtual = start_node_id and str(start_node_id).startswith('V')
-        end_is_virtual = end_node_id and str(end_node_id).startswith('V')
+        start_is_virtual = start_node_id in virtual_ids
+        end_is_virtual = end_node_id in virtual_ids
         
         # Initialisiere die verbundenen Segmente mit dem aktuellen Segment
         connected_segments = [idx]
@@ -288,7 +299,7 @@ def assign_element_numbers(rvn_gdf, nodes_gdf):
             element_nr = f"UNKNOWN_UNKNOWN_{element_counter:03d}.01"
             element_counter += 1
         
-        # Prüfe ob virtuelle Knotenpunkte (IDs beginnen mit "V") beteiligt sind
+        # Prüfe ob virtuelle Knotenpunkte beteiligt sind
         has_virtual_node = start_is_virtual or end_is_virtual
         
         # Weise Werte allen verbundenen Segmenten zu
@@ -306,19 +317,18 @@ def assign_element_numbers(rvn_gdf, nodes_gdf):
             logging.debug(f"Segment {idx}: Virtueller Knotenpunkt erkannt - keine Propagierung an verbundene Segmente")
     
     # Zähle nachträglich alle Segmente mit virtuellen Knotenpunkten
-    segments_with_v_in_beginnt = result_gdf[result_gdf['beginnt_bei_vp'].notna() & result_gdf['beginnt_bei_vp'].astype(str).str.startswith('V')]
-    segments_with_v_in_endet = result_gdf[result_gdf['endet_bei_vp'].notna() & result_gdf['endet_bei_vp'].astype(str).str.startswith('V')]
-    segments_with_any_v = result_gdf[
-        (result_gdf['beginnt_bei_vp'].notna() & result_gdf['beginnt_bei_vp'].astype(str).str.startswith('V')) |
-        (result_gdf['endet_bei_vp'].notna() & result_gdf['endet_bei_vp'].astype(str).str.startswith('V'))
-    ]
+    v_in_beginnt = result_gdf['beginnt_bei_vp'].isin(virtual_ids)
+    v_in_endet = result_gdf['endet_bei_vp'].isin(virtual_ids)
+    segments_with_v_in_beginnt = result_gdf[v_in_beginnt]
+    segments_with_v_in_endet = result_gdf[v_in_endet]
+    segments_with_any_v = result_gdf[v_in_beginnt | v_in_endet]
     
     logging.info(f"Element-Nummern zugewiesen. {len(processed_segments)} Segmente verarbeitet.")
     logging.info(f"  Davon {segments_with_virtual_nodes} Segmente mit virtuellen Knotenpunkten (keine Propagierung)")
     logging.info(f"\n📊 VIRTUELLE KNOTENPUNKTE STATISTIK:")
-    logging.info(f"  Segmente mit V in beginnt_bei_vp: {len(segments_with_v_in_beginnt)}")
-    logging.info(f"  Segmente mit V in endet_bei_vp: {len(segments_with_v_in_endet)}")
-    logging.info(f"  Segmente mit mind. einem V: {len(segments_with_any_v)} ({len(segments_with_any_v)/len(result_gdf)*100:.2f}%)")
+    logging.info(f"  Segmente mit virtuellem Knoten in beginnt_bei_vp: {len(segments_with_v_in_beginnt)}")
+    logging.info(f"  Segmente mit virtuellem Knoten in endet_bei_vp: {len(segments_with_v_in_endet)}")
+    logging.info(f"  Segmente mit mind. einem virtuellen Knoten: {len(segments_with_any_v)} ({len(segments_with_any_v)/max(len(result_gdf), 1)*100:.2f}%)")
     
     return result_gdf
 
@@ -560,7 +570,7 @@ def check_elem_nr_divergence(enriched_rvn):
     }
 
 
-def apply_elem_nr_priority(enriched_rvn):
+def apply_elem_nr_priority(enriched_rvn, virtual_ids):
     """
     Übernimmt elem_nr als finale element_nr, falls elem_nr vorhanden ist.
     
@@ -569,13 +579,14 @@ def apply_elem_nr_priority(enriched_rvn):
     - Falls elem_nr nicht existiert: element_nr bleibt unverändert (berechneter Wert)
     - Falls virtueller Knotenpunkt vorhanden: berechnete element_nr bleibt erhalten
     
-    WICHTIG: Segmente mit virtuellen Knotenpunkten (erkennbar an "V" in beginnt_bei_vp
-    oder endet_bei_vp) werden von der Prioritätsregel AUSGENOMMEN, da die elem_nr
+    WICHTIG: Segmente mit virtuellen Knotenpunkten (beginnt_bei_vp oder endet_bei_vp
+    in virtual_ids) werden von der Prioritätsregel AUSGENOMMEN, da die elem_nr
     aus der Zeit vor dem Splitting stammt und virtuelle Knotenpunkte nicht berücksichtigt.
     
     Args:
         enriched_rvn (GeoDataFrame): Radvorrangsnetz mit berechneter element_nr und
                                      ursprünglicher elem_nr
+        virtual_ids (set): IDs der aktiven virtuellen Knotenpunkte
                                      
     Returns:
         GeoDataFrame: Radvorrangsnetz mit finaler element_nr
@@ -587,8 +598,8 @@ def apply_elem_nr_priority(enriched_rvn):
     result_gdf = enriched_rvn.copy()
     
     # Identifiziere Segmente mit virtuellen Knotenpunkten
-    has_virtual_start = result_gdf['beginnt_bei_vp'].notna() & result_gdf['beginnt_bei_vp'].astype(str).str.startswith('V')
-    has_virtual_end = result_gdf['endet_bei_vp'].notna() & result_gdf['endet_bei_vp'].astype(str).str.startswith('V')
+    has_virtual_start = result_gdf['beginnt_bei_vp'].isin(virtual_ids)
+    has_virtual_end = result_gdf['endet_bei_vp'].isin(virtual_ids)
     has_virtual_node = has_virtual_start | has_virtual_end
     
     # Zähle Segmente
@@ -625,7 +636,7 @@ def create_element_numbers_for_rvn(netz=DEFAULT_NETZ):
     # Dateipfade definieren
     radvorrangsnetz_path = PFADE[netz]['geteilt']
     knotenpunkte_path = 'output/knotenpunkte/knotenpunkte_mit_id.gpkg'
-    virtuelle_knotenpunkte_path = str(virtual_nodes_path())
+    virtuelle_knotenpunkte_path = vk.PATH
     output_path = PFADE[netz]['mit_element_nr']
     
     # Stelle sicher, dass das Ausgabeverzeichnis existiert
@@ -645,7 +656,7 @@ def create_element_numbers_for_rvn(netz=DEFAULT_NETZ):
         divergence_stats = check_elem_nr_divergence(enriched_rvn)
         
         # Wende Prioritätsregel an: elem_nr überschreibt berechnete element_nr
-        enriched_rvn = apply_elem_nr_priority(enriched_rvn)
+        enriched_rvn = apply_elem_nr_priority(enriched_rvn, virtual_node_ids(combined_nodes_gdf))
         
         # Speichere Ergebnis
         logging.info(f"\nSpeichere anreichertes Radvorrangsnetz nach {output_path}")

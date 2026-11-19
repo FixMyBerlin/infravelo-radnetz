@@ -94,6 +94,17 @@ Matcht die TILDA-Wege per Hidden Markov Model und Viterbi auf die gerichteten RV
 
 **Ausgabe**: `output/map-matching/network_enriched_hmm.fgb` (REN+: `output/map-matching-ren/`), von `execute_processing.sh` nach `output/snapping_network_enriched.fgb` (REN+: `…_ren.fgb`) kopiert
 
+Vom gewinnenden TILDA-Weg gehen außerdem Oberfläche, Fahrqualität und Höchstgeschwindigkeit der Fahrbahn in Datensatz B (`transfer_attributes` in `map-matching/config/default.toml`):
+
+| Spalte | Inhalt |
+|---|---|
+| `tilda_surface` | OSM-`surface` des Wegs (Rohwert) |
+| `tilda_smoothness`, `tilda_smoothness_source` | `smoothness` und seine Herkunft (`tag`, `surface_to_smoothness`, `parent_highway_tag`, …) |
+| `tilda_maxspeed`, `tilda_maxspeed_source` | Höchstgeschwindigkeit der Fahrbahn in km/h und Herkunft. Straßen: TILDA `maxspeed`. Radwege: `parent_maxspeed`, sonst `adjoining_maxspeed` (Quelle = Spaltenname). Sonstige Wege: `adjoining_maxspeed`. Hat der Straßenweg OSM `maxspeed:forward` bzw. `maxspeed:backward`, ersetzt der Wert für die Fahrtrichtung `ri` den allgemeinen (Quelle `osm_maxspeed:forward|backward`). Vorwärts heißt: Fahrtrichtung auf dem Teilsegment = Linienrichtung des TILDA-Wegs (`directional_maxspeed` in `map-matching/src/pipeline.rs`). |
+| `tilda_maxspeed_conditional` | OSM `maxspeed:conditional`, z. B. `30 @ (22:00-06:00)`, nur an Straßen |
+
+`tilda_maxspeed` und `tilda_smoothness` kommen vom gewinnenden Weg: bei Radinfrastruktur die Werte des Radwegs, ohne Weg (`Keine Radinfrastruktur vorhanden`) sind alle leer. Enthält der TILDA-Export `parent_maxspeed` und `adjoining_maxspeed` nicht (so in den Exporten bis 2026-10-05), bleibt `tilda_maxspeed` an Radwegen und Wegen leer.
+
 #### Schritt 3: Schutzstreifen-Konvertierung (`start_bikelane_conversion.py`)
 Konvertiert Schutzstreifen unter bestimmten Bedingungen:
 - An Bushaltestellen → Radfahrstreifen (nur rechte Seite, benachbart zu Radfahrstreifen)
@@ -106,6 +117,8 @@ Konvertiert Schutzstreifen unter bestimmten Bedingungen:
 Aggregiert Segmente nach `element_nr` + `ri` (Fahrtrichtung). Regelbasiert: längster Abschnitt für Führungsform/Bezirk/Material, schlechteste Ausprägung für Breite/Trennstreifen.
 
 **Ausgabe**: `output/aggregated_rvn_final.gpkg` (Layer: `hinrichtung`, `gegenrichtung`)
+
+Die `tilda_*`-Spalten (auch die neuen) fasst die Aggregation je Kante und Richtung als sortierte, mit `;` verbundene Liste der verschiedenen Werte zusammen. Dazu kommen zwei einzelne Werte: `tilda_maxspeed_max` (höchste numerische `tilda_maxspeed`, ganze km/h) und `tilda_smoothness_worst` (schlechteste `tilda_smoothness` nach der OSM-Reihenfolge `excellent` < `good` < `intermediate` < `bad` < `very_bad` < `horrible` < `very_horrible` < `impassable`).
 
 ### 4. Validierung (`run_validation.sh`)
 

@@ -3,182 +3,98 @@
 """
 validate_virtuelle_knotenpunkte.py
 --------------------------------------------------------------------
-Validiert die Eindeutigkeit der Knotenpunkt-IDs in den virtuellen Knotenpunkten.
-Prüft, ob jede Knotenpunkt-ID nur einmal vorkommt und gibt Warnungen bei Duplikaten aus.
+Prüft das Verzeichnis der virtuellen Knotenpunkte gegen die Regeln in
+data/VIRTUELLE-KNOTENPUNKTE.md:
+
+- Nummer 4-stellig, eindeutig über alle Zeilen einschließlich der gelöschten
+- status aktiv oder geloescht, Gelöschte mit geloescht_am und grund
+- alte_id passt zu data/virtuelle_knotenpunkte_alt_neu.csv
+- jeder aktive Knoten liegt auf einer Kante des REN+ (Warnung, z. B. nach einem neuen
+  Detailnetz; Knoten auf neuen Kanten der Netzanpassungen-App liegen dort erst, wenn die
+  Kanten im REN+ sind). Gegen das Detailnetz wird nicht geprüft: Viele Knoten von 2025
+  liegen auf der Geometrie des Radvorrangnetzes, die bis zu 300 m davon abweicht.
 
 INPUT:
-- netzanpassungen/output/virtuelle_knoten.gpkg (apply_app_result.py, über helpers/virtuelle_knoten.py)
+- data/Virtuelle-Knotenpunkte.gpkg
+- data/virtuelle_knotenpunkte_alt_neu.csv
+- ren-network/output/ren_netz.gpkg
 
 OUTPUT:
-- Konsolenausgabe mit Warnungen bei gefundenen Duplikaten
+- Konsolenausgabe; Rückgabe 1 bei Regelverstößen
 """
 
-import sys
 import logging
+import sys
+from pathlib import Path
+
 import geopandas as gpd
 import pandas as pd
-from pathlib import Path
-from collections import Counter
 
-# Import der Helper aus processing
-sys.path.append(str(Path(__file__).parent.parent))
-from helpers.globals import DEFAULT_CRS
-from helpers.virtuelle_knoten import virtual_nodes_path
+sys.path.append(str(Path(__file__).resolve().parents[2] / "data"))
+import virtuelle_knotenpunkte as vk  # noqa: E402
 
-# ANSI Farb-Codes
+REN_PATH = vk.DATA_DIR.parent / "ren-network" / "output" / "ren_netz.gpkg"
+REN_LAYER = "ren_netz"
+ON_EDGE_TOLERANCE_M = 3.0  # wie VIRTUAL_NODE_TOLERANCE in split_rvn_at_virtual_nodes.py
+
 ORANGE = '\033[38;5;214m'
 RED = '\033[91m'
 RESET = '\033[0m'
 
-# Logging konfigurieren
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 
-def load_virtuelle_knotenpunkte(file_path):
-    """
-    Lade Virtuelle Knotenpunkte-Daten aus GeoPackage.
-    
-    Args:
-        file_path: Pfad zur GeoPackage-Datei
-        
-    Returns:
-        GeoDataFrame mit virtuellen Knotenpunkten
-    """
-    logger.info(f"Lade virtuelle Knotenpunkte aus {file_path}")
-    
-    try:
-        gdf = gpd.read_file(file_path)
-        logger.info(f"Virtuelle Knotenpunkte geladen: {len(gdf)} Features")
-        return gdf
-    except Exception as e:
-        logger.error(f"{RED}❌ FEHLER: Fehler beim Laden der Daten: {e}{RESET}")
-        sys.exit(1)
+def check_old_to_new(gdf):
+    """Die Zuordnungstabelle alt -> neu darf sich nie ändern; sie muss zu alte_id passen."""
+    if not vk.OLD_TO_NEW_PATH.exists():
+        return [f"{vk.OLD_TO_NEW_PATH.name} fehlt"]
+    table = pd.read_csv(vk.OLD_TO_NEW_PATH, dtype=str)
+    in_registry = dict(zip(gdf["alte_id"], gdf[vk.ID_COLUMN]))
+    wrong = [f"{row.alte_id} -> {row.neue_id}" for row in table.itertuples()
+             if in_registry.get(row.alte_id) != row.neue_id]
+    return [f"Zuordnung alt -> neu passt nicht zum Verzeichnis: {wrong}"] if wrong else []
 
 
-def validate_knotenpunkt_id_uniqueness(gdf):
-    """
-    Prüfe, ob jede Knotenpunkt-ID eindeutig ist.
-    
-    Args:
-        gdf: GeoDataFrame mit virtuellen Knotenpunkten
-        
-    Returns:
-        True wenn alle Knotenpunkt-IDs eindeutig sind, False sonst
-    """
-    logger.info("Validiere Eindeutigkeit der Knotenpunkt-ID...")
-    
-    # Prüfe, ob Knotenpunkt-ID-Spalte existiert
-    if 'Knotenpunkt-ID' not in gdf.columns:
-        logger.error(f"{RED}❌ FEHLER: Spalte 'Knotenpunkt-ID' nicht gefunden!{RESET}")
-        return False
-    
-    # Zähle Vorkommen jeder Knotenpunkt-ID
-    knotenpunkt_id_counts = Counter(gdf['Knotenpunkt-ID'])
-    
-    # Finde Duplikate (IDs, die mehr als einmal vorkommen)
-    duplicates = {knotenpunkt_id: count for knotenpunkt_id, count in knotenpunkt_id_counts.items() if count > 1}
-    
-    if not duplicates:
-        logger.info("✓ Alle Knotenpunkt-IDs sind eindeutig!")
-        return True
-    
-    # Ausgabe der Duplikate
-    logger.warning(f"{ORANGE}⚠️ WARNUNG: {len(duplicates)} Knotenpunkt-ID(s) kommen mehrfach vor!{RESET}")
-    logger.warning(f"{ORANGE}-" * 80 + f"{RESET}")
-    
-    for knotenpunkt_id, count in sorted(duplicates.items(), key=lambda x: x[1], reverse=True):
-        logger.warning(f"{ORANGE}  Knotenpunkt-ID '{knotenpunkt_id}' kommt {count}x vor{RESET}")
-        
-        # Zeige Details zu den betroffenen Features
-        duplicate_features = gdf[gdf['Knotenpunkt-ID'] == knotenpunkt_id]
-        for idx, row in duplicate_features.iterrows():
-            # Sichere Geometrie-Koordinaten-Extraktion
-            if row.geometry is None or row.geometry.is_empty:
-                coords = "keine Geometrie"
-            else:
-                try:
-                    coords = f"({row.geometry.x:.2f}, {row.geometry.y:.2f})"
-                except AttributeError:
-                    coords = f"{row.geometry.geom_type}"
-            
-            logger.warning(f"{ORANGE}    - Index {idx}: Koordinaten {coords}{RESET}")
-    
-    logger.warning(f"{ORANGE}-" * 80 + f"{RESET}")
-    logger.warning(f"{ORANGE}Gesamt: {sum(duplicates.values())} nicht-eindeutige Features gefunden{RESET}")
-    
-    return False
-
-
-def validate_null_knotenpunkt_ids(gdf):
-    """
-    Prüfe, ob es Features ohne Knotenpunkt-ID gibt.
-    
-    Args:
-        gdf: GeoDataFrame mit virtuellen Knotenpunkten
-        
-    Returns:
-        True wenn alle Features eine Knotenpunkt-ID haben, False sonst
-    """
-    logger.info("Prüfe auf fehlende Knotenpunkt-IDs...")
-    
-    null_ids = gdf['Knotenpunkt-ID'].isnull() | (gdf['Knotenpunkt-ID'] == '')
-    null_count = null_ids.sum()
-    
-    if null_count == 0:
-        logger.info("✓ Alle Features haben eine Knotenpunkt-ID")
-        return True
-    
-    logger.warning(f"{ORANGE}⚠️ WARNUNG: {null_count} Feature(s) haben keine Knotenpunkt-ID!{RESET}")
-    
-    # Zeige Details zu Features ohne Knotenpunkt-ID
-    null_features = gdf[null_ids]
-    for idx, row in null_features.head(10).iterrows():
-        # Sichere Geometrie-Koordinaten-Extraktion
-        if row.geometry is None or row.geometry.is_empty:
-            coords = "keine Geometrie"
-        else:
-            try:
-                coords = f"({row.geometry.x:.2f}, {row.geometry.y:.2f})"
-            except AttributeError:
-                coords = f"{row.geometry.geom_type}"
-        
-        logger.warning(f"{ORANGE}  - Index {idx}: Koordinaten {coords}{RESET}")
-    
-    if null_count > 10:
-        logger.warning(f"{ORANGE}  ... und {null_count - 10} weitere Features{RESET}")
-    
-    return False
+def check_on_network(active):
+    if not REN_PATH.exists():
+        logger.warning(f"{ORANGE}REN+ fehlt ({REN_PATH.name}), Lageprüfung übersprungen{RESET}")
+        return []
+    network = gpd.read_file(REN_PATH, layer=REN_LAYER, columns=["element_nr"]).to_crs(vk.CRS)
+    near = gpd.sjoin(active[[vk.ID_COLUMN, "geometry"]].set_geometry(active.buffer(ON_EDGE_TOLERANCE_M)),
+                     network[["geometry"]], predicate="intersects")
+    off = active[~active[vk.ID_COLUMN].isin(near[vk.ID_COLUMN])]
+    return [f"{row[vk.ID_COLUMN]} ({row['quelle']})" for _, row in off.iterrows()]
 
 
 def main():
-    """Hauptfunktion zur Validierung der virtuellen Knotenpunkte."""
     logger.info("=" * 80)
-    logger.info("VALIDIERUNG: Virtuelle Knotenpunkte - Eindeutigkeit der Knotenpunkt-IDs")
+    logger.info("VALIDIERUNG: Virtuelle Knotenpunkte (data/VIRTUELLE-KNOTENPUNKTE.md)")
     logger.info("=" * 80)
-    
-    # Dateipfad definieren
-    input_file = virtual_nodes_path()  # bricht mit klarer Meldung ab, wenn die Datei fehlt
-    
-    # Lade Daten
-    gdf = load_virtuelle_knotenpunkte(input_file)
-    
-    # Validierungen durchführen
-    validation_results = []
-    
-    validation_results.append(validate_null_knotenpunkt_ids(gdf))
-    validation_results.append(validate_knotenpunkt_id_uniqueness(gdf))
-    
-    # Zusammenfassung
+
+    if not vk.PATH.exists():
+        logger.error(f"{RED}❌ Datei nicht gefunden: {vk.PATH}{RESET}")
+        return 1
+    gdf = vk.read_all()
+    active = gdf[gdf["status"] == vk.STATUS_ACTIVE]
+    logger.info(f"{len(gdf)} Zeilen, {len(active)} aktiv, nächste Nummer "
+                f"{str(vk.next_number(gdf)).zfill(vk.ID_DIGITS)}")
+
+    errors = vk.check(gdf) + check_old_to_new(gdf)
+    for error in errors:
+        logger.error(f"{RED}❌ {error}{RESET}")
+
+    off = check_on_network(active)
+    if off:
+        logger.warning(f"{ORANGE}⚠️ {len(off)} aktive Knoten liegen weiter als {ON_EDGE_TOLERANCE_M} m "
+                       f"von jeder Kante des REN+: {off}{RESET}")
+
     logger.info("=" * 80)
-    if all(validation_results):
-        logger.info("✓ VALIDIERUNG ERFOLGREICH: Alle Prüfungen bestanden!")
-    else:
-        logger.warning(f"{ORANGE}⚠️ VALIDIERUNG FEHLGESCHLAGEN: Es wurden Probleme gefunden!{RESET}")
-        logger.warning(f"{ORANGE}Bitte überprüfen Sie die Warnungen oben und korrigieren Sie die Daten.{RESET}")
-    logger.info("=" * 80)
-    
-    return 0 if all(validation_results) else 1
+    if errors:
+        logger.warning(f"{ORANGE}⚠️ VALIDIERUNG FEHLGESCHLAGEN{RESET}")
+        return 1
+    logger.info("✓ VALIDIERUNG ERFOLGREICH")
+    return 0
 
 
 if __name__ == "__main__":

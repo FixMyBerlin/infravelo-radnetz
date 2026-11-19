@@ -21,7 +21,7 @@ wird, bleiben ohne element_nr einzeln erhalten.
 Pro element_nr entsteht eine Kante.
 
 Then (auto_nodes.py, English): virtual nodes are set by snapping edge ends to other edges, edges are
-split at them and at the 53 virtual nodes of 2025 (data/virtuelle_knoten_2025.gpkg), and every edge gets a
+split at them and at the 53 virtual nodes of 2025 (data/Virtuelle-Knotenpunkte.gpkg), and every edge gets a
 unique element_nr from its two end nodes. The step fails if one is missing or duplicated.
 
 Jede Kante wird über die Geometrie mit der Lieferung 2025 verglichen
@@ -52,7 +52,7 @@ INPUT:
   daneben, wird der jüngste verwendet)
 - data/Berlin Verbindungspunkte Detailnetz.fgb
 - data/Berlin Bezirke.gpkg
-- data/virtuelle_knoten_2025.gpkg
+- data/Virtuelle-Knotenpunkte.gpkg
 - ../tilda-static-data/geojson/region-infravelo/infravelo-datensatz-c-fortlaufend/
   aggregated_rvn_final.geojson.gz (Ergebnis 2025; tilda-static-data muss als
   Schwesterordner ausgecheckt sein)
@@ -88,6 +88,7 @@ from assign_element_nr_to_rvn import assign_element_numbers  # noqa: E402
 from assign_node_ids import assign_node_ids_to_points  # noqa: E402
 from helpers.district_assignment import assign_district_to_edges  # noqa: E402
 from download_inputs import download as download_inputs  # noqa: E402
+import virtuelle_knotenpunkte as vk  # noqa: E402
 
 try:
     from helpers.globals import DEFAULT_CRS
@@ -102,8 +103,8 @@ VERBINDUNGSPUNKTE_PATH = ROOT / "data" / "Berlin Verbindungspunkte Detailnetz.fg
 # Spaltenname aus assign_node_ids / assign_element_nr_to_rvn (mit U+2010 als Bindestrich)
 NODE_ID_COLUMN = "Knotenpunkt‐ID"
 DISTRICTS_PATH = ROOT / "data" / "Berlin Bezirke.gpkg"
-# The 53 virtual nodes of 2025: fixed names, read-only input like the Detailnetz nodes
-NODES_2025_PATH = ROOT / "data" / "virtuelle_knoten_2025.gpkg"
+# The 53 virtual nodes of 2025 (registry, numbers 0001-0053): read-only input like the Detailnetz nodes
+NODES_2025_PATH = ROOT / "data" / "Virtuelle-Knotenpunkte.gpkg"
 OUTPUT_DIR = ROOT / "ren-network" / "output"
 OUTPUT_PATH = OUTPUT_DIR / "ren_netz_roh.gpkg"
 OUTPUT_LAYER = "ren_netz"
@@ -441,7 +442,8 @@ def log_klassen_differences(network, dn_klasse):
 
 
 def add_nodes(network):
-    """von_knoten / bis_knoten as text from the element_nr (format von_bis.NN; virtual node names start with V)."""
+    """von_knoten / bis_knoten as text from the element_nr (format von_bis.NN). Text, because virtual node
+    numbers have four digits with leading zeros (0012), see data/VIRTUELLE-KNOTENPUNKTE.md."""
     parts = network["element_nr"].str.extract(auto_nodes.ELEMENT_NR_PATTERN.pattern)
     invalid = network.loc[network["element_nr"].notna() & parts[0].isna(), "element_nr"]
     if len(invalid):
@@ -449,19 +451,14 @@ def add_nodes(network):
             f"{len(invalid)} element_nr do not match the pattern von_bis.NN, "
             f"von_knoten/bis_knoten stay empty: {sorted(invalid)}"
         )
-    network["von_knoten"] = parts[0]
-    network["bis_knoten"] = parts[1]
+    network["von_knoten"] = parts[0].astype("string")
+    network["bis_knoten"] = parts[1].astype("string")
     return network
 
 
 def load_nodes_2025():
-    """The 53 virtual nodes of 2025 (data/virtuelle_knoten_2025.gpkg, column Knotenpunkt-ID)."""
-    nodes = gpd.read_file(NODES_2025_PATH)
-    if nodes.crs is None or nodes.crs.to_epsg() != DEFAULT_CRS:
-        nodes = nodes.to_crs(f"EPSG:{DEFAULT_CRS}")
-    duplicated = nodes["Knotenpunkt-ID"][nodes["Knotenpunkt-ID"].duplicated()]
-    if len(duplicated):
-        raise SystemExit(f"Names of the 2025 nodes are not unique: {sorted(set(duplicated))}")
+    """The active virtual nodes of the registry (data/Virtuelle-Knotenpunkte.gpkg, column Knotenpunkt-ID)."""
+    nodes = vk.read_active(NODES_2025_PATH)
     logging.info(f"Virtual nodes of 2025: {len(nodes)}")
     return nodes
 

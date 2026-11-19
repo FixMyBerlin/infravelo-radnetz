@@ -8,7 +8,7 @@ two end nodes. For that, every edge end must sit on a node:
 
 - official nodes: the Detailnetz nodes (Verbindungspunkte with Knotenpunkt-ID), end within
   OFFICIAL_TOL_M;
-- the 53 virtual nodes of 2025 (data/virtuelle_knoten_2025.gpkg): fixed names, fixed input like the
+- the 53 virtual nodes of 2025 (data/Virtuelle-Knotenpunkte.gpkg): fixed names, fixed input like the
   Detailnetz nodes;
 - automatic virtual nodes, set here by snapping:
   * on an edge: an edge end (not at an official node) lies on the interior of another REN+ edge

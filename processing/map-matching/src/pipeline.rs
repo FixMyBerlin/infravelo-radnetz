@@ -16,7 +16,7 @@ use crate::assemble::rules::RuleEngine;
 use crate::assemble::{AssembleOutput, Assembler};
 use crate::config::Config;
 use crate::eval::LinSeg;
-use crate::geom::Polyline;
+use crate::geom::{Polyline, angle_diff, reverse_heading};
 use crate::hmm::{self, TraceMatch};
 use crate::io::{self, FieldKind, GeomType, Value};
 use crate::model::{AttrSchema, Interval, OutSegment, TildaWay, Trace};
@@ -249,6 +249,31 @@ pub fn output_path(cfg: &Config, suffix: &str) -> PathBuf {
     cfg.output_dir().join(format!("network_enriched_hmm{suffix}.fgb"))
 }
 
+/// Übernommene Attribute, die von der Fahrtrichtung abhängen: `maxspeed:forward|backward` des Wegs ersetzt
+/// den allgemeinen Wert (siehe `directional_maxspeed`).
+const MAXSPEED: &str = "tilda_maxspeed";
+const MAXSPEED_SOURCE: &str = "tilda_maxspeed_source";
+
+/// `tilda_maxspeed` und `tilda_maxspeed_source` eines Teilsegments, wenn der gewinnende Weg für die
+/// Fahrtrichtung `maxspeed:forward|backward` hat. Die Fahrtrichtung ist die Richtung der Kante
+/// (`ri = 0`) bzw. ihre Gegenrichtung (`ri = 1`); sie gilt als `forward`, wenn sie am Teilsegment mit der
+/// Linienrichtung des TILDA-Wegs übereinstimmt. Bei Zweirichtungswegen ist das nicht aus dem Matching
+/// ablesbar, deshalb werden die Geometrien verglichen.
+fn directional_maxspeed(way: &TildaWay, edge: &Polyline, s: &OutSegment) -> Option<(String, &'static str)> {
+    if way.maxspeed_forward.is_none() && way.maxspeed_backward.is_none() {
+        return None;
+    }
+    let mid = 0.5 * (s.from + s.to);
+    let edge_heading = edge.heading_at(mid, 2.0);
+    let travel = if s.dir.ri == 0 { edge_heading } else { reverse_heading(edge_heading) };
+    let forward = angle_diff(travel, way.line.project(edge.point_at(mid)).heading) < std::f64::consts::FRAC_PI_2;
+    if forward {
+        way.maxspeed_forward.clone().map(|v| (v, "osm_maxspeed:forward"))
+    } else {
+        way.maxspeed_backward.clone().map(|v| (v, "osm_maxspeed:backward"))
+    }
+}
+
 /// Schreibt die segmentierte Ausgabe (Ersatz für snapping_network_enriched.fgb).
 pub fn write_output(p: &Prepared, cfg: &Config, segs: &[OutSegment], path: &std::path::Path) -> Result<usize> {
     let transfer = &cfg.assemble.transfer_attributes;
@@ -291,8 +316,11 @@ pub fn write_output(p: &Prepared, cfg: &Config, segs: &[OutSegment], path: &std:
             p.districts.lookup(mid).into(),
             e.strassenname.as_deref().into(),
         ];
+        let maxspeed = way.and_then(|w| directional_maxspeed(w, &e.line, s));
         for a in transfer {
             let val = match way {
+                Some(_) if a == MAXSPEED && maxspeed.is_some() => maxspeed.as_ref().map(|m| m.0.clone()),
+                Some(_) if a == MAXSPEED_SOURCE && maxspeed.is_some() => maxspeed.as_ref().map(|m| m.1.to_string()),
                 Some(w) => w.attr(&p.schema, a).map(str::to_string),
                 None if a == "fuehr" => Some(cfg.assemble.no_infra_fuehr.clone()),
                 None => None,
@@ -311,4 +339,61 @@ pub fn write_output(p: &Prepared, cfg: &Config, segs: &[OutSegment], path: &std:
     let n = io::write_fgb(path, "edges_enriched", GeomType::LineString, &fields, rows)?;
     info!("Ausgabe geschrieben: {} ({} Teilsegmente)", path.display(), n);
     Ok(n)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use geo::Coord;
+
+    use super::*;
+    use crate::model::DirEdge;
+
+    fn line(pts: &[(f64, f64)]) -> Polyline {
+        Polyline::new(pts.iter().map(|&(x, y)| Coord { x, y }).collect())
+    }
+
+    fn way(pts: &[(f64, f64)], forward: Option<&str>, backward: Option<&str>) -> TildaWay {
+        TildaWay {
+            idx: 0,
+            data_source: Arc::from("streets"),
+            tilda_id: "way/1".into(),
+            line: line(pts),
+            attrs: vec![],
+            oneway: false,
+            dual_carriageway: false,
+            fuehr: String::new(),
+            category: String::new(),
+            traffic_sign: String::new(),
+            name_norm: String::new(),
+            from_node: None,
+            to_node: None,
+            maxspeed_forward: forward.map(str::to_string),
+            maxspeed_backward: backward.map(str::to_string),
+        }
+    }
+
+    fn segment(ri: u8) -> OutSegment {
+        OutSegment { dir: DirEdge::new(0, ri), from: 0.0, to: 100.0, winner: Some(0), ways: vec![0], rule: String::new(), score: 0.0, n_candidates: 1 }
+    }
+
+    #[test]
+    fn directional_maxspeed_follows_travel_direction() {
+        let edge = line(&[(0.0, 0.0), (100.0, 0.0)]);
+        let way_same = way(&[(0.0, 2.0), (100.0, 2.0)], Some("30"), Some("50"));
+        let way_reversed = way(&[(100.0, 2.0), (0.0, 2.0)], Some("30"), Some("50"));
+        assert_eq!(directional_maxspeed(&way_same, &edge, &segment(0)), Some(("30".into(), "osm_maxspeed:forward")));
+        assert_eq!(directional_maxspeed(&way_same, &edge, &segment(1)), Some(("50".into(), "osm_maxspeed:backward")));
+        assert_eq!(directional_maxspeed(&way_reversed, &edge, &segment(0)), Some(("50".into(), "osm_maxspeed:backward")));
+        assert_eq!(directional_maxspeed(&way_reversed, &edge, &segment(1)), Some(("30".into(), "osm_maxspeed:forward")));
+    }
+
+    #[test]
+    fn directional_maxspeed_is_none_without_value_for_direction() {
+        let edge = line(&[(0.0, 0.0), (100.0, 0.0)]);
+        let only_forward = way(&[(0.0, 2.0), (100.0, 2.0)], Some("30"), None);
+        assert!(directional_maxspeed(&only_forward, &edge, &segment(1)).is_none());
+        assert!(directional_maxspeed(&way(&[(0.0, 2.0), (100.0, 2.0)], None, None), &edge, &segment(0)).is_none());
+    }
 }

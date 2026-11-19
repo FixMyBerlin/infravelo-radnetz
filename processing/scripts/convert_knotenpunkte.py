@@ -14,7 +14,7 @@ zusammengeführt und in das GeoJSON-Format mit Standard-Projektion
 
 INPUT:
 - data-raw-tilda/knotenpunkte_mit_id_und_bezirken.gpkg
-- netzanpassungen/output/virtuelle_knoten.gpkg (apply_app_result.py, über helpers/virtuelle_knoten.py)
+- virtuelle Knotenpunkte über read_active() aus data/virtuelle_knotenpunkte.py (nur status = aktiv)
 
 OUTPUT:
 - output/knotenpunkte_mit_id_und_bezirken.geojson (in WGS84)
@@ -33,9 +33,10 @@ import os
 
 import geopandas as gpd
 import pandas as pd
+from pathlib import Path
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from helpers.virtuelle_knoten import virtual_nodes_path  # noqa: E402
+sys.path.append(str(Path(__file__).resolve().parents[2] / "data"))
+import virtuelle_knotenpunkte as vk  # noqa: E402
 
 # Konfiguration für Pfade
 INPUT_FILE = "./data-raw-tilda/knotenpunkte_mit_id_und_bezirken.gpkg"
@@ -68,11 +69,10 @@ def load_and_merge_virtual_knotenpunkte(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFra
     Returns:
         GeoDataFrame mit regulären und virtuellen Knotenpunkten zusammengeführt
     """
-    virtual_file = virtual_nodes_path()  # bricht mit klarer Meldung ab, wenn die Datei fehlt
-    logging.info(f"Lade virtuelle Knotenpunkte: {virtual_file}")
+    logging.info(f"Lade virtuelle Knotenpunkte: {vk.PATH}")
     
-    # Lade virtuelle Knotenpunkte
-    virtual_gdf = gpd.read_file(virtual_file)
+    # Lade aktive virtuelle Knotenpunkte (gelöschte bleiben im Verzeichnis, aber nicht im Ergebnis)
+    virtual_gdf = vk.read_active()[[vk.ID_COLUMN, 'ist_virtuell', 'geometry']]
     
     logging.info(f"Anzahl virtuelle Knotenpunkte geladen: {len(virtual_gdf)}")
     logging.info(f"Spalten virtuelle Knotenpunkte: {list(virtual_gdf.columns)}")

@@ -15,9 +15,21 @@
     "size": 184320,
     "sha256": "d57fa2172be0c4bd0387bc4916cd222dd330b72b0135816bddf393b871de8dd5"
   },
+  "netzquellen_2600924_RSV.gpkg": {
+    "size": 331776,
+    "sha256": "c52f7ae834ceef8dca9314bfd8314e85b8521fdf47e383b9beaaa979751e6a52"
+  },
+  "netzquellen_260414_Radfernwege_SenMVKU.gpkg": {
+    "size": 247286,
+    "sha256": "ecc7c555d1ef21898575a2f65940f6eb07469aea2c551c374efb9226cab7be23"
+  },
   "detailnetz_strassenabschnitte_2026-10-06.fgb": {
     "size": 19298168,
     "sha256": "462ac54a6e1f72cebf80801e9042c81cd1a2a1b8cd6a25a23e62310238c2fce8"
+  },
+  "detailnetz_strassenabschnitte_2025-11-17.fgb": {
+    "size": 17682024,
+    "sha256": "d7da97d212a7240d766693e2eea0f0895f311d72d259127c23dc51515fb6146f"
   },
   "detailnetz_verbindungspunkte.fgb": {
     "size": 6070416,

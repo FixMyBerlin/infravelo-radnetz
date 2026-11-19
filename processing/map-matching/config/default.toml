@@ -124,6 +124,9 @@ transfer_attributes = [
   "fuehr", "pflicht", "breite", "ofm", "farbe", "protek", "trennstreifen", "nutz_beschr", "Kommentar", "verkehrsri",
   "tilda_id", "tilda_name", "tilda_oneway", "tilda_category", "tilda_traffic_sign",
   "tilda_mapillary", "tilda_mapillary_traffic_sign", "tilda_mapillary_backward", "tilda_mapillary_forward", "tilda_width_source",
+  # Oberfläche, Fahrqualität und Höchstgeschwindigkeit der Fahrbahn. `tilda_maxspeed*` ersetzt das Matching je Fahrtrichtung durch
+  # OSM `maxspeed:forward|backward`, falls der Weg es hat (`tilda_maxspeed_forward|backward`, siehe pipeline.rs).
+  "tilda_surface", "tilda_smoothness", "tilda_smoothness_source", "tilda_maxspeed", "tilda_maxspeed_source", "tilda_maxspeed_conditional",
 ]
 
 # -----------------------------------------------------------------------------

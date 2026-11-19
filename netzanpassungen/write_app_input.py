@@ -65,6 +65,7 @@ from shapely.geometry import MultiLineString, Point
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(ROOT / "ren-network"))
+sys.path.append(str(ROOT / "data"))
 
 import merge_networks as ren  # noqa: E402
 
@@ -186,7 +187,7 @@ def load_virtual_nodes():
 
 
 def node_id_text(value):
-    """von_knoten / bis_knoten sind Integer64 im REN+; in der App sind Knoten-IDs Text."""
+    """Knoten-IDs sind Text (ältere REN+-Dateien haben von_knoten / bis_knoten als Integer64)."""
     if pd.isna(value):
         return None
     return str(int(value)) if isinstance(value, float) else str(value)

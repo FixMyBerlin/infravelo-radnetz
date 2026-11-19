@@ -47,9 +47,10 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(ROOT / "ren-network"))
+sys.path.append(str(ROOT / "data"))
 
 import merge_networks as ren  # noqa: E402
-from helpers.virtuelle_knoten import virtual_nodes_path  # noqa: E402
+import virtuelle_knotenpunkte as vk  # noqa: E402
 from assign_node_ids import assign_node_ids_to_points  # noqa: E402
 
 CRS = f"EPSG:{ren.DEFAULT_CRS}"
@@ -258,12 +259,11 @@ def ren_nodes(network, detail):
 
 
 def virtual_nodes(network):
-    """Virtuelle Knoten aus der App Netzanpassungen; anliegende Kanten über den Abstand."""
-    virtual = gpd.read_file(virtual_nodes_path()).to_crs(CRS)
-    # Die Datei aus der App schreibt die ID mit normalem Bindestrich
-    virtual = virtual.rename(columns={"Knotenpunkt-ID": NODE_ID})
-    virtual[NODE_ID] = virtual[NODE_ID].map(id_text)
-    virtual = virtual[virtual[NODE_ID].notna()].reset_index(drop=True)
+    """Aktive virtuelle Knoten aus dem Verzeichnis; anliegende Kanten über den Abstand.
+    Die ID ist 4-stellig mit führenden Nullen und bleibt Text (data/VIRTUELLE-KNOTENPUNKTE.md)."""
+    virtual = vk.read_active().to_crs(CRS)[[vk.ID_COLUMN, "geometry"]]
+    # Das Verzeichnis schreibt die ID mit normalem Bindestrich
+    virtual = virtual.rename(columns={vk.ID_COLUMN: NODE_ID}).reset_index(drop=True)
 
     buffers = gpd.GeoDataFrame({NODE_ID: virtual[NODE_ID]}, geometry=virtual.buffer(VIRTUAL_EDGE_TOLERANCE_M), crs=CRS)
     hits = gpd.sjoin(buffers, network[["radverkehrsnetz", "hauptverkehrsstrasse", "netz_quellen", "geometry"]],
