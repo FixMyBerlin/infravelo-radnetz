@@ -142,6 +142,29 @@ class NamedNodeTest(unittest.TestCase):
         self.assertEqual(len(moved), 2)
         self.assertEqual(moved_net.geometry.iloc[1].geoms[0].coords[0], (X0 + 200, Y0))
 
+    def test_a_junction_whose_lines_name_the_node_moves_from_farther(self):
+        """Like 57420036 (Richterstraße): three Radverkehrsnetz lines that all name node N meet 17 m from it. A single
+        end 17 m from its node stays (beyond NAMED_NODE_TOL_M)."""
+        nodes = official(**{"N": (0, 0), "A": (-300, 17), "B": (300, 17), "C": (0, 300), "D": (0, -300)})
+        net = network([("A_N.01", RVN, None, line((-300, 17), (0, 17))),
+                       ("N_B.01", RVN, None, line((0, 17), (300, 17))),
+                       ("N_C.01", RVN, None, line((0, 17), (0, 300))),
+                       ("D_N.01", HSN, None, line((0, -300), (0, -17)))])  # alone, 17 m before N
+        moved_net, moved = an.snap_ends_to_named_nodes(net, nodes, ID)
+        self.assertEqual(sorted(nr for nr, _, _ in moved), ["A_N.01", "N_B.01", "N_C.01"])
+        for index in range(3):
+            ends = moved_net.geometry.iloc[index].geoms[0].boundary.geoms
+            self.assertTrue(any(end.equals(point(0, 0)) for end in ends))
+        self.assertTrue(moved_net.geometry.iloc[3].equals(net.geometry.iloc[3]))
+
+    def test_a_junction_with_a_line_naming_another_node_stays(self):
+        nodes = official(**{"N": (0, 0), "M": (0, 600), "A": (-300, 17), "B": (300, 17)})
+        net = network([("A_N.01", RVN, None, line((-300, 17), (0, 17))),
+                       ("N_B.01", RVN, None, line((0, 17), (300, 17))),
+                       ("M_B.01", RVN, None, line((0, 17), (0, 600)))])
+        _, moved = an.snap_ends_to_named_nodes(net, nodes, ID)
+        self.assertEqual(moved, [])
+
 
 class ParallelTest(unittest.TestCase):
     def test_same_source_stays_separate_and_far_lines_too(self):
@@ -151,6 +174,15 @@ class ParallelTest(unittest.TestCase):
                        ("1_2.03", HSN, "Weg", line((0, 0), (100, 40), (200, 0)))])  # 40 m away: separate
         merged = mn.merge_parallel_edges(net)
         self.assertEqual(sorted(merged["element_nr"]), ["1_2.01", "1_2.02", "1_2.03"])
+
+    def test_the_same_line_twice_merges_even_from_one_source(self):
+        """Like 39560026_39560027: a Radschnellverbindung line lies exactly on an edge that already includes it."""
+        net = network([("1_2.01", f"{HSN};{RSV}", "Weg", line((0, 0), (200, 0))),
+                       ("1_2.02", RSV, None, line((0, 0), (100, 1), (200, 0))),   # 1 m: the same line
+                       ("1_2.03", RSV, None, line((0, 0), (100, 4), (200, 0)))])  # 4 m: a real parallel edge
+        merged = mn.merge_parallel_edges(net).set_index("element_nr")
+        self.assertEqual(sorted(merged.index), ["1_2.01", "1_2.03"])
+        self.assertEqual(merged.loc["1_2.01", "netz_quellen"], f"{HSN};{RSV}")
 
     def test_closest_pair_merges_and_keeps_the_lowest_number(self):
         nodes = official(**{"1": (0, 0), "2": (200, 0)})

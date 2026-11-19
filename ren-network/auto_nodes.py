@@ -76,6 +76,17 @@ NAMED_NODE_TOL_M = 15.0
 # 154 such pairs lie within 15 m (134 within 5 m), the next at 16.1 m (an end 16.1 m from its node). Lines of the
 # same source between the same nodes stay separate (real parallel edges).
 PARALLEL_TOL_M = 15.0
+# A junction of at least JUNCTION_MIN_LINES line ends (within SNAP_TOL_M) whose lines all name the same official node
+# moves onto it from up to this distance. Example: the Radverkehrsnetz meets 16.1 m north of 57420036 (Richterstraße),
+# where Hauptstraßennetz and Detailnetz meet on the node. A plain 20 m for every end would also move single ends in
+# tangled spots (57480005/57480022) and make them worse.
+JUNCTION_TOL_M = 20.0
+JUNCTION_MIN_LINES = 3
+# Lines between the same two nodes within this Hausdorff distance are one edge even if they share a source. Chosen
+# from the data (Berlin, 2026-11-19): after the rules above, 7 node pairs had such lines, 5 of them exactly on top of
+# each other (mostly a Radschnellverbindung line without element_nr lying on an edge that already includes it), the
+# farthest 1.6 m apart; the next pair of the same source is more than 15 m apart (a real parallel edge).
+DUPLICATE_TOL_M = 2.0
 
 ELEMENT_NR_PATTERN = re.compile(r"^(.+)_(.+)\.(\d+)$")
 PROPOSAL_PREFIX = "P"
@@ -111,7 +122,7 @@ def _parts(geometry):
     return list(geometry.geoms) if geometry.geom_type == "MultiLineString" else [geometry]
 
 
-def end_at(line, side, point, max_cut_m=NAMED_NODE_TOL_M):
+def end_at(line, side, point, max_cut_m=JUNCTION_TOL_M):
     """`line` with its start (side 0) or end (side 1) moved onto `point`: a tail beyond the point's projection
     (overshoot, at most `max_cut_m`) is cut, then the point is added as the new end vertex."""
     station = line.project(point)
@@ -150,6 +161,28 @@ def snap_ends_to_named_nodes(network, official, official_column, nodes_2025=None
         return tree_2025 is not None and len(tree_2025.query(point, predicate="dwithin", distance=NODE_2025_TOL_M)) > 0
 
     parts = {index: _parts(geometry) for index, geometry in network.geometry.items()}
+
+    # All line ends with the nodes their element_nr names, to find junctions whose lines agree on one node
+    end_points, end_names = [], []
+    for index, element_nr in network["element_nr"].items():
+        parsed = parse_element_nr(element_nr)
+        names = set(parsed[:2]) if parsed else set()
+        for part in parts[index]:
+            for side in (0, 1):
+                end_points.append(shapely.get_point(part, -side))
+                end_names.append((index, names))
+    end_tree = shapely.STRtree(end_points) if end_points else None
+
+    def allowed(point, node):
+        """JUNCTION_TOL_M where at least JUNCTION_MIN_LINES lines meet and all name `node`, else `tolerance`."""
+        if end_tree is None or tolerance < NAMED_NODE_TOL_M:
+            return tolerance
+        meeting = [end_names[int(i)] for i in end_tree.query(point, predicate="dwithin", distance=SNAP_TOL_M)]
+        rows = {row for row, _ in meeting}
+        if len(rows) >= JUNCTION_MIN_LINES and all(node in names for _, names in meeting):
+            return max(tolerance, JUNCTION_TOL_M)
+        return tolerance
+
     moves = {}  # (row, part, side) -> (node id, point)
     moved = []
     for index, element_nr in network["element_nr"].items():
@@ -159,11 +192,11 @@ def snap_ends_to_named_nodes(network, official, official_column, nodes_2025=None
             continue
         ends = [(p, side, shapely.get_point(part, -side)) for p, part in enumerate(parts[index]) for side in (0, 1)]
         taken = {n for n in named if any(point.distance(positions[n]) <= OFFICIAL_TOL_M for _, _, point in ends)}
-        options = sorted((point.distance(positions[n]), p, side, n) for p, side, point in ends
+        options = sorted((point.distance(positions[n]), p, side, n, point) for p, side, point in ends
                          for n in named if n not in taken and not on_official(point))
         used_ends = set()
-        for distance, p, side, n in options:
-            if distance > tolerance or n in taken or (p, side) in used_ends:
+        for distance, p, side, n, point in options:
+            if n in taken or (p, side) in used_ends or distance > tolerance and distance > allowed(point, n):
                 continue
             moves[(index, p, side)] = (n, positions[n])
             moved.append((element_nr, n, distance))
@@ -185,7 +218,7 @@ def snap_ends_to_named_nodes(network, official, official_column, nodes_2025=None
                     if len(near) and not on_official(point):
                         node, node_point = targets[int(near[0])]
                         other = shapely.get_point(part, -(1 - side))
-                        if (point.distance(node_point) <= tolerance + SNAP_TOL_M
+                        if (point.distance(node_point) <= max(tolerance, JUNCTION_TOL_M) + SNAP_TOL_M
                                 and other.distance(node_point) > OFFICIAL_TOL_M
                                 and moves.get((index, p, 1 - side), (None,))[0] != node):
                             moves[(index, p, side)] = (node, node_point)
@@ -207,7 +240,8 @@ def snap_ends_to_named_nodes(network, official, official_column, nodes_2025=None
 def parallel_clusters(geometries, pairs, sources, tolerance=PARALLEL_TOL_M):
     """Groups of lines that are one stretch of street: same unordered node pair (`pairs[i]`), no source in common
     (`sources[i]` a set) and Hausdorff distance at most `tolerance`. The closest pairs join first; a group never holds
-    two lines of the same source. Returns a list of index lists with at least two members."""
+    two lines of the same source, except lines at most DUPLICATE_TOL_M apart, which are the same line twice.
+    Returns a list of index lists with at least two members."""
     by_pair = defaultdict(list)
     for index, pair in enumerate(pairs):
         if pair is not None:
@@ -218,14 +252,14 @@ def parallel_clusters(geometries, pairs, sources, tolerance=PARALLEL_TOL_M):
             continue
         candidates = sorted(
             (geometries[i].hausdorff_distance(geometries[j]), i, j)
-            for k, i in enumerate(members) for j in members[k + 1:] if not sources[i] & sources[j])
+            for k, i in enumerate(members) for j in members[k + 1:])
         group = {i: {i} for i in members}
         group_sources = {i: set(sources[i]) for i in members}
         for distance, i, j in candidates:
             if distance > tolerance:
                 break
             a, b = min(group[i]), min(group[j])
-            if a == b or group_sources[a] & group_sources[b]:
+            if a == b or (group_sources[a] & group_sources[b] and distance > DUPLICATE_TOL_M):
                 continue
             root, other = min(a, b), max(a, b)
             merged = group[root] | group[other]

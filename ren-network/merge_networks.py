@@ -455,7 +455,8 @@ def merge_parallel_edges(network, detail_element_nrs=frozenset()):
     auto_nodes.PARALLEL_TOL_M (Hausdorff) auseinander liegen, werden eine Kante. Das Zusammenführen pro element_nr
     erfasst sie nicht, wenn die Quellen für dieselbe Strecke verschiedene element_nr tragen (z. B. Radverkehrsnetz
     27570001_28560007.01, Hauptstraßennetz und Detailnetz 27570001_28560007.02). Die Kante behält die Nummer, die
-    im Detailnetz steht, sonst die niedrigste (.01). Linien derselben Quelle zwischen denselben Knoten bleiben getrennt."""
+    im Detailnetz steht, sonst die niedrigste (.01). Linien derselben Quelle zwischen denselben Knoten bleiben getrennt,
+    außer sie liegen höchstens auto_nodes.DUPLICATE_TOL_M auseinander (dieselbe Linie doppelt)."""
     network = network.reset_index(drop=True)
     parsed = [auto_nodes.parse_element_nr(nr) for nr in network["element_nr"]]
     pairs = [auto_nodes.pair_key(p[0], p[1]) if p else None for p in parsed]
@@ -471,7 +472,7 @@ def merge_parallel_edges(network, detail_element_nrs=frozenset()):
         dropped |= set(cluster) - {owner}
         logging.debug(f"Parallel: {[network.at[i, 'element_nr'] for i in cluster]} -> {network.at[owner, 'element_nr']}")
     merged = gpd.GeoDataFrame([r for i, r in enumerate(records) if i not in dropped], geometry="geometry", crs=network.crs)
-    logging.info(f"Parallele Linien verschiedener Quellen zwischen denselben Knoten: {len(clusters)} Strecken, "
+    logging.info(f"Parallele und doppelte Linien zwischen denselben Knoten: {len(clusters)} Strecken, "
                  f"{len(dropped)} element_nr entfallen (Toleranz {auto_nodes.PARALLEL_TOL_M:g} m Hausdorff)")
     return merged
 
