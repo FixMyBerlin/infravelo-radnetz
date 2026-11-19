@@ -79,12 +79,15 @@ $$;
 CREATE OR REPLACE FUNCTION bikegraph.tr_fehlt(v text) RETURNS boolean LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
     SELECT v IS NULL OR bikegraph.tr_strip(v) IN ('', 'nan', 'None', 'none') OR strpos(lower(v), '[todo]') > 0 OR strpos(lower(v), 'fehlt') > 0
 $$;
--- Ausgabewert wie plain() in load_input.py: ganzzahlige Zahlen ohne Nachkommastelle, Wahrheitswerte als Text
+-- Ausgabewert wie plain() in load_input.py: ganzzahlige Zahlen ohne Nachkommastelle, Wahrheitswerte als Text.
+-- Übrige Zahlen ohne nachgestellte Nullen (tr_runde1 liefert 1.5000000000000000, Python 1.5); die Zahl wird
+-- als Text weitergereicht und landet so in Datensatz B und C.
 CREATE OR REPLACE FUNCTION bikegraph.tr_ausgabe(v jsonb) RETURNS jsonb LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
     SELECT CASE jsonb_typeof(v)
                WHEN 'boolean' THEN to_jsonb(CASE WHEN v::boolean THEN 'True' ELSE 'False' END)
                WHEN 'number' THEN CASE WHEN (v #>> '{}')::numeric = trunc((v #>> '{}')::numeric)
-                                       THEN to_jsonb(trunc((v #>> '{}')::numeric)) ELSE v END
+                                       THEN to_jsonb(trunc((v #>> '{}')::numeric))
+                                       ELSE to_jsonb(trim_scale((v #>> '{}')::numeric)) END
                ELSE v END
 $$;
 
