@@ -27,7 +27,10 @@ Quelle bleiben getrennt.
 Then (auto_nodes.py, English): edges are split at the 53 virtual nodes of 2025
 (active ones, read from the KV database of the Netzanpassungen app) and at node proposals found by snapping edge ends to other
 edges (ids P<x>-<y>, no numbers: numbers are given only in the Netzanpassungen app), and every edge gets a
-unique element_nr from its two end nodes. The step fails if one is missing or duplicated.
+unique element_nr from its two end nodes. The step fails if one is missing or duplicated. Where only the ends of two
+lines meet (no differing attribute values), there is no proposal: the two lines become one edge, unless entries of the
+app name that proposal (read once from the KV database; offline: no such check, with a warning). Where three or more
+arms meet, lines passing through are split and every edge ends exactly on the proposal point.
 
 Jede Kante wird über die Geometrie mit der Lieferung 2025 verglichen
 (Ergebnisdatensatz C des Radvorrangnetzes): bearbeitet_2025 = ja, teilweise
@@ -541,22 +544,36 @@ def add_nodes(network):
     return network
 
 
-def load_nodes_2025():
+def fetch_app_entries():
+    """All entries of the Netzanpassungen app for area berlin (KV database, netzanpassungen/kv_entries.py), fetched
+    once for the nodes of 2025 and the proposals the app uses. None when the database cannot be reached."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "netzanpassungen"))
+    import kv_entries
+    try:
+        return kv_entries.fetch_entries(vk.AREA_2025)["entries"]
+    except (Exception, SystemExit) as error:
+        logging.warning(f"KV database of the Netzanpassungen app not reachable ({error}): lines are joined at "
+                        "proposals without checking whether app entries use them")
+        return None
+
+
+def load_nodes_2025(entries=None):
     """The virtual nodes of 2025 (0001-0053, column Knotenpunkt-ID) that are still active, from the entries of the
     Netzanpassungen app (KV database; data/virtuelle_knotenpunkte.py read_registry)."""
-    nodes = vk.read_registry()
+    nodes = vk.read_registry(entries=entries)
     nodes = nodes[nodes["status"] == vk.STATUS_ACTIVE].reset_index(drop=True)
     logging.info(f"Virtual nodes of 2025 (app): {len(nodes)} active")
     return nodes
 
 
-def number_edges(network, detail, nodes, nodes_2025):
+def number_edges(network, detail, nodes, nodes_2025, app_refs=frozenset()):
     """Sets virtual nodes by snapping, splits edges at them and gives every edge a unique element_nr from its end
     nodes (ren-network/auto_nodes.py). Returns (network with one LineString edge per row, node proposals)."""
     lines = network.explode(index_parts=False).reset_index(drop=True)
     lines = lines[lines.geometry.geom_type == "LineString"].reset_index(drop=True)
     result, proposals, report = auto_nodes.snap_and_number(
-        lines, nodes, nodes_2025, detail["element_nr"].dropna(), NODE_ID_COLUMN, combine=combine_parallel)
+        lines, nodes, nodes_2025, detail["element_nr"].dropna(), NODE_ID_COLUMN, combine=combine_parallel,
+        app_refs=app_refs)
     auto_nodes.log_report(report)
     detail_element_nrs = set(detail["element_nr"].dropna())
     result["in_detailnetz"] = result["element_nr"].isin(detail_element_nrs).map({True: "ja", False: "nein"})
@@ -707,11 +724,14 @@ def main():
     nodes = load_nodes(detail)
     sources = assign_missing_element_nr(sources, detail, nodes)
     network = merge_by_element_nr(sources)
-    nodes_2025 = load_nodes_2025()
+    entries = fetch_app_entries()
+    nodes_2025 = load_nodes_2025(entries)
+    app_refs = auto_nodes.app_references(entries)
+    logging.info(f"Proposal ids and element_nr named by entries of the app: {len(app_refs)}")
     network = snap_ends_to_named_nodes(network, nodes, nodes_2025)
     network = merge_parallel_edges(network, frozenset(detail["element_nr"].dropna()))
     network = add_detailnetz_attributes(network, detail)
-    network, proposals = number_edges(network, detail, nodes, nodes_2025)
+    network, proposals = number_edges(network, detail, nodes, nodes_2025, app_refs)
     network = add_district(network)
     network = add_bearbeitet_2025(network)
     network = finalize(network)

@@ -24,9 +24,13 @@ two end nodes. For that, every edge end must sit on a node:
   * Exactly two arms, the ends of two different lines (a point in the middle of a line): no proposal; the two lines
     are joined into one (join_two_arm_proposals, repeated for chains). The joined line keeps the row, element_nr and
     direction of the longer member with an element_nr (else of the longer member); the other member's number is
-    dropped (and never issued again). Lines that differ in a column the network carries per edge (all but
-    JOIN_IGNORED_COLUMNS, e.g. strassenname, radverkehrsnetz, strassenklasse, netz_quellen) are not joined; the
-    proposal stays and separates them (logged). The two ends of one line (a loop) keep their proposal.
+    dropped (and never issued again). Lines with two different non-missing values in a column the network carries per
+    edge (all but JOIN_IGNORED_COLUMNS, e.g. strassenname, radverkehrsnetz, strassenklasse, netz_quellen) are not
+    joined; a missing value fits any (the joined line takes the other). Nor are lines joined at a proposal that
+    non-deleted entries of the Netzanpassungen app name, nor lines whose element_nr they name (app_references;
+    merge_networks.py passes them in). Edge ends at a proposal the app names are not moved onto its point.
+    In both cases the proposal stays and separates them (logged). The two ends of one line (a loop) keep their
+    proposal.
   * Three or more arms: the proposal stays (the app numbers it). Every line passing through it is split there (also at
     a junction, not only on_edge), and every edge ending there ends exactly on its point.
   * One arm (dead end): unchanged.
@@ -55,6 +59,7 @@ line without element_nr between them); the surviving edge keeps a kept number, e
 Nodes set in the app are not part of this step; step 3 adds them (netzanpassungen/apply_app_result.py).
 """
 
+import json
 import logging
 import re
 from collections import defaultdict
@@ -425,8 +430,9 @@ def name_proposals(proposal_keys, nodes):
         taken.add(name)
 
 
-def build_nodes_and_pieces(lines, official, nodes_2025, official_column):
-    """Nodes and split pieces. Returns (nodes, pieces, proposal keys, report)."""
+def build_nodes_and_pieces(lines, official, nodes_2025, official_column, app_refs=frozenset()):
+    """Nodes and split pieces. Returns (nodes, pieces, proposal keys, report). Ends at a proposal in `app_refs` are
+    not moved onto its point (the app may hold their geometry)."""
     geoms = lines.geometry.to_numpy()
     count = len(geoms)
     starts = shapely.get_point(geoms, 0)
@@ -520,7 +526,9 @@ def build_nodes_and_pieces(lines, official, nodes_2025, official_column):
                     nodes[key]["hosts"] = [(line, station)]
                     nodes[key]["station"] = station
 
-    # Split the edges. Every piece that ends at a proposal ends exactly on its point.
+    name_proposals(auto_keys, nodes)
+
+    # Split the edges. Every piece that ends at a proposal ends exactly on its point (unless the app uses it).
     pieces = []
     for key in auto_keys:
         nodes[key]["ends"], nodes[key]["passing"] = [], []
@@ -542,12 +550,11 @@ def build_nodes_and_pieces(lines, official, nodes_2025, official_column):
         for (low, start_key), (high, end_key) in zip(chain[:-1], chain[1:]):
             part = geometry if len(chain) == 2 else substring(geometry, low, high)
             for side, key in ((0, start_key), (1, end_key)):
-                if nodes[key]["kind"] == "proposal" and not shapely.get_point(part, -side).equals(nodes[key]["point"]):
+                if (nodes[key]["kind"] == "proposal" and nodes[key]["name"] not in app_refs
+                        and not shapely.get_point(part, -side).equals(nodes[key]["point"])):
                     part = end_at(part, side, nodes[key]["point"], max_cut_m=SNAP_TOL_M)
             pieces.append({"parent": line, "a": start_key, "b": end_key, "geometry": part,
                            "length": part.length, "split": len(chain) > 2})
-
-    name_proposals(auto_keys, nodes)
 
     report = {
         "lines": count, "pieces": len(pieces), "split_lines": sum(1 for line in stops if stops[line]),
@@ -560,32 +567,57 @@ def build_nodes_and_pieces(lines, official, nodes_2025, official_column):
     return nodes, pieces, auto_keys, report
 
 
-def _same_value(a, b):
-    if a is None or (not isinstance(a, str) and pd.isna(a)):
-        return b is None or (not isinstance(b, str) and pd.isna(b))
-    return a == b
+def _missing(value):
+    return value is None or (isinstance(value, str) and value == "") or (not isinstance(value, str) and pd.isna(value))
 
 
-def find_joins(lines, nodes, proposal_keys):
+def _compatible(a, b):
+    """Two values of a column fit when they are equal or one is missing (the joined line takes the other)."""
+    return _missing(a) or _missing(b) or a == b
+
+
+# A proposal id inside the data of an app entry (also as `k:P...` or inside an element_nr)
+PROPOSAL_ID_IN_TEXT = re.compile(rf"(?<![A-Za-z0-9]){PROPOSAL_PREFIX}\d+-\d+(?:-\d+)?(?![0-9])")
+# An element_nr inside the data of an app entry (kante.ref, `detailnetz:<element_nr>@...`, ...)
+ELEMENT_NR_IN_TEXT = re.compile(r"(?<![A-Za-z0-9.-])[A-Za-z0-9-]+_[A-Za-z0-9-]+\.\d+(?![0-9])")
+
+
+def app_references(entries):
+    """Proposal ids and element_nr that non-deleted entries of the Netzanpassungen app depend on: every `P<x>-<y>`
+    and every `<von>_<bis>.<nn>` in the JSON of an entry's data (vorschlag_id of a virtual_node, kante.ref,
+    traeger.ref, the kanten keys of a section_assignment, von/bis of a new_edge, ...)."""
+    found = set()
+    for entry in entries or []:
+        data = entry.get("data") or {}
+        if not data.get("geloescht"):
+            text = json.dumps(data, ensure_ascii=False)
+            found |= set(PROPOSAL_ID_IN_TEXT.findall(text)) | set(ELEMENT_NR_IN_TEXT.findall(text))
+    return found
+
+
+def find_joins(lines, nodes, proposal_keys, app_refs=frozenset()):
     """Proposals where exactly two line ends of two different lines meet and nothing passes through. Returns
-    (joins [(proposal key, (line, side), (line, side))], refused [(proposal name, differing columns)]): two lines that
-    differ in a column the network carries per edge (all but JOIN_IGNORED_COLUMNS) are not joined; the proposal
-    stays and separates them. Each line takes part in at most one join per call."""
+    (joins [(proposal key, (line, side), (line, side))], refused [(proposal name, differing columns)], skipped
+    [proposal names]): two lines with two different non-missing values in a column the network carries per edge (all
+    but JOIN_IGNORED_COLUMNS) are not joined, nor at a proposal in `app_refs` (entries of the app depend on
+    it); the proposal stays and separates them. Each line takes part in at most one join per call."""
     columns = [c for c in lines.columns if c not in JOIN_IGNORED_COLUMNS]
-    joins, refused, used = [], [], set()
+    joins, refused, skipped, used = [], [], [], set()
     for key in proposal_keys:
         node = nodes[key]
         ends = node.get("ends", [])
         if len(ends) != 2 or node.get("passing") or ends[0][0] == ends[1][0]:
             continue  # a dead end, three or more arms, or the two ends of one line (a loop)
         (i, _), (j, _) = ends
-        differing = [c for c in columns if not _same_value(lines.at[i, c], lines.at[j, c])]
+        differing = [c for c in columns if not _compatible(lines.at[i, c], lines.at[j, c])]
         if differing:
             refused.append((node["name"], differing))
+        elif node["name"] in app_refs or {lines.at[i, "element_nr"], lines.at[j, "element_nr"]} & app_refs:
+            skipped.append(node["name"])
         elif i not in used and j not in used:
             joins.append((key, ends[0], ends[1]))
             used |= {i, j}
-    return joins, refused
+    return joins, refused, skipped
 
 
 def join_lines(lines, joins, nodes):
@@ -611,6 +643,9 @@ def join_lines(lines, joins, nodes):
         coords = (list(own.coords) + list(rest.coords)[1:] if owner_side == 1
                   else list(rest.coords) + list(own.coords)[1:])
         row = dict(records[owner])
+        for column in row:
+            if column not in JOIN_IGNORED_COLUMNS and _missing(row[column]):
+                row[column] = records[other][column]
         row["geometry"] = shapely.LineString(coords)
         joined_rows.append(row)
         removed |= {owner, other}
@@ -622,20 +657,21 @@ def join_lines(lines, joins, nodes):
     return result, dropped_numbers
 
 
-def join_two_arm_proposals(lines, official, nodes_2025, official_column):
+def join_two_arm_proposals(lines, official, nodes_2025, official_column, app_refs=frozenset()):
     """Joins the lines at every proposal where exactly two line ends of two different lines meet with nothing passing
     through (find_joins), repeated until none is left (chains of such points). Returns (lines, element_nr dropped by
-    joins, number of joins, refused [(proposal name, differing columns)] of the last round)."""
-    dropped, count, refused = [], 0, []
+    joins, number of joins, refused [(proposal name, differing columns)], skipped [proposal names used by the app]),
+    refused and skipped as of the last round."""
+    dropped, count, refused, skipped = [], 0, [], []
     for _ in range(MAX_JOIN_ROUNDS):
-        nodes, _, proposal_keys, _ = build_nodes_and_pieces(lines, official, nodes_2025, official_column)
-        joins, refused = find_joins(lines, nodes, proposal_keys)
+        nodes, _, proposal_keys, _ = build_nodes_and_pieces(lines, official, nodes_2025, official_column, app_refs)
+        joins, refused, skipped = find_joins(lines, nodes, proposal_keys, app_refs)
         if not joins:
             break
         lines, numbers = join_lines(lines, joins, nodes)
         dropped += numbers
         count += len(joins)
-    return lines, dropped, count, refused
+    return lines, dropped, count, refused, skipped
 
 
 def number_pieces(lines, pieces, nodes, detail_element_nrs):
@@ -716,17 +752,19 @@ def proposal_frame(nodes, proposal_keys, pieces, element_nrs, lines, crs):
 
 
 def snap_and_number(network, official, nodes_2025, detail_element_nrs, official_column, combine=None,
-                    parallel_tolerance=PARALLEL_TOL_M):
+                    parallel_tolerance=PARALLEL_TOL_M, app_refs=frozenset()):
     """The whole sub-step: `network` (one LineString per row, `element_nr` possibly empty) ->
     (network with unique element_nr, von_knoten, bis_knoten, ursprung_element_nr; node proposals; report).
 
     With `combine`, edges of different sources (`netz_quellen`, `;`-separated) between the same two end nodes within
     `parallel_tolerance` (Hausdorff) become one edge (see merge_parallel_pieces); `combine(rows, owner)` merges their
-    rows."""
+    rows. Lines are not joined at a proposal in `app_refs`, nor when one's element_nr is in it (entries of the app
+    depend on them, see app_references)."""
     lines = network.reset_index(drop=True)
-    lines, dropped_numbers, joined, refused = join_two_arm_proposals(lines, official, nodes_2025, official_column)
-    nodes, pieces, proposal_keys, report = build_nodes_and_pieces(lines, official, nodes_2025, official_column)
-    report["joined"], report["join_refused"] = joined, refused
+    lines, dropped_numbers, joined, refused, skipped = join_two_arm_proposals(lines, official, nodes_2025,
+                                                                              official_column, app_refs)
+    nodes, pieces, proposal_keys, report = build_nodes_and_pieces(lines, official, nodes_2025, official_column, app_refs)
+    report["joined"], report["join_refused"], report["join_skipped_app"] = joined, refused, skipped
     element_nrs, kept = number_pieces(lines, pieces, nodes, list(detail_element_nrs) + dropped_numbers)
 
     rows = []
@@ -798,3 +836,6 @@ def log_report(report):
     logging.info(f"Lines joined at a point where only they meet (no proposal there): {report.get('joined', 0)}; "
                  f"not joined because they differ in attributes (proposal kept): {len(refused)}"
                  + (f", e.g. {refused[:5]}" if refused else ""))
+    skipped = report.get("join_skipped_app", [])
+    logging.info(f"Not joined because entries of the Netzanpassungen app use the proposal or one of the lines (proposal kept): "
+                 f"{len(skipped)} {sorted(skipped)}")

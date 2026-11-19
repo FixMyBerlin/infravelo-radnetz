@@ -227,6 +227,38 @@ class TwoArmJoinTest(unittest.TestCase):
             ends = [Point(geometry.geoms[0].coords[0]), Point(geometry.geoms[0].coords[-1])]
             self.assertTrue(any(end.equals(proposals.iloc[0].geometry) for end in ends))
 
+    def test_a_missing_value_fits_any_and_the_joined_line_takes_the_other(self):
+        result, proposals, report = run([
+            ("1_2.01", None, line((0, 0), (150, 1))),
+            (None, "B-Straße", line((150, -1), (300, 0))),
+        ], self.OFFICIAL)
+        self.assertEqual((report["joined"], len(proposals)), (1, 0))
+        self.assertEqual(list(result["strassenname"]), ["B-Straße"])
+
+    def test_no_join_at_a_proposal_the_app_uses(self):
+        rows = [("1_2.01", "A", line((0, 0), (150, 0))), (None, "A", line((150, 0), (300, 0)))]
+        entries = [
+            {"data": {"kind": "edge_correction", "kante": {"ref": "1_P392150-5815000.01"}}},
+            {"data": {"kind": "new_edge", "von": "k:P392999-5815999", "geloescht": True}},  # deleted: does not count
+        ]
+        used = an.app_references(entries)
+        self.assertEqual(used, {"P392150-5815000", "1_P392150-5815000.01"})
+        official = gpd.GeoDataFrame({ID: list(self.OFFICIAL)}, geometry=list(self.OFFICIAL.values()), crs=CRS)
+        result, proposals, report = an.snap_and_number(
+            frame(rows), official, gpd.GeoDataFrame({ID: []}, geometry=[], crs=CRS), [], ID, app_refs=used)
+        self.assertEqual(report["joined"], 0)
+        self.assertEqual(report["join_skipped_app"], ["P392150-5815000"])
+        self.assertEqual(list(proposals["id"]), ["P392150-5815000"])
+
+    def test_no_join_of_a_line_the_app_corrected(self):
+        rows = [("1_2.01", "A", line((0, 0), (150, 0.5))), (None, "A", line((150, -0.5), (300, 0)))]
+        used = an.app_references([{"data": {"kind": "edge_correction", "kante": {"ref": "1_2.01"}}}])
+        official = gpd.GeoDataFrame({ID: list(self.OFFICIAL)}, geometry=list(self.OFFICIAL.values()), crs=CRS)
+        result, proposals, report = an.snap_and_number(
+            frame(rows), official, gpd.GeoDataFrame({ID: []}, geometry=[], crs=CRS), [], ID, app_refs=used)
+        self.assertEqual((report["joined"], len(proposals)), (0, 1))
+        self.assertEqual(report["join_skipped_app"], [proposals.iloc[0]["id"]])
+
     def test_a_loop_keeps_its_proposal(self):
         # a line from node 1 and a loop whose two ends meet at (100,0)
         result, proposals, report = run([
