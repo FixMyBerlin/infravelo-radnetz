@@ -115,37 +115,46 @@ def translate_element_nr(element_nr, mapping=None):
     return f"{mapping.get(von, von)}_{mapping.get(bis, bis)}{suffix}"
 
 
-def check(gdf):
-    """Regelverstöße als Liste von Sätzen; leer, wenn alles stimmt."""
-    errors = []
+def regelverstoesse(gdf):
+    """Verletzte Regeln als Liste von (Regel, betroffene Einträge); leer, wenn alles stimmt.
+
+    Grundlage von check() und der Validierung (processing/validation/checks/virtuelle_knotenpunkte.py).
+    """
+    found = []
     numbered = gdf[gdf[ID_COLUMN].notna()]
     bad = numbered[~numbered[ID_COLUMN].str.match(ID_PATTERN)]
     if len(bad):
-        errors.append(f"Nummer nicht 4-stellig: {sorted(bad[ID_COLUMN])}")
+        found.append(("Nummer nicht 4-stellig", sorted(bad[ID_COLUMN])))
     duplicated = numbered[ID_COLUMN][numbered[ID_COLUMN].duplicated()]
     if len(duplicated):
-        errors.append(f"Nummer mehrfach vergeben (auch gelöschte zählen): {sorted(set(duplicated))}")
+        found.append(("Nummer mehrfach vergeben (auch gelöschte zählen)", sorted(set(duplicated))))
     unnumbered = gdf[gdf[ID_COLUMN].isna()]
     if len(unnumbered):
-        errors.append(f"{len(unnumbered)} Punkt(e) ohne Nummer, erst `nummerieren` ausführen")
+        found.append(("Punkt ohne Nummer, erst `nummerieren` ausführen",
+                      sorted(f"ohne Nummer ({q or 'ohne quelle'})" for q in unnumbered["quelle"])))
     status = gdf[~gdf["status"].isin([STATUS_ACTIVE, STATUS_DELETED]) & gdf[ID_COLUMN].notna()]
     if len(status):
-        errors.append(f"status muss '{STATUS_ACTIVE}' oder '{STATUS_DELETED}' sein: {sorted(status[ID_COLUMN])}")
+        found.append((f"status muss '{STATUS_ACTIVE}' oder '{STATUS_DELETED}' sein", sorted(status[ID_COLUMN])))
     deleted = gdf[gdf["status"] == STATUS_DELETED]
     no_date = deleted[deleted["geloescht_am"].isna() | deleted["grund"].isna()]
     if len(no_date):
-        errors.append(f"Gelöscht ohne geloescht_am oder grund: {sorted(no_date[ID_COLUMN])}")
+        found.append(("Gelöscht ohne geloescht_am oder grund", sorted(no_date[ID_COLUMN])))
     alte = gdf["alte_id"].dropna()
     if alte.duplicated().any():
-        errors.append(f"alte_id mehrfach: {sorted(set(alte[alte.duplicated()]))}")
+        found.append(("alte_id mehrfach", sorted(set(alte[alte.duplicated()]))))
     app = gdf["quelle"].dropna()
     app = app[app.str.startswith(APP_SOURCE_PREFIX)]
     if app.duplicated().any():
-        errors.append(f"App-Eintrag mehrfach übernommen: {sorted(set(app[app.duplicated()]))}")
+        found.append(("App-Eintrag mehrfach übernommen", sorted(set(app[app.duplicated()]))))
     empty = gdf[gdf.geometry.isna() | gdf.geometry.is_empty]
     if len(empty):
-        errors.append(f"Punkt(e) ohne Geometrie: {sorted(empty[ID_COLUMN].fillna('ohne Nummer'))}")
-    return errors
+        found.append(("Punkt ohne Geometrie", sorted(empty[ID_COLUMN].fillna("ohne Nummer"))))
+    return found
+
+
+def check(gdf):
+    """Regelverstöße als Liste von Sätzen; leer, wenn alles stimmt."""
+    return [f"{regel}: {eintraege}" for regel, eintraege in regelverstoesse(gdf)]
 
 
 def next_number(gdf):

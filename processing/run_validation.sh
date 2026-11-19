@@ -2,211 +2,29 @@
 # -*- coding: utf-8 -*-
 # run_validation.sh
 # ----------------------------------------------------------------
-# Führt alle Validierungsskripte im validation/ Ordner aus und
-# gibt eine Zusammenfassung der Ergebnisse aus.
-#
-# Eingabedateien:
-# - data/Virtuelle-Knotenpunkte.gpkg (validate_virtuelle_knotenpunkte.py)
-# - output/knotenpunkte_mit_id_und_bezirken.geojson (validate_knotenpunkte.py)
-# - output/snapping_converted_bikelanes*.fgb (validate_datensatz_b.py)
-# - output/aggregated_rvn_final*.gpkg (validate_datensatz_c.py)
+# Validierung der Abgabedatensätze (validation/, siehe validation/README.md).
+# Unabhängig von der Prozessierung ausführbar: liest nur die fertigen Dateien.
+# Jeder Lauf wird unter validation/runs/ gespeichert und lässt sich mit jedem
+# anderen Lauf vergleichen.
 #
 # Verwendung:
-#   ./run_validation.sh [--netz rvn|ren] [--clip <region>]
-#
-# Argumente:
-#   --netz rvn|ren      Zielnetz: ren = REN+ (Standard, Dateien mit _ren), rvn = Radvorrangnetz 2025
-#   --clip <region>     Regionaler Zuschnitt: neukoelln, norden oder sueden
-#                       (beide werden an validate_datensatz_b.py und validate_datensatz_c.py weitergegeben)
+#   ./run_validation.sh [--netz ren|rvn] [--clip neukoelln|norden|sueden] [--output-dir DIR] [--nur B- K-]
+#   ./run_validation.sh list                 # gespeicherte Läufe
+#   ./run_validation.sh diff                 # zwei Läufe vergleichen (fragt interaktiv)
+#   ./run_validation.sh diff 3 7 [--check B-NULL]
+#   ./run_validation.sh history              # Anzahl Verstöße je Prüfung über die letzten Läufe
+#   ./run_validation.sh show [LAUF]
 #
 # Exit-Codes:
-#   0 - Alle Validierungen bestanden
-#   1 - Mindestens eine Validierung fehlgeschlagen
+#   0 - alle Prüfungen mit Schwere „fehler“ bestanden (Warnungen erlaubt)
+#   1 - mindestens eine Prüfung fehlgeschlagen oder nicht gelaufen
 
-set -e  # Script bei Fehlern beenden
-
-# Alle Pfade sind relativ zu processing/
 cd "$(dirname "$0")"
-# Virtuelles Environment liegt im Projekt-Root
 VENV="$(cd .. && pwd)/.venv"
-
-# Farben für die Ausgabe
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
-
-# Argumentverarbeitung
-NETZ="ren"
-CLIP_REGION=""
-CLIP_ARG=""
-
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        --netz)
-            NETZ="$2"
-            shift 2
-            ;;
-        --clip)
-            CLIP_REGION="$2"
-            CLIP_ARG="--clip $2"
-            shift 2
-            ;;
-        *)
-            echo -e "${RED}Unbekanntes Argument: $1${NC}"
-            echo "Verwendung: ./run_validation.sh [--netz rvn|ren] [--clip <region>]"
-            exit 1
-            ;;
-    esac
-done
-
-if [[ ! "$NETZ" =~ ^(rvn|ren)$ ]]; then
-    echo -e "${RED}Ungültiges Netz: $NETZ${NC}"
-    echo "Erlaubte Netze: rvn, ren"
-    exit 1
-fi
-
-# Validiere clip-Region falls angegeben
-if [[ -n "$CLIP_REGION" ]]; then
-    if [[ "$CLIP_REGION" != "neukoelln" && "$CLIP_REGION" != "norden" && "$CLIP_REGION" != "sueden" ]]; then
-        echo -e "${RED}Ungültige Region: $CLIP_REGION${NC}"
-        echo "Erlaubte Regionen: neukoelln, norden, sueden"
-        exit 1
-    fi
-fi
-
-# Arrays für Ergebnisse
-declare -a PASSED_VALIDATIONS=()
-declare -a FAILED_VALIDATIONS=()
-
-# Python-Executable bestimmen
-if [ -f "$VENV/bin/python" ]; then
+if [ -x "$VENV/bin/python" ]; then
     PYTHON="$VENV/bin/python"
 else
     PYTHON="python3"
 fi
 
-# Log-Verzeichnis und Datei erstellen
-LOG_DIR="validation/output"
-mkdir -p "$LOG_DIR"
-LOG_FILE="$LOG_DIR/validation_$(date +%Y%m%d_%H%M%S).log"
-
-# Funktion zum Loggen mit tee
-exec > >(tee -a "$LOG_FILE") 2>&1
-
-echo ""
-echo -e "${BLUE}=================================================================================${NC}"
-echo -e "${BLUE}                         VALIDIERUNG STARTEN                                     ${NC}"
-echo -e "${BLUE}=================================================================================${NC}"
-echo ""
-echo "📝 Log-Datei: $LOG_FILE"
-echo ""
-
-echo -e "${YELLOW}Netz: ${NETZ}${NC}"
-if [[ -n "$CLIP_REGION" ]]; then
-    echo -e "${YELLOW}Modus: Regionaler Zuschnitt (${CLIP_REGION})${NC}"
-else
-    echo -e "${YELLOW}Modus: Vollständiger Datensatz${NC}"
-fi
-echo ""
-
-# ============================================================================
-# Funktion zum Ausführen einer Validierung
-# ============================================================================
-run_validation() {
-    local name="$1"
-    local script="$2"
-    local args="${3:-}"
-    
-    echo -e "${BLUE}─────────────────────────────────────────────────────────────────────────────────${NC}"
-    echo -e "${BLUE}Validierung: ${name}${NC}"
-    echo -e "${BLUE}─────────────────────────────────────────────────────────────────────────────────${NC}"
-    echo ""
-    
-    # Führe das Skript aus und fange den Exit-Code ab
-    set +e  # Temporär Fehler nicht abbrechen
-    $PYTHON "$script" $args
-    local exit_code=$?
-    set -e  # Wieder aktivieren
-    
-    echo ""
-    
-    if [ $exit_code -eq 0 ]; then
-        echo -e "${GREEN}✓ ${name}: BESTANDEN${NC}"
-        PASSED_VALIDATIONS+=("$name")
-    else
-        echo -e "${RED}✗ ${name}: FEHLGESCHLAGEN${NC}"
-        FAILED_VALIDATIONS+=("$name")
-    fi
-    
-    echo ""
-}
-
-# ============================================================================
-# Validierungen ausführen
-# ============================================================================
-
-# 1. Virtuelle Knotenpunkte - Eindeutigkeit der Knotenpunkt-IDs
-run_validation "Virtuelle Knotenpunkte (Eindeutigkeit)" "validation/validate_virtuelle_knotenpunkte.py"
-
-# 2. TILDA Knotenpunkte - Eindeutigkeit der okstra_id
-run_validation "TILDA Knotenpunkte (Eindeutigkeit)" "validation/validate_knotenpunkte.py"
-
-# 3. Datensatz B - NULL-Werte und TODO-Werte
-run_validation "Datensatz B (Konvertierte Radverkehrsanlagen)" "validation/validate_datensatz_b.py" "--netz $NETZ $CLIP_ARG"
-
-# 4. Datensatz C - Aggregierte RVN-Daten
-run_validation "Datensatz C (Aggregierte RVN-Daten)" "validation/validate_datensatz_c.py" "--netz $NETZ $CLIP_ARG"
-
-# 5. Duplicate Ways - Überprüfung auf doppelte Wege in exclude/include Dateien
-run_validation "Duplicate Ways (exclude/include Überschneidungen)" "validation/analyze_check_duplicate_ways.py"
-
-# ============================================================================
-# Zusammenfassung
-# ============================================================================
-echo ""
-echo -e "${BLUE}=================================================================================${NC}"
-echo -e "${BLUE}                         ZUSAMMENFASSUNG                                         ${NC}"
-echo -e "${BLUE}=================================================================================${NC}"
-echo ""
-
-total_passed=${#PASSED_VALIDATIONS[@]}
-total_failed=${#FAILED_VALIDATIONS[@]}
-total=$((total_passed + total_failed))
-
-echo -e "Validierungen durchgeführt: ${total}"
-echo -e "${GREEN}Bestanden: ${total_passed}${NC}"
-echo -e "${RED}Fehlgeschlagen: ${total_failed}${NC}"
-echo ""
-
-# Liste der bestandenen Validierungen
-if [ ${#PASSED_VALIDATIONS[@]} -gt 0 ]; then
-    echo -e "${GREEN}Bestandene Validierungen:${NC}"
-    for validation in "${PASSED_VALIDATIONS[@]}"; do
-        echo -e "  ${GREEN}✓${NC} $validation"
-    done
-    echo ""
-fi
-
-# Liste der fehlgeschlagenen Validierungen
-if [ ${#FAILED_VALIDATIONS[@]} -gt 0 ]; then
-    echo -e "${RED}Fehlgeschlagene Validierungen:${NC}"
-    for validation in "${FAILED_VALIDATIONS[@]}"; do
-        echo -e "  ${RED}✗${NC} $validation"
-    done
-    echo ""
-fi
-
-echo -e "${BLUE}=================================================================================${NC}"
-
-# Finales Ergebnis
-if [ ${#FAILED_VALIDATIONS[@]} -eq 0 ]; then
-    echo -e "${GREEN}✓ ALLE VALIDIERUNGEN BESTANDEN!${NC}"
-    echo -e "${BLUE}=================================================================================${NC}"
-    exit 0
-else
-    echo -e "${RED}✗ VALIDIERUNG FEHLGESCHLAGEN: ${total_failed} von ${total} Prüfungen nicht bestanden${NC}"
-    echo -e "${BLUE}=================================================================================${NC}"
-    exit 1
-fi
+exec "$PYTHON" -m validation "$@"

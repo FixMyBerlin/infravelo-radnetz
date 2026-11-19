@@ -107,7 +107,7 @@ Aggregiert Segmente nach `element_nr` + `ri` (Fahrtrichtung). Regelbasiert: län
 
 ### 4. Validierung (`run_validation.sh`)
 
-Prüft virtuelle Knotenpunkte, TILDA-Knotenpunkte, Datensatz B und C sowie Überschneidungen der manuellen Wege-Listen. Logs in `validation/output/`.
+Prüft Datensatz B und C, die Knotenpunkte (Abgabestand) und das Verzeichnis der virtuellen Knotenpunkte. Läuft unabhängig von der Prozessierung, speichert jeden Lauf unter `validation/runs/` und vergleicht beliebige Läufe (`./run_validation.sh diff`). Siehe [validation/README.md](validation/README.md).
 
 ## Helper-Module (`helpers/`)
 - `globals.py`: Konstanten (CRS, Pfade)

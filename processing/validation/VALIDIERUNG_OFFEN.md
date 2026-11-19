@@ -34,27 +34,10 @@ Offen: Das GeoJSON-Format ist WGS84. Zu klären ist, ob die Koordinatenprüfung 
 
 ## 2. Test-Framework
 
-Ziel: Alle Prüfungen laufen nach der Prozessierung einheitlich und liefern eine Übersicht im Terminal.
-
-### Anforderungen
-- **Einheitliche Struktur:** Jede Prüfung hat ID, Name, Datensatz und Schweregrad (Fehler / Warnung). Sie gibt Status und eine Liste der betroffenen Objekte zurück (`element_nr`, `afid` und so weiter).
-- **Übersicht oben:** Eine Tabelle nennt alle Prüfungen mit ✓ oder ✗, gruppiert nach Datensatz, dazu die Anzahl bestanden und fehlgeschlagen.
-- **Details darunter:** Jede fehlgeschlagene Prüfung wird gleich dargestellt. Sie zeigt Regel, Anzahl Verstöße und eine begrenzte Beispielliste.
-- **Exit-Code:** Er ist ungleich 0, sobald eine Fehler-Prüfung fehlschlägt. Warnungen lassen ihn unverändert.
-- **Bestehende Prüfungen überführen:** Die Skripte in `validation/` (NULL, TODO, `UNKNOWN`, doppelte `tilda_id`, Eindeutigkeit der Knotenpunkte, Duplicate Ways) werden in dieses Format umgezogen.
-- **Weiterhin unterstützt:** `--netz`, `--clip`, außerdem Export der Verstöße als Datei (GeoPackage oder CSV) zur Kontrolle in QGIS.
-
-### Tooling (noch zu recherchieren)
-Zu bewerten, ob ein vorhandenes Werkzeug besser ist als eine eigene kleine Lösung:
-- pytest mit eigenem Reporting (Plugin oder Hook)
-- pandera (DataFrame-Schemas, auch für GeoPandas)
-- Great Expectations
-- Frictionless / Soda Core
-
-Auswahlkriterien: Geodaten und Geometrieprüfungen, Wertelisten aus Konfiguration, Übersicht im Terminal, wenig Abhängigkeiten.
+Umgesetzt, siehe [README.md](README.md). Die bisherigen Skripte (`validate_datensatz_b.py`, `validate_datensatz_c.py`, `validate_knotenpunkte.py`, `validate_virtuelle_knotenpunkte.py`, `analyze_check_duplicate_ways.py`) sind in `checks/` überführt. Neue Prüfungen kommen als Funktion mit `@pruefung` dazu.
 
 ## 3. Reihenfolge (Vorschlag)
-1. Framework-Gerüst mit Übersicht und Detailausgabe, danach die bestehenden Prüfungen überführen.
+1. ~~Framework-Gerüst mit Übersicht und Detailausgabe, danach die bestehenden Prüfungen überführen.~~ Erledigt.
 2. Prüfungen ohne externe Vorgaben: Kanten und Knotenpunkte, beide Richtungen, `element_nr`, Fahrradstraße, Kreuzungswege, Knotenpunkte ohne NULL, Koordinaten.
 3. Muster der virtuellen Knotenpunkte festlegen und prüfen, dazu die Prüfung, dass jeder virtuelle Knotenpunkt eine Kante teilt.
 4. Wertelisten aus der Leistungsbeschreibung, sobald sie vorliegt.
