@@ -2,25 +2,25 @@
 # Datensatz C aus Straßen (mit gefalteten Radwegen als Kandidaten) und Wegen, gematcht auf das RVN (Variante A).
 #   1  Eingang (sql/104): trace_group strassen (Faltungsnetz bl_strassen1) und wege (TILDA-Wege, ungefaltete
 #      Radwege, ungefaltete Reste ab REST_MIN_M); alles aus dem TILDA-Routing-Export
-#   2  Matching auf matching.reference_edges (map-matching run --pg, Einstellungen wie die Baseline bis auf den
-#      Abknickwinkel der Traces, MAX_TURN_DEG wie in der Radweg-Faltung)
+#   2  Matching auf matching.reference_edges (map-matching run --pg, Einstellungen wie die Baseline; Traces folgen
+#      zusätzlich Knicken ohne Abzweigung über den Abknickwinkel hinaus, KNICK_OHNE_ABZWEIG)
 #   3  Intervalle (sql/105): Wege mit ihrem eigenen Objekt, Straßen mit allen Kandidaten ihrer Kante und Richtung
 #   4  assemble, Konvertierung, Aggregation -> <OUT_DIR>/post/aggregated.gpkg
 #   5  Vergleich mit der Baseline (compare_c.sh)
 # Voraussetzung: radweg_faltung.sh gelaufen; bikegraph.input_edges (graph.sh, Schritt 0); gebauter Matcher; Python-Umgebung
 # mit geopandas (PY). Umgebung: MATCHING_PG, PGPASSWORD; REST_MIN_M (Standard 10), OUT_DIR (relativ zu PROCESSING,
 # Standard output/mm-datensatz-c-a), BASELINE (Standard processing/output/post-baseline/aggregated.gpkg des
-# Hauptcheckouts), JOBS (Standard 8), MAX_TURN_DEG (größte Richtungsänderung beim Verketten der Traces, Standard 70
-# wie in radweg_faltung.sh; die Baseline nutzt 45), KNICK_OHNE_ABZWEIG (Standard false; true: an Knoten ohne Abzweigung
-# setzt die Trace auch über MAX_TURN_DEG hinaus fort, der Winkel entscheidet nur an Abzweigungen)
+# Hauptcheckouts), JOBS (Standard 8), MAX_TURN_DEG (größte Richtungsänderung beim Verketten der Traces an
+# Abzweigungen, Standard 45 wie die Baseline), KNICK_OHNE_ABZWEIG (Standard true: an Knoten ohne Abzweigung setzt die
+# Trace auch über MAX_TURN_DEG hinaus fort; false wie die Baseline)
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 PROCESSING="${PROCESSING:-$(cd "$HERE/../.." && pwd)/processing}"
 MATCHER="${MATCHER:-$PROCESSING/map-matching/target/release/map-matching}"
 PY="${PY:-$HOME/Documents/infravelo-radnetz/.venv/bin/python}"
 REST_MIN_M="${REST_MIN_M:-10}"
-MAX_TURN_DEG="${MAX_TURN_DEG:-70}"
-KNICK_OHNE_ABZWEIG="${KNICK_OHNE_ABZWEIG:-false}"
+MAX_TURN_DEG="${MAX_TURN_DEG:-45}"
+KNICK_OHNE_ABZWEIG="${KNICK_OHNE_ABZWEIG:-true}"
 OUT_DIR="${OUT_DIR:-output/mm-datensatz-c-a}"
 BASELINE="${BASELINE:-$HOME/Documents/infravelo-radnetz/processing/output/post-baseline/aggregated.gpkg}"
 JOBS="${JOBS:-8}"

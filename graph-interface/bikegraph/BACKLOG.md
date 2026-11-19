@@ -42,8 +42,9 @@ die Kandidaten. **Prüfen:** Variante gegen den aktuellen Stand und gegen die Ba
   Trace-Länge und Brüchen.
 - **Tunnel:** aus dem Straßennetz ausgeschlossen; Lücken wie Gleimtunnel, Eichkampstraße. Optionen: Tunnel nur aus der
   Faltung nehmen, nur kurze oder nur Tunnel ohne parallele Straße oben ausschließen.
-- **Abknickwinkel 70°** im RVN-Matching (`MAX_TURN_DEG`): ändert Kornmandelweg, Alt-Britz, Lüdenscheider Weg `ri` 1
-  gegenüber 45° weg von der Baseline; prüfen, ob zu Recht.
+- **HMM-Brüche durch Knicke ohne Abzweigung:** mit `KNICK_OHNE_ABZWEIG=true` (Standard seit v7) steigen die Brüche im
+  RVN-Matching von 557 auf 830; Martin-Ebene `strassen_traces` (rot) ansehen, ob bestimmte Knicke (z. B. Wenden am
+  Ende von Sackgassen) ausgenommen werden sollten.
 - **Vergleichsregeln (`sql/70_compare_c.sql`):** Regel 4 „Rang“ eher „unklar“; Regel 2 „Lage“ relativ statt fester 20 m.
 - **Doppelte RVN-Kanten:** übereinanderliegende Kanten bekommen eine Trace nur einmal; Intervalle auf überlappende
   Kanten kopieren.
