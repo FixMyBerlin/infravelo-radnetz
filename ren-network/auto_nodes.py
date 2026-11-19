@@ -589,7 +589,8 @@ def app_references(entries):
     found = set()
     for entry in entries or []:
         data = entry.get("data") or {}
-        if not data.get("geloescht"):
+        # An OK of the route check depends on nothing: it lapses by itself when the edges of its section change
+        if not data.get("geloescht") and data.get("kind") != "route_check":
             text = json.dumps(data, ensure_ascii=False)
             found |= set(PROPOSAL_ID_IN_TEXT.findall(text)) | set(ELEMENT_NR_IN_TEXT.findall(text))
     return found

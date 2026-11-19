@@ -240,6 +240,8 @@ class TwoArmJoinTest(unittest.TestCase):
         entries = [
             {"data": {"kind": "edge_correction", "kante": {"ref": "1_P392150-5815000.01"}}},
             {"data": {"kind": "new_edge", "von": "k:P392999-5815999", "geloescht": True}},  # deleted: does not count
+            # an OK of the route check does not count either
+            {"data": {"kind": "route_check", "kanten": ["ren:P392888-5815888_3.01"]}},
         ]
         used = an.app_references(entries)
         self.assertEqual(used, {"P392150-5815000", "1_P392150-5815000.01"})
