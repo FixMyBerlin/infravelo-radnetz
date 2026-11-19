@@ -16,6 +16,7 @@ Jeder Ordner ist für eine Aufgabe zuständig und hat eine eigene README.
 - [`tilda-pseudo-tags/`](./tilda-pseudo-tags/README.md) – CSV für den TILDA-Pseudo-Tag `infravelo_netz` (welche OSM-Wege zum Radnetz gehören), eingecheckt und von TILDA aus dem Repo geladen.
 - [`bearbeitungsstand/`](./bearbeitungsstand/README.md) – Liest aus dem Mapping-Editor, welche Linien erledigt sind; genutzt von den beiden Ordnern darüber.
 - [`tilda-qa/`](./tilda-qa/README.md) – QA-Ansichten in TILDA je Lieferung: Bereiche je Netzkante und Referenzwerte zum Stand der Lieferung (SQL-Dateien für tilda-geo `data-schema/`).
+- [`osm-cleanup/`](./osm-cleanup/) – Bereinigungen in OSM, je Bereinigung ein Ordner mit README, Regeln und Skripten; zuerst [`oneway-2026-11/`](./osm-cleanup/oneway-2026-11/README.md) (falsche `cycleway:*:oneway=yes`).
 - [`inspector/`](./inspector/README.md) – Web-Tool zur Qualitätssicherung der verarbeiteten Daten.
 - [`data/`](./data/README.md) – Gemeinsame Eingangsdaten (Detailnetz, Radvorrangsnetz, Bezirke, manuelle Listen).
 
