@@ -16,7 +16,9 @@
 #   unverbundenen Straßen über den Null-Zustand soll teurer sein als ein etwas weiterer, aber topologisch passender Weg);
 #   CANDIDATE_RADIUS (Suchradius für Kandidatenkanten je Beobachtung, Standard 40 m: sehr breite Fahrbahnen wie der
 #   Große Stern liegen bis ~45 m vom Radweg); SAMPLE_M (Abstand der Beobachtungen entlang der Traces, Standard 5 m);
-#   CONTEXT_M (Kontext je Trace: Anlauf/Auslauf aus Wegen anderer Traces, stützt nur das Matching; Standard 0 = aus)
+#   CONTEXT_M (Kontext je Trace: Anlauf/Auslauf aus Wegen anderer Traces, stützt nur das Matching; Standard 0 = aus);
+#   ISOLIERT_FALTEN (Standard true; false: separate Radwege mit TILDA-Kategorie *_isolated werden nicht gefaltet und
+#   gehen ungefaltet in den RVN-Schritt)
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 PROCESSING="${PROCESSING:-$(cd "$HERE/../.." && pwd)/processing}"
@@ -26,6 +28,7 @@ NULL_SWITCH_PENALTY="${NULL_SWITCH_PENALTY:-8}"
 CANDIDATE_RADIUS="${CANDIDATE_RADIUS:-40}"
 SAMPLE_M="${SAMPLE_M:-5}"
 CONTEXT_M="${CONTEXT_M:-0}"
+ISOLIERT_FALTEN="${ISOLIERT_FALTEN:-true}"
 OUT="${OUT:-/tmp/radweg_faltung}"
 PSQL=(psql "${MATCHING_PG:?MATCHING_PG fehlt}" -v ON_ERROR_STOP=1 -q -P pager=off)
 mkdir -p "$OUT"
@@ -44,8 +47,20 @@ match() { # input reference intervals log
 echo "== Eingang und Netze"
 sql -f "$HERE/sql/100_radweg_eingang.sql"
 
+# Eingang der Durchgänge: bl_input, bei ISOLIERT_FALTEN=false ohne separate Radwege *_isolated (TILDA: nicht neben
+# einer Straße); sie bleiben in bl_input, haben dann keine Faltung und gehen über radwege_abgelehnt in den RVN-Schritt
+sql -v isoliert_falten="$ISOLIERT_FALTEN" <<'SQL'
+DROP TABLE IF EXISTS bikegraph.bl_input1;
+CREATE TABLE bikegraph.bl_input1 AS
+SELECT * FROM bikegraph.bl_input
+WHERE :isoliert_falten OR NOT (art IN ('separat', 'seitenobjekt_separat') AND kategorie LIKE '%\_isolated');
+ALTER TABLE bikegraph.bl_input1 ADD PRIMARY KEY (id);
+SELECT 'nicht gefaltet (isolated)' AS teil, count(*) AS wege, round((sum(cost) / 1000)::numeric) AS km
+FROM bikegraph.bl_input i WHERE NOT EXISTS (SELECT 1 FROM bikegraph.bl_input1 j WHERE j.id = i.id);
+SQL
+
 echo "== Durchgang 1: Straßen mit OSM-Richtungen (ohne Tunnel)"
-match bikegraph.bl_input bikegraph.bl_strassen1 bikegraph.bl_iv1 durchgang1
+match bikegraph.bl_input1 bikegraph.bl_strassen1 bikegraph.bl_iv1 durchgang1
 
 echo "== Durchgang 2: separate Radwege mit < 50 % Faltung (2b zweirichtig auf Straßen in beide Richtungen, 2e einrichtig auf umgedrehten Einbahnen)"
 sql <<'SQL'
@@ -54,7 +69,7 @@ CREATE TEMP TABLE g1 AS SELECT input_id, sum(to_m - from_m) AS m FROM bikegraph.
 CREATE INDEX ON g1 (input_id);
 ANALYZE g1;
 CREATE TABLE bikegraph.bl_input2 AS
-SELECT i.* FROM bikegraph.bl_input i LEFT JOIN g1 ON g1.input_id = i.id
+SELECT i.* FROM bikegraph.bl_input1 i LEFT JOIN g1 ON g1.input_id = i.id
 WHERE i.art IN ('separat', 'seitenobjekt_separat') AND coalesce(g1.m, 0) < 0.5 * i.cost;
 ALTER TABLE bikegraph.bl_input2 ADD PRIMARY KEY (id);
 CREATE TABLE bikegraph.bl_input2b AS SELECT * FROM bikegraph.bl_input2 WHERE reverse_cost >= 0;
