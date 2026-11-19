@@ -566,14 +566,14 @@ def load_nodes_2025(entries=None):
     return nodes
 
 
-def number_edges(network, detail, nodes, nodes_2025, app_refs=frozenset()):
+def number_edges(network, detail, nodes, nodes_2025, app_refs=frozenset(), corrected=frozenset()):
     """Sets virtual nodes by snapping, splits edges at them and gives every edge a unique element_nr from its end
     nodes (ren-network/auto_nodes.py). Returns (network with one LineString edge per row, node proposals)."""
     lines = network.explode(index_parts=False).reset_index(drop=True)
     lines = lines[lines.geometry.geom_type == "LineString"].reset_index(drop=True)
     result, proposals, report = auto_nodes.snap_and_number(
         lines, nodes, nodes_2025, detail["element_nr"].dropna(), NODE_ID_COLUMN, combine=combine_parallel,
-        app_refs=app_refs, detail_lines=detail.geometry)
+        app_refs=app_refs, detail_lines=detail.geometry, corrected=corrected)
     auto_nodes.log_report(report)
     detail_element_nrs = set(detail["element_nr"].dropna())
     result["in_detailnetz"] = result["element_nr"].isin(detail_element_nrs).map({True: "ja", False: "nein"})
@@ -731,7 +731,8 @@ def main():
     network = snap_ends_to_named_nodes(network, nodes, nodes_2025)
     network = merge_parallel_edges(network, frozenset(detail["element_nr"].dropna()))
     network = add_detailnetz_attributes(network, detail)
-    network, proposals = number_edges(network, detail, nodes, nodes_2025, app_refs)
+    network, proposals = number_edges(network, detail, nodes, nodes_2025, app_refs,
+                                      auto_nodes.corrected_edges(entries))
     network = add_district(network)
     network = add_bearbeitet_2025(network)
     network = finalize(network)

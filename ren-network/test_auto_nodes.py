@@ -309,10 +309,10 @@ class ThreeArmProposalTest(unittest.TestCase):
         self.assertEqual(int(proposal["arme"]), 4)
 
 
-def snap(rows, official_points, detail_lines=None, app_refs=frozenset()):
+def snap(rows, official_points, detail_lines=None, app_refs=frozenset(), corrected=frozenset()):
     official = gpd.GeoDataFrame({ID: list(official_points)}, geometry=list(official_points.values()), crs=CRS)
     return an.snap_and_number(frame(rows), official, gpd.GeoDataFrame({ID: []}, geometry=[], crs=CRS), [], ID,
-                              app_refs=app_refs, detail_lines=detail_lines)
+                              app_refs=app_refs, detail_lines=detail_lines, corrected=corrected)
 
 
 def ends_of(geometry):
@@ -332,10 +332,36 @@ class CleanGeometryTest(unittest.TestCase):
         self.assertEqual(report["ends_moved"], 2)
 
     def test_an_edge_the_app_corrected_keeps_its_ends(self):
-        result, _, report = snap([("1_2.01", "A", line((1.5, 1.0), (300, 0)))], self.OFFICIAL, app_refs={"1_2.01"})
+        coordinates = [[13.1, 52.1], [13.2, 52.2]]
+        entries = [{"data": {"kind": "edge_correction", "kante": {"ref": "1_2.01", "element_nr": "1_2.01"},
+                             "original_coordinates": coordinates, "coordinates": [[13.1, 52.1], [13.2, 52.3]],
+                             "attribute": {}}}]
+        corrected = an.corrected_edges(entries)
+        self.assertEqual(corrected, {"1_2.01"})
+        result, _, report = snap([("1_2.01", "A", line((1.5, 1.0), (300, 0)))], self.OFFICIAL,
+                                 app_refs=an.app_references(entries), corrected=corrected)
         start, _ = ends_of(result.iloc[0].geometry)
         self.assertAlmostEqual(start.distance(point(0, 0)), 1.80, places=2)
         self.assertEqual(report["ends_left_app"], [("1_2.01", "1", 1.8)])
+
+    def test_other_app_references_do_not_keep_ends_off_the_proposal(self):
+        """A virtual node accepting the proposal (vorschlag_id, traeger.ref) stops the join there but not the move of
+        the edge ends onto the proposal point; a correction back at the original protects nothing."""
+        rows = [("1_2.01", "A", line((0, 0), (150, 0.4))), (None, "A", line((150.3, -0.4), (300, 0)))]
+        coordinates = [[13.1, 52.1], [13.2, 52.2]]
+        entries = [
+            {"data": {"kind": "virtual_node", "nummer": "0396", "herkunft": "vorschlag",
+                      "vorschlag_id": "P392150-5815000", "traeger": {"art": "ren", "ref": "1_P392150-5815000.01"}}},
+            {"data": {"kind": "edge_correction", "kante": {"ref": "1_P392150-5815000.01"}, "attribute": {},
+                      "coordinates": coordinates, "original_coordinates": coordinates}},
+        ]
+        result, proposals, report = snap(rows, self.OFFICIAL, app_refs=an.app_references(entries),
+                                         corrected=an.corrected_edges(entries))
+        self.assertEqual(report["joined"], 0)
+        self.assertEqual(report["ends_left_app"], [])
+        proposal = proposals.set_index("id").loc["P392150-5815000"].geometry
+        for geometry in result.geometry:
+            self.assertTrue(any(end.equals(proposal) for end in ends_of(geometry)))
 
     def test_a_correction_that_changes_nothing_is_no_app_reference(self):
         coordinates = [[13.1, 52.1], [13.2, 52.2]]

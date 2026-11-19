@@ -41,8 +41,8 @@ two end nodes. For that, every edge end must sit on a node:
     an official or 2025 node is no dead end: it ends on that node (unless the app names its proposal id).
 
   Every edge end ends exactly on the point of its node (official, 2025 or proposal; snap_piece_ends: an overshoot is
-  cut, else the line is extended), except on edges whose element_nr entries of the app name (the app holds their
-  geometry; logged).
+  cut, else the line is extended), except on edges an edge correction of the app changes (corrected_edges: the app
+  holds their geometry; logged). Other references of the app to a proposal do not stop the move.
 
 Step 1 gives no node names or numbers of its own (numbers are given only in the Netzanpassungen app). A
 proposal is named by its position: `P<x>-<y>` with the coordinates in EPSG:25833 rounded to whole metres
@@ -677,6 +677,22 @@ def is_noop_correction(data):
     return data.get("coordinates") is not None and data.get("coordinates") == data.get("original_coordinates")
 
 
+def corrected_edges(entries):
+    """element_nr of the edges that non-deleted edge corrections of the app change (kante.ref without `#n`, and
+    kante.element_nr); corrections back at the original (is_noop_correction) do not count. Only these edges keep their
+    ends where they are (snap_piece_ends): the app holds their geometry."""
+    found = set()
+    for entry in entries or []:
+        data = entry.get("data") or {}
+        if data.get("kind") != "edge_correction" or data.get("geloescht") or is_noop_correction(data):
+            continue
+        kante = data.get("kante") or {}
+        for value in (str(kante.get("ref") or "").split("#")[0], kante.get("element_nr")):
+            if value:
+                found.add(value)
+    return found
+
+
 def app_references(entries):
     """Proposal ids and element_nr that non-deleted entries of the Netzanpassungen app depend on: every `P<x>-<y>`
     and every `<von>_<bis>.<nn>` in the JSON of an entry's data (vorschlag_id of a virtual_node, kante.ref,
@@ -839,14 +855,15 @@ def proposal_arms(nodes, proposal_keys, pieces, detail=None):
             for key in proposal_keys}
 
 
-def snap_piece_ends(pieces, nodes, element_nrs, lines, app_refs=frozenset()):
+def snap_piece_ends(pieces, nodes, element_nrs, lines, corrected=frozenset()):
     """Moves every piece end onto the point of its node (end_at: an overshoot is cut, else the line is extended), except
-    for pieces whose element_nr, or the element_nr of their line before this step, entries of the app name (the app
-    holds their geometry). Returns (number of ends moved, [(element_nr, node name, distance m)] left off their node)."""
+    for pieces whose element_nr, or the element_nr of their line before this step, is in `corrected` (edges an edge
+    correction of the app changes, corrected_edges: the app holds their geometry). Other references of the app (a
+    proposal id named by a virtual node, a drawn edge, a section assignment) do not stop the move. Returns (number of ends moved, [(element_nr, node name, distance m)] left off their node)."""
     moved, left = 0, []
     for index, piece in enumerate(pieces):
         original = lines["element_nr"].iloc[piece["parent"]]
-        protected = element_nrs[index] in app_refs or (isinstance(original, str) and original in app_refs)
+        protected = element_nrs[index] in corrected or (isinstance(original, str) and original in corrected)
         part = piece["geometry"]
         for side, key in ((0, piece["a"]), (1, piece["b"])):
             point = nodes[key]["point"]
@@ -889,7 +906,7 @@ def proposal_frame(nodes, proposal_keys, pieces, element_nrs, lines, crs, arms=N
 
 
 def snap_and_number(network, official, nodes_2025, detail_element_nrs, official_column, combine=None,
-                    parallel_tolerance=PARALLEL_TOL_M, app_refs=frozenset(), detail_lines=None):
+                    parallel_tolerance=PARALLEL_TOL_M, app_refs=frozenset(), detail_lines=None, corrected=frozenset()):
     """The whole sub-step: `network` (one LineString per row, `element_nr` possibly empty) ->
     (network with unique element_nr, von_knoten, bis_knoten, ursprung_element_nr; node proposals; report).
 
@@ -906,7 +923,7 @@ def snap_and_number(network, official, nodes_2025, detail_element_nrs, official_
     report["joined"], report["join_refused"], report["join_skipped_app"] = joined, refused, skipped
     report["join_detail_arm"] = crossed
     element_nrs, kept = number_pieces(lines, pieces, nodes, list(detail_element_nrs) + dropped_numbers)
-    report["ends_moved"], report["ends_left_app"] = snap_piece_ends(pieces, nodes, element_nrs, lines, app_refs)
+    report["ends_moved"], report["ends_left_app"] = snap_piece_ends(pieces, nodes, element_nrs, lines, corrected)
 
     rows = []
     for index, piece in enumerate(pieces):
