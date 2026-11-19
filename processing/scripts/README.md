@@ -57,7 +57,7 @@ Das [`enrich_rvn_with_detailnetz.py`](./enrich_rvn_with_detailnetz.py) fügt feh
 ## 🚍 OSM-Daten Integration
 
 ### Bushaltestellen am Zielnetz
-Das [`prepare_bus_stops.py`](./prepare_bus_stops.py) holt alle `highway=bus_stop`-Knoten in Berlin über die Overpass-API und schneidet sie auf das Zielnetz zu (Abstand höchstens 15 m, `--puffer` ändert das). Beim REN+ ist das Zielnetz `ren_netz_gesamt.gpkg`, also alle Netzquellen gemeinsam. Kommt eine Quelle dazu (z. B. das Touristische Radnetz), genügt ein neuer Lauf von `ren-network/unify_networks.py`; `execute_processing.sh` ruft das Skript vor der Schutzstreifen-Konvertierung selbst auf.
+Das [`prepare_bus_stops.py`](./prepare_bus_stops.py) holt alle `highway=bus_stop`-Knoten in Berlin über die Overpass-API und schneidet sie auf das Zielnetz zu (Abstand höchstens 15 m, `--puffer` ändert das). Beim REN+ ist das Zielnetz `ren_netz.gpkg` aus Schritt 3, also alle Netzquellen gemeinsam. Kommt eine Quelle dazu, genügt ein neuer Lauf von `./run_pipeline.sh`; `execute_processing.sh` ruft das Skript vor der Schutzstreifen-Konvertierung selbst auf.
 
 - **Input**: Overpass-API, danach Cache `data/netzquellen/osm_bushaltestellen.gpkg` (`--neu` lädt erneut), Zielnetz aus `helpers/netz.py`
 - **Output**: `output/bus_stops_on_ren.fgb` bzw. mit `--netz rvn` `output/bus_stops_on_rvn.fgb`

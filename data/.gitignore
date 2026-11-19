@@ -20,7 +20,7 @@
 # Aus dem Routing-Datensatz abgeleitet, lokal erzeugt
 /infravelo_routing.gpkg
 
-# Die 2025er Ergebnisse kommen direkt aus tilda-static-data (ren-network/unify_networks.py)
+# Die 2025er Ergebnisse kommen direkt aus tilda-static-data (ren-network/merge_networks.py)
 /netzquellen/ergebnis_2025_datensatz_c.geojson.gz
 /netzquellen/knotenpunkte_2025.geojson.gz
 
