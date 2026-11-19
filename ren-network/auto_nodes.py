@@ -20,6 +20,17 @@ two end nodes. For that, every edge end must sit on a node:
   A 2025 node within NODE_2025_TOL_M of such a point is that node (no proposal).
   Every 2025 node also splits the edges that pass through it.
 
+  Arms at a proposal point: each line end there counts 1, each line passing through counts 2.
+  * Exactly two arms, the ends of two different lines (a point in the middle of a line): no proposal; the two lines
+    are joined into one (join_two_arm_proposals, repeated for chains). The joined line keeps the row, element_nr and
+    direction of the longer member with an element_nr (else of the longer member); the other member's number is
+    dropped (and never issued again). Lines that differ in a column the network carries per edge (all but
+    JOIN_IGNORED_COLUMNS, e.g. strassenname, radverkehrsnetz, strassenklasse, netz_quellen) are not joined; the
+    proposal stays and separates them (logged). The two ends of one line (a loop) keep their proposal.
+  * Three or more arms: the proposal stays (the app numbers it). Every line passing through it is split there (also at
+    a junction, not only on_edge), and every edge ending there ends exactly on its point.
+  * One arm (dead end): unchanged.
+
 Step 1 gives no node names or numbers of its own (numbers are given only in the Netzanpassungen app). A
 proposal is named by its position: `P<x>-<y>` with the coordinates in EPSG:25833 rounded to whole metres
 (e.g. P391234-5818765), stable as long as the network does not change at that spot. When the app accepts
@@ -87,6 +98,12 @@ JUNCTION_MIN_LINES = 3
 # each other (mostly a Radschnellverbindung line without element_nr lying on an edge that already includes it), the
 # farthest 1.6 m apart; the next pair of the same source is more than 15 m apart (a real parallel edge).
 DUPLICATE_TOL_M = 2.0
+
+# Two lines that meet at a proposal with nothing else there are joined unless they differ in a column the network
+# carries per edge; these columns do not count (numbers, recomputed from the number later, geometry)
+JOIN_IGNORED_COLUMNS = {"geometry", "element_nr", "element_nr_berechnet", "ursprung_element_nr", "in_detailnetz"}
+# Rounds of joining (a chain of k lines through such points needs about log2(k) rounds)
+MAX_JOIN_ROUNDS = 50
 
 ELEMENT_NR_PATTERN = re.compile(r"^(.+)_(.+)\.(\d+)$")
 PROPOSAL_PREFIX = "P"
@@ -373,10 +390,8 @@ def snap_candidates(unresolved, geoms, tree, starts, ends):
         centre = shapely.centroid(shapely.MultiPoint([unresolved[m][2] for m in members]))
         candidates.append({"art": "junction" if len(members) > 1 else "dead_end", "point": centre, "hosts": [],
                            "members": [(unresolved[m][0], unresolved[m][1]) for m in members]})
-    # Other edges passing through an edge node (crossing of two edges) are split there, too
+    # Other edges passing through a node (crossing of two edges, an edge passing a junction) are split there, too
     for candidate in candidates:
-        if candidate["art"] != "on_edge":
-            continue
         known = {line for line, _ in candidate["hosts"]}
         for _, j, station in find_hosts(candidate["point"], -1, geoms, tree, starts, ends):
             if j not in known and j not in {line for line, _ in candidate["members"]}:
@@ -505,10 +520,15 @@ def build_nodes_and_pieces(lines, official, nodes_2025, official_column):
                     nodes[key]["hosts"] = [(line, station)]
                     nodes[key]["station"] = station
 
-    # Split the edges
+    # Split the edges. Every piece that ends at a proposal ends exactly on its point.
     pieces = []
+    for key in auto_keys:
+        nodes[key]["ends"], nodes[key]["passing"] = [], []
     for line in range(count):
         a, b = end_node[(line, 0)], end_node[(line, 1)]
+        for side, key in ((0, a), (1, b)):
+            if nodes[key]["kind"] == "proposal":
+                nodes[key]["ends"].append((line, side))
         geometry = geoms[line]
         length = geometry.length
         cuts = []
@@ -516,9 +536,14 @@ def build_nodes_and_pieces(lines, official, nodes_2025, official_column):
             if cuts and station - cuts[-1][0] < MIN_STOP_GAP_M:
                 continue
             cuts.append((station, key))
+            if nodes[key]["kind"] == "proposal":
+                nodes[key]["passing"].append(line)
         chain = [(0.0, a)] + cuts + [(length, b)]
         for (low, start_key), (high, end_key) in zip(chain[:-1], chain[1:]):
             part = geometry if len(chain) == 2 else substring(geometry, low, high)
+            for side, key in ((0, start_key), (1, end_key)):
+                if nodes[key]["kind"] == "proposal" and not shapely.get_point(part, -side).equals(nodes[key]["point"]):
+                    part = end_at(part, side, nodes[key]["point"], max_cut_m=SNAP_TOL_M)
             pieces.append({"parent": line, "a": start_key, "b": end_key, "geometry": part,
                            "length": part.length, "split": len(chain) > 2})
 
@@ -533,6 +558,84 @@ def build_nodes_and_pieces(lines, official, nodes_2025, official_column):
                               and not any(k == f"v:{v}" for k in end_node.values())],
     }
     return nodes, pieces, auto_keys, report
+
+
+def _same_value(a, b):
+    if a is None or (not isinstance(a, str) and pd.isna(a)):
+        return b is None or (not isinstance(b, str) and pd.isna(b))
+    return a == b
+
+
+def find_joins(lines, nodes, proposal_keys):
+    """Proposals where exactly two line ends of two different lines meet and nothing passes through. Returns
+    (joins [(proposal key, (line, side), (line, side))], refused [(proposal name, differing columns)]): two lines that
+    differ in a column the network carries per edge (all but JOIN_IGNORED_COLUMNS) are not joined; the proposal
+    stays and separates them. Each line takes part in at most one join per call."""
+    columns = [c for c in lines.columns if c not in JOIN_IGNORED_COLUMNS]
+    joins, refused, used = [], [], set()
+    for key in proposal_keys:
+        node = nodes[key]
+        ends = node.get("ends", [])
+        if len(ends) != 2 or node.get("passing") or ends[0][0] == ends[1][0]:
+            continue  # a dead end, three or more arms, or the two ends of one line (a loop)
+        (i, _), (j, _) = ends
+        differing = [c for c in columns if not _same_value(lines.at[i, c], lines.at[j, c])]
+        if differing:
+            refused.append((node["name"], differing))
+        elif i not in used and j not in used:
+            joins.append((key, ends[0], ends[1]))
+            used |= {i, j}
+    return joins, refused
+
+
+def join_lines(lines, joins, nodes):
+    """Each join (proposal key, (line, side), (line, side)) makes one line of the two, through the proposal point.
+    The joined line keeps the row (and so the element_nr) of the longer member with an element_nr, else of the longer
+    member, and that member's direction. Returns (new lines, element_nr of the other members that are dropped)."""
+    geoms = lines.geometry.to_numpy()
+    records = lines.to_dict("records")
+    joined_rows, removed, dropped_numbers = [], set(), []
+    for key, first, second in joins:
+        point = nodes[key]["point"]
+        members = [first, second]
+
+        def rank(member):
+            element_nr = records[member[0]]["element_nr"]
+            return (isinstance(element_nr, str) and element_nr != "", geoms[member[0]].length)
+
+        (owner, owner_side), (other, other_side) = sorted(members, key=rank, reverse=True)
+        own = end_at(geoms[owner], owner_side, point, max_cut_m=SNAP_TOL_M)
+        rest = geoms[other] if other_side != owner_side else shapely.reverse(geoms[other])
+        # `rest` now ends at the point on the side opposite to the owner's (start if the owner ends there)
+        rest = end_at(rest, 1 - owner_side, point, max_cut_m=SNAP_TOL_M)
+        coords = (list(own.coords) + list(rest.coords)[1:] if owner_side == 1
+                  else list(rest.coords) + list(own.coords)[1:])
+        row = dict(records[owner])
+        row["geometry"] = shapely.LineString(coords)
+        joined_rows.append(row)
+        removed |= {owner, other}
+        number = records[other]["element_nr"]
+        if isinstance(number, str) and number != "" and number != row["element_nr"]:
+            dropped_numbers.append(number)
+    kept_rows = [record for index, record in enumerate(records) if index not in removed]
+    result = gpd.GeoDataFrame(kept_rows + joined_rows, columns=lines.columns, geometry="geometry", crs=lines.crs)
+    return result, dropped_numbers
+
+
+def join_two_arm_proposals(lines, official, nodes_2025, official_column):
+    """Joins the lines at every proposal where exactly two line ends of two different lines meet with nothing passing
+    through (find_joins), repeated until none is left (chains of such points). Returns (lines, element_nr dropped by
+    joins, number of joins, refused [(proposal name, differing columns)] of the last round)."""
+    dropped, count, refused = [], 0, []
+    for _ in range(MAX_JOIN_ROUNDS):
+        nodes, _, proposal_keys, _ = build_nodes_and_pieces(lines, official, nodes_2025, official_column)
+        joins, refused = find_joins(lines, nodes, proposal_keys)
+        if not joins:
+            break
+        lines, numbers = join_lines(lines, joins, nodes)
+        dropped += numbers
+        count += len(joins)
+    return lines, dropped, count, refused
 
 
 def number_pieces(lines, pieces, nodes, detail_element_nrs):
@@ -621,8 +724,10 @@ def snap_and_number(network, official, nodes_2025, detail_element_nrs, official_
     `parallel_tolerance` (Hausdorff) become one edge (see merge_parallel_pieces); `combine(rows, owner)` merges their
     rows."""
     lines = network.reset_index(drop=True)
+    lines, dropped_numbers, joined, refused = join_two_arm_proposals(lines, official, nodes_2025, official_column)
     nodes, pieces, proposal_keys, report = build_nodes_and_pieces(lines, official, nodes_2025, official_column)
-    element_nrs, kept = number_pieces(lines, pieces, nodes, detail_element_nrs)
+    report["joined"], report["join_refused"] = joined, refused
+    element_nrs, kept = number_pieces(lines, pieces, nodes, list(detail_element_nrs) + dropped_numbers)
 
     rows = []
     for index, piece in enumerate(pieces):
@@ -689,3 +794,7 @@ def log_report(report):
         f"{report['lines']} lines -> {report['pieces']} edges ({report['split_lines']} lines split), "
         f"element_nr kept for {report['kept']}, newly numbered {report['renumbered']}, "
         f"{report.get('merged_parallel', 0)} edges merged into a parallel edge of another source between the same nodes")
+    refused = report.get("join_refused", [])
+    logging.info(f"Lines joined at a point where only they meet (no proposal there): {report.get('joined', 0)}; "
+                 f"not joined because they differ in attributes (proposal kept): {len(refused)}"
+                 + (f", e.g. {refused[:5]}" if refused else ""))

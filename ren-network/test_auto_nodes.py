@@ -8,7 +8,7 @@ Self-test for auto_nodes.py (automatic virtual nodes and unique element_nr in st
 Network (metres): official nodes 1 (0,0), 2 (200,0), 3 (100,100), 4 (0,300), 5 (300,0).
 A 1-2 along y=0 (will be split), T arm from node 3 down to (100,1.5) (T on A, no element_nr),
 C from node 2 east to (290,0) (end 10 m short of node 5: dead end), D and D2 two parts with the same
-element_nr 4_5.01 that meet in an unnamed junction, E 1-4 with a correct element_nr, F a loop-free
+element_nr 4_5.01 that meet where nothing else is (they are joined into one edge), E 1-4 with a correct element_nr, F a loop-free
 edge whose element_nr names other nodes than its ends.
 A 2025 node (number 0007) lies 0.5 m beside A at x=100 and is the T node; without it the T node is a
 proposal P<x>-<y>.
@@ -111,9 +111,10 @@ class AutoNodesTest(unittest.TestCase):
         self.assertEqual(proposals.loc["P392290-5815000", "art"], "dead_end")
         c = result[result["element_nr"] == "2_5.01"].iloc[0]  # kept although off its node: nodes stay as named
         self.assertEqual((c["bis_knoten"], c["knoten_ende"]), ("5", "P392290-5815000"))
-        # D and D2 meet at (150,300) without a node: a junction
-        self.assertEqual(proposals.loc["P392150-5815300", "art"], "junction")
-        self.assertEqual(report["proposals_by_art"], {"dead_end": 3, "junction": 1, "on_edge": 1})
+        # D and D2 meet at (150,300) with nothing else there: no proposal, they are joined
+        self.assertNotIn("P392150-5815300", proposals.index)
+        self.assertEqual(report["joined"], 1)
+        self.assertEqual(report["proposals_by_art"], {"dead_end": 3, "on_edge": 1})
 
     def test_proposal_ids_are_unique_when_two_round_to_the_same_metre(self):
         nodes = an.Nodes()
@@ -129,12 +130,11 @@ class AutoNodesTest(unittest.TestCase):
         kept = result[result["element_nr"] == "1_4.01"].iloc[0]
         self.assertTrue(pd.isna(kept["ursprung_element_nr"]))
         self.assertEqual(kept["element_nr_berechnet"], "nein")
-        # D and D2 carried 4_5.01 twice: the longer D2 keeps it, D gets its own number from its end nodes
+        # D and D2 carried 4_5.01 twice and meet with nothing else there: joined, the one edge keeps 4_5.01
         self.assertEqual(numbers.count("4_5.01"), 1)
-        d2 = result[result["element_nr"] == "4_5.01"].iloc[0]
-        self.assertAlmostEqual(d2.geometry.length, 160.0, delta=0.1)
-        d = result[result["ursprung_element_nr"] == "4_5.01"].iloc[0]
-        self.assertEqual(d["element_nr_berechnet"], "ja")
+        d = result[result["element_nr"] == "4_5.01"].iloc[0]
+        self.assertAlmostEqual(d.geometry.length, 310.0, delta=0.1)
+        self.assertEqual(d["element_nr_berechnet"], "nein")
         # F ends 50 m beyond node 4 but was not split: it keeps 3_4.01
         f = result[result["element_nr"] == "3_4.01"].iloc[0]
         self.assertTrue(pd.isna(f["ursprung_element_nr"]))
@@ -177,6 +177,101 @@ class AutoNodesTest(unittest.TestCase):
         frame = pd.DataFrame({"element_nr": ["1_2.01", "1_2.01", None]})
         with self.assertRaises(RuntimeError):
             an.assert_unique(frame)
+
+
+def frame(rows):
+    """Lines from (element_nr, strassenname, geometry)."""
+    return gpd.GeoDataFrame({"element_nr": [r[0] for r in rows], "element_nr_berechnet": ["nein"] * len(rows),
+                             "strassenname": [r[1] for r in rows]}, geometry=[r[2] for r in rows], crs=CRS)
+
+
+def run(rows, official_points):
+    official = gpd.GeoDataFrame({ID: list(official_points)}, geometry=list(official_points.values()), crs=CRS)
+    return an.snap_and_number(frame(rows), official, gpd.GeoDataFrame({ID: []}, geometry=[], crs=CRS), [], ID)
+
+
+class TwoArmJoinTest(unittest.TestCase):
+    """Rule 1: where exactly two line ends of two different lines meet and nothing passes, there is no proposal; the
+    two lines become one edge, unless they differ in attributes."""
+
+    OFFICIAL = {"1": point(0, 0), "2": point(300, 0)}
+
+    def test_two_lines_meeting_without_anything_else_are_joined(self):
+        # 1 -> (100,0.8) and (101,-0.8) -> (200,0) -> 2: ends 2 m apart, a chain of three lines through two such points
+        result, proposals, report = run([
+            ("1_2.01", "A-Straße", line((0, 0), (100, 0.8))),
+            (None, "A-Straße", line((200, 0), (101, -0.8))),
+            (None, "A-Straße", line((200, 0.5), (300, 0))),
+        ], self.OFFICIAL)
+        self.assertEqual(len(proposals), 0)
+        self.assertEqual(report["joined"], 2)
+        self.assertEqual(len(result), 1)
+        edge = result.iloc[0]
+        self.assertEqual(edge["element_nr"], "1_2.01")  # the member with a number keeps it, nothing else changes
+        self.assertTrue(pd.isna(edge["ursprung_element_nr"]))
+        geometry = edge.geometry.geoms[0]
+        self.assertTrue(geometry.is_simple)
+        self.assertLess(Point(geometry.coords[0]).distance(point(0, 0)), 0.01)  # direction of the numbered member
+        self.assertLess(Point(geometry.coords[-1]).distance(point(300, 0)), 0.01)
+
+    def test_lines_differing_in_attributes_are_not_joined(self):
+        result, proposals, report = run([
+            ("1_2.01", "A-Straße", line((0, 0), (150, 1))),
+            ("1_2.02", "B-Straße", line((150, -1), (300, 0))),
+        ], self.OFFICIAL)
+        self.assertEqual(report["joined"], 0)
+        self.assertEqual(list(proposals["art"]), ["junction"])
+        self.assertEqual(report["join_refused"], [(proposals.iloc[0]["id"], ["strassenname"])])
+        # the proposal separates them, both edges end exactly on its point
+        for geometry in result.geometry:
+            ends = [Point(geometry.geoms[0].coords[0]), Point(geometry.geoms[0].coords[-1])]
+            self.assertTrue(any(end.equals(proposals.iloc[0].geometry) for end in ends))
+
+    def test_a_loop_keeps_its_proposal(self):
+        # a line from node 1 and a loop whose two ends meet at (100,0)
+        result, proposals, report = run([
+            (None, "A-Straße", line((0, 0), (50, 50))),
+            (None, "A-Straße", line((100, 0), (150, 50), (200, 0), (100.5, 0))),
+        ], self.OFFICIAL)
+        self.assertEqual(report["joined"], 0)
+        self.assertIn("P392100-5815000", set(proposals["id"]))
+
+
+class ThreeArmProposalTest(unittest.TestCase):
+    """Rule 2: where three or more arms meet, the proposal stays; every line ending there ends exactly on its point and
+    a line passing through is split there."""
+
+    OFFICIAL = {"1": point(0, 0), "2": point(300, 0), "3": point(150, 200), "4": point(150, -200)}
+
+    def test_line_ends_move_onto_the_proposal_point(self):
+        result, proposals, report = run([
+            (None, "A", line((0, 0), (149, 0.5))),
+            (None, "A", line((300, 0), (151, 0))),
+            (None, "A", line((150, 200), (150, 1.2))),
+        ], self.OFFICIAL)
+        self.assertEqual(report["joined"], 0)
+        self.assertEqual(len(proposals), 1)
+        proposal = proposals.iloc[0]
+        self.assertEqual(proposal["art"], "junction")
+        self.assertEqual(len(proposal["kanten"].split("; ")), 3)
+        for geometry in result.geometry:
+            self.assertTrue(Point(geometry.geoms[0].coords[-1]).equals(proposal.geometry))
+
+    def test_a_line_passing_a_junction_is_split_there(self):
+        # two ends meet 1.5 m beside the line 3-4 (which passes, ends far away): four arms, the line is split
+        result, proposals, report = run([
+            ("1_2.01", "A", line((0, 0), (148.5, 0.5))),
+            ("1_2.02", "A", line((300, 0), (151.5, 0.5))),
+            ("3_4.01", "B", line((150, 200), (150, -200))),
+        ], self.OFFICIAL)
+        self.assertEqual(report["joined"], 0)
+        self.assertEqual(len(proposals), 1)
+        proposal = proposals.iloc[0]
+        self.assertEqual(proposal["geteilte_element_nr"], "3_4.01")
+        self.assertEqual(len(proposal["kanten"].split("; ")), 4)
+        self.assertNotIn("3_4.01", set(result["element_nr"]))
+        self.assertEqual(sorted(result["ursprung_element_nr"].dropna()), ["3_4.01", "3_4.01"])
+        self.assertTrue({"1_2.01", "1_2.02"} <= set(result["element_nr"]))  # ending there is no split
 
 
 if __name__ == "__main__":
