@@ -705,12 +705,43 @@ def entry_conflict(entry, data, reason, ref=None, element_nr=None):
 
 
 def read_sections(path):
-    """Abschnitte der Radfernwege aus Schritt 2: id -> {radfernweg, kanten}. Ohne Datei None."""
+    """Abschnitte der Radfernwege aus Schritt 2: id -> {radfernweg, kanten, zustand, mitte}. Ohne Datei None.
+
+    `mitte` ist der Punkt in der Mitte des Abschnitts (in CRS); die App zählt einen Abschnitt als gezeichnet, wenn eine
+    neue Kante höchstens SECTION_DRAWN_DISTANCE_M daran vorbeiführt."""
     if path is None or not Path(path).exists():
         return None
-    frame = gpd.read_file(path, layer=SECTIONS_LAYER)
-    return {row.id: {"radfernweg": row.radfernweg, "kanten": [key for key in (row.kanten or "").split("|") if key]}
+    frame = gpd.read_file(path, layer=SECTIONS_LAYER).to_crs(CRS)
+    return {row.id: {"radfernweg": row.radfernweg, "kanten": [key for key in (row.kanten or "").split("|") if key],
+                     "zustand": getattr(row, "zustand", None),
+                     "mitte": row.geometry.interpolate(0.5, normalized=True) if row.geometry is not None else None}
             for row in frame.itertuples()}
+
+
+# Wie in der App (sections.ts): eine neue Kante, die so nah an der Mitte eines Abschnitts vorbeiführt, trägt ihn
+SECTION_DRAWN_DISTANCE_M = 10.0
+
+
+def short_entry_id(entry_id):
+    """Der letzte Teil einer KV-Id (`berlin:kante:<uuid>` -> `<uuid>`); so verweist die App auf ihre Einträge."""
+    return str(entry_id).rsplit(":", 1)[-1]
+
+
+def drawn_section_routes(sections, new_edges, assigned_ids):
+    """Radfernwege, die eine gezeichnete Kante ohne Zuordnung trägt: Lücken-Abschnitte ohne Eintrag, an deren Mitte
+    die Kante höchstens SECTION_DRAWN_DISTANCE_M vorbeiführt (wie `sectionStatus` „gezeichnet“ in der App). So
+    bekommt eine Kante, auf der zwei Routen liegen, beide. Gibt kurze Eintrags-Id -> [(Route, Abschnitt-Id)] zurück."""
+    found = {}
+    if not sections or new_edges is None or len(new_edges) == 0:
+        return found
+    for sid, section in sections.items():
+        middle = section.get("mitte")
+        if sid in assigned_ids or section.get("zustand") != "luecke" or middle is None:
+            continue
+        for entry_id, geometry in zip(new_edges["entry_id"], new_edges.geometry):
+            if geometry is not None and geometry.distance(middle) <= SECTION_DRAWN_DISTANCE_M:
+                found.setdefault(short_entry_id(entry_id), []).append((section["radfernweg"], sid))
+    return found
 
 
 def apply_assignments(network, parts, entries, sections, detail_lines):
@@ -718,12 +749,15 @@ def apply_assignments(network, parts, entries, sections, detail_lines):
 
     `parts`: Linien des Eingangsnetzes mit ihrem Schlüssel `ref` (Parts), `sections`: id -> Abschnitt aus
     Schritt 2 (oder None), `detail_lines`: Linien des Detailnetzes mit Spalte `ref` (oder None).
-    Gibt (Netz, Konflikte, Zeilen für radfernweg_zuordnungen.csv, Zähler) zurück."""
+    Kanten `neu:<Eintrag>` (in der App gezeichnet) sammelt die Funktion in `drawn_routes` (kurze Eintrags-Id ->
+    [(Route, Abschnitt-Id, Eintrags-Id der Zuordnung)]); add_drawn_edges trägt sie ein.
+    Gibt (Netz, Konflikte, Zeilen für radfernweg_zuordnungen.csv, Zähler, drawn_routes) zurück."""
     items = [entry for entry in active_entries(entries, "section_assignment") if not entry["data"].get("geloescht")]
     conflicts, report = [], []
     stats = {"abschnitte": len(items), "zugeordnet": 0, "keine_aktion": 0, "konflikte": 0, "aufgenommen": 0, "umgelegt": 0}
+    drawn_routes = {}
     if not items:
-        return network, conflicts, report, stats
+        return network, conflicts, report, stats, drawn_routes
 
     def row_of(entry, data, art, status, hinweis=""):
         abschnitt = data.get("abschnitt") or {}
@@ -779,6 +813,8 @@ def apply_assignments(network, parts, entries, sections, detail_lines):
             kind, _, ref = key.partition(":")
             if kind == "ren" and ref in parts.by_ref:
                 targets.append(("row", network.index[parts.by_ref[ref]["row"]], key))
+            elif kind == "neu" and ref:
+                targets.append(("drawn", short_entry_id(ref), key))
             elif kind == "detailnetz" and ref in detail_by_ref:
                 edge = detail_by_ref[ref]
                 if edge.element_nr in rows_by_element_nr:
@@ -849,6 +885,9 @@ def apply_assignments(network, parts, entries, sections, detail_lines):
                 add_entry_id(network, target, entry["id"])
                 add_change(network, target, f"Radfernweg {route} von Hand zugeordnet (Abschnitt {data['abschnitt']['id']})")
                 dropped.discard(target)
+            elif kind == "drawn":
+                drawn_routes.setdefault(target, []).append((route, data["abschnitt"]["id"], entry["id"]))
+                notes.append(f"{key} (neu gezeichnete Kante)")
             else:
                 routes, ids = new_edges.setdefault(target, (set(), []))
                 routes.add(route)
@@ -887,7 +926,7 @@ def apply_assignments(network, parts, entries, sections, detail_lines):
             add_change(network, network.index[first_new + offset],
                        f"Detailnetzkante für Radfernweg {routes_text(new_edges[ref][0])} von Hand ins Netz aufgenommen")
         stats["aufgenommen"] = len(refs)
-    return network, conflicts, report, stats
+    return network, conflicts, report, stats, drawn_routes
 
 
 def node_text(value):
@@ -897,18 +936,34 @@ def node_text(value):
     return str(int(value)) if isinstance(value, numbers.Number) else str(value)
 
 
-def add_drawn_edges(network, original_geometry, new_edges, entries):
+def add_drawn_edges(network, original_geometry, new_edges, entries, extra_routes=None, auto_routes=None):
     """Hängt die in der App gezeichneten Kanten (new_edges aus new_edge_frame) als Zeilen an das Netz.
 
     quelle = neu_gezeichnet, routen_fernradweg aus dem Eintrag (routen_quelle = manuell), element_nr wie in der
-    App. Gibt (Netz, Originallage, Indexmarke je entry_id) zurück; die Lage ist die gezeichnete, in beiden Netzen."""
+    App. Dazu kommen Routen aus Zuordnungen in der App (`extra_routes`, siehe apply_assignments) und Routen von
+    Lücken-Abschnitten, an deren Mitte die Kante vorbeiführt (`auto_routes`, siehe drawn_section_routes), z. B. eine
+    zweite Route auf derselben Kante. Gibt (Netz, Originallage, Indexmarke je entry_id) zurück; die Lage ist die
+    gezeichnete, in beiden Netzen."""
     if len(new_edges) == 0:
         return network, original_geometry, {}
     data_by_id = {entry["id"]: entry["data"] for entry in entries}
     rows = []
     for edge in new_edges.itertuples():
         data = data_by_id[edge.entry_id]
-        routes = data.get("routen_fernradweg") or None
+        short = short_entry_id(edge.entry_id)
+        names = split_routes(data.get("routen_fernradweg"))
+        changes = [f"In der App neu gezeichnet ({'für den Radfernweg ' + routes_text(names) if names else data.get('quelle') or 'gezeichnet'})"]
+        entry_ids = [edge.entry_id]
+        for route, sid, assignment_id in (extra_routes or {}).get(short, []):
+            if route not in names:
+                names.append(route)
+            changes.append(f"Radfernweg {route} von Hand zugeordnet (Abschnitt {sid})")
+            entry_ids.append(assignment_id)
+        for route, sid in (auto_routes or {}).get(short, []):
+            if route not in names:
+                names.append(route)
+                changes.append(f"Radfernweg {route} liegt auch auf dieser Kante (Abschnitt {sid})")
+        routes = routes_text(names) if names else None
         rows.append({
             "element_nr": edge.element_nr, "element_nr_berechnet": "nein", "von_knoten": edge.von_knoten,
             "bis_knoten": edge.bis_knoten, "strassenname": edge.strassenname, "radverkehrsnetz": ren.RVN_KEIN,
@@ -916,8 +971,8 @@ def add_drawn_edges(network, original_geometry, new_edges, entries):
             "bearbeitet_2025": "nein", "anteil_2025": 0.0, "quelle": "neu_gezeichnet",
             "grund_aufnahme": "radfernweg_manuell" if data.get("quelle") == "radfernweg" else None,
             "routen_fernradweg": routes, "routen_quelle": "manuell" if routes else None,
-            "eintrag_ids": edge.entry_id,
-            "aenderung": f"In der App neu gezeichnet ({'für den Radfernweg ' + routes if routes else data.get('quelle') or 'gezeichnet'})",
+            "eintrag_ids": "; ".join(dict.fromkeys(entry_ids)),
+            "aenderung": "; ".join(changes),
             "geometry": MultiLineString([edge.geometry]),
         })
     added = gpd.GeoDataFrame(rows, geometry="geometry", crs=CRS)
@@ -1219,8 +1274,9 @@ def run(export_path, ren_path=AUTO_PATH, output_dir=OUTPUT_DIR, virtual_nodes_pa
     if assignments:
         detail_lines, _ = load_detailnetz(path=detail_path, extra_columns=("strassenklasse1", "strassenklasse2"))
         detail_lines["ref"] = line_refs(detail_lines["element_nr"])
-    corrected, assignment_conflicts, assignment_report, assignment_stats = apply_assignments(
-        corrected, parts, entries, read_sections(sections_path), detail_lines)
+    sections = read_sections(sections_path)
+    corrected, assignment_conflicts, assignment_report, assignment_stats, drawn_routes = apply_assignments(
+        corrected, parts, entries, sections, detail_lines)
     conflicts += assignment_conflicts
     original_geometry = original_geometry.reindex(corrected.index)
     for index in corrected.index[original_geometry.isna()]:  # von Hand aufgenommene Kanten: Lage = Lage im Netz
@@ -1245,7 +1301,11 @@ def run(export_path, ren_path=AUTO_PATH, output_dir=OUTPUT_DIR, virtual_nodes_pa
     stats["neue_kanten"] = len(new_edges)
 
     # Gezeichnete Kanten in die Ergebnisnetze, dann REN+-Kanten und gezeichnete Kanten an den virtuellen Knoten teilen
-    corrected, original_geometry, drawn_labels = add_drawn_edges(corrected, original_geometry, new_edges, entries)
+    assigned_section_ids = {(entry["data"].get("abschnitt") or {}).get("id") for entry in assignments}
+    auto_routes = drawn_section_routes(sections, new_edges, assigned_section_ids)
+    stats["neue_kanten_mit_weiterer_route"] = sum(1 for items in auto_routes.values() if items)
+    corrected, original_geometry, drawn_labels = add_drawn_edges(
+        corrected, original_geometry, new_edges, entries, drawn_routes, auto_routes)
     corrected, original_geometry, split_conflicts, split_stats = split_at_virtual_nodes(
         corrected, original_geometry, {item["ref"]: (labels[item["row"]], item["part"]) for item in parts.items},
         drawn_labels, entries, base_element_nrs, accepted_ids, app_nodes.by_entry)
@@ -1258,7 +1318,10 @@ def run(export_path, ren_path=AUTO_PATH, output_dir=OUTPUT_DIR, virtual_nodes_pa
         rename = lambda value: app_nodes.accepted.get(value, value)
         new_edges["von_knoten"] = new_edges["von_knoten"].map(rename)
         new_edges["bis_knoten"] = new_edges["bis_knoten"].map(rename)
-        by_entry = dict(zip(corrected["eintrag_ids"], corrected["element_nr"]))
+        by_entry = {}
+        for ids, element_nr in zip(corrected["eintrag_ids"], corrected["element_nr"]):
+            for entry_id in (ids.split("; ") if isinstance(ids, str) else []):
+                by_entry.setdefault(entry_id, element_nr)
         new_edges["element_nr"] = [by_entry.get(entry_id, element_nr)
                                    for entry_id, element_nr in zip(new_edges["entry_id"], new_edges["element_nr"])]
     all_nodes = virtual_node_rows(registry, app_nodes)

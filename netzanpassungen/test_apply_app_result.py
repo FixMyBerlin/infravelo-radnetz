@@ -154,6 +154,7 @@ def build_sections():
         ("route-g@0-50", "Route G", ""),
         ("route-h@0-50", "Route H", ""),
         ("route-i@0-50", "Route I", ""),
+        ("route-j@0-50", "Route J", ""),
     ]
     return gpd.GeoDataFrame(
         {"id": [r[0] for r in rows], "radfernweg": [r[1] for r in rows], "kanten": [r[2] for r in rows]},
@@ -253,7 +254,27 @@ def build_assignments():
         assignment("z10", "route-i@0-50", "Route A", "zugeordnet", ["ren:10000003_10000004.01"]),
         # gelöscht: ohne Wirkung
         assignment("z11", "route-f@0-50", "Route F", "zugeordnet", ["ren:10000007_10000008.01"], geloescht=True),
+        # eine in der App gezeichnete Kante (kurze Eintrags-Id wie in der App): Route J kommt auf k2 dazu
+        assignment("z12", "route-j@0-50", "Route J", "zugeordnet", ["neu:k2"]),
     ]
+
+
+class DrawnSectionRoutesTest(unittest.TestCase):
+    def test_second_route_on_a_drawn_edge(self):
+        new_edges = gpd.GeoDataFrame({"entry_id": ["berlin:kante:k9"]}, geometry=[line((0, 0), (100, 0))], crs=imp.CRS)
+        sections = {
+            "a@0-100": {"radfernweg": "A", "kanten": [], "zustand": "luecke", "mitte": Point(X0 + 50, Y0 + 4)},
+            "b@0-100": {"radfernweg": "B", "kanten": [], "zustand": "luecke", "mitte": Point(X0 + 50, Y0 + 8)},
+            "c@0-100": {"radfernweg": "C", "kanten": [], "zustand": "luecke", "mitte": Point(X0 + 50, Y0 + 30)},
+            "d@0-100": {"radfernweg": "D", "kanten": [], "zustand": "auf_ren", "mitte": Point(X0 + 50, Y0)},
+            "e@0-100": {"radfernweg": "E", "kanten": [], "zustand": "luecke", "mitte": Point(X0 + 50, Y0)},
+        }
+        found = imp.drawn_section_routes(sections, new_edges, assigned_ids={"e@0-100"})
+        self.assertEqual(found, {"k9": [("A", "a@0-100"), ("B", "b@0-100")]})
+
+    def test_short_entry_id(self):
+        self.assertEqual(imp.short_entry_id("berlin:kante:abc"), "abc")
+        self.assertEqual(imp.short_entry_id("abc"), "abc")
 
 
 class ImportTest(unittest.TestCase):
@@ -408,7 +429,8 @@ class ImportTest(unittest.TestCase):
         self.assertEqual(customer.loc["10000004_10000005.01", "aenderung"], "Kante ausgeschlossen; Ausschlussgrund: Tunnel")
         self.assertIn("Radfernweg Route B entfernt", customer.loc["10000008_10000009.01", "aenderung"])
         self.assertIn("von Hand ins Netz aufgenommen", customer.loc["70000001_70000002.01", "aenderung"])
-        self.assertEqual(customer.loc["10000001_0054.02", "aenderung"], "In der App neu gezeichnet (für den Radfernweg D3)")
+        self.assertEqual(customer.loc["10000001_0054.02", "aenderung"],
+                         "In der App neu gezeichnet (für den Radfernweg D3); Radfernweg Route J von Hand zugeordnet (Abschnitt route-j@0-50)")
         self.assertEqual(customer.loc["10000009_0054.01", "aenderung"],
                          "Kante 10000009_10000010.01 am virtuellen Knoten 0054 geteilt (Teil 1 von 2)")
         self.assertTrue(pd.isna(customer.loc["10000007_10000008.01", "aenderung"]))  # unchanged
@@ -423,7 +445,7 @@ class ImportTest(unittest.TestCase):
             # k1/k2: zwischen einem vorhandenen Knoten und dem virtuellen Knoten n1; nn zählt je Knotenpaar
             k2 = network.loc["10000001_0054.02"]
             self.assertEqual((k2["quelle"], k2["routen_fernradweg"], k2["routen_quelle"], k2["eintrag_ids"]),
-                             ("neu_gezeichnet", "D3", "manuell", "k2"), name)
+                             ("neu_gezeichnet", "D3; Route J", "manuell", "k2; z12"), name)
             self.assertEqual((k2["von_knoten"], k2["bis_knoten"]), ("10000001", "0054"), name)
             self.assertEqual(k2["bearbeitet_2025"], "nein", name)
             k1 = network.loc["10000001_0054.01"]
@@ -497,7 +519,7 @@ class ImportTest(unittest.TestCase):
             # z7 (keine_aktion) und z11 (gelöscht) ändern nichts
             self.assertTrue(pd.isna(network.loc["10000007_10000008.01", "routen_fernradweg"]), name)
             self.assertEqual(len(network), 10 - 1 + 1 + 3 + 1 + 1, name)  # Zuordnung -1 +1, gezeichnet +3, zwei Teilungen +1 +1
-        self.assertEqual(stats["zuordnung_zugeordnet"], 6)
+        self.assertEqual(stats["zuordnung_zugeordnet"], 7)
         self.assertEqual(stats["zuordnung_keine_aktion"], 1)
         self.assertEqual(stats["zuordnung_aufgenommen"], 1)
         self.assertEqual(stats["zuordnung_umgelegt"], 2)
@@ -514,6 +536,16 @@ class ImportTest(unittest.TestCase):
         self.assertEqual(listing.loc["z8", "status"], "konflikt")
         self.assertIn("ins Netz aufgenommen", listing.loc["z2", "hinweis"])
         self.assertIn("löst 1 automatisch zugeordnete Kanten ab", listing.loc["z3", "hinweis"])
+
+    def test_assignment_to_a_drawn_edge(self):
+        self.run_import()
+        corrected = gpd.read_file(self.dir / "out" / "ren_netz_korrigiert.gpkg", layer="ren_netz")
+        rows = corrected[corrected["eintrag_ids"].fillna("").str.contains("z12")]
+        self.assertGreater(len(rows), 0)
+        for routes in rows["routen_fernradweg"]:
+            self.assertIn("Route J", routes.split("; "))
+            self.assertIn("D3", routes.split("; "))
+        self.assertTrue(rows["aenderung"].str.contains("Radfernweg Route J von Hand zugeordnet").all())
 
     def test_split_on_a_corrected_edge(self):
         """Der Knoten sitzt auf der verschobenen Kante: das Arbeitsnetz teilt am Knick, das Kundennetz bei gleichem Anteil."""
