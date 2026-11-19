@@ -201,7 +201,7 @@ def replay(original_coordinates, changes):
     „Wiederholt: …“-Zeilen im Protokoll, das Abspielen in Reihenfolge deckt das ab.
 
     Wie replayCorrection in der App: `verschoben` mit Index außerhalb der Linie und `eingefuegt` mit
-    Index hinter dem Ende werden übersprungen, `attribut` gilt nur für die drei Felder,
+    Index hinter dem Ende werden übersprungen, `entfernt` nimmt nur einen inneren Stützpunkt heraus, `attribut` gilt nur für die drei Felder,
     `ausgeschlossen` setzt `nach_wert is True`, eine unbekannte Art wird mit Warnung ignoriert."""
     coordinates = [list(point) for point in original_coordinates]
     attribute = {}
@@ -214,6 +214,10 @@ def replay(original_coordinates, changes):
         elif kind == "eingefuegt":
             if isinstance(index, int) and 0 <= index <= len(coordinates) and change.get("nach"):
                 coordinates.insert(index, list(change["nach"]))
+        elif kind == "entfernt":
+            # Nur innere Stützpunkte: die Enden gehören zu den Knoten
+            if isinstance(index, int) and 0 < index < len(coordinates) - 1:
+                del coordinates[index]
         elif kind == "attribut":
             if change.get("feld") in ATTRIBUTE_FIELDS:
                 attribute[change["feld"]] = change.get("nach_wert")

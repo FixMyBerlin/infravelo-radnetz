@@ -761,6 +761,11 @@ class ImportTest(unittest.TestCase):
         self.assertEqual(imp.replay(original, [{"art": "eingefuegt", "index": 3, "nach": moved}])[0], original)
         self.assertEqual(imp.replay(original, [{"art": "eingefuegt", "index": 2, "nach": moved}])[0], original + [moved])
         self.assertEqual(imp.replay(original, [{"art": "eingefuegt", "index": -1, "nach": moved}])[0], original)
+        # entfernt: nur innere Stützpunkte, die Enden bleiben
+        three = [[13.0, 52.0], [13.05, 52.05], [13.1, 52.1]]
+        self.assertEqual(imp.replay(three, [{"art": "entfernt", "index": 1}])[0], [three[0], three[2]])
+        for index in (0, 2, 5):
+            self.assertEqual(imp.replay(three, [{"art": "entfernt", "index": index}])[0], three)
         # unbekannte Art: ignoriert, kein Fehler
         self.assertEqual(imp.replay(original, [{"art": "gibt_es_nicht"}]), (original, {}))
         # attribut nur für die drei Felder
