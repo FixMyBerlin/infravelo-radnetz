@@ -51,7 +51,7 @@ _vorgang = itertools.count(1)
 
 
 def change(art, **fields):
-    return {"vorgang_id": f"vorgang-{next(_vorgang)}", "art": art, "beschreibung": art, "von_nutzer": "tester", "am": "2026-11-12T10:00:00Z", **fields}
+    return {"vorgang_id": f"vorgang-{next(_vorgang)}", "art": art, "von_nutzer": "tester", "am": "2026-11-12T10:00:00Z", **fields}
 
 
 def correction(ref, element_nr, original, current, attribute, changes, comment=None):
@@ -184,7 +184,8 @@ def build_entries():
             "10000003_10000004.01", "10000003_10000004.01", c0, c0,
             {"fahrbahn_typ": "richtungsfahrbahn", "fahrbahn_gruppe": "FG-0001", "verkehrsrichtung": "R"}, [
                 change("attribut", feld="fahrbahn_typ", von_wert=None, nach_wert="richtungsfahrbahn"),
-                change("attribut", feld="fahrbahn_gruppe", von_wert=None, nach_wert="FG-0001"),
+                change("attribut", feld="fahrbahn_gruppe", von_wert=None, nach_wert="FG-0001",
+                       beschreibung="Fahrbahngruppe FG-0001 gebildet"),
                 change("attribut", feld="verkehrsrichtung", von_wert="B", nach_wert="R", am="2026-11-12T11:00:00Z")],
             comment="Scharnweberstraße")),
         stored("e4", correction(
@@ -395,6 +396,22 @@ class ImportTest(unittest.TestCase):
 
         self.assertEqual(stats["angewendet"], 5)
         self.assertEqual(stats["konflikte"], 2)
+
+        # aenderung: one German sentence per change; the position change only in the working network
+        self.assertIn("Stützpunkt 7,0 m verschoben", corrected.loc["10000001_10000002.01", "aenderung"].split("; "))
+        self.assertIn("Radfernweg Route C von Hand zugeordnet", corrected.loc["10000001_10000002.01", "aenderung"])
+        self.assertIn("Lage korrigiert (nur in ren_netz_korrigiert.gpkg)", customer.loc["10000001_10000002.01", "aenderung"])
+        self.assertNotIn("verschoben", customer.loc["10000001_10000002.01", "aenderung"])
+        self.assertIn("Verkehrsrichtung: nur in Pfeilrichtung (R)", customer.loc["10000003_10000004.01", "aenderung"])
+        self.assertIn("Fahrbahntyp: richtungsfahrbahn", customer.loc["10000003_10000004.01", "aenderung"])
+        self.assertIn("Fahrbahngruppe FG-0001 gebildet", customer.loc["10000003_10000004.01", "aenderung"])  # beschreibung of the app
+        self.assertEqual(customer.loc["10000004_10000005.01", "aenderung"], "Kante ausgeschlossen; Ausschlussgrund: Tunnel")
+        self.assertIn("Radfernweg Route B entfernt", customer.loc["10000008_10000009.01", "aenderung"])
+        self.assertIn("von Hand ins Netz aufgenommen", customer.loc["70000001_70000002.01", "aenderung"])
+        self.assertEqual(customer.loc["10000001_0054.02", "aenderung"], "In der App neu gezeichnet (für den Radfernweg D3)")
+        self.assertEqual(customer.loc["10000009_0054.01", "aenderung"],
+                         "Kante 10000009_10000010.01 am virtuellen Knoten 0054 geteilt (Teil 1 von 2)")
+        self.assertTrue(pd.isna(customer.loc["10000007_10000008.01", "aenderung"]))  # unchanged
 
         self.check_assignments(stats, by_entry, corrected, customer)
         self.check_drawn_edges_and_splits(stats, corrected, customer)
@@ -619,6 +636,8 @@ class ImportTest(unittest.TestCase):
             drawn = out[out["eintrag_ids"] == "kv"].iloc[0]
             self.assertEqual((drawn["von_knoten"], drawn["bis_knoten"]), ("0070", "0001"), name)
             self.assertEqual(out.index[out["eintrag_ids"] == "kv"][0], "0070_0001.01", name)
+            self.assertEqual(edge["aenderung"], f"Knotenvorschlag {DEAD_END} als 0070 in der App übernommen "
+                                                f"(element_nr bisher 10000004_{DEAD_END}.01)", name)
         self.assertFalse(any(imp.OPEN_PROPOSAL_REASON in c["grund"] for c in conflicts))
         self.assertEqual(stats["vorschlaege_uebernommen"], 1)
         nodes = gpd.read_file(self.dir / "app-output" / "virtuelle_knoten.gpkg").set_index("Knotenpunkt-ID")

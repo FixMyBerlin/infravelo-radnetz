@@ -139,7 +139,7 @@ NEW_EDGES_LAYER = "touristische_kanten"
 # Spalten, die beide Ergebnisnetze zusätzlich zum Netz aus Schritt 2 tragen (Reihenfolge der Datei)
 MARK_COLUMNS = ["verkehrsrichtung_original", "verkehrsrichtung_korrigiert", "fahrbahn_typ", "fahrbahn_gruppe",
                 "ausgeschlossen", "ausschluss_grund", "eintrag_ids", "anzahl_vorgaenge", "letzte_aenderung_am",
-                "letzte_aenderung_von", "korrektur_kommentar"]
+                "letzte_aenderung_von", "korrektur_kommentar", "aenderung", "element_nr_eingabe"]
 # Nur im korrigierten Netz
 LAGE_COLUMNS = ["lage_korrigiert", "hausdorff_m", "max_verschiebung_m", "differenzflaeche_m2", "laenge_alt_m", "laenge_neu_m"]
 CONFLICT_COLUMNS = ["grund", "art", "eintrag_id", "ref", "element_nr", "abweichung_m", "bearbeitet_von", "bearbeitet_am"]
@@ -255,6 +255,8 @@ def blank_correction_columns(network):
     network["verkehrsrichtung_original"] = network["verkehrsrichtung"]
     network["verkehrsrichtung_korrigiert"] = "nein"
     network["lage_korrigiert"] = "nein"
+    network["aenderung"] = None
+    network["aenderung_lage"] = None
     network["fahrbahn_typ"] = None
     network["fahrbahn_gruppe"] = None
     network["ausgeschlossen"] = "nein"
@@ -278,6 +280,52 @@ def add_entry_id(network, index, entry_id):
     ids = current.split("; ") if isinstance(current, str) and current else []
     if entry_id not in ids:
         network.at[index, "eintrag_ids"] = "; ".join(ids + [entry_id])
+
+
+DIRECTION_TEXT = {"B": "in beide Richtungen (B)", "R": "nur in Pfeilrichtung (R)", "G": "nur gegen Pfeilrichtung (G)"}
+FIELD_TEXT = {"verkehrsrichtung": "Verkehrsrichtung", "fahrbahn_typ": "Fahrbahntyp", "fahrbahn_gruppe": "Fahrbahngruppe"}
+# Sentences about the position go to aenderung only in the working network; the customer network gets AENDERUNG_LAGE_HINT
+AENDERUNG_LAGE_HINT = "Lage korrigiert (nur in ren_netz_korrigiert.gpkg)"
+
+
+def add_change(network, index, sentence, column="aenderung"):
+    """Appends one German sentence to the column `aenderung` of an edge (`; `-separated, no duplicates)."""
+    if not sentence:
+        return
+    current = network.at[index, column] if column in network.columns else None
+    sentences = current.split("; ") if isinstance(current, str) and current else []
+    if sentence not in sentences:
+        network.at[index, column] = "; ".join(sentences + [sentence])
+
+
+def format_m(value):
+    """4.2 -> '4,2 m'."""
+    return f"{value:.1f} m".replace(".", ",") if isinstance(value, numbers.Number) else "?"
+
+
+def change_sentence(change):
+    """One sentence for one step of the correction log: its `beschreibung` from the app, else built from the step."""
+    if has_text(change.get("beschreibung")):
+        return change["beschreibung"]
+    art = change.get("art")
+    if art == "verschoben":
+        return f"Stützpunkt {format_m(change.get('abstand_m'))} verschoben"
+    if art == "eingefuegt":
+        return "Stützpunkt eingefügt"
+    if art == "entfernt":
+        return "Stützpunkt entfernt"
+    if art == "ausgeschlossen":
+        return "Kante ausgeschlossen" if change.get("nach_wert") else "Ausschluss aufgehoben"
+    if art == "attribut":
+        field = change.get("feld")
+        value = change.get("nach_wert")
+        text = DIRECTION_TEXT.get(value, value) if field == "verkehrsrichtung" else value
+        return f"{FIELD_TEXT.get(field, field)}: {text if text is not None else 'nicht erfasst'}"
+    return f"Änderung {art}" if art else None
+
+
+def is_position_change(change):
+    return change.get("art") in ("verschoben", "eingefuegt", "entfernt")
 
 
 def conflict(entry, data, reason, deviation=None):
@@ -381,6 +429,10 @@ def apply_corrections(network, entries):
                 network.at[index, "letzte_aenderung_von"] = last["von_nutzer"]
         if data.get("kommentar"):
             network.at[index, "korrektur_kommentar"] = data["kommentar"]
+        for change in changes:
+            add_change(network, index, change_sentence(change), "aenderung_lage" if is_position_change(change) else "aenderung")
+        if attribute.get("ausgeschlossen") and data.get("kommentar"):
+            add_change(network, index, f"Ausschlussgrund: {data['kommentar']}")
         stats["angewendet"] += 1
 
     # Geometrien der Zeilen mit korrigierten Linien neu bauen, die anderen Teile bleiben
@@ -775,6 +827,8 @@ def apply_assignments(network, parts, entries, sections, detail_lines):
                         network.at[index, "routen_quelle"] = "manuell"
                     removed_from.setdefault(data["abschnitt"]["id"], []).append(key)
                     add_entry_id(network, index, entry["id"])
+                    add_change(network, index, f"Radfernweg {route} entfernt: in der App auf andere Kanten umgelegt "
+                                               f"(Abschnitt {data['abschnitt']['id']})")
 
     # Zuordnen
     new_edges = {}  # detailnetz-ref -> (routen, Einträge)
@@ -793,6 +847,7 @@ def apply_assignments(network, parts, entries, sections, detail_lines):
                     network.at[target, "routen_quelle"] = {None: "manuell", "auto": "auto; manuell"}.get(
                         previous if isinstance(previous, str) else None, previous)
                 add_entry_id(network, target, entry["id"])
+                add_change(network, target, f"Radfernweg {route} von Hand zugeordnet (Abschnitt {data['abschnitt']['id']})")
                 dropped.discard(target)
             else:
                 routes, ids = new_edges.setdefault(target, (set(), []))
@@ -824,9 +879,13 @@ def apply_assignments(network, parts, entries, sections, detail_lines):
         first_new = len(network)
         network = append_detail_rows(network, edges, "detailnetz_manuell", "radfernweg_manuell",
                                      [routes_text(new_edges[ref][0]) for ref in refs], "manuell")
+        if "aenderung" not in network.columns:
+            network["aenderung"] = None
         for offset, ref in enumerate(refs):
             for entry_id in new_edges[ref][1]:
                 add_entry_id(network, network.index[first_new + offset], entry_id)
+            add_change(network, network.index[first_new + offset],
+                       f"Detailnetzkante für Radfernweg {routes_text(new_edges[ref][0])} von Hand ins Netz aufgenommen")
         stats["aufgenommen"] = len(refs)
     return network, conflicts, report, stats
 
@@ -857,7 +916,9 @@ def add_drawn_edges(network, original_geometry, new_edges, entries):
             "bearbeitet_2025": "nein", "anteil_2025": 0.0, "quelle": "neu_gezeichnet",
             "grund_aufnahme": "radfernweg_manuell" if data.get("quelle") == "radfernweg" else None,
             "routen_fernradweg": routes, "routen_quelle": "manuell" if routes else None,
-            "eintrag_ids": edge.entry_id, "geometry": MultiLineString([edge.geometry]),
+            "eintrag_ids": edge.entry_id,
+            "aenderung": f"In der App neu gezeichnet ({'für den Radfernweg ' + routes if routes else data.get('quelle') or 'gezeichnet'})",
+            "geometry": MultiLineString([edge.geometry]),
         })
     added = gpd.GeoDataFrame(rows, geometry="geometry", crs=CRS)
     added = ren.add_district(added)
@@ -979,6 +1040,7 @@ def split_at_virtual_nodes(network, original_geometry, labels_of_ref, drawn_labe
             old_chain = [station * scale for station, _, _ in chain]
         dropped.append(label)
         stats["geteilte_kanten"] += 1
+        first_piece = len(pieces)
         for (low, start, start_entry), (high, end, end_entry), old_low, old_high in zip(
                 chain[:-1], chain[1:], old_chain[:-1], old_chain[1:]):
             key = pair_key(start, end)
@@ -993,6 +1055,11 @@ def split_at_virtual_nodes(network, original_geometry, labels_of_ref, drawn_labe
                     ids = piece["eintrag_ids"].split("; ") if isinstance(piece["eintrag_ids"], str) and piece["eintrag_ids"] else []
                     if entry["id"] not in ids:
                         piece["eintrag_ids"] = "; ".join(ids + [entry["id"]])
+            split_at = [name for name, entry in ((start, start_entry), (end, end_entry)) if entry is not None]
+            sentences = piece["aenderung"].split("; ") if isinstance(piece.get("aenderung"), str) and piece["aenderung"] else []
+            sentence = (f"Kante {row['element_nr']} am virtuellen Knoten {' und '.join(split_at)} geteilt "
+                        f"(Teil {len(pieces) + 1 - first_piece} von {len(chain) - 1})")
+            piece["aenderung"] = "; ".join(sentences + [sentence])
             pieces.append((next_label, piece))
             piece_geometry.append((next_label, MultiLineString([shapely.ops.substring(line, low, high)]),
                                    MultiLineString([shapely.ops.substring(old_line, old_low, old_high)])))
@@ -1042,6 +1109,10 @@ def apply_accepted_proposals(network, accepted, base_element_nrs):
         used.add(new)
         network.at[label, "element_nr_eingabe"] = element_nr
         network.at[label, "element_nr"] = new
+        if "aenderung" in network.columns:
+            renamed = [f"{proposal} als {accepted[proposal]}" for proposal in (match.group(1), match.group(2)) if proposal in accepted]
+            add_change(network, label, f"Knotenvorschlag {' und '.join(renamed)} in der App übernommen "
+                                       f"(element_nr bisher {element_nr})")
         changed += 1
     return network, changed
 
@@ -1082,7 +1153,16 @@ def customer_and_working_network(corrected, original_geometry):
     customer = corrected.set_geometry(original_geometry.reindex(corrected.index)).drop(
         columns=[column for column in LAGE_COLUMNS if column in corrected.columns])
     customer["laenge_m"] = customer.geometry.length.round(1)
-    return customer, working
+    # aenderung: the working network names the position changes, the customer network only says where they are
+    working["aenderung"] = [join_sentences(a, b) for a, b in zip(working["aenderung"], working["aenderung_lage"])]
+    customer["aenderung"] = [join_sentences(a, AENDERUNG_LAGE_HINT if has_text(b) else None)
+                             for a, b in zip(customer["aenderung"], customer["aenderung_lage"])]
+    return customer.drop(columns=["aenderung_lage"]), working.drop(columns=["aenderung_lage"])
+
+
+def join_sentences(*texts):
+    sentences = [sentence for text in texts if has_text(text) for sentence in text.split("; ")]
+    return "; ".join(dict.fromkeys(sentences)) or None
 
 
 def order_columns(network):
