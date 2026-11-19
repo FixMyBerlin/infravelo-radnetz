@@ -25,7 +25,7 @@ auseinander liegen, werden eine Kante, auch wenn die Quellen verschiedene elemen
 Quelle bleiben getrennt.
 
 Then (auto_nodes.py, English): edges are split at the 53 virtual nodes of 2025
-(data/Virtuelle-Knotenpunkte.gpkg, read-only) and at node proposals found by snapping edge ends to other
+(active ones, read from the KV database of the Netzanpassungen app) and at node proposals found by snapping edge ends to other
 edges (ids P<x>-<y>, no numbers: numbers are given only in the Netzanpassungen app), and every edge gets a
 unique element_nr from its two end nodes. The step fails if one is missing or duplicated.
 
@@ -57,7 +57,8 @@ INPUT:
   daneben, wird der jüngste verwendet)
 - data/Berlin Verbindungspunkte Detailnetz.fgb
 - data/Berlin Bezirke.gpkg
-- data/Virtuelle-Knotenpunkte.gpkg
+- KV database of the Netzanpassungen app (VITE_KV_* in .env): the 53 virtual nodes of 2025 as entries
+  (data/virtuelle_knotenpunkte.py read_registry; the file in netzanpassungen/one_time_import/2025/ is an archive)
 - ../tilda-static-data/geojson/region-infravelo/infravelo-datensatz-c-fortlaufend/
   aggregated_rvn_final.geojson.gz (Ergebnis 2025; tilda-static-data muss als
   Schwesterordner ausgecheckt sein)
@@ -109,8 +110,6 @@ VERBINDUNGSPUNKTE_PATH = ROOT / "data" / "Berlin Verbindungspunkte Detailnetz.fg
 # Spaltenname aus assign_node_ids / assign_element_nr_to_rvn (mit U+2010 als Bindestrich)
 NODE_ID_COLUMN = "Knotenpunkt‐ID"
 DISTRICTS_PATH = ROOT / "data" / "Berlin Bezirke.gpkg"
-# The 53 virtual nodes of 2025 (registry, numbers 0001-0053): read-only input like the Detailnetz nodes
-NODES_2025_PATH = ROOT / "data" / "Virtuelle-Knotenpunkte.gpkg"
 OUTPUT_DIR = ROOT / "ren-network" / "output"
 OUTPUT_PATH = OUTPUT_DIR / "ren_netz_roh.gpkg"
 OUTPUT_LAYER = "ren_netz"
@@ -543,9 +542,11 @@ def add_nodes(network):
 
 
 def load_nodes_2025():
-    """The 53 virtual nodes of 2025 (data/Virtuelle-Knotenpunkte.gpkg, frozen, column Knotenpunkt-ID)."""
-    nodes = vk.read_registry(NODES_2025_PATH)
-    logging.info(f"Virtual nodes of 2025: {len(nodes)}")
+    """The virtual nodes of 2025 (0001-0053, column Knotenpunkt-ID) that are still active, from the entries of the
+    Netzanpassungen app (KV database; data/virtuelle_knotenpunkte.py read_registry)."""
+    nodes = vk.read_registry()
+    nodes = nodes[nodes["status"] == vk.STATUS_ACTIVE].reset_index(drop=True)
+    logging.info(f"Virtual nodes of 2025 (app): {len(nodes)} active")
     return nodes
 
 

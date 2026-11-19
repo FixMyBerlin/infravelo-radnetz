@@ -9,14 +9,15 @@ As of 2026-11-19. Two repos take part: this repo `infravelo-radnetz` (Python, al
 - **All handwork happens in the Netzanpassungen app** and lives only in its KV database: Radfernweg gaps, new edges, position corrections, direction, carriageway, exclusion, and **every virtual node**. The app gives the numbers of new virtual nodes itself.
 - **The app never receives anything from the end of the pipeline.** Its input holds only raw data and what is computed automatically, so it can be regenerated and uploaded at any time without duplicates.
 - **Step 3 reads the app's entries directly from the KV database** (read-only). There is no manual export; the export „Alle Einträge“ stays as a fallback (`--export`).
+- **After a one-time takeover only the data from the app count; old lists are an archive** (`netzanpassungen/one_time_import/`): the old override lists of edges and the 53 virtual nodes of 2025. Steps 1 and 3 and the app input read the 53 from the KV database too (`VITE_KV_*` in `.env`).
 - The result of the app is written only to `output/`, never to `data/`.
 
 ## Overview
 
 ```mermaid
 flowchart TD
-  IN["<b>Input data</b> (data/)<br/>Detailnetz, cycle network sources, Radfernwege,<br/>the 53 virtual nodes of 2025"]
-  S1["<b>Step 1</b> merge the network<br/><i>split at the 2025 nodes and at node proposals</i>"]
+  IN["<b>Input data</b> (data/)<br/>Detailnetz, cycle network sources, Radfernwege"]
+  S1["<b>Step 1</b> merge the network<br/><i>split at the 2025 nodes (from the app) and at node proposals</i>"]
   S2["<b>Step 2</b> assign Radfernwege automatically"]
   AE["Write the app input"]
   APP["<b>Netzanpassungen app</b><br/>all handwork, incl. every new virtual node<br/><i>KV database</i>"]
@@ -51,7 +52,7 @@ flowchart TD
     A4 --> NR
     NR --> A5
   end
-  REG["data/Virtuelle-Knotenpunkte.gpkg<br/><i>the 53 nodes of 2025 (0001–0053), fixed input</i>"]
+  REG["the 53 nodes of 2025 (0001–0053)<br/><i>entries of the app since the one-time takeover</i>"]
   S3["<b>Step 3</b> writes every virtual node into one file"]
   VKF["netzanpassungen/output/virtuelle_knoten.gpkg<br/><i>read-only for everybody else</i>"]
   USE["processing/, knotenpunkte/, customer"]
@@ -61,11 +62,11 @@ flowchart TD
 
 A virtual node is a node the Detailnetz does not have. Every one has a four-digit number that never changes (rules: [`data/VIRTUELLE-KNOTENPUNKTE.md`](../data/VIRTUELLE-KNOTENPUNKTE.md)).
 
-- **The 53 nodes of 2025** (`0001`–`0053`) are a fixed input in `data/Virtuelle-Knotenpunkte.gpkg`. Their id in the 2025 delivery is in `id_rvn_2025` (e.g. `V1112`); the app finds old references through it.
+- **The 53 nodes of 2025** (`0001`–`0053`) are entries of the app (`herkunft: rvn_2025`, entry ids `rvn2025-0001` …). The app took them over once by itself when a logged-in user opened the area `berlin`; the delivery is an archive in `netzanpassungen/one_time_import/2025/Virtuelle-Knotenpunkte.gpkg` and the pipeline does not read it. Their id in the 2025 delivery is in `id_rvn_2025` (e.g. `V1112`); the app finds old references through it. Steps 1 and 3 read them from the KV database (`read_registry()`, needs `VITE_KV_*` in `.env`) and stop if not all 53 are there.
 - **Every new node is set in the app**, in one of these cases: (1) a new edge ends on an existing edge or ends freely; (2) an open end of the network is snapped onto an edge (an end snapped onto a node needs no new node); (3) an edge is split on request, e.g. where only a new bridge is to be its own edge; (4) a node proposal is accepted. The app takes the number from a counter in its KV database (`zaehler:virtuelle-knoten`).
 - **Node proposals:** where REN+ edges meet without a node, step 1 writes a proposal with an id `P<x>-<y>` (EPSG:25833 metres): 286 on all of Berlin (112 on the interior of another edge, 162 where edge ends meet, 12 open ends). They show in the app's queue „Knotenvorschläge Netz“; accepting one gives it a number. Until then the edges end at the `P…` id and step 3 lists them in `korrekturen_konflikte.csv`.
-- **Moving and deleting** also happen in the app. A deleted node stays in the KV database, its number stays taken.
-- **Step 3** writes `netzanpassungen/output/virtuelle_knoten.gpkg` (the 53 plus every app node, active and deleted). Everything else reads virtual nodes from there (`read_active()` in `data/virtuelle_knotenpunkte.py`). Nobody edits a node file by hand.
+- **Moving and deleting** also happen in the app, for the 53 of 2025 too. A deleted node stays in the KV database, its number stays taken.
+- **Step 3** writes `netzanpassungen/output/virtuelle_knoten.gpkg` (every node of the app, the 53 of 2025 included, active and deleted). Everything else reads virtual nodes from there (`read_active()` in `data/virtuelle_knotenpunkte.py`). Nobody edits a node file by hand.
 
 Every virtual node that is an end of a REN+ edge is a Knotenpunkt and is rated like any other node not rated in 2025 (`knotenpunkte/README.md`).
 
@@ -117,11 +118,11 @@ Script and file names (renamed with this rebuild):
 | `ren-network/zurueck_aufs_original.py`                             | `ren-network/map_back_to_original.py`   |
 | `netzanpassungen/einmalige_uebernahme/`                            | `netzanpassungen/one_time_import/`      |
 
-**Step 1: merge the network** (`ren-network/merge_networks.py`). Radverkehrsnetz, Radschnellverbindungen and Hauptstraßennetz become one raw network; `element_nr` through the node pairs of the Detailnetz. The REN+ edges are split at the 53 nodes of 2025 and at the node proposals, and every edge gets a unique `element_nr` from its end nodes (`<von>_<bis>.<nn>`; split pieces keep the old number in `ursprung_element_nr`). Result `ren_netz_roh.gpkg` and `ren-network/output/virtuelle_knoten_vorschlaege.gpkg`.
+**Step 1: merge the network** (`ren-network/merge_networks.py`). Radverkehrsnetz, Radschnellverbindungen and Hauptstraßennetz become one raw network; `element_nr` through the node pairs of the Detailnetz. The REN+ edges are split at the active ones of the 53 nodes of 2025 (read from the app's KV database) and at the node proposals, and every edge gets a unique `element_nr` from its end nodes (`<von>_<bis>.<nn>`; split pieces keep the old number in `ursprung_element_nr`). Result `ren_netz_roh.gpkg` and `ren-network/output/virtuelle_knoten_vorschlaege.gpkg`.
 
 **Step 2: assign Radfernwege automatically** (`netzanpassungen/match_cycle_routes.py`). Every Radfernweg is laid onto REN+ and the Detailnetz (rule below). Clearly matching REN+ edges get `routen_fernradweg`; clearly matching Detailnetz edges not in REN+ yet are taken in (`grund_aufnahme = radfernweg`). What is left becomes a **gap** with a fixed id.
 
-**Write the app input** (`netzanpassungen/write_app_input.py`). `netzanpassungen_<gebiet>.json` with the Detailnetz, `ren_netz_auto.gpkg` as REN+, the Radfernwege, their sections, and as `knoten` the Detailnetz nodes, the 53 nodes of 2025 and the proposals (`vorschlag = true`). Uploaded in the app, also repeatedly.
+**Write the app input** (`netzanpassungen/write_app_input.py`). `netzanpassungen_<gebiet>.json` with the Detailnetz, `ren_netz_auto.gpkg` as REN+, the Radfernwege, their sections, and as `knoten` the Detailnetz nodes and the proposals of step 1 (`vorschlag = true`); no virtual nodes otherwise, the app has the 53 of 2025 as entries. Uploaded in the app, also repeatedly.
 
 **Step 3: apply the app result** (`netzanpassungen/apply_app_result.py`). Reads the app's entries of the area from the KV database (`netzanpassungen/kv_entries.py`; settings `VITE_KV_*` in `.env`, see `.env.example`), or with `--export` a file „Alle Einträge“. Applies new edges, virtual nodes (they split their host edge), accepted proposals (their `P…` id becomes the number), gap assignments, corrections, direction, carriageway and exclusion, and writes `ren_netz.gpkg`, `ren_netz_korrigiert.gpkg`, their Kartierung, `netzanpassungen/output/virtuelle_knoten.gpkg`, `touristische_kanten.gpkg` and `korrekturen_konflikte.csv`. A virtual node without a number (an app entry that has not been numbered yet) is a conflict and splits nothing.
 
@@ -214,7 +215,7 @@ Small sections: stretches below 25 m of the same state, gaps below 20 m and stre
 2. **Thresholds** of the assignment rule (2026-11-11): set by the implementation after its own check (values above).
 3. **Rename** of the scripts and folders together with the rebuild (2026-11-11); language rule above.
 4. **Unique `element_nr`** for every REN+ edge, built in step 1 from its end nodes (2026-11-11); the app uses it as the edge ref.
-5. **Virtual nodes only in the app** (2026-11-19): they are set, numbered, moved and deleted only in the Netzanpassungen app. The 53 nodes of 2025 are a fixed input. No QGIS editing, no numbering script.
+5. **Virtual nodes only in the app** (2026-11-19): they are set, numbered, moved and deleted only in the Netzanpassungen app. The 53 nodes of 2025 were taken over by the app once and are entries like any other (the delivery is an archive). No QGIS editing, no numbering script.
 6. **Node proposals instead of automatic nodes** (2026-11-19): step 1 proposes, the app accepts.
 7. **Step 3 reads the KV database** (2026-11-19), no manual export.
 8. **Changes as columns** (2026-11-19): every change is described in `aenderung` and the marking columns of the delivered network; no separate documentation files.

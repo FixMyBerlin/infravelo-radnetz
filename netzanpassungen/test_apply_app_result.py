@@ -127,7 +127,7 @@ DEAD_END = "P392100-5815060"  # proposal of step 1 at the open end of 10000004_1
 
 
 def build_registry():
-    """The frozen registry (data/Virtuelle-Knotenpunkte.gpkg): here one node of 2025 on 10000007_10000008.01."""
+    """The registry of the 53 nodes of 2025 (in the pipeline entries of the app, read_registry): here one node of 2025 on 10000007_10000008.01."""
     return gpd.GeoDataFrame({"Knotenpunkt-ID": ["0001"], "ist_virtuell": [1], "status": ["aktiv"], "angelegt_am": [None],
                              "geloescht_am": [None], "grund": [None], "id_rvn_2025": ["V2025-1"],
                              "quelle": ["Bestand (vor 2026-11 mit V-Kennung)"], "kommentar": [None]},

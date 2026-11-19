@@ -19,8 +19,9 @@ Einträge des Exports (Einträge mit geloescht = true werden übersprungen):
   wurde). keine_aktion: ändert nichts, steht nur in radfernweg_zuordnungen.csv. Unbekannter
   Abschnitt oder unbekannte Kante: Konflikt, der Eintrag gilt nicht.
 - virtual_node: virtueller Knoten mit seiner Nummer (`nummer`, vergibt nur die App). Alle nummerierten
-  Knoten (aktiv und gelöscht) kommen mit den 53 von 2025 (data/Virtuelle-Knotenpunkte.gpkg) nach
-  netzanpassungen/output/virtuelle_knoten.gpkg; das ist die Datei, die processing/ und knotenpunkte/ über
+  Knoten (aktiv und gelöscht, die 53 von 2025 eingeschlossen) kommen nach
+  netzanpassungen/output/virtuelle_knoten.gpkg (die 53 von 2025 sind Einträge der App mit herkunft = rvn_2025,
+  ihre Zeilen kommen aus den Einträgen; ein Eintrag von ihnen als Kantenende löst auf seine Nummer auf); das ist die Datei, die processing/ und knotenpunkte/ über
   read_active() aus data/virtuelle_knotenpunkte.py lesen. Ein Knoten ohne Nummer zählt nicht (Konflikt).
   Übernommene Knotenvorschläge von Schritt 1 (herkunft = vorschlag, vorschlag_id = P<x>-<y>): die
   Vorschlags-Id wird in von_knoten/bis_knoten/knoten_anfang/knoten_ende/element_nr durch die Nummer
@@ -61,7 +62,7 @@ INPUT:
   mit --ohne-export ohne Einträge
 - netzanpassungen/output/ren_netz_auto.gpkg (match_cycle_routes.py)
 - netzanpassungen/output/radfernweg_abschnitte.gpkg (nur für section_assignment)
-- data/Virtuelle-Knotenpunkte.gpkg (die 53 von 2025), ren-network/output/virtuelle_knoten_vorschlaege.gpkg
+- ren-network/output/virtuelle_knoten_vorschlaege.gpkg (die 53 von 2025 kommen aus den Einträgen der App)
 - data/Berlin Straßenabschnitte Detailnetz*.fgb (element_nr für die Nummern neuer Kanten, Linien für
   von Hand zugeordnete Detailnetzkanten)
 
@@ -483,6 +484,14 @@ class AppNodes:
             data = entry["data"]
             number = vk.pad_id(data.get("nummer"))
             deleted = bool(data.get("geloescht"))
+            if data.get("herkunft") == vk.HERKUNFT_2025:
+                # A node of 2025: its row comes from the registry; the input is split there already. Edges
+                # drawn to it in the app name its entry, so the entry resolves to its number.
+                if not deleted and number:
+                    self.by_entry[entry["id"]] = number
+                    self.by_short[short_id(entry["id"])] = number
+                    self.accepted_entry_ids.add(entry["id"])
+                continue
             if number is None or not vk.ID_PATTERN.match(number):
                 if not deleted:
                     self.conflict(entry, f"Virtueller Knoten {data.get('name')} hat noch keine Nummer "
@@ -1262,7 +1271,8 @@ def run(export_path, ren_path=AUTO_PATH, output_dir=OUTPUT_DIR, virtual_nodes_pa
     logging.info(f"Korrekturen: {stats['angewendet']} von {stats['edge_correction']} angewendet "
                  f"({stats['geometrie']} mit Geometrie, {stats['attribute']} mit Attributen), {stats['konflikte']} Konflikte")
 
-    registry = vk.read_registry(registry_path or vk.REGISTRY_PATH)
+    # The 53 of 2025 are app entries; a file only in tests
+    registry = vk.read_registry(registry_path) if registry_path else vk.read_registry(entries=entries)
     proposals = read_proposals(proposals_path)
     app_nodes = AppNodes(entries, registry, parts)
     accepted_ids = app_nodes.splitting_ids

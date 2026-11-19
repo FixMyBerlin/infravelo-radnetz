@@ -4,7 +4,8 @@
 validate_virtuelle_knotenpunkte.py
 --------------------------------------------------------------------
 Prüft die virtuellen Knotenpunkte gegen die Regeln in data/VIRTUELLE-KNOTENPUNKTE.md: das
-eingefrorene Verzeichnis der 53 von 2025 und die Ausgabe von Schritt 3 (alle Knoten):
+Archiv der 53 von 2025 (die Datei in one_time_import/2025/; die App hat sie übernommen, die
+Pipeline liest sie aus der App) und die Ausgabe von Schritt 3 (alle Knoten):
 
 - Nummer 4-stellig, eindeutig über alle Zeilen einschließlich der gelöschten
 - status aktiv oder geloescht, Gelöschte mit geloescht_am und grund
@@ -15,7 +16,7 @@ eingefrorene Verzeichnis der 53 von 2025 und die Ausgabe von Schritt 3 (alle Kno
   liegen auf der Geometrie des Radvorrangnetzes, die bis zu 300 m davon abweicht.
 
 INPUT:
-- data/Virtuelle-Knotenpunkte.gpkg
+- netzanpassungen/one_time_import/2025/Virtuelle-Knotenpunkte.gpkg (Archiv, vk.ARCHIVE_PATH)
 - netzanpassungen/output/virtuelle_knoten.gpkg (Schritt 3)
 - data/virtuelle_knotenpunkte_alt_neu.csv
 - ren-network/output/ren_netz.gpkg
@@ -73,8 +74,8 @@ def main():
     logger.info("VALIDIERUNG: Virtuelle Knotenpunkte (data/VIRTUELLE-KNOTENPUNKTE.md)")
     logger.info("=" * 80)
 
-    registry = vk.read_all(vk.REGISTRY_PATH)
-    errors = [f"{vk.REGISTRY_PATH.name}: {error}"
+    registry = vk.read_all(vk.ARCHIVE_PATH)
+    errors = [f"{vk.ARCHIVE_PATH.name}: {error}"
               for error in vk.check(registry) + vk.check_registry_frozen(registry) + check_old_to_new(registry)]
     if not vk.OUTPUT_PATH.exists():
         logger.error(f"{RED}❌ {vk.MISSING_OUTPUT_MESSAGE}{RESET}")

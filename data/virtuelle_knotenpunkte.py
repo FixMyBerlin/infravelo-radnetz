@@ -5,10 +5,12 @@ virtuelle_knotenpunkte.py
 --------------------------------------------------------------------
 Virtual nodes (virtuelle Knotenpunkte). Rules: data/VIRTUELLE-KNOTENPUNKTE.md.
 
-Two files:
-- data/Virtuelle-Knotenpunkte.gpkg: the 53 nodes of 2025 (0001-0053), frozen, read-only input of the
-  pipeline (step 1 splits REN+ at them, step 3 copies them into the output file). Column id_rvn_2025 is
-  the id in the 2025 delivery (V1112, V44530016-44530064, ...).
+Sources:
+- The 53 nodes of 2025 (0001-0053) are entries of the Netzanpassungen app (KV database, herkunft
+  rvn_2025, id_rvn_2025 = the id in the 2025 delivery: V1112, V44530016-44530064, ...). The app took them
+  over once from netzanpassungen/one_time_import/2025/Virtuelle-Knotenpunkte.gpkg (now an archive) when
+  the area berlin was opened by a logged-in user. read_registry() reads them from the database; step 1
+  splits REN+ at them, step 3 copies them into the output file.
 - netzanpassungen/output/virtuelle_knoten.gpkg (OUTPUT_PATH): written by step 3
   (netzanpassungen/apply_app_result.py) = the 53 + every node of the Netzanpassungen app (active and
   deleted). This is what processing/ and knotenpunkte/ read through read_active().
@@ -35,8 +37,12 @@ import pandas as pd
 
 DATA_DIR = Path(__file__).resolve().parent
 ROOT = DATA_DIR.parent
-PATH = DATA_DIR / "Virtuelle-Knotenpunkte.gpkg"  # the 53 of 2025, frozen
-REGISTRY_PATH = PATH
+# The 53 of 2025 as delivered; an archive since they live in the app (read only for tests and old ids)
+ARCHIVE_PATH = ROOT / "netzanpassungen" / "one_time_import" / "2025" / "Virtuelle-Knotenpunkte.gpkg"
+PATH = ARCHIVE_PATH
+REGISTRY_PATH = ARCHIVE_PATH
+HERKUNFT_2025 = "rvn_2025"
+AREA_2025 = "berlin"
 OUTPUT_PATH = ROOT / "netzanpassungen" / "output" / "virtuelle_knoten.gpkg"  # step 3: the 53 + app nodes
 LAYER = "Virtuelle-Knotenpunkte"
 OLD_TO_NEW_PATH = DATA_DIR / "virtuelle_knotenpunkte_alt_neu.csv"
@@ -100,8 +106,52 @@ def read_all(path=OUTPUT_PATH):
     return gdf
 
 
-def read_registry(path=REGISTRY_PATH):
-    """The 53 nodes of 2025 (frozen input). Stops when the file breaks the rules."""
+def registry_from_entries(entries):
+    """The nodes of 2025 among the app entries (virtual_node with herkunft rvn_2025), as registry rows."""
+    from pyproj import Transformer
+    from shapely.geometry import Point
+
+    to_utm = Transformer.from_crs("EPSG:4326", CRS, always_xy=True)
+    rows = []
+    for entry in entries:
+        data = entry.get("data") or {}
+        if data.get("kind") != "virtual_node" or data.get("herkunft") != HERKUNFT_2025:
+            continue
+        deleted = bool(data.get("geloescht"))
+        rows.append({
+            ID_COLUMN: pad_id(data.get("nummer")), "ist_virtuell": 1,
+            "status": STATUS_DELETED if deleted else STATUS_ACTIVE,
+            "angelegt_am": "2025",
+            "geloescht_am": (data.get("geloescht_am") or entry.get("updated_at")) if deleted else None,
+            "grund": (data.get("grund") or "in der App gelöscht") if deleted else None,
+            "id_rvn_2025": data.get("id_rvn_2025"), "quelle": "RVN 2025", "kommentar": data.get("kommentar"),
+            "app_eintrag": entry.get("id"),
+            "geometry": Point(*to_utm.transform(*data["lngLat"])),
+        })
+    gdf = gpd.GeoDataFrame(rows, columns=COLUMNS + ["app_eintrag", "geometry"], geometry="geometry", crs=CRS)
+    return gdf.sort_values(ID_COLUMN).reset_index(drop=True)
+
+
+def read_registry(path=None, entries=None):
+    """The 53 nodes of 2025. Default: from the app entries in the KV database (`entries`, else fetched for
+    area berlin); `path`: from a file (the archive, tests). Stops when they are not all there or break the rules.
+    Deleted ones stay in the result with status geloescht (their number stays taken)."""
+    if path is None:
+        if entries is None:
+            sys.path.insert(0, str(ROOT / "netzanpassungen"))
+            import kv_entries
+            entries = kv_entries.fetch_entries(AREA_2025)["entries"]
+        gdf = registry_from_entries(entries)
+        missing = sorted({str(n).zfill(ID_DIGITS) for n in range(1, REGISTRY_SIZE + 1)} - set(gdf[ID_COLUMN]))
+        if missing:
+            raise SystemExit(
+                f"{len(missing)} of the {REGISTRY_SIZE} nodes of 2025 are not in the Netzanpassungen app yet "
+                f"(e.g. {missing[:3]}). Open the area {AREA_2025} once in the app while logged in: it takes them "
+                "over from netzanpassungen/one_time_import/2025/ by itself.")
+        errors = check(gdf)
+        if errors:
+            raise ValueError("The nodes of 2025 in the app break the rules:\n- " + "\n- ".join(errors))
+        return gdf
     gdf = read_all(path)
     errors = check(gdf)
     if errors:

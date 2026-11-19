@@ -8,8 +8,8 @@ two end nodes. For that, every edge end must sit on a node:
 
 - official nodes: the Detailnetz nodes (Verbindungspunkte with Knotenpunkt-ID), end within
   OFFICIAL_TOL_M;
-- the 53 virtual nodes of 2025 (data/Virtuelle-Knotenpunkte.gpkg, numbers 0001-0053): frozen input like
-  the Detailnetz nodes;
+- the active ones of the 53 virtual nodes of 2025 (numbers 0001-0053): entries of the Netzanpassungen
+  app (KV database), read by merge_networks.py through data/virtuelle_knotenpunkte.py read_registry();
 - node proposals (Knotenvorschläge), found here by snapping:
   * on an edge: an edge end (not at an official node) lies on the interior of another REN+ edge
     (within SNAP_TOL_M). The other edge is split there. Ends that meet the same spot on the same edge
