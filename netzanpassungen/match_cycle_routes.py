@@ -98,6 +98,12 @@ MIN_PIECE_M = 5.0
 METRIC_STEP_M = 2.0
 MAX_CANDIDATES_PER_SECTION = 8
 MIN_CANDIDATE_OVERLAP_M = 5.0
+# A REN+/Detailnetz edge that a section touches for less than this (a remnant at the node where it
+# meets the next edge, taken in when a short piece was merged into its neighbour) leaves the section,
+# if the section stays as well covered without it: its Hausdorff grows by at most KEY_DROP_TOLERANCE_M.
+# Example: berlin-dresden@725-1017 lies on 47540042_47550031.01 and touched 46540089_47540042.02 for 5 m.
+MIN_KEY_OVERLAP_M = 10.0
+KEY_DROP_TOLERANCE_M = 2.0
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s", force=True)
 
@@ -411,6 +417,27 @@ def deviation_metrics(section_line, edge_geometries):
     return float(distances.max()), float(np.percentile(distances, 95))
 
 
+def drop_remnant_keys(line, keys, netz_of, taken_items, low, high, geometries):
+    """`keys` without the edges the section only touches for less than MIN_KEY_OVERLAP_M, as long as the
+    section stays covered as well without them (see MIN_KEY_OVERLAP_M). The longest overlap is never dropped."""
+    items = {item["key"]: item for item in taken_items}
+
+    def geometry(key):
+        return geometries[netz_of[key]][items[key]["index"]]
+
+    overlap = {key: interval_overlap(items[key]["intervalle"], low, high) for key in keys}
+    kept = list(keys)
+    for key in sorted(keys, key=lambda key: overlap[key]):
+        if overlap[key] >= MIN_KEY_OVERLAP_M or len(kept) == 1:
+            continue
+        rest = [other for other in kept if other != key]
+        with_key, _ = deviation_metrics(line, [geometry(other) for other in kept])
+        without_key, _ = deviation_metrics(line, [geometry(other) for other in rest])
+        if without_key <= with_key + KEY_DROP_TOLERANCE_M:
+            kept = rest
+    return kept
+
+
 def build_sections(routes, matches, ren_lines, detail_lines):
     """Zerlegt jede Route lückenlos in Abschnitte. Gibt (Abschnitte, genommene Kanten je Route) zurück."""
     rows = []
@@ -443,6 +470,7 @@ def build_sections(routes, matches, ren_lines, detail_lines):
             candidates = [key for _, key in sorted(candidates, reverse=True)[:MAX_CANDIDATES_PER_SECTION]]
             hausdorff = p95 = None
             if keys:
+                keys = drop_remnant_keys(line, keys, section["keys"], taken_items, low, high, geometries)
                 edge_geoms = [geometries[section["keys"][key]][taken_index[key]] for key in keys]
                 hausdorff, p95 = deviation_metrics(line, edge_geoms)
             rows.append({

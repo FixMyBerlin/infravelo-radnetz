@@ -139,5 +139,29 @@ class MatchTest(unittest.TestCase):
         self.assertEqual(list(gaps["name"]), ["Route A"])
 
 
+class RemnantKeyTest(unittest.TestCase):
+    """Like berlin-dresden@725-1017: the section lies on edge B and touches edge A only for 5 m at
+    their shared node; A leaves the section, B stays."""
+
+    def test_remnant_edge_is_dropped(self):
+        section = LineString([(0, 0), (300, 0)])
+        geometries = {"ren": np.array([LineString([(-120, 0), (5, 0)]), LineString([(0, 0), (300, 0)])])}
+        items = [{"key": "ren:A", "netz": "ren", "intervalle": [(0.0, 5.0)], "index": 0},
+                 {"key": "ren:B", "netz": "ren", "intervalle": [(0.0, 300.0)], "index": 1}]
+        kept = z.drop_remnant_keys(section, ["ren:A", "ren:B"], {"ren:A": "ren", "ren:B": "ren"}, items,
+                                   0.0, 300.0, geometries)
+        self.assertEqual(kept, ["ren:B"])
+
+    def test_short_edge_that_covers_part_of_the_section_stays(self):
+        # A 8 m edge that alone covers the end of the section: without it the Hausdorff grows by 8 m.
+        section = LineString([(0, 0), (300, 0)])
+        geometries = {"ren": np.array([LineString([(292, 0), (300, 0)]), LineString([(0, 0), (292, 0)])])}
+        items = [{"key": "ren:A", "netz": "ren", "intervalle": [(292.0, 300.0)], "index": 0},
+                 {"key": "ren:B", "netz": "ren", "intervalle": [(0.0, 292.0)], "index": 1}]
+        kept = z.drop_remnant_keys(section, ["ren:A", "ren:B"], {"ren:A": "ren", "ren:B": "ren"}, items,
+                                   0.0, 300.0, geometries)
+        self.assertEqual(sorted(kept), ["ren:A", "ren:B"])
+
+
 if __name__ == "__main__":
     unittest.main()
