@@ -163,5 +163,21 @@ class RemnantKeyTest(unittest.TestCase):
         self.assertEqual(sorted(kept), ["ren:A", "ren:B"])
 
 
+class StubTest(unittest.TestCase):
+    """Like berlin-dresden@4328-4350: a 22 m piece starts at a junction of the route and ends free."""
+
+    def test_short_piece_with_a_free_end_is_a_stub(self):
+        main_a = LineString([(0, 100), (0, 0)])
+        main_b = LineString([(0, 0), (100, -50)])
+        stub = LineString([(0, 0), (-20, -10)])
+        self.assertEqual(z.stub_parts([main_a, stub, main_b]), {1})
+
+    def test_short_piece_between_two_pieces_is_no_stub(self):
+        a = LineString([(0, 100), (0, 0)])
+        short = LineString([(0, 0), (20, 0)])
+        b = LineString([(20, 0), (100, 0)])
+        self.assertEqual(z.stub_parts([a, short, b]), set())
+
+
 if __name__ == "__main__":
     unittest.main()

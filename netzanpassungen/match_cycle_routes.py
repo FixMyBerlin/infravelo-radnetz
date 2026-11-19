@@ -103,6 +103,12 @@ MIN_CANDIDATE_OVERLAP_M = 5.0
 # if the section stays as well covered without it: its Hausdorff grows by at most KEY_DROP_TOLERANCE_M.
 # Example: berlin-dresden@725-1017 lies on 47540042_47550031.01 and touched 46540089_47540042.02 for 5 m.
 MIN_KEY_OVERLAP_M = 10.0
+# A piece of a route shorter than this with an end that touches no other piece of the route (within
+# STUB_TOUCH_M) is a stub of the source data: its sections get the state `stummel` (no edges; the app
+# counts them as done, „nicht relevant“). Stations and ids stay as they are. Example: Berlin-Dresden, a 22 m piece from the junction at
+# 48530018 into Stralauer Platz (berlin-dresden@4328-4350).
+STUB_MAX_M = 30.0
+STUB_TOUCH_M = 2.0
 KEY_DROP_TOLERANCE_M = 2.0
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s", force=True)
@@ -120,6 +126,19 @@ def explode_with_rows(frame):
     return exploded[exploded.geometry.geom_type == "LineString"].reset_index(drop=True)
 
 
+def stub_parts(parts):
+    """Indexes of the stub pieces of a route (see STUB_MAX_M)."""
+    stubs = set()
+    for index, part in enumerate(parts):
+        if part.length >= STUB_MAX_M or len(parts) < 2:
+            continue
+        others = [other for other_index, other in enumerate(parts) if other_index != index]
+        ends = [shapely.Point(part.coords[0]), shapely.Point(part.coords[-1])]
+        if any(min(other.distance(end) for other in others) > STUB_TOUCH_M for end in ends):
+            stubs.add(index)
+    return stubs
+
+
 def load_routes():
     """Radfernwege: Teilstücke je Route in Dateireihenfolge, mit Anfangsstation im Verlauf der Route."""
     raw = gpd.read_file(RADFERNWEGE_PATH, columns=["name"])
@@ -131,7 +150,8 @@ def load_routes():
         parts = [part for part in (geometry.geoms if hasattr(geometry, "geoms") else [geometry])
                  if isinstance(part, LineString) and not part.is_empty]
         offsets = np.concatenate([[0.0], np.cumsum([part.length for part in parts])])
-        routes[name] = {"parts": parts, "offsets": offsets, "length": float(offsets[-1]), "slug": slugify(name)}
+        routes[name] = {"parts": parts, "offsets": offsets, "length": float(offsets[-1]), "slug": slugify(name),
+                        "stubs": stub_parts(parts)}
     logging.info(f"Radfernwege: {len(routes)} Routen, {sum(r['length'] for r in routes.values()) / 1000:.1f} km")
     return routes
 
@@ -455,8 +475,13 @@ def build_sections(routes, matches, ren_lines, detail_lines):
                 taken_items.append({"key": r.key, "netz": "detail", "intervalle": r.intervalle, "index": r.index})
         taken_index = {item["key"]: item["index"] for item in taken_items}
         pieces, boundaries = build_pieces(route, taken_items)
+        stub_ranges = [(route["offsets"][i], route["offsets"][i + 1]) for i in route.get("stubs", ())]
         for section in merge_pieces(pieces, boundaries):
             low, high = section["low"], section["high"]
+            middle = (low + high) / 2
+            if any(a <= middle <= b for a, b in stub_ranges):
+                # A stub of the source data (STUB_MAX_M): shown, but needs nothing
+                section = {**section, "state": "stummel", "keys": {}}
             line = route_geometry(route, low, high)
             keys = sorted(section["keys"], key=lambda key: (section["keys"][key] != "ren", key))
             # Nur Kanten des Zustands zählen: REN+ bei auf_ren, Detailnetz bei aufgenommen, keine bei luecke
