@@ -1306,6 +1306,15 @@ def run(export_path, ren_path=AUTO_PATH, output_dir=OUTPUT_DIR, virtual_nodes_pa
     stats["neue_kanten_mit_weiterer_route"] = sum(1 for items in auto_routes.values() if items)
     corrected, original_geometry, drawn_labels = add_drawn_edges(
         corrected, original_geometry, new_edges, entries, drawn_routes, auto_routes)
+    drawn_ids = {short_entry_id(entry_id) for entry_id in new_edges["entry_id"]} if len(new_edges) else set()
+    for short, items in drawn_routes.items():
+        if short in drawn_ids:
+            continue
+        for route, sid, assignment_id in items:
+            conflicts.append({"grund": f"Radfernweg {route} (Abschnitt {sid}) ist einer gezeichneten Kante zugeordnet, "
+                                       f"die es nicht (mehr) gibt: neu:{short}",
+                              "art": "section_assignment", "eintrag_id": assignment_id, "ref": sid, "element_nr": None,
+                              "abweichung_m": None, "bearbeitet_von": None, "bearbeitet_am": None})
     corrected, original_geometry, split_conflicts, split_stats = split_at_virtual_nodes(
         corrected, original_geometry, {item["ref"]: (labels[item["row"]], item["part"]) for item in parts.items},
         drawn_labels, entries, base_element_nrs, accepted_ids, app_nodes.by_entry)
