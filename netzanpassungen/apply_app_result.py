@@ -34,7 +34,9 @@ Einträge des Exports (Einträge mit geloescht = true werden übersprungen):
   Eintrag mit routen_quelle = manuell, element_nr `<von>_<bis>.<nn>` wie in der App) und weiterhin in
   netzanpassungen/output/touristische_kanten.gpkg.
 - Virtuelle Knoten teilen ihre Trägerkante (REN+-Kante oder gezeichnete Kante) in beiden Ergebnisnetzen: Jede Teilkante
-  bekommt eine neue element_nr und `ursprung_element_nr`, wie splitEdges in der App. Die Teilung an Detailnetz und
+  bekommt eine neue element_nr und `ursprung_element_nr`, wie splitEdges in der App. REN+-Kanten teilt auch jedes
+  REN+-Ende, das im Inneren einer anderen REN+-Kante liegt (T-Kreuzung der Quelle, 1,5 m, mehr als 2 m von den Enden), an seinem
+  vorhandenen Knoten. Die Teilung an Detailnetz und
   Radvorrangsnetz bleibt Sache von processing/scripts/split_rvn_at_virtual_nodes.py; sie arbeitet nur geometrisch,
   nummeriert nicht und teilt an Knoten am Kantenende (unter 1 m) nicht noch einmal, kann also nicht wiederverwendet werden.
 
@@ -152,6 +154,11 @@ ASSIGNMENT_COLUMNS = ["abschnitt_id", "radfernweg", "art", "kanten", "status", "
 
 # Virtuelle Knoten, die näher am Ende der Trägerkante liegen, teilen sie nicht (keine winzigen Teilkanten)
 SPLIT_END_TOLERANCE_M = 0.5
+# T-junctions of the source REN+ network: a REN+ edge that ends within REN_END_ON_EDGE_M of the interior of another REN+ edge
+# (more than REN_CUT_MIN_M from its ends and from other cuts) splits it there, as the app cuts it into parts
+# (parts.ts in the app: REN_END_ON_EDGE_M, MIN_PART_M)
+REN_END_ON_EDGE_M = 1.5
+REN_CUT_MIN_M = 2.0
 
 ATTRIBUTE_FIELDS = ("fahrbahn_typ", "fahrbahn_gruppe", "verkehrsrichtung")
 ELEMENT_NR_PATTERN = re.compile(r"^(.+)_(.+)\.(\d+)$")
@@ -1211,6 +1218,41 @@ def add_drawn_edges(network, original_geometry, new_edges, entries, extra_routes
     return network, original_geometry, labels
 
 
+def ren_end_cuts(network, excluded_labels):
+    """T-junctions inside the REN+ network: {Indexmarke der durchgehenden Kante: [(Station, Knoten-ID, Punkt)]}.
+
+    Die App teilt eine REN+-Kante dort in Teile, wo das Ende einer anderen REN+-Kante auf ihr liegt (näher als
+    REN_END_ON_EDGE_M an ihrem Inneren, weiter als REN_CUT_MIN_M von ihren Enden): die Quelle hat solche T-Kreuzungen, an denen
+    die durchgehende Kante nicht geteilt ist. Enden zählen mit ihrem Knoten (knoten_anfang/knoten_ende, sonst von_knoten/
+    bis_knoten); ein Ende ohne Knoten oder von einer Kante mit mehreren Linien zählt nicht. `excluded_labels`: gezeichnete
+    und von Hand aufgenommene Kanten, die in der App keine REN+-Kanten sind. Mehrere Enden am selben Punkt ergeben einen Schnitt
+    (die späteren liegen innerhalb von REN_CUT_MIN_M)."""
+    rows = [(label, row) for label, row in network.iterrows() if label not in excluded_labels
+            and row.geometry is not None and len(row.geometry.geoms) == 1]
+    ends = []  # (Punkt, Knoten-ID)
+    for label, row in rows:
+        coordinates = list(row.geometry.geoms[0].coords)
+        for point, column, fallback in ((coordinates[0], "knoten_anfang", "von_knoten"),
+                                        (coordinates[-1], "knoten_ende", "bis_knoten")):
+            node = node_text(row.get(column)) if has_text(row.get(column)) else node_text(row.get(fallback))
+            if has_text(node):
+                ends.append((Point(point), node))
+    if not ends:
+        return {}
+    tree = shapely.STRtree([point for point, _ in ends])
+    cuts = {}
+    for label, row in rows:
+        line = row.geometry.geoms[0]
+        if line.length <= 2 * REN_CUT_MIN_M:
+            continue
+        for position in tree.query(line, predicate="dwithin", distance=REN_END_ON_EDGE_M):
+            point, node = ends[position]
+            station = line.project(point)
+            if REN_CUT_MIN_M < station < line.length - REN_CUT_MIN_M:
+                cuts.setdefault(label, []).append((station, node, point))
+    return cuts
+
+
 def split_at_virtual_nodes(network, original_geometry, labels_of_ref, drawn_labels, entries, base_element_nrs,
                            accepted_ids=None, numbers=None):
     """Teilt REN+-Kanten und gezeichnete Kanten an den virtuellen Knoten des Exports (wie splitEdges in der App,
@@ -1221,6 +1263,8 @@ def split_at_virtual_nodes(network, original_geometry, labels_of_ref, drawn_labe
     Station kommt aus der Lage des Knotens (Projektion auf die Trägerkante, bei Lagekorrekturen auf die korrigierte
     Linie, wo die App den Knoten mitgeführt hat); ein Knoten mehr als 1 m neben der Kante teilt sie nicht. Im Kundennetz (Originallage) liegt die
     Teilung an der Projektion des Knotens auf die Originallinie (beim selben Anteil der Kantenlänge, wenn die Projektionen nicht in Reihenfolge liegen). Der freie Endknoten einer gezeichneten Kante teilt sie nicht.
+    Dazu teilt ein REN+-Ende, das im Inneren einer anderen REN+-Kante liegt (T-Kreuzung der Quelle, ren_end_cuts), diese Kante
+    an seinem vorhandenen Knoten, ohne neuen Knoten; Schnitte näher als 2 m an einem Kantenende oder an einem anderen Schnitt entfallen.
     Nicht geteilt wird eine Trägerkante ohne Knotennamen oder mit mehreren Linien (steht in den Konflikten).
     `labels_of_ref`: Indexmarke und Linie je Schlüssel `ref` des Eingangsnetzes.
     Gibt (Netz, Originallage, Konflikte, Zähler, Teile) zurück; `Teile`: Indexmarke der geteilten Kante ->
@@ -1230,7 +1274,8 @@ def split_at_virtual_nodes(network, original_geometry, labels_of_ref, drawn_labe
     drawn_data = {entry["id"]: entry["data"] for entry in active_entries(entries, "new_edge")}
     drawn_data.update({short_id(entry_id): data for entry_id, data in list(drawn_data.items())})
     drawn_labels = {**drawn_labels, **{short_id(entry_id): label for entry_id, label in drawn_labels.items()}}
-    conflicts, stats = [], {"geteilte_kanten": 0, "teilkanten": 0, "traeger_ohne_netz": 0, "knoten_neben_traeger": 0}
+    conflicts, stats = [], {"geteilte_kanten": 0, "teilkanten": 0, "traeger_ohne_netz": 0, "knoten_neben_traeger": 0,
+                            "schnitte_an_ren_enden": 0}
     hosts = {}  # Indexmarke -> [(Knoteneintrag)], in der Reihenfolge des Exports
     for entry in nodes:
         data = entry["data"]
@@ -1248,8 +1293,11 @@ def split_at_virtual_nodes(network, original_geometry, labels_of_ref, drawn_labe
         hosts.setdefault(label, []).append(entry)
 
     drawn_label_set = set(drawn_labels.values())
+    # T-junctions of the REN+ network: a REN+ edge that ends on the interior of another one cuts it at that node
+    manual = set(network.index[network["quelle"] == "detailnetz_manuell"]) if "quelle" in network.columns else set()
+    t_cuts = ren_end_cuts(network, drawn_label_set | manual)
     # Zuerst die gezeichneten Kanten, damit ihre Teile wie die Kanten selbst nummeriert werden
-    order = sorted(hosts, key=lambda label: label not in drawn_label_set)
+    order = sorted(set(hosts) | set(t_cuts), key=lambda label: label not in drawn_label_set)
     counts = element_nr_counts(list(base_element_nrs) + [network.at[label, "element_nr"] for label in drawn_label_set])
     network = network.copy()
     network["von_knoten"] = network["von_knoten"].map(node_text)
@@ -1274,13 +1322,15 @@ def split_at_virtual_nodes(network, original_geometry, labels_of_ref, drawn_labe
         start_node = row.get("knoten_anfang") if has_text(row.get("knoten_anfang")) else row["von_knoten"]
         end_node = row.get("knoten_ende") if has_text(row.get("knoten_ende")) else row["bis_knoten"]
         if not has_text(start_node) or not has_text(end_node):
+            if label not in hosts:
+                continue
             conflicts.append({"grund": f"Trägerkante {row['element_nr']} ohne Knoten: nicht an virtuellen Knoten geteilt",
                               "art": "virtual_node", "eintrag_id": hosts[label][0]["id"], "ref": None, "element_nr": row["element_nr"],
                               "abweichung_m": None, "bearbeitet_von": None, "bearbeitet_am": None})
             continue
         line, old_line = line_parts[0], old_parts[0]
         stops = []
-        for entry in hosts[label]:
+        for entry in hosts.get(label, []):
             data = entry["data"]
             point = Point(*_to_utm.transform(*data["lngLat"]))
             if line.distance(point) > NODE_ON_EDGE_TOLERANCE_M:
@@ -1289,12 +1339,10 @@ def split_at_virtual_nodes(network, original_geometry, labels_of_ref, drawn_labe
             station = line.project(point)
             if SPLIT_END_TOLERANCE_M < station < line.length - SPLIT_END_TOLERANCE_M:
                 stops.append((station, entry))
-        if not stops:
-            continue
         stops.sort(key=lambda item: item[0])
         # Two nodes closer than SPLIT_END_TOLERANCE_M on one edge would leave a near-zero piece: the first one splits,
         # the later one is reported
-        spaced = [stops[0]]
+        spaced = stops[:1]
         for station, entry in stops[1:]:
             if station - spaced[-1][0] < SPLIT_END_TOLERANCE_M:
                 conflicts.append({"grund": f"Virtueller Knoten {names[entry['id']]} liegt weniger als {SPLIT_END_TOLERANCE_M} m von "
@@ -1303,13 +1351,25 @@ def split_at_virtual_nodes(network, original_geometry, labels_of_ref, drawn_labe
                                   "abweichung_m": None, "bearbeitet_von": entry.get("updated_by"), "bearbeitet_am": entry.get("updated_at")})
             else:
                 spaced.append((station, entry))
-        stops = spaced
+        # A REN+ end on the interior of the edge cuts it at its existing node. It is dropped within REN_CUT_MIN_M of an end
+        # (done in ren_end_cuts), of a virtual node or of an earlier end (the app drops the later cut as well)
+        ren_stops = []
+        for station, node, point in sorted(t_cuts.get(label, []), key=lambda item: item[0]):
+            taken = [item[0] for item in spaced] + [item[0] for item in ren_stops]
+            if all(abs(station - other) > REN_CUT_MIN_M for other in taken):
+                ren_stops.append((station, {"id": None, "ren_node": node, "point": point}))
+        stops = sorted(spaced + ren_stops, key=lambda item: item[0])
+        if not stops:
+            continue
+        stats["schnitte_an_ren_enden"] += len(ren_stops)
+        node_name = lambda e: e["ren_node"] if e["id"] is None else names[e["id"]]
+        node_point = lambda e: e["point"] if e["id"] is None else Point(*_to_utm.transform(*e["data"]["lngLat"]))
         scale = old_line.length / line.length if line.length else 1.0
-        chain = [(0.0, start_node, None)] + [(st, names[e["id"]], e) for st, e in stops] + [(line.length, end_node, None)]
+        chain = [(0.0, start_node, None)] + [(st, node_name(e), e) for st, e in stops] + [(line.length, end_node, None)]
         # Where the nodes lie on the original line (customer network): their projection onto it, so a corrected
         # edge is cut at the same spot in both networks. Falls back to the same length share when the projections
         # are not in order (a heavily changed line).
-        old_chain = [0.0] + [old_line.project(Point(*_to_utm.transform(*e["data"]["lngLat"]))) for _, e in stops] + \
+        old_chain = [0.0] + [old_line.project(node_point(e)) for _, e in stops] + \
             [old_line.length]
         if not all(a < b for a, b in zip(old_chain, old_chain[1:])):
             old_chain = [station * scale for station, _, _ in chain]
@@ -1327,13 +1387,17 @@ def split_at_virtual_nodes(network, original_geometry, labels_of_ref, drawn_labe
                           "ursprung_element_nr": row["element_nr"], "lfd_nr": next_lfd, "eintrag_ids": row["eintrag_ids"]})
             next_lfd += 1
             for entry in (start_entry, end_entry):
-                if entry is not None:
+                if entry is not None and entry["id"] is not None:
                     ids = piece["eintrag_ids"].split("; ") if isinstance(piece["eintrag_ids"], str) and piece["eintrag_ids"] else []
                     if entry["id"] not in ids:
                         piece["eintrag_ids"] = "; ".join(ids + [entry["id"]])
-            split_at = [name for name, entry in ((start, start_entry), (end, end_entry)) if entry is not None]
+            split_at = [name for name, entry in ((start, start_entry), (end, end_entry)) if entry is not None and entry["id"] is not None]
+            split_at_ren = [name for name, entry in ((start, start_entry), (end, end_entry)) if entry is not None and entry["id"] is None]
             sentences = piece["aenderung"].split("; ") if isinstance(piece.get("aenderung"), str) and piece["aenderung"] else []
-            sentence = (f"Kante {row['element_nr']} am virtuellen Knoten {' und '.join(split_at)} geteilt "
+            where = [f"am virtuellen Knoten {' und '.join(split_at)}"] if split_at else []
+            if split_at_ren:
+                where.append(f"am Knoten {' und '.join(split_at_ren)}, an dem eine andere REN+-Kante endet")
+            sentence = (f"Kante {row['element_nr']} {' und '.join(where)} geteilt "
                         f"(Teil {len(pieces) + 1 - first_piece} von {len(chain) - 1})")
             piece["aenderung"] = "; ".join(sentences + [sentence])
             pieces.append((next_label, piece))

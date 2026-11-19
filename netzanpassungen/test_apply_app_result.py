@@ -1027,5 +1027,140 @@ class PartAssignmentTest(unittest.TestCase):
         self.assertNotIn("P389311-5821624_47550059.01", by_nr.index)
 
 
+def t_junction_network():
+    """Source REN+ network with T-junctions: a through edge that is not split where another REN+ edge ends on it."""
+    rows = [
+        # element_nr, Geometrie, knoten_ende
+        # 57470008 ends 0.5 m beside 57470004_57470005.02 at 23.3 m (as in Berlin): cut without a virtual node
+        ("57470004_57470005.02", MultiLineString([line((0, 2000), (100, 2000))]), None),
+        ("57470007_57470008.02", MultiLineString([line((23.3, 2060), (23.3, 2000.5))]), None),
+        # T-junction at 60 m and a virtual node of the app at 30 m on the same edge; a second end at 31 m lies within 2 m of the
+        # virtual node, a third at 99 m within 2 m of the edge end: both cut nothing
+        ("20000001_20000002.01", MultiLineString([line((0, 2100), (100, 2100))]), None),
+        ("20000003_20000004.01", MultiLineString([line((60, 2160), (60, 2100.8))]), None),
+        ("20000005_20000006.01", MultiLineString([line((31, 2160), (31, 2100.5))]), None),
+        ("20000007_20000008.01", MultiLineString([line((99, 2160), (99, 2100.5))]), None),
+        # an end 3 m beside the edge is no T-junction
+        ("30000001_30000002.01", MultiLineString([line((0, 2200), (100, 2200))]), None),
+        ("30000003_30000004.01", MultiLineString([line((50, 2260), (50, 2203))]), None),
+        # a drawn-in end (knoten_ende set, as in step 1): its node is the one of knoten_ende
+        ("40000001_40000002.01", MultiLineString([line((0, 2300), (100, 2300))]), None),
+        ("40000003_40000004.01", MultiLineString([line((40, 2360), (40, 2300))]), "P111111-2222222"),
+    ]
+    return gpd.GeoDataFrame(
+        {"lfd_nr": list(range(1, len(rows) + 1)), "element_nr": [r[0] for r in rows], "bearbeitet_2025": ["nein"] * len(rows),
+         "laenge_m": [round(r[1].length, 1) for r in rows], "element_nr_berechnet": ["nein"] * len(rows),
+         "von_knoten": pd.array([int(r[0].split("_")[0]) for r in rows], dtype="Int64"),
+         "bis_knoten": pd.array([int(r[0].split("_")[1].split(".")[0]) for r in rows], dtype="Int64"),
+         "knoten_anfang": [None] * len(rows), "knoten_ende": [r[2] for r in rows],
+         "bezirksnummer": pd.array([1] * len(rows), dtype="Int64"), "strassenname": [None] * len(rows),
+         "radverkehrsnetz": ["Radvorrangnetz"] * len(rows), "strassenklasse": [None] * len(rows),
+         "netz_quellen": ["radverkehrsnetz"] * len(rows), "in_detailnetz": ["ja"] * len(rows),
+         "hauptverkehrsstrasse": ["nein"] * len(rows), "anteil_2025": [0.0] * len(rows), "verkehrsrichtung": ["B"] * len(rows),
+         "quelle": ["radnetz"] * len(rows), "grund_aufnahme": [None] * len(rows),
+         "routen_fernradweg": [None] * len(rows), "routen_quelle": [None] * len(rows)},
+        geometry=[r[1] for r in rows], crs=imp.CRS)
+
+
+class TJunctionTest(unittest.TestCase):
+    """A REN+ edge that ends on the interior of another one splits it at the existing node (no new node)."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.dir = Path(self.tmp.name)
+        t_junction_network().to_file(self.dir / "ren_netz_auto.gpkg", layer="ren_netz", driver="GPKG")
+        sections = gpd.GeoDataFrame({"id": ["route-t@0-100", "route-u@0-100"], "radfernweg": ["Route T", "Route U"],
+                                     "kanten": ["", ""]},
+                                    geometry=[line((0, 500), (100, 500)), line((0, 510), (100, 510))], crs=imp.CRS)
+        sections.to_file(self.dir / "radfernweg_abschnitte.gpkg", layer=imp.SECTIONS_LAYER, driver="GPKG")
+        part_detailnetz().to_file(self.dir / "detailnetz.gpkg", driver="GPKG")
+        build_registry().to_file(self.dir / "registry.gpkg", layer=imp.VIRTUAL_NODES_LAYER, driver="GPKG")
+        build_proposals().iloc[0:0].to_file(self.dir / "proposals.gpkg", layer=imp.ren.PROPOSALS_LAYER, driver="GPKG")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def entries(self):
+        node = stored("nT", {"kind": "virtual_node", "name": "0070", "name_vorschlag": "0070", "nummer": "0070",
+                             "lngLat": lnglat(30, 2100), "traeger": {"art": "ren", "ref": "20000001_20000002.01", "station_m": 30.0}})
+        return [node,
+                assignment("tA", "route-t@0-100", "Route T", "zugeordnet", ["ren:57470004_57470005.02@0-23"]),
+                assignment("tB", "route-u@0-100", "Route U", "zugeordnet", ["ren:57470004_57470005.02@23-100"])]
+
+    def run_import(self, entries=None):
+        export = {"gebiet": "test", "exported_at": "x", "entries": self.entries() if entries is None else entries}
+        stats, conflicts = imp.run(export, ren_path=self.dir / "ren_netz_auto.gpkg", output_dir=self.dir / "out",
+                                   virtual_nodes_path=self.dir / "app-output" / "virtuelle_knoten.gpkg",
+                                   new_edges_path=self.dir / "app-output" / "touristische_kanten.gpkg",
+                                   detail_path=self.dir / "detailnetz.gpkg", sections_path=self.dir / "radfernweg_abschnitte.gpkg",
+                                   registry_path=self.dir / "registry.gpkg", proposals_path=self.dir / "proposals.gpkg")
+        networks = {name: gpd.read_file(self.dir / "out" / name, layer="ren_netz") for name in
+                    ("ren_netz.gpkg", "ren_netz_korrigiert.gpkg")}
+        return stats, conflicts, networks
+
+    @staticmethod
+    def stations(row):
+        coordinates = list(row.geometry.geoms[0].coords)
+        return round(coordinates[0][0] - X0, 1), round(coordinates[-1][0] - X0, 1)
+
+    def test_t_junction_splits_without_a_virtual_node(self):
+        _, conflicts, networks = self.run_import([])
+        for name, network in networks.items():
+            by_nr = network.set_index("element_nr")
+            self.assertTrue(by_nr.index.is_unique, name)
+            self.assertNotIn("57470004_57470005.02", by_nr.index, name)
+            first, second = by_nr.loc["57470004_57470008.01"], by_nr.loc["57470008_57470005.01"]
+            self.assertEqual((first["von_knoten"], first["bis_knoten"]), ("57470004", "57470008"))
+            self.assertEqual((second["von_knoten"], second["bis_knoten"]), ("57470008", "57470005"))
+            self.assertEqual(first["ursprung_element_nr"], "57470004_57470005.02")
+            self.assertEqual(self.stations(first), (0.0, 23.3))
+            self.assertEqual(self.stations(second), (23.3, 100.0))
+            self.assertIn("am Knoten 57470008, an dem eine andere REN+-Kante endet", first["aenderung"])
+            self.assertTrue(pd.isna(first["eintrag_ids"]) or first["eintrag_ids"] == "")
+            # the edge that ends there stays whole
+            self.assertIn("57470007_57470008.02", by_nr.index)
+        self.assertFalse([c for c in conflicts if "57470004" in str(c["element_nr"])])
+
+    def test_t_junction_and_virtual_node_on_one_edge(self):
+        stats, conflicts, networks = self.run_import()
+        for name, network in networks.items():
+            by_nr = network.set_index("element_nr")
+            self.assertNotIn("20000001_20000002.01", by_nr.index, name)
+            pieces = by_nr[by_nr["ursprung_element_nr"] == "20000001_20000002.01"]
+            self.assertEqual(len(pieces), 3, name)  # the ends at 31 m and 99 m cut nothing
+            self.assertEqual([(r["von_knoten"], r["bis_knoten"]) for _, r in pieces.sort_values("lfd_nr").iterrows()],
+                             [("20000001", "0070"), ("0070", "20000004"), ("20000004", "20000002")], name)
+            self.assertEqual(sorted(self.stations(r) for _, r in pieces.iterrows()), [(0.0, 30.0), (30.0, 60.0), (60.0, 100.0)], name)
+            self.assertIn("nT", by_nr.loc["20000001_0070.01", "eintrag_ids"])
+            self.assertTrue(pd.isna(by_nr.loc["20000004_20000002.01", "eintrag_ids"]))
+        self.assertEqual(stats["geteilte_kanten"], 3)  # 57470004_57470005.02, 20000001_20000002.01 and 40000001_40000002.01
+        self.assertEqual(stats["schnitte_an_ren_enden"], 3)
+
+    def test_no_cut_for_an_end_beside_the_edge_and_the_knoten_ende_is_used(self):
+        _, _, networks = self.run_import([])
+        for name, network in networks.items():
+            by_nr = network.set_index("element_nr")
+            self.assertIn("30000001_30000002.01", by_nr.index, name)  # the end 3 m away does not cut
+            self.assertNotIn("40000001_40000002.01", by_nr.index, name)
+            self.assertIn("40000001_P111111-2222222.01", by_nr.index, name)  # knoten_ende, not bis_knoten
+            self.assertIn("P111111-2222222_40000002.01", by_nr.index, name)
+
+    def test_part_assignment_lands_on_the_piece(self):
+        _, conflicts, networks = self.run_import()
+        self.assertFalse([c for c in conflicts if str(c["eintrag_id"]) in ("tA", "tB")], conflicts)
+        for name, network in networks.items():
+            by_nr = network.set_index("element_nr")
+            self.assertEqual(by_nr.loc["57470004_57470008.01", "routen_fernradweg"], "Route T", name)
+            self.assertEqual(by_nr.loc["57470008_57470005.01", "routen_fernradweg"], "Route U", name)
+            self.assertIn("Teil 0–23 m der Kante", by_nr.loc["57470004_57470008.01", "aenderung"])
+            self.assertEqual(by_nr.loc["57470004_57470008.01", "eintrag_ids"], "tA")
+
+    def test_part_of_an_edge_without_a_cut_is_still_a_conflict(self):
+        entries = [assignment("tC", "route-t@0-100", "Route T", "zugeordnet", ["ren:30000001_30000002.01@0-50"])]
+        _, conflicts, networks = self.run_import(entries)
+        reasons = {c["eintrag_id"]: c["grund"] for c in conflicts}
+        self.assertIn("keine Teilkante liegt ganz zwischen 0 und 50 m", reasons["tC"])
+
+
 if __name__ == "__main__":
     unittest.main()
