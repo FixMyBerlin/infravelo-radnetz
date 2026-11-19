@@ -403,8 +403,8 @@ class ImportTest(unittest.TestCase):
         self.assertIn("neben seiner Trägerkante", by_entry.loc["n2", "grund"])
         self.assertNotIn("n1", by_entry.index)
         self.assertEqual(stats["virtuelle_knoten_app"], 3)
-        # the dead end proposal of step 1 is not accepted: listed as open
-        self.assertTrue(any(c["ref"] == DEAD_END and imp.OPEN_PROPOSAL_REASON in c["grund"] for c in conflicts))
+        # the dead end proposal of step 1 is not accepted, but a dead end needs no decision: no conflict
+        self.assertFalse(any(c["ref"] == DEAD_END for c in conflicts))
         self.assertEqual(stats["vorschlaege_offen"], 1)
 
         # neue Kanten: Nummern zählen je Knotenpaar, gelöschte fehlt
@@ -576,7 +576,7 @@ class ImportTest(unittest.TestCase):
                                    virtual_nodes_path=self.dir / "app-output" / "virtuelle_knoten.gpkg",
                                    new_edges_path=self.dir / "app-output" / "touristische_kanten.gpkg",
                                    registry_path=self.dir / "registry.gpkg", proposals_path=self.dir / "proposals.gpkg")
-        self.assertEqual([c["grund"] for c in conflicts], [imp.OPEN_PROPOSAL_REASON + " (dead_end)"])
+        self.assertEqual([c["grund"] for c in conflicts], [])  # the open dead end needs no decision
         # ohne Export enthält die Datei nur die Knoten von 2025 (und überschreibt nichts, was schon da ist)
         nodes = gpd.read_file(self.dir / "app-output" / "virtuelle_knoten.gpkg")
         self.assertEqual(sorted(nodes["Knotenpunkt-ID"]), ["0001"])
@@ -676,6 +676,57 @@ class ImportTest(unittest.TestCase):
         self.assertEqual(stats["vorschlaege_uebernommen"], 1)
         nodes = gpd.read_file(self.dir / "app-output" / "virtuelle_knoten.gpkg").set_index("Knotenpunkt-ID")
         self.assertEqual((nodes.loc["0070", "herkunft"], nodes.loc["0070", "vorschlag_id"]), ("vorschlag", DEAD_END))
+
+    def test_an_app_node_on_an_open_proposal_takes_it(self):
+        """A node set in the app without vorschlag_id within 0.1 m of an open proposal counts as accepting it: the
+        proposal id is replaced by its number, it does not split again, no conflict."""
+        network = build_network()
+        row = network.index[network["element_nr"] == "10000004_10000005.01"][0]
+        network["von_knoten"] = network["von_knoten"].astype(str)
+        network["bis_knoten"] = network["bis_knoten"].astype(str)
+        network.loc[row, "element_nr"] = f"10000004_{DEAD_END}.01"
+        network.loc[row, "bis_knoten"] = DEAD_END
+        network.to_file(self.dir / "ren_netz_auto.gpkg", layer="ren_netz", driver="GPKG")
+        entries = [stored("nq", {"kind": "virtual_node", "name": "0071", "nummer": "0071", "lngLat": lnglat(100, 60.05),
+                                 "traeger": {"art": "ren", "ref": f"10000004_{DEAD_END}_gone.01", "station_m": 100.0}})]
+        self.export.write_text(json.dumps({"gebiet": "test", "exported_at": "x", "entries": entries}), encoding="utf-8")
+        stats, conflicts = self.run_import()
+        self.assertIn("10000004_0071.01", self.read("ren_netz.gpkg").index)
+        self.assertEqual(stats["vorschlaege_uebernommen"], 1)
+        self.assertFalse(any(c["eintrag_id"] == "nq" for c in conflicts), conflicts)
+        nodes = gpd.read_file(self.dir / "app-output" / "virtuelle_knoten.gpkg").set_index("Knotenpunkt-ID")
+        self.assertEqual(nodes.loc["0071", "vorschlag_id"], DEAD_END)
+
+    def test_a_correction_back_at_the_original_is_skipped(self):
+        """A correction reset to the original changes nothing: not applied, no conflict, even when step 1 has moved
+        the line since (here its end, 0.3 m)."""
+        network = gpd.GeoDataFrame({"element_nr": ["1_2.01"]}, geometry=[MultiLineString([line((0, 0), (100, 0.3))])],
+                                   crs=imp.CRS)
+        old = coords((0, 0), (50, 0), (100, 0))
+        entries = [stored("c", correction("1_2.01", "1_2.01", old, old, {}, [change("zurueckgesetzt")]))]
+        corrected, conflicts, stats, _ = imp.apply_corrections(network, entries)
+        self.assertEqual((conflicts, stats["angewendet"]), ([], 0))
+        self.assertTrue(corrected.geometry.iloc[0].equals(network.geometry.iloc[0]))
+
+    def test_edge_ends_move_onto_their_virtual_node(self):
+        """Ends up to 3 m from the virtual node they name end exactly on it; where all edges of a node meet farther
+        away, nothing moves and a person decides (conflict)."""
+        network = gpd.GeoDataFrame(
+            {"element_nr": ["1_0060.01", "0060_2.01", "3_0061.01", "0061_4.01"],
+             "von_knoten": ["1", "0060", "3", "0061"], "bis_knoten": ["0060", "2", "0061", "4"],
+             "knoten_anfang": [None] * 4, "knoten_ende": [None] * 4},
+            geometry=[MultiLineString([line((0, 0), (49, 1))]), MultiLineString([line((50.5, 0), (100, 0))]),
+                      MultiLineString([line((0, 100), (40, 100))]), MultiLineString([line((40, 100), (100, 100))])],
+            crs=imp.CRS)
+        nodes = {"0060": Point(X0 + 50, Y0), "0061": Point(X0 + 50, Y0 + 100)}
+        out, original, moved, conflicts = imp.snap_ends_to_virtual_nodes(network, network.geometry, nodes)
+        self.assertEqual(moved, 2)
+        self.assertTrue(Point(out.geometry.iloc[0].geoms[0].coords[-1]).equals(nodes["0060"]))
+        self.assertTrue(Point(out.geometry.iloc[1].geoms[0].coords[0]).equals(nodes["0060"]))
+        self.assertTrue(Point(original.iloc[0].geoms[0].coords[-1]).equals(nodes["0060"]))
+        self.assertTrue(out.geometry.iloc[2].equals(network.geometry.iloc[2]))  # 10 m away: not moved
+        self.assertEqual([(c["ref"], c["abweichung_m"]) for c in conflicts], [("0061", 10.0)])
+        self.assertIn("treffen sich 10.0 m neben dem Knoten", conflicts[0]["grund"])
 
     def test_renamed_element_nr_never_collides(self):
         network = imp.gpd.GeoDataFrame({"element_nr": ["P1-2_5.01", "0070_5.01"], "von_knoten": ["P1-2", "0070"],
@@ -790,7 +841,7 @@ class ImportTest(unittest.TestCase):
                                                {"verkehrsrichtung": "G"}, [change("attribut", feld="verkehrsrichtung", von_wert="B", nach_wert="G")])))
         # andere Stützpunktzahl als im Netz (3 statt 2) zählt als Abweichung
         d3 = coords((0, 120), (50, 120), (100, 120))
-        entries.append(stored("x3", correction("10000007_10000008.01", "10000007_10000008.01", d3, d3, {}, [])))
+        entries.append(stored("x3", correction("10000007_10000008.01", "10000007_10000008.01", d3, d3, {"verkehrsrichtung": "R"}, [])))
         self.export.write_text(json.dumps({"gebiet": "test", "exported_at": "x", "entries": entries}), encoding="utf-8")
         _, conflicts = self.run_import()
         reasons = {c["eintrag_id"]: c["grund"] for c in conflicts}

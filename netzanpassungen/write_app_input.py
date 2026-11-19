@@ -18,7 +18,8 @@ Die Datei enthält FeatureCollections in WGS84:
   beginnt_bei_vp, letzter = endet_bei_vp, ist_virtuell = 0) und
   die Knotenvorschläge von Schritt 1 (ren-network/output/virtuelle_knoten_vorschlaege.gpkg:
   ist_virtuell = 1, id = Vorschlags-Id P<x>-<y>, vorschlag = true, art on_edge | junction | dead_end,
-  traeger_element_nr und station_m). Andere virtuelle Knoten stehen nicht in der Datei, auch die 53
+  arme (Anzahl der Arme dort, Detailnetzlinien außerhalb des Netzes eingeschlossen; ab 3 übernimmt die App den
+  Vorschlag selbst), traeger_element_nr und station_m). Andere virtuelle Knoten stehen nicht in der Datei, auch die 53
   von 2025 nicht: sie sind Einträge der App (KV-Datenbank, einmalig von ihr übernommen), die ihnen auch die
   Nummern gibt
 - ren_netz: ren_netz_auto.gpkg (Rohnetz mit automatischer Radfernweg-Zuordnung plus automatisch
@@ -188,6 +189,7 @@ def load_virtual_nodes(proposals_path=None):
         proposals = proposals.to_crs(CRS)
     proposal_nodes = gpd.GeoDataFrame({
         "id": proposals["id"].astype(str), "ist_virtuell": 1, "vorschlag": True, "art": proposals["art"],
+        "arme": (proposals["arme"] if "arme" in proposals.columns else pd.Series([None] * len(proposals))).astype("Int64"),
         "traeger_element_nr": proposals["traeger_element_nr"], "station_m": proposals["station_m"],
     }, geometry=proposals.geometry.to_numpy(), crs=CRS)
     logging.info(f"Node proposals of step 1: {len(proposal_nodes)} ({proposal_nodes['art'].value_counts().to_dict()})")

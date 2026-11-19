@@ -20,7 +20,10 @@ two end nodes. For that, every edge end must sit on a node:
   A 2025 node within NODE_2025_TOL_M of such a point is that node (no proposal).
   Every 2025 node also splits the edges that pass through it.
 
-  Arms at a proposal point: each line end there counts 1, each line passing through counts 2.
+  Arms at a proposal point: each line end there counts 1, each line passing through counts 2, and a Detailnetz line
+  within DETAIL_ARM_TOL_M (also outside the network) adds its arms unless it runs within ARM_SAME_DEG of an arm already
+  counted (over ARM_LOOK_M; the same street). The proposals file has the count in column `arme`; the app accepts
+  proposals with arme >= 3 by itself.
   * Exactly two arms, the ends of two different lines (a point in the middle of a line): no proposal; the two lines
     are joined into one (join_two_arm_proposals, repeated for chains). The joined line keeps the row, element_nr and
     direction of the longer member with an element_nr (else of the longer member); the other member's number is
@@ -28,12 +31,18 @@ two end nodes. For that, every edge end must sit on a node:
     edge (all but JOIN_IGNORED_COLUMNS, e.g. strassenname, radverkehrsnetz, strassenklasse, netz_quellen) are not
     joined; a missing value fits any (the joined line takes the other). Nor are lines joined at a proposal that
     non-deleted entries of the Netzanpassungen app name, nor lines whose element_nr they name (app_references;
-    merge_networks.py passes them in). Edge ends at a proposal the app names are not moved onto its point.
-    In both cases the proposal stays and separates them (logged). The two ends of one line (a loop) keep their
-    proposal.
+    merge_networks.py passes them in; an edge correction back at its original does not count), nor where a
+    Detailnetz line is a third arm. In all these cases the proposal stays and separates them (logged). The two ends of
+    one line (a loop) keep their proposal.
   * Three or more arms: the proposal stays (the app numbers it). Every line passing through it is split there (also at
-    a junction, not only on_edge), and every edge ending there ends exactly on its point.
-  * One arm (dead end): unchanged.
+    a junction, not only on_edge).
+  * One arm (dead end): a dead end is never a node and needs no decision; it keeps a technical id P<x>-<y> (art
+    dead_end) so the element_nr has two ends, and step 3 does not list it. A loose end within DEAD_END_NODE_TOL_M of
+    an official or 2025 node is no dead end: it ends on that node (unless the app names its proposal id).
+
+  Every edge end ends exactly on the point of its node (official, 2025 or proposal; snap_piece_ends: an overshoot is
+  cut, else the line is extended), except on edges whose element_nr entries of the app name (the app holds their
+  geometry; logged).
 
 Step 1 gives no node names or numbers of its own (numbers are given only in the Netzanpassungen app). A
 proposal is named by its position: `P<x>-<y>` with the coordinates in EPSG:25833 rounded to whole metres
@@ -61,6 +70,7 @@ Nodes set in the app are not part of this step; step 3 adds them (netzanpassunge
 
 import json
 import logging
+import math
 import re
 from collections import defaultdict
 
@@ -110,10 +120,23 @@ JOIN_IGNORED_COLUMNS = {"geometry", "element_nr", "element_nr_berechnet", "urspr
 # Rounds of joining (a chain of k lines through such points needs about log2(k) rounds)
 MAX_JOIN_ROUNDS = 50
 
+# A single loose end (a dead end) this close to an official node or a 2025 node ends on that node, no proposal. Chosen
+# from the data (Berlin, 2026-11-19): P384911-5825704 lies 3.57 m from 39600001, where the other edges end; the next
+# dead end is 9.6 m from any node.
+DEAD_END_NODE_TOL_M = 4.0
+# Moving an edge end exactly onto its node cuts at most this much overshoot (the end may be on the node through another
+# end within SNAP_TOL_M that is within OFFICIAL_TOL_M of it, or DEAD_END_NODE_TOL_M)
+END_SNAP_MAX_CUT_M = 6.0
+# Arms at a proposal (see the module docstring): a Detailnetz line within DETAIL_ARM_TOL_M counts as an arm unless it
+# runs within ARM_SAME_DEG of an arm already counted, measured over ARM_LOOK_M (the same street)
+DETAIL_ARM_TOL_M = 1.5
+ARM_LOOK_M = 10.0
+ARM_SAME_DEG = 30.0
+
 ELEMENT_NR_PATTERN = re.compile(r"^(.+)_(.+)\.(\d+)$")
 PROPOSAL_PREFIX = "P"
 # Columns of ren-network/output/virtuelle_knoten_vorschlaege.gpkg
-PROPOSAL_COLUMNS = ["id", "art", "traeger_element_nr", "station_m", "geteilte_element_nr", "kanten", "geometry"]
+PROPOSAL_COLUMNS = ["id", "art", "arme", "traeger_element_nr", "station_m", "geteilte_element_nr", "kanten", "geometry"]
 
 
 class Nodes:
@@ -311,6 +334,57 @@ def parallel_clusters(geometries, pairs, sources, tolerance=PARALLEL_TOL_M, deta
     return sorted(clusters)
 
 
+def _bearing(line, station, forward):
+    """Direction in degrees from the point at `station` to the point ARM_LOOK_M along (or back along) the line."""
+    target = min(line.length, station + ARM_LOOK_M) if forward else max(0.0, station - ARM_LOOK_M)
+    a, b = line.interpolate(station), line.interpolate(target)
+    return math.degrees(math.atan2(b.y - a.y, b.x - a.x))
+
+
+def end_bearing(line, side):
+    """Direction in which a line leaves its start (side 0) or its end (side 1)."""
+    return _bearing(line, 0.0, True) if side == 0 else _bearing(line, line.length, False)
+
+
+def line_bearings_at(line, point, tolerance):
+    """The arms of `line` at `point`: one per line end within `tolerance`, else two (the line passes)."""
+    found = [end_bearing(line, side) for side in (0, 1)
+             if shapely.get_point(line, -side).distance(point) <= tolerance]
+    if found:
+        return found
+    station = line.project(point)
+    return [_bearing(line, station, True), _bearing(line, station, False)]
+
+
+def _angle(a, b):
+    return abs((a - b + 180.0) % 360.0 - 180.0)
+
+
+def detail_extra_arms(point, bearings, detail):
+    """Arms of Detailnetz lines at `point` that are not one of the network arms (`bearings`, degrees): a Detailnetz
+    line within DETAIL_ARM_TOL_M ending there counts once, passing twice, each arm only if it is more than ARM_SAME_DEG
+    from every arm counted before. `detail`: (geometries, STRtree) or None."""
+    if detail is None:
+        return 0
+    geoms, tree = detail
+    taken, extra = list(bearings), 0
+    for index in sorted(int(i) for i in tree.query(point, predicate="dwithin", distance=DETAIL_ARM_TOL_M)):
+        for bearing in line_bearings_at(geoms[index], point, DETAIL_ARM_TOL_M):
+            if all(_angle(bearing, other) > ARM_SAME_DEG for other in taken):
+                taken.append(bearing)
+                extra += 1
+    return extra
+
+
+def detail_index(detail_lines):
+    """(geometries, STRtree) of the Detailnetz lines (LineString or MultiLineString), or None."""
+    if detail_lines is None:
+        return None
+    geoms = [part for geometry in detail_lines if geometry is not None and not geometry.is_empty
+             for part in _parts(geometry)]
+    return (geoms, shapely.STRtree(geoms)) if geoms else None
+
+
 def find_hosts(point, own_line, geoms, tree, starts, ends):
     """Other edges whose interior lies within SNAP_TOL_M of `point` (and whose ends are farther than that):
     list of (distance, line index, station)."""
@@ -431,8 +505,8 @@ def name_proposals(proposal_keys, nodes):
 
 
 def build_nodes_and_pieces(lines, official, nodes_2025, official_column, app_refs=frozenset()):
-    """Nodes and split pieces. Returns (nodes, pieces, proposal keys, report). Ends at a proposal in `app_refs` are
-    not moved onto its point (the app may hold their geometry)."""
+    """Nodes and split pieces. Returns (nodes, pieces, proposal keys, report). A dead end whose proposal id is in
+    `app_refs` stays a proposal even near a node."""
     geoms = lines.geometry.to_numpy()
     count = len(geoms)
     starts = shapely.get_point(geoms, 0)
@@ -490,12 +564,27 @@ def build_nodes_and_pieces(lines, official, nodes_2025, official_column, app_ref
         if all(existing_key != key for _, existing_key in stops[line]):
             stops[line].append((station, key))
 
+    # A dead end within DEAD_END_NODE_TOL_M of an official or 2025 node ends on that node (unless the app uses its id)
+    near_keys = official_keys + [f"v:{name}" for name in v_names]
+    near_tree = shapely.STRtree(list(official.geometry) + v_points) if near_keys else None
+    dead_end_node = {}
+    for c, candidate in enumerate(candidates):
+        if c in matched_candidate or candidate["art"] != "dead_end" or near_tree is None:
+            continue
+        if proposal_id(candidate["point"]) in app_refs:
+            continue
+        near = near_tree.query_nearest(candidate["point"], max_distance=DEAD_END_NODE_TOL_M, all_matches=False)
+        if len(near):
+            dead_end_node[c] = near_keys[int(near[0])]
+
     auto_keys = []
     for c, candidate in enumerate(candidates):
         if c in matched_candidate:
             key = f"v:{v_names[matched_candidate[c]]}"
             nodes[key]["art"] = candidate["art"]
             nodes[key]["matched"] = True
+        elif c in dead_end_node:
+            key = dead_end_node[c]
         else:
             key = f"a:{len(auto_keys)}"
             nodes.add(key, "proposal", None, candidate["point"], art=candidate["art"],
@@ -528,7 +617,7 @@ def build_nodes_and_pieces(lines, official, nodes_2025, official_column, app_ref
 
     name_proposals(auto_keys, nodes)
 
-    # Split the edges. Every piece that ends at a proposal ends exactly on its point (unless the app uses it).
+    # Split the edges (snap_piece_ends moves their ends onto the nodes)
     pieces = []
     for key in auto_keys:
         nodes[key]["ends"], nodes[key]["passing"] = [], []
@@ -549,10 +638,6 @@ def build_nodes_and_pieces(lines, official, nodes_2025, official_column, app_ref
         chain = [(0.0, a)] + cuts + [(length, b)]
         for (low, start_key), (high, end_key) in zip(chain[:-1], chain[1:]):
             part = geometry if len(chain) == 2 else substring(geometry, low, high)
-            for side, key in ((0, start_key), (1, end_key)):
-                if (nodes[key]["kind"] == "proposal" and nodes[key]["name"] not in app_refs
-                        and not shapely.get_point(part, -side).equals(nodes[key]["point"])):
-                    part = end_at(part, side, nodes[key]["point"], max_cut_m=SNAP_TOL_M)
             pieces.append({"parent": line, "a": start_key, "b": end_key, "geometry": part,
                            "length": part.length, "split": len(chain) > 2})
 
@@ -563,6 +648,7 @@ def build_nodes_and_pieces(lines, official, nodes_2025, official_column, app_ref
         "nodes_2025_split_edge": sum(1 for v in v_names if any(key == f"v:{v}" for line in stops for _, key in stops[line])),
         "nodes_2025_unused": [v for v in v_names if not any(key == f"v:{v}" for line in stops for _, key in stops[line])
                               and not any(k == f"v:{v}" for k in end_node.values())],
+        "dead_ends_on_node": sorted({nodes[key]["name"] for key in dead_end_node.values()}),
     }
     return nodes, pieces, auto_keys, report
 
@@ -582,34 +668,49 @@ PROPOSAL_ID_IN_TEXT = re.compile(rf"(?<![A-Za-z0-9]){PROPOSAL_PREFIX}\d+-\d+(?:-
 ELEMENT_NR_IN_TEXT = re.compile(r"(?<![A-Za-z0-9.-])[A-Za-z0-9-]+_[A-Za-z0-9-]+\.\d+(?![0-9])")
 
 
+def is_noop_correction(data):
+    """An edge_correction whose state is the original (coordinates equal original_coordinates and attribute empty, e.g.
+    reset with `zurueckgesetzt`): it changes nothing, so nothing depends on it. An attribute set to null (direction
+    cleared) is a change."""
+    if data.get("kind") != "edge_correction" or data.get("attribute"):
+        return False
+    return data.get("coordinates") is not None and data.get("coordinates") == data.get("original_coordinates")
+
+
 def app_references(entries):
     """Proposal ids and element_nr that non-deleted entries of the Netzanpassungen app depend on: every `P<x>-<y>`
     and every `<von>_<bis>.<nn>` in the JSON of an entry's data (vorschlag_id of a virtual_node, kante.ref,
-    traeger.ref, the kanten keys of a section_assignment, von/bis of a new_edge, ...)."""
+    traeger.ref, the kanten keys of a section_assignment, von/bis of a new_edge, ...). An edge correction that changes
+    nothing (is_noop_correction) does not count."""
     found = set()
     for entry in entries or []:
         data = entry.get("data") or {}
         # An OK of the route check depends on nothing: it lapses by itself when the edges of its section change
-        if not data.get("geloescht") and data.get("kind") != "route_check":
+        if not data.get("geloescht") and data.get("kind") != "route_check" and not is_noop_correction(data):
             text = json.dumps(data, ensure_ascii=False)
             found |= set(PROPOSAL_ID_IN_TEXT.findall(text)) | set(ELEMENT_NR_IN_TEXT.findall(text))
     return found
 
 
-def find_joins(lines, nodes, proposal_keys, app_refs=frozenset()):
+def find_joins(lines, nodes, proposal_keys, app_refs=frozenset(), detail=None):
     """Proposals where exactly two line ends of two different lines meet and nothing passes through. Returns
     (joins [(proposal key, (line, side), (line, side))], refused [(proposal name, differing columns)], skipped
     [proposal names]): two lines with two different non-missing values in a column the network carries per edge (all
     but JOIN_IGNORED_COLUMNS) are not joined, nor at a proposal in `app_refs` (entries of the app depend on
-    it); the proposal stays and separates them. Each line takes part in at most one join per call."""
+    it), nor where a Detailnetz line is a third arm (detail_extra_arms; their names in `crossed`); the proposal stays
+    and separates them. Each line takes part in at most one join per call. Returns (joins, refused, skipped, crossed)."""
     columns = [c for c in lines.columns if c not in JOIN_IGNORED_COLUMNS]
-    joins, refused, skipped, used = [], [], [], set()
+    joins, refused, skipped, crossed, used = [], [], [], [], set()
+    geoms = lines.geometry.to_numpy()
     for key in proposal_keys:
         node = nodes[key]
         ends = node.get("ends", [])
         if len(ends) != 2 or node.get("passing") or ends[0][0] == ends[1][0]:
             continue  # a dead end, three or more arms, or the two ends of one line (a loop)
         (i, _), (j, _) = ends
+        if detail_extra_arms(node["point"], [end_bearing(geoms[line], side) for line, side in ends], detail):
+            crossed.append(node["name"])
+            continue
         differing = [c for c in columns if not _compatible(lines.at[i, c], lines.at[j, c])]
         if differing:
             refused.append((node["name"], differing))
@@ -618,7 +719,7 @@ def find_joins(lines, nodes, proposal_keys, app_refs=frozenset()):
         elif i not in used and j not in used:
             joins.append((key, ends[0], ends[1]))
             used |= {i, j}
-    return joins, refused, skipped
+    return joins, refused, skipped, crossed
 
 
 def join_lines(lines, joins, nodes):
@@ -658,21 +759,21 @@ def join_lines(lines, joins, nodes):
     return result, dropped_numbers
 
 
-def join_two_arm_proposals(lines, official, nodes_2025, official_column, app_refs=frozenset()):
+def join_two_arm_proposals(lines, official, nodes_2025, official_column, app_refs=frozenset(), detail=None):
     """Joins the lines at every proposal where exactly two line ends of two different lines meet with nothing passing
     through (find_joins), repeated until none is left (chains of such points). Returns (lines, element_nr dropped by
-    joins, number of joins, refused [(proposal name, differing columns)], skipped [proposal names used by the app]),
-    refused and skipped as of the last round."""
-    dropped, count, refused, skipped = [], 0, [], []
+    joins, number of joins, refused [(proposal name, differing columns)], skipped [proposal names used by the app],
+    crossed [proposal names where a Detailnetz line is a third arm]), the lists as of the last round."""
+    dropped, count, refused, skipped, crossed = [], 0, [], [], []
     for _ in range(MAX_JOIN_ROUNDS):
         nodes, _, proposal_keys, _ = build_nodes_and_pieces(lines, official, nodes_2025, official_column, app_refs)
-        joins, refused, skipped = find_joins(lines, nodes, proposal_keys, app_refs)
+        joins, refused, skipped, crossed = find_joins(lines, nodes, proposal_keys, app_refs, detail)
         if not joins:
             break
         lines, numbers = join_lines(lines, joins, nodes)
         dropped += numbers
         count += len(joins)
-    return lines, dropped, count, refused, skipped
+    return lines, dropped, count, refused, skipped, crossed
 
 
 def number_pieces(lines, pieces, nodes, detail_element_nrs):
@@ -727,7 +828,41 @@ def assert_unique(frame, column="element_nr"):
                            f"{len(duplicated)} values on several rows, e.g. {duplicated[:5]}")
 
 
-def proposal_frame(nodes, proposal_keys, pieces, element_nrs, lines, crs):
+def proposal_arms(nodes, proposal_keys, pieces, detail=None):
+    """Arms per proposal key: every edge end there (a line passing through is split there, so it has two) plus the
+    Detailnetz arms that are not one of them (detail_extra_arms)."""
+    bearings = defaultdict(list)
+    for piece in pieces:
+        for side, key in ((0, piece["a"]), (1, piece["b"])):
+            bearings[key].append(end_bearing(piece["geometry"], side))
+    return {key: len(bearings[key]) + detail_extra_arms(nodes[key]["point"], bearings[key], detail)
+            for key in proposal_keys}
+
+
+def snap_piece_ends(pieces, nodes, element_nrs, lines, app_refs=frozenset()):
+    """Moves every piece end onto the point of its node (end_at: an overshoot is cut, else the line is extended), except
+    for pieces whose element_nr, or the element_nr of their line before this step, entries of the app name (the app
+    holds their geometry). Returns (number of ends moved, [(element_nr, node name, distance m)] left off their node)."""
+    moved, left = 0, []
+    for index, piece in enumerate(pieces):
+        original = lines["element_nr"].iloc[piece["parent"]]
+        protected = element_nrs[index] in app_refs or (isinstance(original, str) and original in app_refs)
+        part = piece["geometry"]
+        for side, key in ((0, piece["a"]), (1, piece["b"])):
+            point = nodes[key]["point"]
+            distance = shapely.get_point(part, -side).distance(point)
+            if distance == 0:
+                continue
+            if protected:
+                left.append((element_nrs[index], nodes[key]["name"], round(distance, 2)))
+                continue
+            part = end_at(part, side, point, max_cut_m=END_SNAP_MAX_CUT_M)
+            moved += 1
+        piece["geometry"], piece["length"] = part, part.length
+    return moved, left
+
+
+def proposal_frame(nodes, proposal_keys, pieces, element_nrs, lines, crs, arms=None):
     """The node proposals: id, art, an edge of the result that ends there (`traeger_element_nr`, station at that
     end), the element_nr of the edge split there (`geteilte_element_nr`, on_edge only) and all edges ending there."""
     ending = defaultdict(list)  # node key -> [(element_nr, station)]
@@ -741,7 +876,7 @@ def proposal_frame(nodes, proposal_keys, pieces, element_nrs, lines, crs):
         host = node["hosts"][0] if node.get("hosts") else None
         split = lines["element_nr"].iloc[host[0]] if host else None
         rows.append({
-            "id": node["name"], "art": node["art"],
+            "id": node["name"], "art": node["art"], "arme": (arms or {}).get(key),
             "traeger_element_nr": edges[0][0] if edges else None,
             "station_m": round(edges[0][1], 2) if edges else None,
             "geteilte_element_nr": split if isinstance(split, str) else None,
@@ -749,24 +884,29 @@ def proposal_frame(nodes, proposal_keys, pieces, element_nrs, lines, crs):
             "geometry": node["point"],
         })
     frame = gpd.GeoDataFrame(rows, columns=PROPOSAL_COLUMNS, geometry="geometry", crs=crs)
+    frame["arme"] = frame["arme"].astype("Int64")
     return frame.sort_values("id").reset_index(drop=True)
 
 
 def snap_and_number(network, official, nodes_2025, detail_element_nrs, official_column, combine=None,
-                    parallel_tolerance=PARALLEL_TOL_M, app_refs=frozenset()):
+                    parallel_tolerance=PARALLEL_TOL_M, app_refs=frozenset(), detail_lines=None):
     """The whole sub-step: `network` (one LineString per row, `element_nr` possibly empty) ->
     (network with unique element_nr, von_knoten, bis_knoten, ursprung_element_nr; node proposals; report).
 
     With `combine`, edges of different sources (`netz_quellen`, `;`-separated) between the same two end nodes within
     `parallel_tolerance` (Hausdorff) become one edge (see merge_parallel_pieces); `combine(rows, owner)` merges their
     rows. Lines are not joined at a proposal in `app_refs`, nor when one's element_nr is in it (entries of the app
-    depend on them, see app_references)."""
+    depend on them, see app_references). `detail_lines`: Detailnetz geometries; their arms count at proposals (no
+    join where one is a third arm; column `arme`)."""
+    detail = detail_index(detail_lines)
     lines = network.reset_index(drop=True)
-    lines, dropped_numbers, joined, refused, skipped = join_two_arm_proposals(lines, official, nodes_2025,
-                                                                              official_column, app_refs)
+    lines, dropped_numbers, joined, refused, skipped, crossed = join_two_arm_proposals(
+        lines, official, nodes_2025, official_column, app_refs, detail)
     nodes, pieces, proposal_keys, report = build_nodes_and_pieces(lines, official, nodes_2025, official_column, app_refs)
     report["joined"], report["join_refused"], report["join_skipped_app"] = joined, refused, skipped
+    report["join_detail_arm"] = crossed
     element_nrs, kept = number_pieces(lines, pieces, nodes, list(detail_element_nrs) + dropped_numbers)
+    report["ends_moved"], report["ends_left_app"] = snap_piece_ends(pieces, nodes, element_nrs, lines, app_refs)
 
     rows = []
     for index, piece in enumerate(pieces):
@@ -799,8 +939,11 @@ def snap_and_number(network, official, nodes_2025, detail_element_nrs, official_
     report["kept"] = len(kept)
     report["renumbered"] = len(remaining) - len(kept)
     report["renumbered_without_original"] = int(result["ursprung_element_nr"].isna().sum() - len(kept))
-    proposals = proposal_frame(nodes, proposal_keys, [pieces[i] for i in remaining], [element_nrs[i] for i in remaining],
-                               lines, network.crs)
+    remaining_pieces = [pieces[i] for i in remaining]
+    arms = proposal_arms(nodes, proposal_keys, remaining_pieces, detail)
+    proposals = proposal_frame(nodes, proposal_keys, remaining_pieces, [element_nrs[i] for i in remaining],
+                               lines, network.crs, arms)
+    report["proposals_by_arms"] = proposals.groupby(["art", "arme"]).size().to_dict() if len(proposals) else {}
     return result, proposals, report
 
 
@@ -840,3 +983,11 @@ def log_report(report):
     skipped = report.get("join_skipped_app", [])
     logging.info(f"Not joined because entries of the Netzanpassungen app use the proposal or one of the lines (proposal kept): "
                  f"{len(skipped)} {sorted(skipped)}")
+    crossed = report.get("join_detail_arm", [])
+    logging.info(f"Not joined because a Detailnetz line outside the network is a third arm (proposal kept): "
+                 f"{len(crossed)} {sorted(crossed)}")
+    left = report.get("ends_left_app", [])
+    logging.info(f"Edge ends moved exactly onto their node: {report.get('ends_moved', 0)}; left off their node because "
+                 f"the app corrected the edge: {len(left)} {left}")
+    logging.info(f"Dead ends within {DEAD_END_NODE_TOL_M:g} m of a node end on it: {report.get('dead_ends_on_node', [])}; "
+                 f"proposals by art and arms: {report.get('proposals_by_arms', {})}")

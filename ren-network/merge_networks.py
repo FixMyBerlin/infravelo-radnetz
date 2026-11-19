@@ -573,7 +573,7 @@ def number_edges(network, detail, nodes, nodes_2025, app_refs=frozenset()):
     lines = lines[lines.geometry.geom_type == "LineString"].reset_index(drop=True)
     result, proposals, report = auto_nodes.snap_and_number(
         lines, nodes, nodes_2025, detail["element_nr"].dropna(), NODE_ID_COLUMN, combine=combine_parallel,
-        app_refs=app_refs)
+        app_refs=app_refs, detail_lines=detail.geometry)
     auto_nodes.log_report(report)
     detail_element_nrs = set(detail["element_nr"].dropna())
     result["in_detailnetz"] = result["element_nr"].isin(detail_element_nrs).map({True: "ja", False: "nein"})

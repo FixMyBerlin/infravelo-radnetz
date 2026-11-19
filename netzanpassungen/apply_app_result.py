@@ -29,7 +29,14 @@ Einträge des Exports (Einträge mit geloescht = true werden übersprungen):
   Übernommene Knotenvorschläge von Schritt 1 (herkunft = vorschlag, vorschlag_id = P<x>-<y>): die
   Vorschlags-Id wird in von_knoten/bis_knoten/knoten_anfang/knoten_ende/element_nr durch die Nummer
   ersetzt (element_nr der Eingabe in element_nr_eingabe). Nicht übernommene Vorschläge bleiben mit ihrer
-  P-Id und stehen als „Knotenvorschlag noch nicht übernommen“ in korrekturen_konflikte.csv.
+  P-Id und stehen als „Knotenvorschlag noch nicht übernommen“ in korrekturen_konflikte.csv, außer Sackgassen
+  (art dead_end: nie ein Knoten, keine Entscheidung nötig, nur im Log). Ein offener Vorschlag höchstens 0,1 m neben
+  einem aktiven Knoten der App ohne vorschlag_id gilt als von diesem Knoten übernommen (keine erneute Teilung).
+  Eine Korrektur, die auf dem Original steht (coordinates = original_coordinates, attribute leer, z. B. nach
+  „zurückgesetzt“), ändert nichts und wird übersprungen.
+- Nach dem Abspielen liegt jedes Kantenende, das einen Knoten nennt (virtuell oder Detailnetz) und höchstens 3 m
+  daneben liegt, genau auf dem Knoten (beide Ergebnisnetze). Treffen sich alle Kanten eines Knotens weiter weg an
+  einem Punkt, bleibt alles, und der Knoten steht in korrekturen_konflikte.csv (eine Person entscheidet).
 - new_edge: gezeichnete Kante. Steht in beiden Ergebnisnetzen (quelle = neu_gezeichnet, routen_fernradweg aus dem
   Eintrag mit routen_quelle = manuell, verkehrsrichtung aus dem Eintrag, ohne Angabe B, element_nr `<von>_<bis>.<nn>`
   wie in der App) und weiterhin in
@@ -89,6 +96,7 @@ Aufruf:
 """
 
 import argparse
+from collections import defaultdict
 import json
 import logging
 import numbers
@@ -111,7 +119,7 @@ sys.path.append(str(ROOT / "data"))
 
 import kv_entries  # noqa: E402
 import merge_networks as ren  # noqa: E402
-from auto_nodes import assert_unique, is_proposal  # noqa: E402
+from auto_nodes import assert_unique, end_at, is_noop_correction, is_proposal  # noqa: E402
 import virtuelle_knotenpunkte as vk  # noqa: E402
 from write_app_input import (  # noqa: E402
     AUTO_PATH, SECTIONS_LAYER, SECTIONS_PATH, detailnetz_path, line_refs, load_detailnetz)
@@ -140,6 +148,12 @@ VIRTUAL_NODES_PATH = vk.OUTPUT_PATH  # netzanpassungen/output/virtuelle_knoten.g
 VIRTUAL_NODES_LAYER = vk.LAYER
 VIRTUAL_NODE_COLUMNS = vk.COLUMNS + vk.OUTPUT_EXTRA_COLUMNS + ["geometry"]
 OPEN_PROPOSAL_REASON = "Knotenvorschlag noch nicht übernommen"
+# An open proposal this close to an active node of the app without vorschlag_id is taken by that node
+PROPOSAL_AT_NODE_M = 0.1
+# An edge end naming a virtual node within this distance is moved exactly onto it; where all edges naming a node meet
+# farther away (within NODE_MEETING_SPREAD_M of each other), a person decides (conflict)
+NODE_END_SNAP_M = 3.0
+NODE_MEETING_SPREAD_M = 1.0
 NEW_EDGES_PATH = APP_OUTPUT_DIR / "touristische_kanten.gpkg"
 NEW_EDGES_LAYER = "touristische_kanten"
 
@@ -368,12 +382,16 @@ def apply_corrections(network, entries):
     ref_count = {}
     for entry in entries:
         data = entry["data"]
-        if data.get("kind") == "edge_correction" and not data.get("geloescht"):
+        if data.get("kind") == "edge_correction" and not data.get("geloescht") and not is_noop_correction(data):
             ref_count[data["kante"]["ref"]] = ref_count.get(data["kante"]["ref"], 0) + 1
 
+    noop = 0
     for entry in sorted(entries, key=lambda item: item.get("updated_at") or ""):
         data = entry["data"]
         if data.get("kind") != "edge_correction" or data.get("geloescht"):
+            continue
+        if is_noop_correction(data):
+            noop += 1  # back to the original (e.g. zurueckgesetzt): changes nothing, nothing to check
             continue
         stats["edge_correction"] += 1
         kante = data["kante"]
@@ -460,6 +478,8 @@ def apply_corrections(network, entries):
         if "laenge_m" in network.columns:
             network.at[network.index[row], "laenge_m"] = round(geometries[row].length, 1)
     network = network.set_geometry(gpd.GeoSeries(geometries, index=network.index, crs=network.crs))
+    if noop:
+        logging.info(f"Edge corrections back at the original (no change, not applied): {noop}")
     return network, conflicts, stats, parts
 
 
@@ -547,6 +567,31 @@ class AppNodes:
                 self.accepted[proposal] = number
                 self.accepted_entry_ids.add(entry["id"])
 
+    def adopt_proposals(self, proposals, tolerance=PROPOSAL_AT_NODE_M):
+        """An open proposal within `tolerance` of an active node of the app without vorschlag_id counts as accepted
+        by that node (its id is replaced by the node's number; the node does not split its host again, step 1 split
+        there already). Returns [(proposal id, number)]."""
+        open_rows = [row for row in proposals.itertuples() if row.id not in self.accepted]
+        if not open_rows:
+            return []
+        tree = shapely.STRtree([row.geometry for row in open_rows])
+        adopted = []
+        for node in self.rows:
+            entry_id = node["app_eintrag"]
+            if node["status"] != vk.STATUS_ACTIVE or node["vorschlag_id"] or entry_id in self.accepted_entry_ids:
+                continue
+            near = tree.query_nearest(node["geometry"], max_distance=tolerance, all_matches=False)
+            if not len(near):
+                continue
+            proposal = open_rows[int(near[0])].id
+            if proposal in self.accepted:
+                continue
+            self.accepted[proposal] = node[vk.ID_COLUMN]
+            self.accepted_entry_ids.add(entry_id)
+            node["vorschlag_id"] = proposal
+            adopted.append((proposal, node[vk.ID_COLUMN]))
+        return adopted
+
     def conflict(self, entry, reason):
         self.conflicts.append({"grund": reason, "art": "virtual_node", "eintrag_id": entry["id"], "ref": None,
                                "element_nr": None, "abweichung_m": None, "bearbeitet_von": entry.get("updated_by"),
@@ -580,10 +625,14 @@ def read_proposals(path=None):
 
 
 def proposal_conflicts(proposals, app_nodes):
-    """Open proposals (not accepted in the app) and accepted proposals that step 1 no longer has."""
+    """Open proposals (not accepted in the app) and accepted proposals that step 1 no longer has. A dead end is never
+    a node and needs no decision: open dead ends are logged, not listed."""
     found = []
+    dead_ends = sorted(row.id for row in proposals.itertuples() if row.art == "dead_end" and row.id not in app_nodes.accepted)
+    if dead_ends:
+        logging.info(f"Dead ends (technical end ids, no decision needed): {len(dead_ends)} {dead_ends}")
     for row in proposals.itertuples():
-        if row.id not in app_nodes.accepted:
+        if row.id not in app_nodes.accepted and row.art != "dead_end":
             found.append({"grund": OPEN_PROPOSAL_REASON + f" ({row.art})", "art": "vorschlag", "eintrag_id": None,
                           "ref": row.id, "element_nr": row.traeger_element_nr, "abweichung_m": None,
                           "bearbeitet_von": None, "bearbeitet_am": None})
@@ -1466,6 +1515,88 @@ def apply_accepted_proposals(network, accepted, base_element_nrs):
     return network, changed
 
 
+def _line_parts(geometry):
+    return list(geometry.geoms) if geometry.geom_type == "MultiLineString" else [geometry]
+
+
+def _end_nodes(row, geometry):
+    """(start node, end node) an edge names at its geometric ends: knoten_anfang/knoten_ende where set, else
+    von_knoten/bis_knoten (in the order that fits the geometry better is decided by the caller)."""
+    start = node_text(row.get("knoten_anfang")) if has_text(node_text(row.get("knoten_anfang"))) else node_text(row.get("von_knoten"))
+    end = node_text(row.get("knoten_ende")) if has_text(node_text(row.get("knoten_ende"))) else node_text(row.get("bis_knoten"))
+    return start, end
+
+
+def _move_end(geometry, side, point):
+    parts = _line_parts(geometry)
+    index = 0 if side == 0 else len(parts) - 1
+    parts[index] = end_at(parts[index], side, point, max_cut_m=NODE_END_SNAP_M)
+    return MultiLineString(parts) if geometry.geom_type == "MultiLineString" else parts[0]
+
+
+def snap_ends_to_virtual_nodes(network, original_geometry, node_points):
+    """Every edge end that names a virtual node (`node_points`: id -> Point) and lies at most NODE_END_SNAP_M from it is
+    moved exactly onto it, in the corrected and in the original geometry. Where all edge ends naming a node lie farther
+    away but together (within NODE_MEETING_SPREAD_M), the node may be in the wrong place: nothing moves, a conflict.
+    Official nodes in `node_points` count the same. Returns (network, original_geometry, number of ends moved,
+    conflicts)."""
+    network = network.copy()
+    original_geometry = original_geometry.copy()
+    moved, far = 0, defaultdict(list)  # node -> [(label, end point)]
+    naming = defaultdict(list)
+    for label, row in network.iterrows():
+        nodes = _end_nodes(row, row.geometry)
+        for series, record in ((network.geometry, True), (original_geometry, False)):
+            geometry = series.loc[label]
+            if geometry is None or geometry.is_empty:
+                continue
+            parts = _line_parts(geometry)
+            ends = (Point(parts[0].coords[0]), Point(parts[-1].coords[-1]))
+            a, b = nodes
+            pa, pb = node_points.get(a), node_points.get(b)
+            if pa is None and pb is None:
+                continue
+            straight = (ends[0].distance(pa) if pa else 0) + (ends[1].distance(pb) if pb else 0)
+            swapped = (ends[1].distance(pa) if pa else 0) + (ends[0].distance(pb) if pb else 0)
+            pairs = ((0, a), (1, b)) if straight <= swapped else ((1, a), (0, b))
+            for side, node in pairs:
+                point = node_points.get(node)
+                if point is None:
+                    continue
+                distance = ends[side].distance(point)
+                if record:
+                    naming[node].append(distance)
+                if distance == 0:
+                    continue
+                if distance <= NODE_END_SNAP_M:
+                    geometry = _move_end(geometry, side, point)
+                    moved += record
+                elif record:
+                    far[node].append((label, ends[side]))
+            if record:
+                network.at[label, "geometry"] = geometry
+            else:
+                original_geometry.loc[label] = geometry
+    conflicts = []
+    for node, items in sorted(far.items()):
+        if len(items) != len(naming[node]):
+            continue  # other edges reach the node: only these ends are off
+        points = [point for _, point in items]
+        centre = shapely.centroid(shapely.MultiPoint(points))
+        if max(point.distance(centre) for point in points) > NODE_MEETING_SPREAD_M:
+            continue
+        distance = centre.distance(node_points[node])
+        element_nrs = "; ".join(sorted(str(network.at[label, "element_nr"]) for label, _ in items))
+        kind = "virtuellen Knoten" if vk.ID_PATTERN.match(node) else "Knoten"
+        conflicts.append({"grund": f"Alle {len(items)} Kanten am {kind} {node} treffen sich {distance:.1f} m "
+                                   "neben dem Knoten: nicht verschoben, bitte prüfen (Knoten verschieben oder Kanten "
+                                   "anpassen)",
+                          "art": "virtual_node" if vk.ID_PATTERN.match(node) else "knoten", "eintrag_id": None,
+                          "ref": node, "element_nr": element_nrs,
+                          "abweichung_m": round(distance, 2), "bearbeitet_von": None, "bearbeitet_am": None})
+    return network, original_geometry, moved, conflicts
+
+
 def lage_metrics(old, new):
     """Kennzahlen zwischen alter und neuer Geometrie einer Kante (Meter, Quadratmeter)."""
     old_parts = list(old.geoms) if isinstance(old, MultiLineString) else [old]
@@ -1540,9 +1671,11 @@ def load_entries(export_path=None, gebiet=None):
 
 def run(export_path, ren_path=AUTO_PATH, output_dir=OUTPUT_DIR, virtual_nodes_path=VIRTUAL_NODES_PATH,
         new_edges_path=NEW_EDGES_PATH, detail_path=None, sections_path=SECTIONS_PATH, registry_path=None,
-        proposals_path=None):
+        proposals_path=None, official_nodes=None):
     """Der ganze Schritt 3. `export_path`: JSON-Datei wie der App-Export oder schon gelesene Einträge
-    ({gebiet, exported_at, entries}); None: ohne App-Einträge. Gibt Zähler und Konflikte zurück (für Tests)."""
+    ({gebiet, exported_at, entries}); None: ohne App-Einträge. `official_nodes`: Detailnetzknoten (Knotenpunkt-ID,
+    geometry); Kantenenden, die sie nennen, rücken wie bei virtuellen Knoten auf sie. Gibt Zähler und Konflikte zurück
+    (für Tests)."""
     export = export_path if isinstance(export_path, dict) else load_entries(export_path)
     entries = export["entries"]
     logging.info(f"Export {export.get('gebiet')} vom {export.get('exported_at')}: {len(entries)} Einträge")
@@ -1560,6 +1693,9 @@ def run(export_path, ren_path=AUTO_PATH, output_dir=OUTPUT_DIR, virtual_nodes_pa
     registry = vk.read_registry(registry_path) if registry_path else vk.read_registry(entries=entries)
     proposals = read_proposals(proposals_path)
     app_nodes = AppNodes(entries, registry, parts)
+    adopted = app_nodes.adopt_proposals(proposals)
+    logging.info(f"Open proposals taken by an app node on them (within {PROPOSAL_AT_NODE_M:g} m, without vorschlag_id): "
+                 f"{len(adopted)} {adopted}")
     accepted_ids = app_nodes.splitting_ids
     conflicts += check_nodes_on_edges(entries, corrected, parts, accepted_ids)
 
@@ -1636,6 +1772,16 @@ def run(export_path, ren_path=AUTO_PATH, output_dir=OUTPUT_DIR, virtual_nodes_pa
                                    for entry_id, element_nr in zip(new_edges["entry_id"], new_edges["element_nr"])]
     all_nodes = virtual_node_rows(registry, app_nodes)
     stats["virtuelle_knoten_datei"] = len(all_nodes)
+    active_nodes = all_nodes[all_nodes["status"] == vk.STATUS_ACTIVE]
+    node_points = {}
+    if official_nodes is not None:
+        node_points.update(zip(official_nodes[ren.NODE_ID_COLUMN].astype(str), official_nodes.geometry))
+    node_points.update(zip(active_nodes[vk.ID_COLUMN].astype(str), active_nodes.geometry))
+    corrected, original_geometry, stats["enden_auf_knoten_gelegt"], node_conflicts = snap_ends_to_virtual_nodes(
+        corrected, original_geometry, node_points)
+    conflicts += node_conflicts
+    logging.info(f"Edge ends moved exactly onto their virtual node: {stats['enden_auf_knoten_gelegt']}; nodes where all "
+                 f"edges meet farther than {NODE_END_SNAP_M:g} m away (conflict): {[c['ref'] for c in node_conflicts]}")
     logging.info(f"Gezeichnete Kanten im Netz: {len(drawn_labels)}, geteilt an virtuellen Knoten: "
                  f"{split_stats['geteilte_kanten']} Kanten in {split_stats['teilkanten']} Teilkanten")
     if export_path is None:
@@ -1686,7 +1832,10 @@ def main():
     if args.export and args.ohne_export:
         parser.error("Entweder --export oder --ohne-export")
     export = None if args.ohne_export else load_entries(args.export, args.gebiet)
-    run(export, ren_path=args.ren_netz, detail_path=detailnetz_path())
+    detail = gpd.read_file(detailnetz_path(), columns=["beginnt_bei_vp", "endet_bei_vp"])
+    if detail.crs is None or detail.crs.to_epsg() != ren.DEFAULT_CRS:
+        detail = detail.to_crs(CRS)
+    run(export, ren_path=args.ren_netz, detail_path=detailnetz_path(), official_nodes=ren.load_nodes(detail))
 
 
 if __name__ == "__main__":

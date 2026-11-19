@@ -306,6 +306,68 @@ class ThreeArmProposalTest(unittest.TestCase):
         self.assertNotIn("3_4.01", set(result["element_nr"]))
         self.assertEqual(sorted(result["ursprung_element_nr"].dropna()), ["3_4.01", "3_4.01"])
         self.assertTrue({"1_2.01", "1_2.02"} <= set(result["element_nr"]))  # ending there is no split
+        self.assertEqual(int(proposal["arme"]), 4)
+
+
+def snap(rows, official_points, detail_lines=None, app_refs=frozenset()):
+    official = gpd.GeoDataFrame({ID: list(official_points)}, geometry=list(official_points.values()), crs=CRS)
+    return an.snap_and_number(frame(rows), official, gpd.GeoDataFrame({ID: []}, geometry=[], crs=CRS), [], ID,
+                              app_refs=app_refs, detail_lines=detail_lines)
+
+
+def ends_of(geometry):
+    part = geometry.geoms[0] if geometry.geom_type == "MultiLineString" else geometry
+    return Point(part.coords[0]), Point(part.coords[-1])
+
+
+class CleanGeometryTest(unittest.TestCase):
+    """Every edge end lies exactly on its node; Detailnetz lines count as arms; dead ends near a node end on it."""
+
+    OFFICIAL = {"1": point(0, 0), "2": point(300, 0), "3": point(150, 200)}
+
+    def test_every_end_lies_exactly_on_its_official_node(self):
+        result, _, report = snap([("1_2.01", "A", line((1.5, 1.0), (298, -1.2)))], self.OFFICIAL)
+        start, end = ends_of(result.iloc[0].geometry)
+        self.assertTrue(start.equals(point(0, 0)) and end.equals(point(300, 0)))
+        self.assertEqual(report["ends_moved"], 2)
+
+    def test_an_edge_the_app_corrected_keeps_its_ends(self):
+        result, _, report = snap([("1_2.01", "A", line((1.5, 1.0), (300, 0)))], self.OFFICIAL, app_refs={"1_2.01"})
+        start, _ = ends_of(result.iloc[0].geometry)
+        self.assertAlmostEqual(start.distance(point(0, 0)), 1.80, places=2)
+        self.assertEqual(report["ends_left_app"], [("1_2.01", "1", 1.8)])
+
+    def test_a_correction_that_changes_nothing_is_no_app_reference(self):
+        coordinates = [[13.1, 52.1], [13.2, 52.2]]
+        reset = {"kind": "edge_correction", "kante": {"ref": "1_P392150-5815000.01"}, "coordinates": coordinates,
+                 "original_coordinates": coordinates, "attribute": {},
+                 "aenderungen": [{"art": "zurueckgesetzt"}]}
+        moved = {**reset, "coordinates": [[13.1, 52.1], [13.2, 52.3]]}
+        directed = {**reset, "attribute": {"verkehrsrichtung": None}}  # direction cleared: a change
+        self.assertEqual(an.app_references([{"data": reset}]), set())
+        self.assertEqual(an.app_references([{"data": moved}]), {"1_P392150-5815000.01", "P392150-5815000"})
+        self.assertEqual(an.app_references([{"data": directed}]), {"1_P392150-5815000.01", "P392150-5815000"})
+
+    def test_a_detailnetz_line_meeting_two_ends_is_a_third_arm(self):
+        rows = [("1_2.01", "A", line((0, 0), (150, 0))), (None, "A", line((150, 0), (300, 0)))]
+        # the Detailnetz line from node 3 ends there, plus a Detailnetz line along the network (same street): one arm
+        detail = [line((150, 200), (150, 0)), line((0, 0.3), (150, 0.3))]
+        result, proposals, report = snap(rows, self.OFFICIAL, detail_lines=detail)
+        self.assertEqual(report["joined"], 0)
+        self.assertEqual(report["join_detail_arm"], ["P392150-5815000"])
+        self.assertEqual(list(proposals["arme"]), [3])
+        # without the line from node 3 only the street along the network is there: joined
+        result, proposals, report = snap(rows, self.OFFICIAL, detail_lines=detail[1:])
+        self.assertEqual((report["joined"], len(proposals)), (1, 0))
+
+    def test_a_dead_end_near_a_node_ends_on_it(self):
+        rows = [("1_2.01", "A", line((0, 0), (300, 0))), (None, "B", line((150, 100), (150, 203.5)))]
+        result, proposals, report = snap(rows, {**self.OFFICIAL, "4": point(150, 100)})
+        self.assertEqual(len(proposals), 0)
+        self.assertEqual(report["dead_ends_on_node"], ["3"])
+        edge = result[result["strassenname"] == "B"].iloc[0]
+        self.assertTrue(ends_of(edge.geometry)[1].equals(point(150, 200)))
+        self.assertEqual(an.pair_key(edge["von_knoten"], edge["bis_knoten"]), ("3", "4"))
 
 
 if __name__ == "__main__":
