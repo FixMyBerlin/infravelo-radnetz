@@ -62,6 +62,10 @@
   "neu_wins": {
    "type": "vector",
    "url": "http://localhost:3000/neu_wins"
+  },
+  "diff_alle": {
+   "type": "vector",
+   "url": "http://localhost:3000/diff_alle"
   }
  },
  "layers": [
@@ -715,6 +719,73 @@
    "source-layer": "neu_wins",
    "paint": {
     "line-color": "#2ca02c",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     10,
+     2,
+     16,
+     6
+    ],
+    "line-offset": [
+     "match",
+     [
+      "get",
+      "ri"
+     ],
+     0,
+     [
+      "interpolate",
+      [
+       "linear"
+      ],
+      [
+       "zoom"
+      ],
+      12,
+      1.5,
+      16,
+      5
+     ],
+     [
+      "interpolate",
+      [
+       "linear"
+      ],
+      [
+       "zoom"
+      ],
+      12,
+      -1.5,
+      16,
+      -5
+     ]
+    ]
+   },
+   "layout": {
+    "visibility": "none"
+   }
+  },
+  {
+   "id": "diff_alle",
+   "type": "line",
+   "source": "diff_alle",
+   "source-layer": "diff_alle",
+   "paint": {
+    "line-color": [
+     "case",
+     [
+      "get",
+      "fuehr_anders"
+     ],
+     "#9467bd",
+     "#ff7f0e"
+    ],
     "line-width": [
      "interpolate",
      [

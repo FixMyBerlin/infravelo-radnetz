@@ -9,9 +9,13 @@
 --               nur ri 0, wie sql/70)
 --   baseline_wins  Teil von diff_c mit Urteil Baseline (Baseline besser)
 --   neu_wins       Teil von diff_c mit Urteil Kandidat (neuer Datensatz besser)
+--   diff_alle   alle Kanten-Richtungen, in denen irgendein Attribut abweicht (Führungsform eingeschlossen): je Attribut
+--               ein Schalter <attribut>_anders und beide Werte, abweichend = Liste der Attribute; Breite als Zahl
+--               verglichen (2 und 2.0 gleich); dieselben Richtungen wie diff_c
 CREATE SCHEMA IF NOT EXISTS datensatz_c;
 BEGIN;
-DROP TABLE IF EXISTS datensatz_c.baseline_c, datensatz_c.new_c, datensatz_c.diff_c, datensatz_c.baseline_wins, datensatz_c.neu_wins;
+DROP TABLE IF EXISTS datensatz_c.baseline_c, datensatz_c.new_c, datensatz_c.diff_c, datensatz_c.baseline_wins, datensatz_c.neu_wins,
+    datensatz_c.diff_alle;
 
 CREATE TABLE datensatz_c.baseline_c AS
 SELECT row_number() OVER (ORDER BY element_nr, ri)::bigint AS id, element_nr, ri::int AS ri, strassenname, fuehr, pflicht, breite, ofm,
@@ -38,20 +42,64 @@ WHERE b.fuehr IS DISTINCT FROM c.fuehr
 CREATE TABLE datensatz_c.baseline_wins AS SELECT * FROM datensatz_c.diff_c WHERE urteil = 'Baseline';
 CREATE TABLE datensatz_c.neu_wins AS SELECT * FROM datensatz_c.diff_c WHERE urteil = 'Kandidat';
 
+CREATE TABLE datensatz_c.diff_alle AS
+WITH p AS (
+    SELECT coalesce(b.element_nr, c.element_nr) AS element_nr, coalesce(b.ri, c.ri)::int AS ri,
+           coalesce(b.strassenname, c.strassenname) AS strassenname,
+           b.element_nr IS NULL OR c.element_nr IS NULL OR b.fuehr IS DISTINCT FROM c.fuehr AS fuehr_anders,
+           b.pflicht IS DISTINCT FROM c.pflicht AS pflicht_anders,
+           trim_scale(nullif(b.breite, '')::numeric) IS DISTINCT FROM trim_scale(nullif(c.breite, '')::numeric) AS breite_anders,
+           b.ofm IS DISTINCT FROM c.ofm AS ofm_anders, b.farbe IS DISTINCT FROM c.farbe AS farbe_anders,
+           b.protek IS DISTINCT FROM c.protek AS protek_anders, b.trennstreifen IS DISTINCT FROM c.trennstreifen AS trennstreifen_anders,
+           b.nutz_beschr IS DISTINCT FROM c.nutz_beschr AS nutz_beschr_anders, b.verkehrsri IS DISTINCT FROM c.verkehrsri AS verkehrsri_anders,
+           b.fuehr AS fuehr_baseline, c.fuehr AS fuehr_neu, b.pflicht AS pflicht_baseline, c.pflicht AS pflicht_neu,
+           b.breite AS breite_baseline, c.breite AS breite_neu, b.ofm AS ofm_baseline, c.ofm AS ofm_neu,
+           b.farbe AS farbe_baseline, c.farbe AS farbe_neu, b.protek AS protek_baseline, c.protek AS protek_neu,
+           b.trennstreifen AS trennstreifen_baseline, c.trennstreifen AS trennstreifen_neu,
+           b.nutz_beschr AS nutz_beschr_baseline, c.nutz_beschr AS nutz_beschr_neu,
+           b.verkehrsri AS verkehrsri_baseline, c.verkehrsri AS verkehrsri_neu,
+           b.tilda_ids AS tilda_ids_baseline, c.tilda_ids AS tilda_ids_neu, coalesce(c.tilda_link, b.tilda_link) AS tilda_link,
+           coalesce(b.geom, c.geom) AS geom
+    FROM bikegraph.c_base b FULL JOIN bikegraph.c_cand c ON c.element_nr = b.element_nr AND c.ri = b.ri
+    WHERE NOT (coalesce(b.ri, c.ri) = 1 AND coalesce(b.element_nr, c.element_nr) IN
+               (SELECT element_nr FROM matching.reference_edges WHERE verkehrsrichtung IN ('R', 'G'))))
+SELECT row_number() OVER (ORDER BY element_nr, ri)::bigint AS id, element_nr, ri, strassenname,
+       concat_ws(', ', CASE WHEN fuehr_anders THEN 'fuehr' END, CASE WHEN pflicht_anders THEN 'pflicht' END,
+                 CASE WHEN breite_anders THEN 'breite' END, CASE WHEN ofm_anders THEN 'ofm' END, CASE WHEN farbe_anders THEN 'farbe' END,
+                 CASE WHEN protek_anders THEN 'protek' END, CASE WHEN trennstreifen_anders THEN 'trennstreifen' END,
+                 CASE WHEN nutz_beschr_anders THEN 'nutz_beschr' END, CASE WHEN verkehrsri_anders THEN 'verkehrsri' END) AS abweichend,
+       (fuehr_anders::int + pflicht_anders::int + breite_anders::int + ofm_anders::int + farbe_anders::int + protek_anders::int
+        + trennstreifen_anders::int + nutz_beschr_anders::int + verkehrsri_anders::int) AS anzahl,
+       fuehr_anders, pflicht_anders, breite_anders, ofm_anders, farbe_anders, protek_anders, trennstreifen_anders,
+       nutz_beschr_anders, verkehrsri_anders,
+       fuehr_baseline, fuehr_neu, pflicht_baseline, pflicht_neu, breite_baseline, breite_neu, ofm_baseline, ofm_neu,
+       farbe_baseline, farbe_neu, protek_baseline, protek_neu, trennstreifen_baseline, trennstreifen_neu,
+       nutz_beschr_baseline, nutz_beschr_neu, verkehrsri_baseline, verkehrsri_neu,
+       tilda_ids_baseline, tilda_ids_neu, round(ST_Length(geom)::numeric, 1) AS laenge_m, tilda_link,
+       ST_Multi(geom)::geometry(MultiLineString, 25833) AS geom
+FROM p
+WHERE fuehr_anders OR pflicht_anders OR breite_anders OR ofm_anders OR farbe_anders OR protek_anders OR trennstreifen_anders
+   OR nutz_beschr_anders OR verkehrsri_anders;
+
 ALTER TABLE datensatz_c.baseline_c ADD PRIMARY KEY (id);
 ALTER TABLE datensatz_c.new_c ADD PRIMARY KEY (id);
 ALTER TABLE datensatz_c.diff_c ADD PRIMARY KEY (id);
 ALTER TABLE datensatz_c.baseline_wins ADD PRIMARY KEY (id);
 ALTER TABLE datensatz_c.neu_wins ADD PRIMARY KEY (id);
+ALTER TABLE datensatz_c.diff_alle ADD PRIMARY KEY (id);
+CREATE INDEX ON datensatz_c.diff_alle USING gist (geom);
 CREATE INDEX ON datensatz_c.baseline_c USING gist (geom);
 CREATE INDEX ON datensatz_c.new_c USING gist (geom);
 CREATE INDEX ON datensatz_c.diff_c USING gist (geom);
 CREATE INDEX ON datensatz_c.baseline_wins USING gist (geom);
 CREATE INDEX ON datensatz_c.neu_wins USING gist (geom);
 COMMIT;
-ANALYZE datensatz_c.baseline_c, datensatz_c.new_c, datensatz_c.diff_c, datensatz_c.baseline_wins, datensatz_c.neu_wins;
+ANALYZE datensatz_c.baseline_c, datensatz_c.new_c, datensatz_c.diff_c, datensatz_c.baseline_wins, datensatz_c.neu_wins,
+    datensatz_c.diff_alle;
 
 SELECT 'baseline_c' AS tabelle, count(*) FROM datensatz_c.baseline_c UNION ALL SELECT 'new_c', count(*) FROM datensatz_c.new_c
 UNION ALL SELECT 'diff_c', count(*) FROM datensatz_c.diff_c UNION ALL SELECT 'baseline_wins', count(*) FROM datensatz_c.baseline_wins
-UNION ALL SELECT 'neu_wins', count(*) FROM datensatz_c.neu_wins;
+UNION ALL SELECT 'neu_wins', count(*) FROM datensatz_c.neu_wins UNION ALL SELECT 'diff_alle', count(*) FROM datensatz_c.diff_alle;
+SELECT a.attribut, count(*) AS richtungen FROM datensatz_c.diff_alle, unnest(string_to_array(abweichend, ', ')) a(attribut)
+GROUP BY 1 ORDER BY 2 DESC;
 SELECT urteil, count(*) AS richtungen, round(sum(laenge_m) / 1000, 1) AS km FROM datensatz_c.diff_c GROUP BY 1 ORDER BY 2 DESC;
