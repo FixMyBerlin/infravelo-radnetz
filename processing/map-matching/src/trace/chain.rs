@@ -58,6 +58,7 @@ pub struct Topologie<'a> {
     ends: Vec<Option<Ends>>,
     at_node: FxHashMap<u64, Vec<u32>>,
     max_turn: f64,
+    knick_ohne_abzweig: bool,
 }
 
 impl<'a> Topologie<'a> {
@@ -72,7 +73,7 @@ impl<'a> Topologie<'a> {
                 }
             }
         }
-        Topologie { ways, ends, at_node, max_turn: cfg.max_turn_deg.to_radians() }
+        Topologie { ways, ends, at_node, max_turn: cfg.max_turn_deg.to_radians(), knick_ohne_abzweig: cfg.knick_ohne_abzweig }
     }
 
     /// Alle möglichen Fortsetzungen am Knoten `node` mit Kurs `h`, in (`forward`) oder gegen die Trace: gleiche
@@ -109,6 +110,19 @@ impl<'a> Topologie<'a> {
             }
         }
         found.map(|(_, s)| s)
+    }
+
+    /// Fortsetzung beim Verketten: wie `best`; mit `knick_ohne_abzweig` an einem Knick (außer dem ankommenden Weg
+    /// `von` genau eine Fortsetzung, vergebene Wege mitgezählt) diese auch über `max_turn_deg` hinaus, wenn sie frei ist.
+    fn weiter(&self, skip: &dyn Fn(u32) -> bool, src: &TildaWay, node: u64, h: f64, forward: bool, von: u32) -> Option<Step> {
+        let s = self.best(skip, src, node, h, forward);
+        if s.is_some() || !self.knick_ohne_abzweig {
+            return s;
+        }
+        match self.options(&|j| j == von, src, node, h, forward).as_slice() {
+            [(_, s)] if !skip(s.way) => Some(*s),
+            _ => None,
+        }
     }
 
     /// Kontext einer Trace: Anlauf vor ihrem ersten und Auslauf nach ihrem letzten Schritt aus benachbarten Wegen
@@ -184,16 +198,20 @@ pub fn build_chains(ways: &[TildaWay], cfg: &TraceConfig) -> Vec<Vec<Step>> {
         let src = &ways[seed as usize];
         let mut forward = vec![seed_step];
         let (mut node, mut h) = seed_ends.exit(false);
-        while let Some(s) = topo.best(&|j| used[j as usize], src, node, h, true) {
+        let mut von = seed;
+        while let Some(s) = topo.weiter(&|j| used[j as usize], src, node, h, true, von) {
             used[s.way as usize] = true;
             forward.push(s);
+            von = s.way;
             (node, h) = topo.ends[s.way as usize].as_ref().unwrap().exit(s.reversed);
         }
         let mut backward = Vec::new();
         let (mut node, mut h) = seed_ends.entry(false);
-        while let Some(s) = topo.best(&|j| used[j as usize], src, node, h, false) {
+        let mut von = seed;
+        while let Some(s) = topo.weiter(&|j| used[j as usize], src, node, h, false, von) {
             used[s.way as usize] = true;
             backward.push(s);
+            von = s.way;
             (node, h) = topo.ends[s.way as usize].as_ref().unwrap().entry(s.reversed);
         }
         backward.reverse();
@@ -233,7 +251,7 @@ mod tests {
     }
 
     fn cfg() -> TraceConfig {
-        TraceConfig { strategy: TraceStrategy::Topology, sample_interval_m: 5.0, heading_window_m: 2.0, max_turn_deg: 45.0, end_heading_m: 10.0, context_m: 0.0, context_alle_zweige: false }
+        TraceConfig { strategy: TraceStrategy::Topology, sample_interval_m: 5.0, heading_window_m: 2.0, max_turn_deg: 45.0, end_heading_m: 10.0, context_m: 0.0, context_alle_zweige: false, knick_ohne_abzweig: false }
     }
 
     #[test]
@@ -268,6 +286,25 @@ mod tests {
         ];
         let chains = build_chains(&ways, &cfg());
         assert_eq!(chains, vec![vec![Step { way: 0, reversed: false }, Step { way: 1, reversed: true }]]);
+    }
+
+    #[test]
+    fn knick_ohne_abzweig_folgt_auch_ueber_den_winkel() {
+        // Knick um 90 Grad, am Knoten keine weitere Fortsetzung: nur mit knick_ohne_abzweig eine Trace.
+        let knick = vec![
+            way(0, &[(0.0, 0.0), (60.0, 0.0)], (0, 1), true, "strassen"),
+            way(1, &[(60.0, 0.0), (60.0, 50.0)], (1, 2), true, "strassen"),
+        ];
+        assert_eq!(build_chains(&knick, &cfg()).len(), 2);
+        let mit = TraceConfig { knick_ohne_abzweig: true, ..cfg() };
+        assert_eq!(build_chains(&knick, &mit).len(), 1);
+        // Abzweigung: zwei Fortsetzungen um je 90 Grad, der Winkel entscheidet weiter (keine Verkettung).
+        let abzweig = vec![
+            way(0, &[(0.0, 0.0), (60.0, 0.0)], (0, 1), true, "strassen"),
+            way(1, &[(60.0, 0.0), (60.0, 50.0)], (1, 2), true, "strassen"),
+            way(2, &[(60.0, 0.0), (60.0, -50.0)], (1, 3), true, "strassen"),
+        ];
+        assert_eq!(build_chains(&abzweig, &mit).len(), 3);
     }
 
     fn kfg(context_m: f64, alle_zweige: bool) -> TraceConfig {

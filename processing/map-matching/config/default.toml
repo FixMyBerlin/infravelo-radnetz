@@ -105,6 +105,9 @@ context_m = 0.0
 # topology: Beginnt eine Trace an einem Knoten mit genau einem ankommenden Weg, wird dieser auch über max_turn_deg
 # hinaus ihr Anlauf (jeder abgehende Zweig bekommt den Zulauf als Kontext).
 context_alle_zweige = false
+# topology: Hat ein Knoten außer dem ankommenden Weg genau eine Fortsetzung (Knick, keine Abzweigung), setzt die
+# Trace sie auch über max_turn_deg hinaus fort; der Winkel entscheidet dann nur an Abzweigungen.
+knick_ohne_abzweig = false
 # Abstand der Beobachtungen entlang eines TILDA-Wegs (Anfang/Ende immer enthalten).
 sample_interval_m = 5.0
 # Halbe Fensterbreite zur Bestimmung des lokalen Kurses einer Beobachtung.

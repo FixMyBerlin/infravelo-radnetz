@@ -93,6 +93,10 @@ pub struct TraceConfig {
     /// `max_turn_deg` hinaus ihr Anlauf (jeder abgehende Zweig bekommt den Zulauf als Kontext).
     #[serde(default)]
     pub context_alle_zweige: bool,
+    /// `topology`: Hat ein Knoten außer dem ankommenden Weg genau eine Fortsetzung (Knick, keine Abzweigung), setzt
+    /// die Trace sie auch über `max_turn_deg` hinaus fort; der Winkel entscheidet dann nur an Abzweigungen.
+    #[serde(default)]
+    pub knick_ohne_abzweig: bool,
 }
 
 fn default_max_turn_deg() -> f64 {
