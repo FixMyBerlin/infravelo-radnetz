@@ -1,8 +1,8 @@
 # Network pipeline: from the raw network to the customer network and the working network
 
-As of 2026-11-18. Two repos take part: this repo `infravelo-radnetz` (Python, all network files) and [`radnetz-apps`](https://github.com/FixMyBerlin/radnetz-apps) with the **Netzanpassungen app** (`netzanpassungen/` there, handwork in the KV database). The app itself is described in its [README](https://github.com/FixMyBerlin/radnetz-apps/blob/main/netzanpassungen/README.md).
+As of 2026-11-19. Two repos take part: this repo `infravelo-radnetz` (Python, all network files) and [`infravelo-apps`](https://github.com/FixMyBerlin/infravelo-apps) with the **Netzanpassungen app** (`netzanpassungen/` there, handwork in the KV database). The app itself is described in its [README](https://github.com/FixMyBerlin/infravelo-apps/blob/main/netzanpassungen/README.md).
 
-> **Status:** the parts on virtual nodes describe the agreed target after merging the registry of virtual nodes from `main` (`data/VIRTUELLE-KNOTENPUNKTE.md`). They are being built on branch `claude/netzkorrektur`; until then the code still follows the older text in the git history of this file.
+> **Status:** the parts on virtual nodes describe the target after merging the registry of virtual nodes from `main` (`data/VIRTUELLE-KNOTENPUNKTE.md`), with one change still to agree with Henri: virtual nodes are created only in the app, no longer in QGIS. They are being built on branch `claude/netzkorrektur`; until then the code still follows the older text in the git history of this file.
 
 **Language rule for both repos:** code, comments, file names, commit messages and our documents are in English. The app UI and the customer's data fields (`element_nr`, `verkehrsrichtung`, `routen_fernradweg`, `fahrbahn_typ`, …) stay German.
 
@@ -10,7 +10,7 @@ As of 2026-11-18. Two repos take part: this repo `infravelo-radnetz` (Python, al
 
 **The Netzanpassungen app sits in the middle of the pipeline and never receives anything from the end of it.** Its input holds only raw data, what is computed automatically, and the registry of virtual nodes. All other handwork (new edges, assignments, corrections) lives only in the KV database and is laid onto this input at every load. That is why the input file can be regenerated and uploaded at any time: nothing is duplicated, and nothing has to be recognised as "already taken over".
 
-**One exception: virtual nodes.** Their numbers are given in one place only, the registry `data/Virtuelle-Knotenpunkte.gpkg`, and only by `data/virtuelle_knotenpunkte.py` (rules: [`data/VIRTUELLE-KNOTENPUNKTE.md`](../data/VIRTUELLE-KNOTENPUNKTE.md)). A node drawn in the app has a provisional name (`neu-<n>`) until step 3 takes it into the registry. The registry recognises nodes it already has by `app_eintrag`, so the round trip creates no duplicates.
+**One exception: virtual nodes.** Their numbers are given in one place only, the registry `data/Virtuelle-Knotenpunkte.gpkg`, and only by `data/virtuelle_knotenpunkte.py` (rules: [`data/VIRTUELLE-KNOTENPUNKTE.md`](../data/VIRTUELLE-KNOTENPUNKTE.md)). Virtual nodes are created, moved and deleted **only in the app**; nobody edits the registry by hand. A node set in the app has a provisional name (`neu-<n>`) until step 3 takes it into the registry. The registry recognises nodes it already has by `app_eintrag`, so the round trip creates no duplicates.
 
 For Python this means: the result of the app is written only to `output/`, never to `data/`, except new virtual nodes into the registry.
 
@@ -35,8 +35,7 @@ flowchart TD
     VK["<b>Virtuelle-Knotenpunkte.gpkg</b><br/><i>registry of virtual nodes: four-digit number,<br/>active or deleted, the 53 of 2025 are 0001–0053</i>"]
   end
 
-  VT["data/virtuelle_knotenpunkte.py<br/><i>the only place that gives numbers:<br/>number new points, take over, delete</i>"]
-  QG["QGIS<br/><i>set or move a point by hand</i>"]
+  VT["data/virtuelle_knotenpunkte.py<br/><i>the only place that gives numbers,<br/>called by step 3; nobody edits the registry by hand</i>"]
   EU["netzanpassungen/one_time_import/<br/>altlisten_korrekturen.json<br/><i>corrections from the old override lists,<br/>loaded once into the app</i>"]
 
   S1["<b>Step 1: merge the network</b><br/>ren-network/merge_networks.py<br/><i>splits edges at the active virtual nodes,<br/>unique element_nr per edge</i>"]
@@ -50,7 +49,14 @@ flowchart TD
   AE["<b>Write the app input</b><br/>netzanpassungen/write_app_input.py"]
   AI["output: netzanpassungen_&lt;gebiet&gt;.json<br/><i>Detailnetz, REN+, Radfernwege, sections,<br/>nodes with their numbers and app_eintrag</i>"]
 
-  APP["<b>Netzanpassungen app</b><br/>resolve gaps, position corrections, direction,<br/>carriageway, exclusion, new edges,<br/>new virtual nodes (provisional name neu-&lt;n&gt;)<br/><i>all in the KV database</i>"]
+  subgraph APP["Netzanpassungen app: every virtual node is set here (provisional name neu-&lt;n&gt;), all in the KV database"]
+    A1["<b>1. Draw a new edge</b><br/>end on a node → no new node<br/>end on an edge → new virtual node there<br/>free end (dead end) → new virtual node"]
+    A2["<b>2. Close a gap in the network</b><br/>snap the open end to a node → no new node<br/>snap it onto an edge → new virtual node there"]
+    A3["<b>3. Split an edge on request</b><br/>e.g. only the new bridge is its own edge:<br/>set virtual nodes on the edge by hand"]
+    A4["<b>Accept a node proposal</b><br/>edges meet without a node (step 1),<br/>a Radfernweg crosses an edge"]
+    A5["<b>Move or delete a virtual node</b><br/>the number stays; a deleted number is never given again"]
+    A6["Other work: gaps of the Radfernwege,<br/>position corrections, direction,<br/>carriageway, exclusion"]
+  end
   EX["netzanpassungen-eintraege-&lt;gebiet&gt;-&lt;date&gt;.json<br/><i>export „Alle Einträge“</i>"]
 
   S3["<b>Step 3: apply the app result</b><br/>netzanpassungen/apply_app_result.py<br/><i>takes new app nodes into the registry first</i>"]
@@ -64,8 +70,6 @@ flowchart TD
   RW["ren-network/map_back_to_original.py<br/><i>matching result by element_nr onto ren_netz.gpkg</i>"]
   KU["Customer"]
 
-  QG --> VT
-  P1 -. "checked, then numbered" .-> VT
   VT --> VK
   RQ --> S1
   DN --> S1
@@ -82,13 +86,14 @@ flowchart TD
   DN --> AE
   RF --> AE
   L2 --> AE
+  P1 -- "as node proposals" --> AE
   AE --> AI
   AI --> APP
   EU -. "once: Einträge einspielen" .-> APP
   APP --> EX
   R2 --> S3
   EX --> S3
-  S3 -- "new app nodes get their number" --> VT
+  S3 -- "new, moved and deleted app nodes" --> VT
   S3 --> R3K
   S3 --> R3W
   VK --> PR
@@ -102,7 +107,7 @@ flowchart TD
   R3K --> KU
 ```
 
-**The round trip of a new virtual node:** drawn in the app as `neu-3` → exported with „Alle Einträge“ → step 3 takes it into the registry as `0054` (with `app_eintrag`) and splits its edge in `ren_netz.gpkg` → the next app input carries `0054`; the app hides its own entry and shows the node with its number. Until the next run of steps 1 and 2 the edge is split only in the result of step 3, not yet in the app input.
+**The round trip of a new virtual node:** set in the app as `neu-3` → exported with „Alle Einträge“ → step 3 takes it into the registry as `0054` (with `app_eintrag`) and splits its edge in `ren_netz.gpkg` → the next app input carries `0054`; the app hides its own entry and shows the node with its number. Until the next run of steps 1 and 2 the edge is split only in the result of step 3, not yet in the app input.
 
 ## The steps
 
@@ -118,11 +123,16 @@ Script and file names (renamed with this rebuild):
 | `ren-network/zurueck_aufs_original.py`                             | `ren-network/map_back_to_original.py`   |
 | `netzanpassungen/einmalige_uebernahme/`                            | `netzanpassungen/one_time_import/`      |
 
-**Virtual nodes.** A virtual node is a node the Detailnetz does not have. Every one of them is in the registry `data/Virtuelle-Knotenpunkte.gpkg` with a four-digit number that never changes. It gets there in three ways, and every way ends in `data/virtuelle_knotenpunkte.py`:
+**Virtual nodes.** A virtual node is a node the Detailnetz does not have. Every one of them is in the registry `data/Virtuelle-Knotenpunkte.gpkg` with a four-digit number that never changes. Virtual nodes are set only in the Netzanpassungen app; step 3 takes them into the registry (the same rule as `virtuelle_knotenpunkte.py uebernehmen`) and gives the number. There are three cases where a new node is needed, plus proposals:
 
-- **QGIS:** set the point by hand, then `virtuelle_knotenpunkte.py nummerieren`.
-- **App:** draw it in the Netzanpassungen app; step 3 takes it over (the same rule as `virtuelle_knotenpunkte.py uebernehmen`, which also works on its own with the app export „Virtuelle Knoten“).
-- **Proposals of step 1:** where REN+ edges meet without any node, step 1 writes a proposal. Proposals have no number and change nothing until someone checks them and takes them into the registry. On all of Berlin there are 340 such places (141 on the interior of another edge, 187 where edge ends meet, 12 open ends).
+1. **Draw a new edge** and connect it: an end on an existing node needs no new node; an end on the interior of an edge sets a virtual node there and splits that edge; a free end (dead end) gets a virtual node too, so every edge has a node at both ends.
+2. **Close a gap in the network** (an open end of a REN+ edge): snapping it to an existing node needs no new node; snapping it onto an edge sets a virtual node there, with a short new edge to it.
+3. **Split an edge on request** of the customer, e.g. where a new bridge is planned and only the bridge is its own edge: set virtual nodes on the edge by hand.
+4. **Proposals** in the app's queue of node suggestions: where REN+ edges meet without a node (written by step 1; 340 places on all of Berlin: 141 on the interior of another edge, 187 where edge ends meet, 12 open ends) and where a Radfernweg crosses a Detailnetz edge. Accepting one sets the virtual node; a proposal changes nothing on its own.
+
+Moving and deleting a virtual node also happens in the app. The number stays when a node is moved; a deleted node stays in the registry with `status = geloescht`, and its number is never given again.
+
+Not built in the app yet: case 3 (setting a node on an edge without drawing), the proposals of step 1 in the queue, and moving or deleting a node that already has a number (today only nodes with a provisional name can be moved or deleted).
 
 Every virtual node that is an end of a REN+ edge becomes a Knotenpunkt and is rated like any other node that was not rated in 2025 (`knotenpunkte/README.md`). New nodes therefore go into a new dataset for the Knotenpunkte app.
 
@@ -240,5 +250,6 @@ Small sections: stretches below 25 m of the same state, gaps below 20 m and stre
 3. **Rename** of the scripts and folders together with the rebuild (2026-11-11); English names for code, files, comments, commit messages and documents (language rule above).
 4. **Unique `element_nr`** for every REN+ edge, built in step 1 from its end nodes (2026-11-11); the app uses it as the edge ref.
 5. **Registry of virtual nodes** (2026-11-18): `data/Virtuelle-Knotenpunkte.gpkg` is the only source of node numbers, `data/virtuelle_knotenpunkte.py` the only place that gives them. Step 1 does not name nodes itself any more; it proposes. Step 3 takes the app's new nodes into the registry.
+8. **Virtual nodes only in the app** (proposed 2026-11-19, to agree with Henri): nodes are set, moved and deleted only in the Netzanpassungen app, not in QGIS. The app has to set them anyway when edges are connected or gaps are closed; a second way would only make a second place where nodes can contradict each other.
 6. **Virtual nodes are rated** (2026-11-18): a virtual node that is an end of a REN+ edge is a Knotenpunkt and gets rated like the others; new ones go into a new dataset for the Knotenpunkte app.
 7. **Old override lists stay until the RVN delivery** (2026-11-18), see above.
