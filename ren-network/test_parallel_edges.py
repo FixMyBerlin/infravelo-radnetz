@@ -157,6 +157,21 @@ class NamedNodeTest(unittest.TestCase):
             self.assertTrue(any(end.equals(point(0, 0)) for end in ends))
         self.assertTrue(moved_net.geometry.iloc[3].equals(net.geometry.iloc[3]))
 
+    def test_ends_that_meet_but_name_different_nodes_stay(self):
+        """Moving each end to its own node would tear the junction apart."""
+        nodes = official(**{"N": (0, 0), "K": (22, 0), "A": (11, 300), "B": (11, -300)})
+        net = network([("A_N.01", RVN, None, line((11, 300), (11, 5))),
+                       ("K_B.01", RVN, None, line((11, 5), (11, -300)))])
+        _, moved = an.snap_ends_to_named_nodes(net, nodes, ID)
+        self.assertEqual(moved, [])
+
+    def test_an_end_whose_extension_would_fold_the_line_stays(self):
+        nodes = official(**{"N": (0, 0), "A": (-300, 1)})
+        net = network([("A_N.01", RVN, None, line((-300, 1), (0, 1), (30, 1), (30, 10), (5, 10)))])
+        moved_net, moved = an.snap_ends_to_named_nodes(net, nodes, ID)
+        self.assertEqual(moved, [])
+        self.assertTrue(moved_net.geometry.iloc[0].is_simple)
+
     def test_a_junction_with_a_line_naming_another_node_stays(self):
         nodes = official(**{"N": (0, 0), "M": (0, 600), "A": (-300, 17), "B": (300, 17)})
         net = network([("A_N.01", RVN, None, line((-300, 17), (0, 17))),
@@ -183,6 +198,21 @@ class ParallelTest(unittest.TestCase):
         merged = mn.merge_parallel_edges(net).set_index("element_nr")
         self.assertEqual(sorted(merged.index), ["1_2.01", "1_2.03"])
         self.assertEqual(merged.loc["1_2.01", "netz_quellen"], f"{HSN};{RSV}")
+
+    def test_two_detailnetz_numbers_stay_apart(self):
+        """Two carriageways: each source has one, the Detailnetz has both numbers."""
+        net = network([("1_2.01", RVN, None, line((0, 0), (200, 0))),
+                       ("1_2.02", HSN, "Weg", line((0, 0), (100, 12), (200, 0)))])
+        merged = mn.merge_parallel_edges(net, frozenset(["1_2.01", "1_2.02"]))
+        self.assertEqual(sorted(merged["element_nr"]), ["1_2.01", "1_2.02"])
+
+    def test_lines_do_not_chain_beyond_the_tolerance(self):
+        """0, 14 and 28 m apart: the outer two are 28 m apart, so only one pair merges."""
+        net = network([("1_2.01", RVN, None, line((0, 0), (100, 0), (200, 0))),
+                       ("1_2.02", HSN, "Weg", line((0, 0), (100, 14), (200, 0))),
+                       ("1_2.03", RSV, None, line((0, 0), (100, 28), (200, 0)))])
+        merged = mn.merge_parallel_edges(net)
+        self.assertEqual(len(merged), 2)
 
     def test_closest_pair_merges_and_keeps_the_lowest_number(self):
         nodes = official(**{"1": (0, 0), "2": (200, 0)})

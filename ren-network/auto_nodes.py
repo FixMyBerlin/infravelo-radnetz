@@ -174,12 +174,17 @@ def snap_ends_to_named_nodes(network, official, official_column, nodes_2025=None
     end_tree = shapely.STRtree(end_points) if end_points else None
 
     def allowed(point, node):
-        """JUNCTION_TOL_M where at least JUNCTION_MIN_LINES lines meet and all name `node`, else `tolerance`."""
-        if end_tree is None or tolerance < NAMED_NODE_TOL_M:
+        """How far an end at `point` may move onto `node`: not at all where it meets lines that do not name `node`
+        (moving it would tear that junction apart; lines without a number do not count); JUNCTION_TOL_M where at least JUNCTION_MIN_LINES lines meet and
+        all name `node`; else `tolerance`."""
+        if end_tree is None:
             return tolerance
         meeting = [end_names[int(i)] for i in end_tree.query(point, predicate="dwithin", distance=SNAP_TOL_M)]
+        # Lines without element_nr name no node; they follow the moved end (below).
+        if not all(node in names for _, names in meeting if names):
+            return 0.0
         rows = {row for row, _ in meeting}
-        if len(rows) >= JUNCTION_MIN_LINES and all(node in names for _, names in meeting):
+        if len(rows) >= JUNCTION_MIN_LINES and tolerance >= NAMED_NODE_TOL_M:
             return max(tolerance, JUNCTION_TOL_M)
         return tolerance
 
@@ -196,8 +201,10 @@ def snap_ends_to_named_nodes(network, official, official_column, nodes_2025=None
                          for n in named if n not in taken and not on_official(point))
         used_ends = set()
         for distance, p, side, n, point in options:
-            if n in taken or (p, side) in used_ends or distance > tolerance and distance > allowed(point, n):
+            if n in taken or (p, side) in used_ends or distance > allowed(point, n):
                 continue
+            if not end_at(parts[index][p], side, positions[n]).is_simple:
+                continue  # extending would fold the line back on itself
             moves[(index, p, side)] = (n, positions[n])
             moved.append((element_nr, n, distance))
             taken.add(n)
@@ -220,7 +227,8 @@ def snap_ends_to_named_nodes(network, official, official_column, nodes_2025=None
                         other = shapely.get_point(part, -(1 - side))
                         if (point.distance(node_point) <= max(tolerance, JUNCTION_TOL_M) + SNAP_TOL_M
                                 and other.distance(node_point) > OFFICIAL_TOL_M
-                                and moves.get((index, p, 1 - side), (None,))[0] != node):
+                                and moves.get((index, p, 1 - side), (None,))[0] != node
+                                and end_at(part, side, node_point).is_simple):
                             moves[(index, p, side)] = (node, node_point)
                             moved.append((network.at[index, "element_nr"], node, point.distance(node_point)))
 
@@ -237,11 +245,14 @@ def snap_ends_to_named_nodes(network, official, official_column, nodes_2025=None
     return network, moved
 
 
-def parallel_clusters(geometries, pairs, sources, tolerance=PARALLEL_TOL_M):
+def parallel_clusters(geometries, pairs, sources, tolerance=PARALLEL_TOL_M, detail_numbers=None):
     """Groups of lines that are one stretch of street: same unordered node pair (`pairs[i]`), no source in common
-    (`sources[i]` a set) and Hausdorff distance at most `tolerance`. The closest pairs join first; a group never holds
-    two lines of the same source, except lines at most DUPLICATE_TOL_M apart, which are the same line twice.
-    Returns a list of index lists with at least two members."""
+    (`sources[i]` a set) and Hausdorff distance at most `tolerance` between every two members (complete linkage, so
+    lines 0, 14 and 28 m apart do not chain into one). The closest pairs join first. A group never holds two lines of
+    the same source, nor two different Detailnetz numbers (`detail_numbers[i]`, None if the line's number is not in the
+    Detailnetz: two carriageways the Detailnetz keeps apart), except lines at most DUPLICATE_TOL_M apart, which are the
+    same line twice. Returns a list of index lists with at least two members."""
+    detail_numbers = detail_numbers or [None] * len(geometries)
     by_pair = defaultdict(list)
     for index, pair in enumerate(pairs):
         if pair is not None:
@@ -250,24 +261,32 @@ def parallel_clusters(geometries, pairs, sources, tolerance=PARALLEL_TOL_M):
     for members in by_pair.values():
         if len(members) < 2:
             continue
-        candidates = sorted(
-            (geometries[i].hausdorff_distance(geometries[j]), i, j)
-            for k, i in enumerate(members) for j in members[k + 1:])
-        group = {i: {i} for i in members}
-        group_sources = {i: set(sources[i]) for i in members}
-        for distance, i, j in candidates:
-            if distance > tolerance:
+        distance = {}
+        for k, i in enumerate(members):
+            for j in members[k + 1:]:
+                distance[i, j] = distance[j, i] = geometries[i].hausdorff_distance(geometries[j])
+        candidates = sorted((distance[i, j], i, j) for k, i in enumerate(members) for j in members[k + 1:])
+
+        def compatible(i, j):
+            if distance[i, j] <= DUPLICATE_TOL_M:
+                return True
+            if distance[i, j] > tolerance or sources[i] & sources[j]:
+                return False
+            return not (detail_numbers[i] and detail_numbers[j] and detail_numbers[i] != detail_numbers[j])
+
+        group = {i: frozenset((i,)) for i in members}
+        for pair_distance, i, j in candidates:
+            if pair_distance > tolerance:
                 break
-            a, b = min(group[i]), min(group[j])
-            if a == b or (group_sources[a] & group_sources[b] and distance > DUPLICATE_TOL_M):
+            if group[i] == group[j]:
                 continue
-            root, other = min(a, b), max(a, b)
-            merged = group[root] | group[other]
-            group_sources[root] = group_sources[root] | group_sources[other]
+            if not all(compatible(a, b) for a in group[i] for b in group[j]):
+                continue
+            merged = group[i] | group[j]
             for member in merged:
                 group[member] = merged
-        clusters.extend(sorted(g) for g in {id(g): g for g in group.values()}.values() if len(g) > 1)
-    return clusters
+        clusters.extend(sorted(g) for g in set(group.values()) if len(g) > 1)
+    return sorted(clusters)
 
 
 def find_hosts(point, own_line, geoms, tree, starts, ends):
@@ -624,7 +643,8 @@ def snap_and_number(network, official, nodes_2025, detail_element_nrs, official_
             "geometry": MultiLineString([piece["geometry"]]),
         })
         rows.append(row)
-    dropped = merge_parallel_pieces(rows, pieces, element_nrs, kept, combine, parallel_tolerance) if combine else set()
+    dropped = (merge_parallel_pieces(rows, pieces, element_nrs, kept, combine, parallel_tolerance,
+                                     frozenset(detail_element_nrs)) if combine else set())
     remaining = [index for index in range(len(pieces)) if index not in dropped]
     kept = kept - dropped
     result = gpd.GeoDataFrame([rows[i] for i in remaining], geometry="geometry", crs=network.crs)
@@ -640,17 +660,21 @@ def snap_and_number(network, official, nodes_2025, detail_element_nrs, official_
     return result, proposals, report
 
 
-def merge_parallel_pieces(rows, pieces, element_nrs, kept, combine, tolerance=PARALLEL_TOL_M):
+def merge_parallel_pieces(rows, pieces, element_nrs, kept, combine, tolerance=PARALLEL_TOL_M,
+                          detail_element_nrs=frozenset()):
     """Edges of different sources between the same two end nodes (after splitting) within `tolerance` become one
     (e.g. a Radverkehrsnetz line split at two 2025 nodes and a Radschnellverbindung without element_nr between the same
-    nodes). The surviving edge keeps the number of a member that kept its element_nr, else the lowest `nn`; geometry
+    nodes). The surviving edge keeps a number the Detailnetz has, else the number of a member that kept its element_nr,
+    else the lowest `nn`; geometry
     and attributes come from `combine(member rows, owner position)`. Changes `rows` in place, returns the dropped piece
     indexes. Their numbers are not issued again: they were counted before."""
     sources = [set(str(row.get("netz_quellen") or "").split(";")) - {""} for row in rows]
     pairs = [pair_key(piece["a"], piece["b"]) if sources[i] else None for i, piece in enumerate(pieces)]
     dropped = set()
-    for cluster in parallel_clusters([piece["geometry"] for piece in pieces], pairs, sources, tolerance):
-        owner = min(cluster, key=lambda i: (i not in kept, parse_element_nr(element_nrs[i])[2], element_nrs[i]))
+    detail = [nr if nr in detail_element_nrs else None for nr in element_nrs]
+    for cluster in parallel_clusters([piece["geometry"] for piece in pieces], pairs, sources, tolerance, detail):
+        owner = min(cluster, key=lambda i: (detail[i] is None, i not in kept, parse_element_nr(element_nrs[i])[2],
+                                            element_nrs[i]))
         rows[owner] = combine([rows[i] for i in cluster], cluster.index(owner))
         pieces[owner]["length"] = rows[owner]["geometry"].length
         dropped |= set(cluster) - {owner}

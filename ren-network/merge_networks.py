@@ -461,7 +461,8 @@ def merge_parallel_edges(network, detail_element_nrs=frozenset()):
     parsed = [auto_nodes.parse_element_nr(nr) for nr in network["element_nr"]]
     pairs = [auto_nodes.pair_key(p[0], p[1]) if p else None for p in parsed]
     sources = [_sources(value) for value in network["netz_quellen"]]
-    clusters = auto_nodes.parallel_clusters(list(network.geometry), pairs, sources)
+    detail = [nr if nr in detail_element_nrs else None for nr in network["element_nr"]]
+    clusters = auto_nodes.parallel_clusters(list(network.geometry), pairs, sources, detail_numbers=detail)
 
     records = network.to_dict("records")
     dropped = set()
