@@ -96,13 +96,16 @@ class SpandauTest(unittest.TestCase):
         self.assertEqual(sorted((nr, node) for nr, node, _ in moved),
                          [("27570001_28560007.01", "27570001"), ("27570001_28560007.01", "28560007"),
                           ("27570001_28570001.01", "27570001")])
-        net = mn.merge_parallel_edges(net)
-        result, proposals, _ = an.snap_and_number(lines_of(net), nodes, EMPTY_2025, [], ID, combine=mn.combine_parallel)
+        detail = ["27570001_28560007.02", "27570001_28570001.02", "27570002_27570001.03"]
+        net = mn.merge_parallel_edges(net, frozenset(detail))
+        result, proposals, _ = an.snap_and_number(lines_of(net), nodes, EMPTY_2025, detail, ID,
+                                                  combine=mn.combine_parallel)
 
         self.assertEqual(len(proposals), 0)
         self.assertEqual(sorted(result["element_nr"]),
-                         ["27570001_28560007.01", "27570001_28570001.01", "27570002_27570001.03"])
-        edge = result.set_index("element_nr").loc["27570001_28560007.01"]
+                         ["27570001_28560007.02", "27570001_28570001.02", "27570002_27570001.03"])
+        # the merged edge keeps the number the Detailnetz has (.02), not the older Radverkehrsnetz one (.01)
+        edge = result.set_index("element_nr").loc["27570001_28560007.02"]
         self.assertEqual(edge["netz_quellen"], f"{HSN};{RVN}")
         self.assertEqual(edge["strassenname"], "Am Zeppelinpark")
         self.assertEqual(edge["radverkehrsnetz"], mn.RVN_ERGAENZUNG)

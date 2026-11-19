@@ -450,12 +450,12 @@ def combine_parallel(rows, owner):
     }
 
 
-def merge_parallel_edges(network):
+def merge_parallel_edges(network, detail_element_nrs=frozenset()):
     """Linien verschiedener Quellen zwischen denselben zwei Knoten (laut element_nr), die höchstens
     auto_nodes.PARALLEL_TOL_M (Hausdorff) auseinander liegen, werden eine Kante. Das Zusammenführen pro element_nr
     erfasst sie nicht, wenn die Quellen für dieselbe Strecke verschiedene element_nr tragen (z. B. Radverkehrsnetz
-    27570001_28560007.01, Hauptstraßennetz und Detailnetz 27570001_28560007.02). Die Kante behält die niedrigste
-    Nummer (.01). Linien derselben Quelle zwischen denselben Knoten bleiben getrennt."""
+    27570001_28560007.01, Hauptstraßennetz und Detailnetz 27570001_28560007.02). Die Kante behält die Nummer, die
+    im Detailnetz steht, sonst die niedrigste (.01). Linien derselben Quelle zwischen denselben Knoten bleiben getrennt."""
     network = network.reset_index(drop=True)
     parsed = [auto_nodes.parse_element_nr(nr) for nr in network["element_nr"]]
     pairs = [auto_nodes.pair_key(p[0], p[1]) if p else None for p in parsed]
@@ -465,7 +465,8 @@ def merge_parallel_edges(network):
     records = network.to_dict("records")
     dropped = set()
     for cluster in clusters:
-        owner = min(cluster, key=lambda i: (parsed[i][2], network.at[i, "element_nr"]))
+        owner = min(cluster, key=lambda i: (network.at[i, "element_nr"] not in detail_element_nrs,
+                                            parsed[i][2], network.at[i, "element_nr"]))
         records[owner] = combine_parallel([records[i] for i in cluster], cluster.index(owner))
         dropped |= set(cluster) - {owner}
         logging.debug(f"Parallel: {[network.at[i, 'element_nr'] for i in cluster]} -> {network.at[owner, 'element_nr']}")
@@ -705,7 +706,7 @@ def main():
     network = merge_by_element_nr(sources)
     nodes_2025 = load_nodes_2025()
     network = snap_ends_to_named_nodes(network, nodes, nodes_2025)
-    network = merge_parallel_edges(network)
+    network = merge_parallel_edges(network, frozenset(detail["element_nr"].dropna()))
     network = add_detailnetz_attributes(network, detail)
     network, proposals = number_edges(network, detail, nodes, nodes_2025)
     network = add_district(network)
