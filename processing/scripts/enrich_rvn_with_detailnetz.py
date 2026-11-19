@@ -11,8 +11,10 @@ Mit --netz ren für das REN+ (Pfade je Netz in helpers/netz.py).
 INPUT:
 - output/rvn/Berlin Vorrangnetz_with_element_nr.fgb
 - output/rvn/Berlin Detailnetz_mit_virtuellen-knotenpunkten.fgb (gesplittet an virtuellen Knotenpunkten)
-- Spalte verkehrsrichtung des Eingangsnetzes (ren_netz.gpkg und ren_netz_korrigiert.gpkg, aus der
+- --netz ren: Spalte verkehrsrichtung des Eingangsnetzes (ren_netz.gpkg und ren_netz_korrigiert.gpkg, aus der
   App Netzanpassungen): überschreibt die verkehrsrichtung des Detailnetzes
+- --netz rvn: ../netzanpassungen/one_time_import/2025/rvn_korrekturen.csv (Korrekturliste von 2025, im
+  Archiv; gilt bis zur Lieferung des RVN)
 
 OUTPUT:
 - output/rvn/vorrangnetz_details_combined_rvn.fgb
@@ -36,6 +38,10 @@ try:
 except ImportError:
     DEFAULT_CRS = 25833
 from helpers.netz import DEFAULT_NETZ, PFADE, add_netz_argument
+
+# Korrekturliste von 2025 (Archiv), nur für das RVN bis zu dessen Lieferung
+RVN_CORRECTIONS_PATH = str(Path(__file__).resolve().parents[2] / "netzanpassungen" / "one_time_import" / "2025"
+                           / "rvn_korrekturen.csv")
 
 # Konfiguration: Auszuschließende element_nr
 EXCLUDED_ELEMENT_NRS = [
@@ -504,6 +510,54 @@ def apply_verkehrsrichtung_korrekturen(gdf, vorrangnetz):
     return result
 
 
+def apply_rvn_corrections(gdf, corrections_path):
+    """
+    Wendet die Korrekturliste von 2025 an (RVN_CORRECTIONS_PATH, nur --netz rvn).
+
+    Die Liste liegt seit 2026-11 im Archiv netzanpassungen/one_time_import/2025/; ihre Fälle sind für
+    das REN+ in die App Netzanpassungen übernommen. Das RVN liest sie bis zur Lieferung des RVN weiter.
+
+    Unterstützt wird bisher das Attribut verkehrsrichtung (B, R, G). Wechselt eine Kante von oder
+    nach G, wird die Geometrie gedreht, damit die Fahrtrichtung wie bei allen R/G-Kanten der
+    Digitalisierungsrichtung entspricht.
+
+    Args:
+        gdf (GeoDataFrame): Kombinierter RVN-Datensatz
+        corrections_path (str): Pfad zur Korrekturliste
+
+    Returns:
+        GeoDataFrame: Datensatz mit angewendeten Korrekturen
+    """
+    if not os.path.exists(corrections_path):
+        logger.info(f"Keine Korrekturliste gefunden: {corrections_path}")
+        return gdf
+
+    corrections = pd.read_csv(corrections_path, comment='#', dtype=str).fillna('')
+    allowed = {'verkehrsrichtung': {'B', 'R', 'G'}}
+    result = gdf.copy()
+    applied = 0
+
+    for _, c in corrections.iterrows():
+        if c.attribut not in allowed:
+            raise ValueError(f"Korrektur für {c.element_nr}: Attribut '{c.attribut}' wird nicht unterstützt")
+        if c.wert not in allowed[c.attribut]:
+            raise ValueError(f"Korrektur für {c.element_nr}: Wert '{c.wert}' für {c.attribut} ungültig")
+        mask = result['element_nr'] == c.element_nr
+        if not mask.any():
+            logger.warning(f"Korrektur: element_nr {c.element_nr} nicht im RVN gefunden")
+            continue
+        for idx in result.index[mask]:
+            old = result.at[idx, c.attribut]
+            if (old == 'G') != (c.wert == 'G'):
+                result.at[idx, 'geometry'] = reverse_geometry(result.at[idx, 'geometry'])
+            result.at[idx, c.attribut] = c.wert
+            logger.info(f"Korrektur: {c.element_nr} {c.attribut} {old} -> {c.wert} ({c.begruendung})")
+            applied += 1
+
+    logger.info(f"Korrekturen angewendet: {applied} Kanten aus {corrections_path}")
+    return result
+
+
 def save_result(combined_gdf, output_path):
     """
     Speichert den finalen Datensatz.
@@ -557,8 +611,11 @@ def main(netz=DEFAULT_NETZ):
         # 9. Ausgeschlossene element_nr entfernen
         final_gdf = filter_excluded_elements(final_gdf)
         
-        # 10. Korrigierte Verkehrsrichtung aus der App Netzanpassungen übernehmen
-        final_gdf = apply_verkehrsrichtung_korrekturen(final_gdf, vorrangnetz)
+        # 10. Korrekturen der Verkehrsrichtung: RVN aus der Liste von 2025, REN+ aus der App Netzanpassungen
+        if netz == 'rvn':
+            final_gdf = apply_rvn_corrections(final_gdf, RVN_CORRECTIONS_PATH)
+        else:
+            final_gdf = apply_verkehrsrichtung_korrekturen(final_gdf, vorrangnetz)
 
         # 11. Ergebnis speichern
         output_path = PFADE[netz]["kombiniert"]

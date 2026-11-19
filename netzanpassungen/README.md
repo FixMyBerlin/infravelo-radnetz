@@ -82,7 +82,7 @@ Achtung Kartierung: Der TILDA-Datensatz `infravelo-ren-netz-kartierung` (Symlink
 
 ## Altlisten
 
-[`one_time_import/`](./one_time_import/README.md) enthält die Dateien für die einmalige Übernahme in die App. `altlisten_korrekturen.json` enthält die Altlisten als `edge_correction`-Einträge (`von_nutzer: "Altliste"`) zum Einspielen in der App („Korrekturen einspielen“): `verkehrsrichtung` aus `rvn_korrekturen.csv` und `opposite_edge_overwrite_element_nr.txt` (Modus `remove`, nur Kanten mit Detailnetz-`verkehrsrichtung` B, neu R) sowie die Ausschlüsse aus `ausschluss_element_nr.csv`. Die drei Listen und der Code, der sie las, sind entfernt (darunter `processing/helpers/override_edges.py`, `processing/validation/analyse_einrichtungsfahrbahnen.py` und `processing/qgis/erzeuge_einrichtungsfahrbahnen_projekt.py`); erzeugt hat die Datei ein einmaliges Skript, das nicht im Repo liegt (Stand 2026-11-10).
+[`one_time_import/`](./one_time_import/README.md) enthält die Dateien für die einmalige Übernahme in die App. `altlisten_korrekturen.json` enthält die Altlisten als `edge_correction`-Einträge (`von_nutzer: "Altliste"`) zum Einspielen in der App („Korrekturen einspielen“): `verkehrsrichtung` aus `rvn_korrekturen.csv` und `opposite_edge_overwrite_element_nr.txt` (Modus `remove`, nur Kanten mit Detailnetz-`verkehrsrichtung` B, neu R) sowie die Ausschlüsse aus `ausschluss_element_nr.csv`. Die drei Listen liegen als Archiv in `one_time_import/2025/`; bis zur Lieferung des RVN lesen `processing/scripts/enrich_rvn_with_detailnetz.py --netz rvn` und die Auswertung von `processing/map-matching` zwei davon von dort. Erzeugt hat die Datei ein einmaliges Skript, das nicht im Repo liegt (Stand 2026-11-10).
 
 ## QGIS-Stil
 

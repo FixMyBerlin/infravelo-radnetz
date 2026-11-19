@@ -15,6 +15,8 @@ reference_secondary = "output/reference-legacy/aggregated_rvn_final.gpkg"
 # Nur für die Auswertung (welche Abweichungen gehen auf manuelle Eingriffe zurück).
 # Diese Listen werden im Matching NICHT verwendet.
 manual_way_lists = ["data/exclude_ways.txt", "data/include_ways.txt"]
+# Liste von 2025 (Archiv), Knoten-IDs seit 2026-11 4-stellig; gilt bis zur Lieferung des RVN
+manual_element_lists = ["../netzanpassungen/one_time_import/2025/opposite_edge_overwrite_element_nr.txt"]
 
 # TILDA-Routing-Netz, vorverarbeitet mit scripts/prepare_tilda_routing.py
 # (Join, Teilung an Knoten, nur Hauptnetz). Siehe docs/tilda-routing.md.

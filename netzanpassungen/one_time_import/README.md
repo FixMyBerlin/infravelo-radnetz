@@ -6,7 +6,19 @@ Converted on 2026-11-11 from the old override lists. It is uploaded in the "Gebi
 
 | File | Content | Origin |
 |---|---|---|
-| `altlisten_korrekturen.json` | 38 `edge_correction` entries (`von_nutzer: "Altliste"`): `verkehrsrichtung` from `rvn_korrekturen.csv` (18) and `opposite_edge_overwrite_element_nr.txt` (1, mode `remove`, only Detailnetz B to R), plus 19 exclusions from `ausschluss_element_nr.csv` (Tunnel Tiergarten, motorway feeders). `kommentar` is the reason given in the list | The three lists were converted with a one-time script (not in the repo) and deleted |
+| `altlisten_korrekturen.json` | 38 `edge_correction` entries (`von_nutzer: "Altliste"`): `verkehrsrichtung` from `rvn_korrekturen.csv` (18) and `opposite_edge_overwrite_element_nr.txt` (1, mode `remove`, only Detailnetz B to R), plus 19 exclusions from `ausschluss_element_nr.csv` (Tunnel Tiergarten, motorway feeders). `kommentar` is the reason given in the list | The three lists in [`2025/`](./2025/), converted with a one-time script (not in the repo) |
+
+## `2025/`: the old override lists (archive)
+
+The three manual lists of 2025, kept unchanged as an archive. In 2026 they were converted into `altlisten_korrekturen.json` and taken into the app; for REN+ the app is the only place for such corrections now, and nobody adds entries here.
+
+| File | Before 2026-11 in | Still read by |
+|---|---|---|
+| `rvn_korrekturen.csv` | `data/` | `processing/scripts/enrich_rvn_with_detailnetz.py --netz rvn` (direction corrections of the RVN) |
+| `opposite_edge_overwrite_element_nr.txt` | `data/` | the evaluation of `processing/map-matching` (`manual_element_lists` in `config/default.toml`, only to mark deviations; the matching does not use it). Node ids translated to the four-digit numbers on 2026-11-12 (`data/VIRTUELLE-KNOTENPUNKTE.md`) |
+| `ausschluss_element_nr.csv` | `ren-network/` | nothing (archive only) |
+
+The RVN processing reads the first two until the customer delivery on the Radvorrangnetz (RVN) is done; behaviour unchanged, only the path moved. After that delivery they are archive only.
 
 ## The 53 virtual nodes of 2025 are not in this folder
 
