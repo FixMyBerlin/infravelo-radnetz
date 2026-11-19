@@ -2,20 +2,23 @@
 # Datensatz C aus Straßen (mit gefalteten Radwegen als Kandidaten) und Wegen, gematcht auf das RVN (Variante A).
 #   1  Eingang (sql/104): trace_group strassen (Faltungsnetz bl_strassen1) und wege (TILDA-Wege, ungefaltete
 #      Radwege, ungefaltete Reste ab REST_MIN_M); alles aus dem TILDA-Routing-Export
-#   2  Matching auf matching.reference_edges (map-matching run --pg, Einstellungen wie die Baseline)
+#   2  Matching auf matching.reference_edges (map-matching run --pg, Einstellungen wie die Baseline bis auf den
+#      Abknickwinkel der Traces, MAX_TURN_DEG wie in der Radweg-Faltung)
 #   3  Intervalle (sql/105): Wege mit ihrem eigenen Objekt, Straßen mit allen Kandidaten ihrer Kante und Richtung
 #   4  assemble, Konvertierung, Aggregation -> <OUT_DIR>/post/aggregated.gpkg
 #   5  Vergleich mit der Baseline (compare_c.sh)
 # Voraussetzung: radweg_faltung.sh gelaufen; bikegraph.input_edges (graph.sh, Schritt 0); gebauter Matcher; Python-Umgebung
 # mit geopandas (PY). Umgebung: MATCHING_PG, PGPASSWORD; REST_MIN_M (Standard 10), OUT_DIR (relativ zu PROCESSING,
 # Standard output/mm-datensatz-c-a), BASELINE (Standard processing/output/post-baseline/aggregated.gpkg des
-# Hauptcheckouts), JOBS (Standard 8)
+# Hauptcheckouts), JOBS (Standard 8), MAX_TURN_DEG (größte Richtungsänderung beim Verketten der Traces, Standard 70
+# wie in radweg_faltung.sh; die Baseline nutzt 45)
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 PROCESSING="${PROCESSING:-$(cd "$HERE/../.." && pwd)/processing}"
 MATCHER="${MATCHER:-$PROCESSING/map-matching/target/release/map-matching}"
 PY="${PY:-$HOME/Documents/infravelo-radnetz/.venv/bin/python}"
 REST_MIN_M="${REST_MIN_M:-10}"
+MAX_TURN_DEG="${MAX_TURN_DEG:-70}"
 OUT_DIR="${OUT_DIR:-output/mm-datensatz-c-a}"
 BASELINE="${BASELINE:-$HOME/Documents/infravelo-radnetz/processing/output/post-baseline/aggregated.gpkg}"
 JOBS="${JOBS:-8}"
@@ -31,6 +34,7 @@ echo "== 2. Matching auf das RVN"
 (cd "$PROCESSING" && "$MATCHER" --pg run --set paths.root="\"$PROCESSING\"" \
     --set postgres.input_edges=bikegraph.dc_input --set postgres.reference_edges=matching.reference_edges \
     --set postgres.intervals=bikegraph.dc_iv_raw --set postgres.intervals_only=true --set network.topology_report=false \
+    --set trace.max_turn_deg="$MAX_TURN_DEG" \
     --set 'paths.tilda=[{data_source="strassen", path="-"}, {data_source="wege", path="-"}]' \
     --set paths.output_dir="\"$OUT_DIR/matching\"" > "$LOG/matching.log" 2>&1)
 sed 's/\x1b\[[0-9;]*m//g' "$LOG/matching.log" | grep -E "Topologie-Traces|Traces:" | sed 's/^.*INFO /   /'
@@ -69,7 +73,7 @@ echo "== 5. Vergleich mit der Baseline"
 
 echo "== 6. Datensatz B und C (Baseline, neu, Abweichungen) für Martin"
 # Datensatz B wie konvertiert, ohne die Mapillary- und Quellfelder
-ogr2ogr -f PostgreSQL "PG:$MATCHING_PG" "$PROCESSING/$OUT_DIR/post/converted.fgb" -overwrite -lco SCHEMA=datensatz_c \
+ogr2ogr -f PostgreSQL "PG:$MATCHING_PG" "$PROCESSING/$OUT_DIR/post/converted.fgb" -overwrite -lco SCHEMA=datensatz_c -lco OVERWRITE=YES \
     -lco GEOMETRY_NAME=geom -lco FID=id -nln new_b -nlt LINESTRING -t_srs EPSG:25833 \
     -sql "SELECT element_nr, ri, strassenname, fuehr, pflicht, breite, ofm, farbe, protek, trennstreifen, nutz_beschr, verkehrsri,
           tilda_id, tilda_name, tilda_category, tilda_ids, data_source, hmm_regel, hmm_konfidenz FROM converted"

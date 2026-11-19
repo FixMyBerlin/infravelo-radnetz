@@ -7,8 +7,11 @@
 --               seitenobjekt  Radstreifen u. ä. der Straße (bl_faltung, durchgang definiert)
 --               seitenweg     auf die Straße gefaltete separate Radwege (bl_faltung, Durchgang 1/2b/2e, auch gespiegelt)
 --             Straßenrichtung aus der Lage der Straßenkante zur RVN-Kante: gleich gerichtet -> ri der Straße = ri des RVN,
---             sonst umgekehrt. Teilstücke (from_m..to_m auf der Straßenkante) über ihre Endpunkte aufs RVN projiziert
---             und auf den gematchten Abschnitt begrenzt.
+--             sonst umgekehrt. Kandidaten über die ganze Straßenkante übernehmen die gematchten Abschnitte der Kante
+--             unverändert (das HMM ordnet die Kante zu, auch über eine Ecke auf zwei RVN-Kanten); nur Teilstücke
+--             (from_m..to_m auf der Straßenkante) werden über ihre Endpunkte aufs RVN projiziert und auf den gematchten
+--             Abschnitt begrenzt (eine Straßenkante über eine Ecke verlöre sonst den Teil, dessen Ende geometrisch neben
+--             der RVN-Kante liegt).
 --             Güte: die des Straßen-Traces, dazu ein kleiner Abschlag nur zum Auflösen von Gleichständen (alle Kandidaten
 --             einer Straße hätten sonst dieselbe Güte, und assemble entschiede innerhalb eines Tiers zufällig):
 --             Seitenobjekt 0 (gehört per Definition zur Straße), gefalteter Radweg -1e-7..-1e-6 nach seiner Faltungsgüte,
@@ -57,8 +60,13 @@ CREATE TEMP TABLE teil ON COMMIT DROP AS
 SELECT x.ref_id, x.ri, x.from_m AS a, x.to_m AS b, x.input_ref, x.art, 'wege'::text AS phase, x.score, x.n_obs, x.mirrored, x.trace_id
 FROM raw x WHERE x.trace_group = 'wege'
 UNION ALL
--- Straßen: Kandidaten projiziert und auf den gematchten Abschnitt begrenzt
-SELECT s.ref_id, s.ri, greatest(least(p.p1, p.p2), s.from_m), least(greatest(p.p1, p.p2), s.to_m), k.input_ref, k.art, 'strassen',
+-- Straßen: Kandidaten über die ganze Straßenkante (Straße selbst, Seitenobjekte, ganz gefaltete Radwege) übernehmen den
+-- gematchten Abschnitt unverändert (Zuordnung des HMM, auch um Ecken auf mehrere RVN-Kanten); Teilstücke projiziert
+-- und auf den gematchten Abschnitt begrenzt
+SELECT s.ref_id, s.ri,
+       CASE WHEN k.von <= 0.01 AND k.bis >= s.klen - 0.01 THEN s.from_m ELSE greatest(least(p.p1, p.p2), s.from_m) END,
+       CASE WHEN k.von <= 0.01 AND k.bis >= s.klen - 0.01 THEN s.to_m ELSE least(greatest(p.p1, p.p2), s.to_m) END,
+       k.input_ref, k.art, 'strassen',
        s.score + k.abschlag, s.n_obs, s.mirrored, s.trace_id
 FROM sv s JOIN kand k ON k.kante = s.kante AND k.ri = s.kri,
 LATERAL (SELECT ST_LineLocatePoint(s.rgeom, ST_LineInterpolatePoint(s.kgeom, greatest(least(k.von / s.klen, 1.0), 0.0)::float8)) * s.rlen AS p1,

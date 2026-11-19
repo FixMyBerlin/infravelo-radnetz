@@ -5,7 +5,9 @@
 -- Ausgang bikegraph.dc_input (Format postgres.input_edges), zwei trace_groups:
 --   strassen  je Kante des Faltungsnetzes (bl_strassen1) eine Zeile, in beide Richtungen befahrbar: welche Richtung
 --             welche Kandidaten trägt, entscheidet sql/105 (Straße selbst nur mit Radfreigabe, Seitenobjekte und
---             gefaltete Radwege je Richtung). id = 100000000 + Kanten-ID
+--             gefaltete Radwege je Richtung). id = 100000000 + Kanten-ID. Ohne Kanten, die nichts tragen: weder
+--             Radzugang (edges.fwd/bwd) noch eine Zeile in bl_faltung (Seitenobjekt oder gefalteter Radweg); sie bilden
+--             keine Traces, damit keine Straße ohne Radverkehr die Verkettung bestimmt
 --   wege      TILDA-Wege (routing roadsPathClasses) als Kanten des Graphen (id = Kanten-ID), ungefaltete separate
 --             Radwege (radwege_abgelehnt, id = bl_input.id) und die ungefalteten Reste aller Radwege mit gefalteten
 --             Stücken (unabhängig vom Status, auch "nicht gefaltet" mit kleinem gefaltetem Anteil) ab :rest_min_m
@@ -52,7 +54,7 @@ SELECT 100000000 + e.id AS id, e.source, e.target, e.len AS cost, e.len AS rever
        coalesce(rn.name_norm, '') AS match_key, e.routing_id AS input_ref, e.geom::geometry(LineString, 25833) AS geom,
        '{}'::jsonb AS attrs, 'strasse'::text AS art, e.id AS kante
 FROM bikegraph.bl_strassen1 n JOIN bikegraph.edges e ON e.id = n.edge_id LEFT JOIN rname rn ON rn.routing_id = e.routing_id
-WHERE e.len > 0
+WHERE e.len > 0 AND (e.fwd OR e.bwd OR EXISTS (SELECT 1 FROM bikegraph.bl_faltung f WHERE f.strassen_kante = e.id))
 UNION ALL
 -- TILDA-Wege (routing roadsPathClasses), Geometrie in erlaubter Richtung
 SELECT e.id, CASE WHEN e.bwd AND NOT e.fwd THEN e.target ELSE e.source END, CASE WHEN e.bwd AND NOT e.fwd THEN e.source ELSE e.target END,
