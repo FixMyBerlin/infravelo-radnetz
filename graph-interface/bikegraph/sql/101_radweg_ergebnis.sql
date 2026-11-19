@@ -5,7 +5,8 @@
 --              beiden); Seitenobjekte außerhalb des Netzes (art seitenobjekt_separat) wie separate Radwege
 --   1 / 2b / 2e  separate Radwege aus Durchgang 1, oder aus Durchgang 2 für die dort neu gematchten (< 50 % in
 --                Durchgang 1): 2b zweirichtig auf Straßen in beide Richtungen, 2e einrichtig auf umgedrehten Einbahnen
--- Plausibilitätswerte je Stück (noch kein Filter):
+-- Verworfen werden nur Faltungen separater Radwege ohne Radwegteil (rad_m <= 1 cm, siehe unten).
+-- Plausibilitätswerte je Stück (sonst noch kein Filter):
 --   strasse_m    Länge des Straßenstücks; rad_m: Länge des zugehörigen Radwegteils (Endpunkte des Straßenstücks auf den
 --   Radweg projiziert); verhaeltnis = strasse_m / rad_m; breite_m = Schuhbandfläche (Straßenstück + Radwegteil) /
 --   strasse_m; querung_m = Länge des Radwegteils, wenn der Radweg eine Querung ist
@@ -15,6 +16,7 @@
 BEGIN;
 DROP TABLE IF EXISTS bikegraph.bl_faltung;
 CREATE TABLE bikegraph.bl_faltung AS
+SELECT row_number() OVER ()::bigint AS fid, u.* FROM (
 SELECT i.kante AS strassen_kante, d.ri, 0::float8 AS from_m, e.len AS to_m, i.id AS input_id, 'definiert'::text AS durchgang,
        0 AS gespiegelt, NULL::float8 AS score
 FROM bikegraph.bl_input i JOIN bikegraph.edges e ON e.id = i.kante,
@@ -26,7 +28,8 @@ FROM bikegraph.bl_iv1 x JOIN bikegraph.bl_input i ON i.id = x.input_id
 WHERE i.art IN ('separat', 'seitenobjekt_separat') AND x.to_m > x.from_m AND NOT EXISTS (SELECT 1 FROM bikegraph.bl_input2 j WHERE j.id = x.input_id)
 UNION ALL
 SELECT x.ref_id, x.ri::int, x.from_m, x.to_m, x.input_id, x.variante, x.mirrored::int, x.score
-FROM bikegraph.bl_iv2 x WHERE x.to_m > x.from_m;
+FROM bikegraph.bl_iv2 x WHERE x.to_m > x.from_m) u;
+ALTER TABLE bikegraph.bl_faltung ADD PRIMARY KEY (fid);
 CREATE INDEX ON bikegraph.bl_faltung (input_id);
 CREATE INDEX ON bikegraph.bl_faltung (strassen_kante, ri);
 
@@ -46,6 +49,17 @@ SELECT pl.*, abs(b - a) * rad_len AS rad_m,
        CASE WHEN abs(b - a) * rad_len > 0.01 THEN
          CASE WHEN b >= a THEN ST_LineSubstring(rad_geom, a, b) ELSE ST_Reverse(ST_LineSubstring(rad_geom, b, a)) END END AS rad_teil
 FROM pl;
+CREATE INDEX ON pl2 (fid);
+
+-- Faltungen ohne Radwegteil verwerfen: beide Enden des Straßenstücks fallen auf denselben Punkt des Radwegs (der Radweg
+-- quert die Straße oder endet an ihr), das Straßenstück trägt also keinen Radweg entlang. Gilt für separate Radwege
+-- (Seitenobjekte liegen per Definition auf ihrer Straße); gespiegelte Kopien fallen mit. Hat ein Radweg danach keine
+-- Faltung mehr, geht er über radwege_abgelehnt ungefaltet in den RVN-Schritt.
+CREATE TEMP TABLE ohne_teil ON COMMIT DROP AS
+SELECT fid FROM pl2 WHERE art <> 'seitenobjekt' AND rad_m <= 0.01;
+DELETE FROM bikegraph.bl_faltung f USING ohne_teil o WHERE f.fid = o.fid;
+DELETE FROM pl2 p USING ohne_teil o WHERE p.fid = o.fid;
+SELECT count(*) AS faltungen_ohne_radwegteil_verworfen FROM ohne_teil;
 
 -- nur die eigenen Tabellen ersetzen; Auswertungstabellen im Schema (z. B. sql/102) bleiben erhalten
 CREATE SCHEMA IF NOT EXISTS radweg_faltung;
