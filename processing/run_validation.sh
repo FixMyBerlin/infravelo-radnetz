@@ -6,7 +6,7 @@
 # gibt eine Zusammenfassung der Ergebnisse aus.
 #
 # Eingabedateien:
-# - data/Virtuelle-Knotenpunkte.gpkg (validate_virtuelle_knotenpunkte.py)
+# - ../netzanpassungen/output/virtuelle_knoten.gpkg (validate_virtuelle_knotenpunkte.py)
 # - output/knotenpunkte_mit_id_und_bezirken.geojson (validate_knotenpunkte.py)
 # - output/snapping_converted_bikelanes*.fgb (validate_datensatz_b.py)
 # - output/aggregated_rvn_final*.gpkg (validate_datensatz_c.py)

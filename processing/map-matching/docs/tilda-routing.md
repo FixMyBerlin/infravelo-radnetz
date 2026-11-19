@@ -95,7 +95,7 @@ So wird verglichen (`map-matching run --eval`, Code: `src/eval/mod.rs`):
 1. Referenz und Ergebnis werden linear auf das RVN referenziert: Jedes Teilsegment wird über `element_nr` und `ri` einer gerichteten RVN-Kante zugeordnet. Seine Stützpunkte werden auf die Kante projiziert (max. 2 m Abstand), daraus ergibt sich der Abschnitt von–bis in Metern.
 2. Je gerichteter Kante werden alle Abschnittsgrenzen beider Datensätze zusammengelegt. Für jedes Stück dazwischen wird geprüft, ob Referenz und Ergebnis denselben Wert haben.
 3. Die Übereinstimmung ist längengewichtet: `fuehr`-Übereinstimmung = übereinstimmende Länge / Referenzlänge. Die anderen Attribute beziehen sich auf die Länge, die beide abdecken.
-4. Die manuellen Listen des Altverfahrens (include/exclude/override/opposite_edge) nutzt das neue Verfahren nicht. Abweichungen an diesen Stellen werden extra ausgewiesen.
+4. Die manuellen Listen des Altverfahrens (include/exclude/override) nutzt das neue Verfahren nicht. Abweichungen an diesen Stellen werden extra ausgewiesen.
 
 Ergebnis (15.10.2026, Routing-Netz mit Topologie-Traces):
 

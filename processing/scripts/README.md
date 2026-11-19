@@ -33,21 +33,23 @@ Das [`assign_node_ids.py`](./assign_node_ids.py) fügt zwei Attribute zu den *Ve
 Dieses Skript führt die drei Vorverarbeitungsschritte des Zielnetzes (RVN oder REN+) aus:
 
 ### 1. Virtuelle Knotenpunkte verarbeiten
+Die virtuellen Knotenpunkte kommen aus der App Netzanpassungen: `netzanpassungen/apply_app_result.py` schreibt `netzanpassungen/output/virtuelle_knoten.gpkg` (Pfad und Abbruch bei fehlender Datei zentral in [`helpers/virtuelle_knoten.py`](../helpers/virtuelle_knoten.py)); auch `convert_knotenpunkte.py` und `validation/validate_virtuelle_knotenpunkte.py` lesen sie von dort.
+
 Das [`split_rvn_at_virtual_nodes.py`](./split_rvn_at_virtual_nodes.py) teilt das Berliner Radvorrangsnetz an virtuellen Knotenpunkten auf. Virtuelle Knotenpunkte liegen mitten auf Linien und erfordern eine Aufteilung der betroffenen Linien.
 
-- **Input**: `data/Berlin Radvorrangsnetz.fgb`, `data/Virtuelle-Knotenpunkte.gpkg` (nur `status = aktiv`, Regeln: [VIRTUELLE-KNOTENPUNKTE.md](../../data/VIRTUELLE-KNOTENPUNKTE.md))
+- **Input**: `data/Berlin Radvorrangsnetz.fgb`, virtuelle Knotenpunkte über `read_active()` aus [`data/virtuelle_knotenpunkte.py`](../../data/virtuelle_knotenpunkte.py) (nur `status = aktiv`, Regeln: [VIRTUELLE-KNOTENPUNKTE.md](../../data/VIRTUELLE-KNOTENPUNKTE.md))
 - **Output**: `output/rvn/Berlin Radvorrangsnetz_mit_virtuellen-knotenpunkten.fgb`
 
-Die drei Skripte dieses Abschnitts nehmen `--netz rvn|ren` (Standard `rvn`). Mit `ren` verarbeiten sie das REN+ (`../ren-network/output/ren_netz_gesamt.gpkg`) und schreiben nach `output/ren/`; die Pfade stehen in [`helpers/netz.py`](../helpers/netz.py).
+Die drei Skripte dieses Abschnitts nehmen `--netz rvn|ren` (Standard `rvn`). Mit `ren` verarbeiten sie das REN+ und schreiben nach `output/ren/`. Eingangsnetz ist `ren_netz_korrigiert.gpkg` (Korrekturen aus der App Netzanpassungen, `netzanpassungen/apply_app_result.py`), solange die Datei existiert, sonst `ren_netz.gpkg`; `--quelle auto|korrigiert|original` (nur im ersten Schritt, auch an `process_radnetz.sh` übergeben) wählt es. Das Log nennt die gewählte Datei. Die Pfade stehen in [`helpers/netz.py`](../helpers/netz.py); die Pfade stehen in [`helpers/netz.py`](../helpers/netz.py).
 
 ### 2. Element-Nummern zuweisen
 Das [`assign_element_nr_to_rvn.py`](./assign_element_nr_to_rvn.py) fügt jedem Segment im Radvorrangsnetz eine `element_nr` hinzu, die auf den Verbindungspunkten basiert. Das Script berücksichtigt sowohl normale als auch virtuelle Knotenpunkte für die Zuweisung.
 
-- **Input**: `output/rvn/Berlin Radvorrangsnetz_mit_virtuellen-knotenpunkten.fgb`, `output/knotenpunkte/knotenpunkte_mit_id.gpkg`, `data/Virtuelle-Knotenpunkte.gpkg`
+- **Input**: `output/rvn/Berlin Radvorrangsnetz_mit_virtuellen-knotenpunkten.fgb`, `output/knotenpunkte/knotenpunkte_mit_id.gpkg`, `netzanpassungen/output/virtuelle_knoten.gpkg`
 - **Output**: `output/rvn/Berlin Vorrangnetz_with_element_nr.fgb`
 
 ### 3. RVN mit Detailnetz anreichern
-Das [`enrich_rvn_with_detailnetz.py`](./enrich_rvn_with_detailnetz.py) fügt fehlende Kanten im Detailnetz aus dem RVN hinzu, sodass für jeden Teil des RVN eine Kante im Knoten-Kanten-Modell existiert. Am Ende wendet es die Korrekturen aus [`data/rvn_korrekturen.csv`](../data/rvn_korrekturen.csv) an.
+Das [`enrich_rvn_with_detailnetz.py`](./enrich_rvn_with_detailnetz.py) fügt fehlende Kanten im Detailnetz aus dem RVN hinzu, sodass für jeden Teil des RVN eine Kante im Knoten-Kanten-Modell existiert. Hat das Zielnetz eine Spalte `verkehrsrichtung` (nur das korrigierte REN+ aus der App Netzanpassungen), gilt sie statt der des Detailnetzes.
 
 - **Input**: `output/rvn/Berlin Vorrangnetz_with_element_nr.fgb`, `data/Berlin Straßenabschnitte Detailnetz.fgb`
 - **Output**: `output/rvn/vorrangnetz_details_combined_rvn.fgb`
@@ -55,7 +57,7 @@ Das [`enrich_rvn_with_detailnetz.py`](./enrich_rvn_with_detailnetz.py) fügt feh
 ## 🚍 OSM-Daten Integration
 
 ### Bushaltestellen am Zielnetz
-Das [`prepare_bus_stops.py`](./prepare_bus_stops.py) holt alle `highway=bus_stop`-Knoten in Berlin über die Overpass-API und schneidet sie auf das Zielnetz zu (Abstand höchstens 15 m, `--puffer` ändert das). Beim REN+ ist das Zielnetz `ren_netz_gesamt.gpkg`, also alle Netzquellen gemeinsam. Kommt eine Quelle dazu (z. B. das Touristische Radnetz), genügt ein neuer Lauf von `ren-network/unify_networks.py`; `execute_processing.sh` ruft das Skript vor der Schutzstreifen-Konvertierung selbst auf.
+Das [`prepare_bus_stops.py`](./prepare_bus_stops.py) holt alle `highway=bus_stop`-Knoten in Berlin über die Overpass-API und schneidet sie auf das Zielnetz zu (Abstand höchstens 15 m, `--puffer` ändert das). Beim REN+ ist das Zielnetz `ren_netz.gpkg` aus Schritt 3, also alle Netzquellen gemeinsam. Kommt eine Quelle dazu, genügt ein neuer Lauf von `./run_pipeline.sh`; `execute_processing.sh` ruft das Skript vor der Schutzstreifen-Konvertierung selbst auf.
 
 - **Input**: Overpass-API, danach Cache `data/netzquellen/osm_bushaltestellen.gpkg` (`--neu` lädt erneut), Zielnetz aus `helpers/netz.py`
 - **Output**: `output/bus_stops_on_ren.fgb` bzw. mit `--netz rvn` `output/bus_stops_on_rvn.fgb`

@@ -1,14 +1,15 @@
 # Virtuelle Knotenpunkte: Regeln
 
-Gilt für alle Repos im Projekt infraVelo REN+ 2026: `infravelo-radnetz`, `knotenpunkte-app`, `infravelo-ml-knotenpunkte` und alles, was `element_nr` oder Knoten-IDs liest. Stand: 2026-11-12.
+Gilt für alle Repos im Projekt infraVelo REN+ 2026: `infravelo-radnetz`, `infravelo-apps` (App Netzanpassungen), `knotenpunkte-app`, `infravelo-ml-knotenpunkte` und alles, was `element_nr` oder Knoten-IDs liest. Stand: 2026-11-19.
 
 Ein virtueller Knotenpunkt ist ein Knoten, den es im Detailnetz nicht gibt. Er teilt eine Kante, wo das Detailnetz keinen Knoten hat, z. B. am Ende eines Radwegs mitten auf einem Straßenabschnitt.
 
-## 1. Eine Quelle
+## 1. Wo virtuelle Knoten entstehen und stehen
 
-- **Verzeichnis:** [`data/Virtuelle-Knotenpunkte.gpkg`](Virtuelle-Knotenpunkte.gpkg), Layer `Virtuelle-Knotenpunkte`, EPSG:25833, eingecheckt.
-- **Werkzeug:** [`data/virtuelle_knotenpunkte.py`](virtuelle_knotenpunkte.py). Nur dieses Skript vergibt Nummern.
-- **Alle anderen lesen nur:** Skripte und Apps lesen das Verzeichnis, sie vergeben selbst keine Nummern. Python-Skripte nutzen `read_active()` aus dem Modul.
+- **Die App Netzanpassungen ist der einzige Ort, an dem virtuelle Knoten angelegt, verschoben und gelöscht werden, und sie vergibt ihre Nummern** (seit 2026-11-19). Kein Bearbeiten in QGIS, kein `virtuelle_knotenpunkte.py nummerieren` oder `uebernehmen` mehr.
+- **Die 53 Knoten von 2025** (`0001`–`0053`) stehen eingefroren in [`data/Virtuelle-Knotenpunkte.gpkg`](Virtuelle-Knotenpunkte.gpkg) (Layer `Virtuelle-Knotenpunkte`, EPSG:25833, eingecheckt). Die Datei ist nur noch Eingabe der Pipeline: 53 Zeilen, alle `aktiv`, nie ändern. Die App speichert diese 53 nicht; sie kommen mit ihrer Eingabedatei.
+- **Alle Knoten zusammen** schreibt Schritt 3 (`netzanpassungen/apply_app_result.py`) bei jedem Lauf nach `netzanpassungen/output/virtuelle_knoten.gpkg`: die 53 und jeden nummerierten Knoten der App, aktiv und gelöscht.
+- **Alle anderen lesen nur:** Python-Skripte nutzen `read_active()` aus [`data/virtuelle_knotenpunkte.py`](virtuelle_knotenpunkte.py); es liest `virtuelle_knoten.gpkg` und bricht mit dem Hinweis ab, erst Schritt 3 laufen zu lassen, wenn die Datei fehlt.
 
 ## 2. Nummer
 
@@ -20,62 +21,69 @@ Ein virtueller Knotenpunkt ist ein Knoten, den es im Detailnetz nicht gibt. Er t
 | Gelöschte Nummern zählen mit und werden nie wieder vergeben | `0054` gelöscht → nächste ist `0055` |
 | Die Nummer eines Knotens ändert sich nie, auch nicht beim Verschieben oder bei einem neuen Detailnetz | |
 
+Die App zählt mit dem Eintrag `zaehler:virtuelle-knoten` in ihrer KV-Datenbank (`letzte_nummer`, Start 53, gilt über alle Gebiete). Ein Knoten der App trägt seine Nummer in `nummer` (und gleich in `name`).
+
 Amtliche Knoten des Detailnetzes haben 8 Ziffern. Trotzdem gilt: **Ob ein Knoten virtuell ist, steht in `ist_virtuell`, nicht in der Form der ID.** Kein Code darf das aus der ID ableiten (früher `startswith('V')`).
 
 Nummern als Text: In GeoPackage und FlatGeobuf als Textspalte, in GeoJSON und CSV als String, in pandas mit `dtype=str`. `pd.to_numeric` oder `int()` auf Knoten-IDs macht aus `0012` die `12` und ist verboten.
 
-## 3. Spalten des Verzeichnisses
+## 3. Spalten
+
+`data/Virtuelle-Knotenpunkte.gpkg` und `netzanpassungen/output/virtuelle_knoten.gpkg`:
 
 | Spalte | Inhalt |
 |---|---|
 | `Knotenpunkt-ID` | Nummer (mit ASCII-Bindestrich im Spaltennamen; im Knotendatensatz heißt sie `Knotenpunkt‐ID` mit U+2010) |
 | `ist_virtuell` | immer `1` |
 | `status` | `aktiv` oder `geloescht` |
-| `angelegt_am` | Datum `JJJJ-MM-TT`; leer bei den Knoten von vor 2026-11 |
-| `geloescht_am`, `grund` | Pflicht bei `geloescht` |
-| `alte_id` | Kennung vor der Umnummerierung (`V1112`, `V44530016-44530064` …), sonst leer |
-| `quelle` | `QGIS`, `app:<Eintrags-ID>` (Netzanpassungen-App) oder `Bestand (vor 2026-11 mit V-Kennung)` |
+| `angelegt_am` | Datum `JJJJ-MM-TT`; leer bei den 53 von 2025 |
+| `geloescht_am`, `grund` | bei `geloescht` (aus der App; fehlt der Grund, „in der App gelöscht“) |
+| `id_rvn_2025` | Kennung in der Lieferung 2025 (`V1112`, `V44530016-44530064` …), nur bei den 53; bis 2026-11-19 hieß die Spalte `alte_id` |
+| `quelle` | `Bestand (vor 2026-11 mit V-Kennung)` bei den 53, `Netzanpassungen-App` sonst |
 | `kommentar` | frei |
 
-`ist_virtuell` (1/0) steht außerdem in jedem Knotendatensatz (`knotenpunkte_gesamt`, `knotenpunkte_bewerten`, Abgabe, Eingabedatei der Netzanpassungen-App). Gesetzt wird es nur aus dem Verzeichnis.
+Nur in `virtuelle_knoten.gpkg`: `herkunft` (`2025` bei den 53; aus der App `gezeichnet`, `luecke`, `teilung` oder `vorschlag`), `app_eintrag` (KV-Id des Eintrags), `vorschlag_id` (bei `herkunft = vorschlag`), `traeger_netz`, `traeger_element_nr`, `station_m` (Kante, auf der der Knoten liegt).
 
-## 4. Anlegen, verschieben, löschen
+`ist_virtuell` (1/0) steht außerdem in jedem Knotendatensatz (`knotenpunkte_gesamt`, `knotenpunkte_bewerten`, Abgabe, Eingabedatei der Netzanpassungen-App).
 
-Virtuelle Knoten werden immer neu angelegt. Ein amtlicher Knoten wird nie zu einem virtuellen umgewandelt, und die Knotenpunkte-App bietet das nicht an.
+## 4. Anlegen, verschieben, löschen (in der App)
 
-**Anlegen in QGIS** (funktioniert ohne App):
-1. Punkt in `Virtuelle-Knotenpunkte.gpkg` auf die Kante setzen, höchstens 3 m daneben. `Knotenpunkt-ID` leer lassen.
-2. `.venv/bin/python data/virtuelle_knotenpunkte.py nummerieren`
+Virtuelle Knoten werden immer neu angelegt. Ein amtlicher Knoten wird nie zu einem virtuellen umgewandelt.
 
-**Anlegen in der Netzanpassungen-App:**
-1. Den Knoten in der App zeichnen. Bis zur Übernahme trägt er nur einen vorläufigen Namen (`neu-1` …).
-2. In der App „Virtuelle Knoten“ exportieren.
-3. `.venv/bin/python data/virtuelle_knotenpunkte.py uebernehmen <datei>.geojson`: Das Skript hängt die neuen Knoten an und vergibt die Nummern. Schon übernommene Knoten erkennt es an `quelle = app:<Eintrags-ID>`.
-4. `netzanpassungen/export_app_daten.py` laufen lassen und die Datei in die App laden. Die App zeigt dann die Nummer, und Kanten, die in der App an diesem Knoten enden, gehören ab jetzt zu ihm.
+Jeder neue Knoten bekommt sofort seine Nummer. Es gibt vier Fälle:
 
-**Verschieben:** Den Punkt in QGIS verschieben. Die Nummer bleibt.
+1. **Neue Kante zeichnen:** Ein Ende auf einer Kante oder ein freies Ende (Sackgasse) setzt einen Knoten (`herkunft = gezeichnet`).
+2. **Lücke im Netz schließen:** Das offene Ende einer Kante auf eine Kante ziehen (`luecke`).
+3. **Kante auf Wunsch teilen**, ohne zu zeichnen: Kante wählen, „Knoten auf Kante setzen“ (`teilung`).
+4. **Knotenvorschlag übernehmen** (`vorschlag`): Schritt 1 (`ren-network/merge_networks.py`) findet Stellen, an denen REN+-Kanten ohne Knoten aufeinandertreffen: ein Kantenende auf dem Inneren einer anderen Kante (`on_edge`), Kantenenden, die sich ohne Knoten treffen (`junction`), offene Enden (`dead_end`). Er teilt das Netz dort schon und nennt die Stelle nach ihrer Lage `P<x>-<y>` (Koordinaten in EPSG:25833 auf ganze Meter, z. B. `P391234-5818765`; gleich, solange sich das Netz dort nicht ändert). Die App zeigt sie in „Knotenvorschläge Netz“; „Übernehmen“ gibt eine Nummer, der Eintrag hält die Vorschlags-Id in `vorschlag_id`. Schritt 3 ersetzt die Vorschlags-Id durch die Nummer. Offene Vorschläge bleiben mit ihrer `P…`-Id als Kantenende stehen und stehen in `korrekturen_konflikte.csv` als „Knotenvorschlag noch nicht übernommen“; Knotenpunkte sind sie erst nach der Übernahme.
 
-**Löschen:** `.venv/bin/python data/virtuelle_knotenpunkte.py loeschen 0012 --grund "…"`. Die Zeile bleibt mit `status = geloescht`, Datum und Grund stehen. So bleibt festgehalten, welche Knoten gelöscht wurden, und die Nummer bleibt gesperrt. Zeilen nie aus der Datei entfernen.
+**Verschieben:** in der App. Die Nummer bleibt.
 
-**Prüfen:** `data/virtuelle_knotenpunkte.py pruefen` prüft die Regeln. `processing/validation/validate_virtuelle_knotenpunkte.py` prüft zusätzlich die Lage am REN+ und läuft in `run_validation.sh` mit. Jedes Skript, das das Verzeichnis liest, bricht bei Regelverstößen ab.
+**Löschen:** in der App. Der Eintrag bleibt mit `geloescht = true` (`geloescht_am`, `grund`), die Nummer bleibt gesperrt; in `virtuelle_knoten.gpkg` steht er mit `status = geloescht`.
+
+Die 53 von 2025 lassen sich in der App weder verschieben noch löschen.
+
+**Ältere Einträge ohne Nummer** (vorläufige Namen `neu-<n>`, alte `V…`-Namen) nummeriert die App einmalig, älteste zuerst, wenn ein Admin das Gebiet öffnet. Bis dahin zählen sie in Schritt 3 nicht (Hinweis in `korrekturen_konflikte.csv`).
+
+**Prüfen:** `.venv/bin/python data/virtuelle_knotenpunkte.py pruefen` prüft die Regeln für das Verzeichnis der 53 (unverändert, eingefroren) und für `virtuelle_knoten.gpkg`. `processing/validation/validate_virtuelle_knotenpunkte.py` prüft zusätzlich die Lage am REN+ und läuft in `run_validation.sh` mit. Jedes Skript, das die Knoten liest, bricht bei Regelverstößen ab.
 
 ## 5. element_nr
 
-- Format `<von>_<bis>.<NN>`, z. B. `50430004_0027.01` oder `0028_51450012.01`.
+- Format `<von>_<bis>.<NN>`, z. B. `50430004_0027.01` oder `0028_51450012.01`. An einem offenen Knotenvorschlag steht die Vorschlags-Id: `P391234-5818765_51450012.01`.
+- Schritt 1 teilt das REN+ an den 53 und an den Knotenvorschlägen und nummeriert; Schritt 3 teilt an den Knoten der App und ersetzt übernommene Vorschlags-Ids durch die Nummer (die `element_nr` der App-Eingabe bleibt dann in `element_nr_eingabe`).
 - In der Prozessierung (`processing/process_radnetz.sh`):
-  1. `split_rvn_at_virtual_nodes.py` teilt Zielnetz und Detailnetz an allen aktiven virtuellen Knoten. Toleranz: 3 m.
+  1. `split_rvn_at_virtual_nodes.py` teilt Zielnetz und Detailnetz an allen aktiven virtuellen Knoten aus `virtuelle_knoten.gpkg`. Toleranz: 3 m.
   2. `assign_element_nr_to_rvn.py` vergibt die `element_nr` neu. An virtuellen Knoten wird nicht über die Kante hinaus zusammengefasst, und die `elem_nr` der Quelle gilt dort nicht.
-- **Neues Detailnetz:** Die Prozessierung einfach neu laufen lassen. Die `element_nr` entsteht dann aus den bestehenden Nummern neu; es wird nichts neu nummeriert.
-  - Liegt ein Knoten danach mehr als 3 m von jeder Kante, teilt er nichts mehr. `split_rvn_at_virtual_nodes.py` und die Validierung listen ihn auf.
-  - Dann den Punkt in QGIS auf die neue Kante schieben (Nummer bleibt) oder ihn löschen (Nummer bleibt gesperrt).
+- **Neues Detailnetz:** Die Pipeline einfach neu laufen lassen. Liegt ein Knoten danach mehr als 3 m von jeder Kante, teilt er nichts mehr; `split_rvn_at_virtual_nodes.py` und die Validierung listen ihn auf. Dann den Knoten in der App auf die neue Kante schieben (Nummer bleibt) oder ihn löschen (Nummer bleibt gesperrt).
 - Gelöschte Knoten teilen nichts. Kanten an ihnen bekommen beim nächsten Lauf wieder die `element_nr` ohne Teilung.
 
 ## 6. Umnummerierung 2026-11 und alte Daten
 
-- **Was passiert ist:** Bis 2026-11 hatten die 53 virtuellen Knoten uneinheitliche Kennungen (`V1112`, `V44530016-44530064`, `V44530064-2`, `V47500003-V47500008`). Am 2026-11-12 wurden sie einmalig mit `umnummerieren` auf `0001`–`0053` umgestellt, sortiert nach der alten Kennung.
-- **Zuordnung:** [`virtuelle_knotenpunkte_alt_neu.csv`](virtuelle_knotenpunkte_alt_neu.csv). Die Datei wird nie geändert; die gleiche Zuordnung steht in `alte_id`.
+- **Was passiert ist:** Bis 2026-11 hatten die 53 virtuellen Knoten uneinheitliche Kennungen (`V1112`, `V44530016-44530064`, `V44530064-2`, `V47500003-V47500008`). Am 2026-11-12 wurden sie einmalig auf `0001`–`0053` umgestellt, sortiert nach der alten Kennung.
+- **Erledigt und entfernt (2026-11-19):** die Befehle `nummerieren`, `uebernehmen`, `loeschen` und `umnummerieren` von `virtuelle_knotenpunkte.py` (Nummern gibt nur noch die App) sowie die Spalte `alte_id` (heißt jetzt `id_rvn_2025`). Die Fassung mit den Befehlen liegt in git (`git log -- data/virtuelle_knotenpunkte.py`).
+- **Zuordnung:** [`virtuelle_knotenpunkte_alt_neu.csv`](virtuelle_knotenpunkte_alt_neu.csv) (Spalten `id_rvn_2025`, `neue_id`). Die Zuordnung ändert sich nie; dieselbe steht in `id_rvn_2025`.
 - **Alte Datei:** Die Datei vor der Umnummerierung liegt in git (`git show e47bd61:data/Virtuelle-Knotenpunkte.gpkg`).
 - **Lieferung 2025:** Datensatz C und der Knotendatensatz 2025 tragen weiter die alten Kennungen (48 Knoten, 210 `element_nr`). Sie werden nicht nachträglich geändert. Zum Vergleich übersetzt `translate_element_nr()` aus dem Modul eine alte `element_nr` (`V6475_V4789.01` → `0039_0022.01`). `knotenpunkt_id_2025` im Knotendatensatz behält die alte Kennung.
 - **Bewertungen der Knotenpunkte-App:** Alte Bewertungen unter alter Kennung übersetzt `knotenpunkte/merge_bewertungen.py` beim Zusammenführen. Die Einträge im KV-Projekt `knotenpunkte` werden nicht umbenannt.
-- **Netzanpassungen-App:** Verweise auf alte Kennungen (`k:V1112`) in gespeicherten Kanten löst die App über `alte_id` aus der Eingabedatei auf. Auch hier werden KV-Einträge nicht umgeschrieben.
-- **Manuelle Listen:** In `data/opposite_edge_overwrite_element_nr.txt` sind die 21 Einträge mit alter Kennung übersetzt. Neue Einträge in solchen Listen immer mit der Nummer schreiben.
+- **Netzanpassungen-App:** Verweise auf alte Kennungen (`k:V1112`) in gespeicherten Kanten löst die App (und Schritt 3) über `id_rvn_2025` aus der Eingabedatei auf. KV-Einträge werden nicht umgeschrieben.
+- **Manuelle Listen:** In `netzanpassungen/one_time_import/2025/opposite_edge_overwrite_element_nr.txt` (bis 2026-11 `data/`, jetzt Archiv) sind die 21 Einträge mit alter Kennung übersetzt.

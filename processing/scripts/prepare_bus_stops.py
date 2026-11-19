@@ -7,10 +7,10 @@ Holt alle Bushaltestellen (highway=bus_stop, Plattformen) aus OpenStreetMap
 für ganz Berlin und schneidet sie auf das Zielnetz zu.
 
 Das Zielnetz wird aus helpers/netz.py gelesen:
-- ren: REN+ gesamt (ren-network/output/ren_netz_gesamt.gpkg), also alle Netzquellen
+- ren: REN+ (ren-network/output/ren_netz.gpkg aus Schritt 3), also alle Netzquellen
        (Radvorrang-, Ergänzungs-, Radschnellverbindungs- und Hauptstraßennetz).
        Kommt eine Quelle dazu (z. B. das Touristische Radnetz), reicht ein neuer Lauf
-       von ren-network/unify_networks.py und dieses Skripts.
+       von ./run_pipeline.sh (Schritt 3) und dieses Skripts.
 - rvn: Radvorrangnetz 2025
 
 Die Plattformen liegen neben der Fahrbahn. Sie werden für die Seitenbestimmung bei der
@@ -124,7 +124,7 @@ def load_network(netz):
     if not path.exists():
         raise SystemExit(
             f"Zielnetz nicht gefunden: {path}"
-            + ("\nHinweis: zuerst python ren-network/unify_networks.py ausführen." if netz == "ren" else "")
+            + ("\nHinweis: zuerst ./run_pipeline.sh ausführen (Schritt 3 schreibt ren_netz.gpkg)." if netz == "ren" else "")
         )
     kwargs = {"layer": pfad["quelle_layer"]} if pfad["quelle_layer"] else {}
     return gpd.read_file(path, **kwargs).to_crs(CRS)

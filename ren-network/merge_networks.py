@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-unify_networks.py
+merge_networks.py  (Schritt 1 der Pipeline, bisher unify_networks.py)
 --------------------------------------------------------------------
 Führt Radergänzungsnetz, Hauptstraßennetz und Radschnellverbindungen zu einem
-einheitlichen Netz für REN+ zusammen (Zustand vor dem Matching).
+einheitlichen Rohnetz für REN+ zusammen (Zustand vor dem Matching).
 
-Das touristische Radnetz (Radfernwege) fehlt noch: Es hat weder element_nr noch
-Netzknoten und braucht einen Vorverarbeitungsschritt. Das Attribut
-'routen_fernradweg' wird deshalb leer angelegt.
+Reine Rohdatenzusammenführung, ohne Bezug zur App Netzanpassungen. Das touristische
+Radnetz (Radfernwege) ordnet Schritt 2 zu (netzanpassungen/match_cycle_routes.py);
+'routen_fernradweg' bleibt hier leer. Die Kartierung (ohne bearbeitet_2025 = ja)
+schreibt Schritt 3 (netzanpassungen/apply_app_result.py) für beide Ergebnisnetze.
 
 Fehlende element_nr werden aus den Knotenpunkten an den Kantenenden berechnet
 (processing/scripts/assign_element_nr_to_rvn.py): Liegt an einem Ende kein Knotenpunkt,
@@ -19,9 +20,14 @@ wird, bleiben ohne element_nr einzeln erhalten.
 
 Pro element_nr entsteht eine Kante.
 
+Then (auto_nodes.py, English): edges are split at the 53 virtual nodes of 2025
+(data/Virtuelle-Knotenpunkte.gpkg, read-only) and at node proposals found by snapping edge ends to other
+edges (ids P<x>-<y>, no numbers: numbers are given only in the Netzanpassungen app), and every edge gets a
+unique element_nr from its two end nodes. The step fails if one is missing or duplicated.
+
 Jede Kante wird über die Geometrie mit der Lieferung 2025 verglichen
 (Ergebnisdatensatz C des Radvorrangnetzes): bearbeitet_2025 = ja, teilweise
-oder nein. Das Kartierungs-Netz ist das Gesamtnetz ohne die Kanten mit "ja";
+oder nein. Das Kartierungs-Netz (Schritt 3) ist das Netz ohne die Kanten mit "ja";
 teilweise gelieferte Kanten bleiben als Ganzes enthalten und tragen einen
 Hinweis (hinweis_2025).
 
@@ -33,8 +39,10 @@ Hauptstraßennetzes, die im Detailnetz als Autobahn geführt sind
 dieselbe Kante auch zum Radverkehrsnetz oder zu einer Radschnellverbindung,
 bleibt sie über diese Quelle erhalten.
 
-Einzelne Kanten, die diese Regel nicht erfasst, stehen mit Begründung in
-ren-network/ausschluss_element_nr.csv und werden aus allen Quellen entfernt.
+Einzelne Kanten, die diese Regel nicht erfasst, bleiben im Original-Netz. Sie
+werden in der App Netzanpassungen ausgeschlossen (Korrektur „Kante ausschließen“);
+in ren_netz.gpkg und ren_netz_korrigiert.gpkg (apply_app_result.py) sind sie markiert,
+die Kartierung lässt sie weg.
 
 INPUT:
 - data/netzquellen/radverkehrsnetz.gpkg
@@ -45,15 +53,16 @@ INPUT:
   daneben, wird der jüngste verwendet)
 - data/Berlin Verbindungspunkte Detailnetz.fgb
 - data/Berlin Bezirke.gpkg
-- ren-network/ausschluss_element_nr.csv
+- data/Virtuelle-Knotenpunkte.gpkg
 - ../tilda-static-data/geojson/region-infravelo/infravelo-datensatz-c-fortlaufend/
   aggregated_rvn_final.geojson.gz (Ergebnis 2025; tilda-static-data muss als
   Schwesterordner ausgecheckt sein)
 
 OUTPUT:
-- ren-network/output/ren_netz_gesamt.gpkg (Layer: ren_netz)
-- ren-network/output/ren_netz_gesamt.geojson (WGS84, z.B. für play.placemark.io)
-- ren-network/output/ren_netz_kartierung.gpkg / .geojson (ohne bearbeitet_2025 = ja)
+- ren-network/output/ren_netz_roh.gpkg (Layer: ren_netz)
+- ren-network/output/virtuelle_knoten_vorschlaege.gpkg (Layer virtuelle_knoten_vorschlaege: node proposals
+  with id, art, host edge and station)
+- ren-network/output/ren_netz_roh.geojson (WGS84, z.B. für play.placemark.io)
 - ren-network/output/element_nr_nicht_im_detailnetz.csv
 - ren-network/output/bearbeitet_2025_abweichungen.csv
 """
@@ -74,10 +83,14 @@ sys.path.append(str(ROOT / "processing"))
 sys.path.append(str(ROOT / "processing" / "scripts"))
 sys.path.append(str(ROOT / "data"))
 
+sys.path.append(str(ROOT / "ren-network"))
+
+import auto_nodes  # noqa: E402
 from assign_element_nr_to_rvn import assign_element_numbers  # noqa: E402
 from assign_node_ids import assign_node_ids_to_points  # noqa: E402
 from helpers.district_assignment import assign_district_to_edges  # noqa: E402
 from download_inputs import download as download_inputs  # noqa: E402
+import virtuelle_knotenpunkte as vk  # noqa: E402
 
 try:
     from helpers.globals import DEFAULT_CRS
@@ -92,17 +105,20 @@ VERBINDUNGSPUNKTE_PATH = ROOT / "data" / "Berlin Verbindungspunkte Detailnetz.fg
 # Spaltenname aus assign_node_ids / assign_element_nr_to_rvn (mit U+2010 als Bindestrich)
 NODE_ID_COLUMN = "Knotenpunkt‐ID"
 DISTRICTS_PATH = ROOT / "data" / "Berlin Bezirke.gpkg"
+# The 53 virtual nodes of 2025 (registry, numbers 0001-0053): read-only input like the Detailnetz nodes
+NODES_2025_PATH = ROOT / "data" / "Virtuelle-Knotenpunkte.gpkg"
 OUTPUT_DIR = ROOT / "ren-network" / "output"
-OUTPUT_PATH = OUTPUT_DIR / "ren_netz_gesamt.gpkg"
+OUTPUT_PATH = OUTPUT_DIR / "ren_netz_roh.gpkg"
 OUTPUT_LAYER = "ren_netz"
-EXCLUSIONS_PATH = Path(__file__).resolve().parent / "ausschluss_element_nr.csv"
+# Node proposals of step 1 (where edges meet without a node); the app accepts them and gives numbers
+PROPOSALS_PATH = OUTPUT_DIR / "virtuelle_knoten_vorschlaege.gpkg"
+PROPOSALS_LAYER = "virtuelle_knoten_vorschlaege"
 MISSING_REPORT_PATH = OUTPUT_DIR / "element_nr_nicht_im_detailnetz.csv"
 # Ergebnis 2025 (Datensatz C): lebt nur in tilda-static-data, das als Schwesterordner
 # ausgecheckt sein muss. processing/copy_to_tilda_static.sh schreibt es dorthin.
 TILDA_STATIC_DATA_DIR = ROOT.parent / "tilda-static-data"
 RESULT_2025_PATH = (TILDA_STATIC_DATA_DIR / "geojson" / "region-infravelo"
                     / "infravelo-datensatz-c-fortlaufend" / "aggregated_rvn_final.geojson.gz")
-MAPPING_NETWORK_PATH = OUTPUT_DIR / "ren_netz_kartierung.gpkg"
 RESULT_2025_REPORT_PATH = OUTPUT_DIR / "bearbeitet_2025_abweichungen.csv"
 
 # Reihenfolge bestimmt, aus welcher Quelle die Geometrie übernommen wird
@@ -142,8 +158,11 @@ FINAL_COLUMNS = [
     "lfd_nr",
     "element_nr",
     "element_nr_berechnet",
+    "ursprung_element_nr",
     "von_knoten",
     "bis_knoten",
+    "knoten_anfang",
+    "knoten_ende",
     "laenge_m",
     "bezirksnummer",
     "strassenname",
@@ -251,19 +270,6 @@ def load_nodes(detail):
     nodes[NODE_ID_COLUMN] = nodes[NODE_ID_COLUMN].astype(str)
     logging.info(f"Verbindungspunkte mit Knotenpunkt-ID: {len(nodes)}/{len(points)}")
     return nodes
-
-
-def remove_excluded(sources):
-    """Entfernt die manuell gepflegten Kanten aus ausschluss_element_nr.csv."""
-    exclusions = pd.read_csv(EXCLUSIONS_PATH, dtype=str)
-    is_excluded = sources["element_nr"].isin(exclusions["element_nr"])
-    logging.info(f"Ausschlussliste: {is_excluded.sum()} Quellkanten entfernt "
-                 f"({sources.loc[is_excluded].geometry.length.sum() / 1000:.1f} km), "
-                 f"Gründe: {exclusions['grund'].value_counts().to_dict()}")
-    unknown = sorted(set(exclusions["element_nr"]) - set(sources["element_nr"].dropna()))
-    if unknown:
-        logging.warning(f"{len(unknown)} element_nr der Ausschlussliste kommen in keiner Quelle vor: {unknown}")
-    return sources.loc[~is_excluded].reset_index(drop=True)
 
 
 def _detailnetz_by_node_pair(detail):
@@ -438,19 +444,38 @@ def log_klassen_differences(network, dn_klasse):
 
 
 def add_nodes(network):
-    """von_knoten / bis_knoten als Text aus der element_nr (Format: von_bis.NN).
-    Text, weil virtuelle Knotenpunkte 4-stellig mit führenden Nullen sind (0012),
-    siehe data/VIRTUELLE-KNOTENPUNKTE.md."""
-    parts = network["element_nr"].str.extract(ELEMENT_NR_PATTERN)
+    """von_knoten / bis_knoten as text from the element_nr (format von_bis.NN). Text, because virtual node
+    numbers have four digits with leading zeros (0012), see data/VIRTUELLE-KNOTENPUNKTE.md."""
+    parts = network["element_nr"].str.extract(auto_nodes.ELEMENT_NR_PATTERN.pattern)
     invalid = network.loc[network["element_nr"].notna() & parts[0].isna(), "element_nr"]
     if len(invalid):
         logging.warning(
-            f"{len(invalid)} element_nr entsprechen nicht dem Muster von_bis.NN, "
-            f"von_knoten/bis_knoten bleiben leer: {sorted(invalid)}"
+            f"{len(invalid)} element_nr do not match the pattern von_bis.NN, "
+            f"von_knoten/bis_knoten stay empty: {sorted(invalid)}"
         )
     network["von_knoten"] = parts[0].astype("string")
     network["bis_knoten"] = parts[1].astype("string")
     return network
+
+
+def load_nodes_2025():
+    """The 53 virtual nodes of 2025 (data/Virtuelle-Knotenpunkte.gpkg, frozen, column Knotenpunkt-ID)."""
+    nodes = vk.read_registry(NODES_2025_PATH)
+    logging.info(f"Virtual nodes of 2025: {len(nodes)}")
+    return nodes
+
+
+def number_edges(network, detail, nodes):
+    """Sets virtual nodes by snapping, splits edges at them and gives every edge a unique element_nr from its end
+    nodes (ren-network/auto_nodes.py). Returns (network with one LineString edge per row, node proposals)."""
+    lines = network.explode(index_parts=False).reset_index(drop=True)
+    lines = lines[lines.geometry.geom_type == "LineString"].reset_index(drop=True)
+    result, proposals, report = auto_nodes.snap_and_number(
+        lines, nodes, load_nodes_2025(), detail["element_nr"].dropna(), NODE_ID_COLUMN)
+    auto_nodes.log_report(report)
+    detail_element_nrs = set(detail["element_nr"].dropna())
+    result["in_detailnetz"] = result["element_nr"].isin(detail_element_nrs).map({True: "ja", False: "nein"})
+    return result, proposals
 
 
 def add_district(network):
@@ -468,7 +493,7 @@ def finalize(network):
     in_hauptstrassennetz = network["netz_quellen"].str.contains("hauptstrassennetz")
     ist_hvs = network["strassenklasse"].isin(HAUPTVERKEHRSSTRASSEN_KLASSEN)
     network["hauptverkehrsstrasse"] = (in_hauptstrassennetz & ist_hvs).map({True: "ja", False: "nein"})
-    # TODO: Radfernwege, sobald das touristische Netz vorverarbeitet ist
+    # Radfernwege ordnet Schritt 2 zu (netzanpassungen/match_cycle_routes.py)
     network["routen_fernradweg"] = None
 
     network = network.sort_values("element_nr", na_position="last", kind="stable").reset_index(drop=True)
@@ -560,6 +585,16 @@ def write_network(network, path):
     logging.info(f"Geschrieben: {geojson_path}")
 
 
+def write_proposals(proposals, path=None):
+    """Node proposals of step 1 (id P<x>-<y>, art, host edge, station)."""
+    path = path or PROPOSALS_PATH
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists():
+        path.unlink()
+    proposals.to_file(path, layer=PROPOSALS_LAYER, driver="GPKG")
+    logging.info(f"Node proposals: {len(proposals)} ({proposals['art'].value_counts().to_dict()}): {path}")
+
+
 def write_missing_report(network):
     """Schreibt alle Kanten, deren element_nr nicht im Detailnetz vorkommt, in eine CSV."""
     missing = network.loc[network["in_detailnetz"] == "nein", MISSING_REPORT_COLUMNS]
@@ -574,8 +609,8 @@ def log_summary(network):
         logging.info(f"{column}: {network[column].value_counts(dropna=False).to_dict()}")
     for column in ["element_nr", "von_knoten", "bis_knoten", "bezirksnummer", "strassenname"]:
         logging.info(f"{column}: {network[column].isna().sum()} ohne Wert")
-    duplicated = network["element_nr"].dropna().duplicated().sum()
-    logging.info(f"Doppelte element_nr: {duplicated}")
+    auto_nodes.assert_unique(network)
+    logging.info(f"element_nr: {network['element_nr'].nunique()} different, none missing, none duplicated")
 
 
 def main():
@@ -584,11 +619,11 @@ def main():
     sources = load_sources()
     detail = load_detailnetz()
     sources = remove_motorways(sources, detail)
-    sources = remove_excluded(sources)
-    sources = assign_missing_element_nr(sources, detail, load_nodes(detail))
+    nodes = load_nodes(detail)
+    sources = assign_missing_element_nr(sources, detail, nodes)
     network = merge_by_element_nr(sources)
     network = add_detailnetz_attributes(network, detail)
-    network = add_nodes(network)
+    network, proposals = number_edges(network, detail, nodes)
     network = add_district(network)
     network = add_bearbeitet_2025(network)
     network = finalize(network)
@@ -596,9 +631,7 @@ def main():
 
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     write_network(network, OUTPUT_PATH)
-    mapping_network = network[network["bearbeitet_2025"] != "ja"]
-    logging.info(f"Kartierungs-Netz: {len(mapping_network)} Kanten, {mapping_network['laenge_m'].sum() / 1000:.1f} km")
-    write_network(mapping_network, MAPPING_NETWORK_PATH)
+    write_proposals(proposals)
     write_missing_report(network)
 
 

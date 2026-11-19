@@ -2,7 +2,7 @@
 # Nur diese Dateien sind in data/ ignoriert; alles andere zeigt `git status` an.
 /data/lor_plr_2021.geojson
 
-# Lokale Kopie des REN+-Netzes (Ausgabe von ren-network/unify_networks.py), nicht im Drive
+# Lokale Kopie des REN+-Netzes (früher Ausgabe von ren-network/unify_networks.py), nicht im Drive
 /data/ren_netz_gesamt.gpkg
 
 output/

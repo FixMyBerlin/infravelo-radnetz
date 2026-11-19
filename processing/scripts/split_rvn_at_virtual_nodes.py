@@ -13,9 +13,15 @@ Mit --netz ren wird statt des Radvorrangsnetzes das REN+ geteilt. Dessen element
 heißt danach elem_nr, damit assign_element_nr_to_rvn.py sie wie die elem_nr des
 Radvorrangsnetzes behandelt (Vorrang vor der berechneten, außer an virtuellen Knotenpunkten).
 
+Mit --quelle wählt man das REN+-Eingangsnetz: die korrigierte Fassung aus der App
+Netzanpassungen (ren_netz_korrigiert.gpkg, Standard, wenn die Datei existiert)
+oder das Original. Im korrigierten Netz entfallen die Kanten mit ausgeschlossen = ja.
+
 INPUT:
-- data/Virtuelle-Knotenpunkte.gpkg (nur status = aktiv, Regeln in data/VIRTUELLE-KNOTENPUNKTE.md)
-- data/Berlin Radvorrangsnetz.fgb bzw. ../ren-network/output/ren_netz_gesamt.gpkg (--netz ren)
+- virtuelle Knotenpunkte über read_active() aus data/virtuelle_knotenpunkte.py (nur status = aktiv,
+  Regeln in data/VIRTUELLE-KNOTENPUNKTE.md)
+- data/Berlin Radvorrangsnetz.fgb bzw. ../ren-network/output/ren_netz.gpkg oder
+  ren_netz_korrigiert.gpkg (--netz ren, siehe --quelle)
 - data/Berlin Straßenabschnitte Detailnetz.fgb
 
 OUTPUT (Pfade je Netz in helpers/netz.py):
@@ -34,7 +40,7 @@ from shapely.ops import split
 
 sys.path.append(str(Path(__file__).parent.parent))
 sys.path.append(str(Path(__file__).resolve().parents[2] / "data"))
-from helpers.netz import PFADE, add_netz_argument  # noqa: E402
+from helpers.netz import PFADE, add_netz_argument, add_quelle_argument, waehle_quelle  # noqa: E402
 import virtuelle_knotenpunkte as vk  # noqa: E402
 
 # Konfiguration
@@ -45,7 +51,7 @@ VIRTUAL_NODE_TOLERANCE = 3.0  # Maximale Entfernung in Metern für virtuellen Kn
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
-def load_virtual_nodes(virtual_nodes_path=vk.PATH):
+def load_virtual_nodes(virtual_nodes_path=vk.OUTPUT_PATH):
     """
     Lädt die aktiven virtuellen Knotenpunkte (gelöschte bleiben im Verzeichnis, teilen aber nichts).
 
@@ -64,9 +70,8 @@ def report_unused_virtual_nodes(gdf, virtual_nodes_gdf, dataset_name):
     Meldet virtuelle Knotenpunkte, die auf keiner Linie des Datensatzes liegen.
 
     Nach einer Aktualisierung des Detailnetzes kann eine Kante weggerückt sein; der Knoten
-    teilt dann nichts mehr, und die element_nr an dieser Stelle fehlt. Dann den Punkt in
-    QGIS auf die neue Kante schieben (Nummer bleibt) oder ihn mit
-    data/virtuelle_knotenpunkte.py loeschen als gelöscht markieren.
+    teilt dann nichts mehr, und die element_nr an dieser Stelle fehlt. Dann den Knoten in der
+    App Netzanpassungen auf die neue Kante schieben (Nummer bleibt) oder ihn dort löschen.
     """
     near = gpd.sjoin(
         virtual_nodes_gdf[[vk.ID_COLUMN, 'geometry']].set_geometry(virtual_nodes_gdf.buffer(VIRTUAL_NODE_TOLERANCE)),
@@ -388,13 +393,13 @@ def split_rvn_at_virtual_nodes(rvn_gdf, virtual_nodes_gdf):
     return split_geodataframe_at_virtual_nodes(rvn_gdf, virtual_nodes_gdf, "RVN")
 
 
-def main(netz):
+def main(netz, quelle='auto'):
     """
     Hauptfunktion zur Aufteilung des Zielnetzes und Detailnetzes an virtuellen Knotenpunkten.
     """
     # Dateipfade definieren
     pfade = PFADE[netz]
-    rvn_path = pfade['quelle']
+    rvn_path, korrigiert = waehle_quelle(netz, quelle)
     rvn_output_path = pfade['geteilt']
     
     detailnetz_path = 'data/Berlin Straßenabschnitte Detailnetz.fgb'
@@ -414,6 +419,10 @@ def main(netz):
         rvn_gdf = load_geodataframe(rvn_path, "Zielnetz", pfade['quelle_layer'])
         if netz == 'ren':
             rvn_gdf = rvn_gdf.rename(columns={'element_nr': 'elem_nr'})
+        if korrigiert and 'ausgeschlossen' in rvn_gdf.columns:
+            excluded = rvn_gdf['ausgeschlossen'] == 'ja'
+            logging.info(f"Ausgeschlossene Kanten (App Netzanpassungen) entfallen: {excluded.sum()}")
+            rvn_gdf = rvn_gdf.loc[~excluded].reset_index(drop=True)
         report_unused_virtual_nodes(rvn_gdf, virtual_nodes_gdf, f"Zielnetz ({netz})")
         split_rvn = split_geodataframe_at_virtual_nodes(rvn_gdf, virtual_nodes_gdf, "RVN")
         
@@ -445,4 +454,6 @@ def main(netz):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Teilt Zielnetz und Detailnetz an virtuellen Knotenpunkten")
     add_netz_argument(parser)
-    main(parser.parse_args().netz)
+    add_quelle_argument(parser)
+    args = parser.parse_args()
+    main(args.netz, args.quelle)
