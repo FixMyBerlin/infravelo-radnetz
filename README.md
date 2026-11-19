@@ -9,7 +9,7 @@ Jeder Ordner ist für eine Aufgabe zuständig und hat eine eigene README.
 - [`processing/`](./processing/README.md) – Pipeline TILDA → Radvorrangnetz: TILDA- und RVN-Aufbereitung, Map-Matching (Rust), Schutzstreifen-Konvertierung, Overrides, Aggregation, Validierung. Mit eigenen Outputs.
 - [`ren-network/`](./ren-network/README.md) – Einheitliches Netz für REN+ aus Radverkehrsnetz, Hauptstraßennetz und Radschnellverbindungen.
 - [`knotenpunkte/`](./knotenpunkte/README.md) – Knotenpunkt-Datensatz für alle REN+-Knoten, Abgleich mit der Lieferung 2025, Übergabe an Knotenpunkt-App und ML.
-- [`netzanpassungen/`](./netzanpassungen/README.md) – Eingabedatei für die App „Netzanpassungen“ (neue Kanten entlang der Radfernwege, virtuelle Knoten, Korrekturen am REN+) und Import ihres Exports.
+- [`netzanpassungen/`](./netzanpassungen/README.md) – Eingabedatei für die App „Netzanpassungen“ (neue Kanten entlang der Radfernwege, virtuelle Knoten, Korrekturen am REN+) und Anwenden ihrer Einträge (direkt aus ihrer KV-Datenbank).
 - [`befahrungsbedarf/`](./befahrungsbedarf/README.md) – OSM-Wege am REN+-Netz ohne aktuelle Fotos, die neu befahren werden müssen.
 - [`maproulette-centerline-tracks/`](./maproulette-centerline-tracks/README.md) – Aufgabenliste für MapRoulette: Radwege, die an der Straßen-Mittellinie erfasst sind.
 - [`mapping-zuteilung/`](./mapping-zuteilung/README.md) – Aufteilung des REN+-Netzes auf die Mapping-Accounts; die Zuteilung steht seit 2026-11-03 in `assignment.csv`, regelmäßig läuft nur das Update.
@@ -19,6 +19,28 @@ Jeder Ordner ist für eine Aufgabe zuständig und hat eine eigene README.
 - [`data/`](./data/README.md) – Gemeinsame Eingangsdaten (Detailnetz, Radvorrangsnetz, Bezirke, manuelle Listen).
 
 **Virtuelle Knotenpunkte:** Nummern, Anlegen, Löschen und `element_nr` regelt [`data/VIRTUELLE-KNOTENPUNKTE.md`](./data/VIRTUELLE-KNOTENPUNKTE.md). Gilt für alle Repos des Projekts.
+
+## REN+-Netz in einem Befehl
+
+`run_pipeline.sh` baut das REN+-Netz von den Netzquellen bis zu den TILDA-Ausgaben und bricht beim ersten Fehler ab (Gesamtbild: [`docs/network-pipeline.md`](./docs/network-pipeline.md)):
+
+```sh
+./run_pipeline.sh                       # Einträge der App Netzanpassungen aus der KV-Datenbank, Gebiet berlin
+./run_pipeline.sh --export <datei>.json # statt der KV-Datenbank der App-Export „Alle Einträge“
+./run_pipeline.sh --gebiet <gebiet>     # anderes Gebiet der App
+./run_pipeline.sh --ohne-tilda          # nur bis Schritt 3
+```
+
+| Schritt | Skript | Ergebnis |
+|---|---|---|
+| 1 | `ren-network/merge_networks.py` | `ren_netz_roh.gpkg`, Knotenvorschläge `virtuelle_knoten_vorschlaege.gpkg` |
+| 2 | `netzanpassungen/match_cycle_routes.py` | `ren_netz_auto.gpkg`, `radfernweg_abschnitte.gpkg` |
+| – | `netzanpassungen/write_app_input.py` | `netzanpassungen_<gebiet>.json` für die App |
+| 3 | `netzanpassungen/apply_app_result.py` | `ren_netz.gpkg` (Kunde), `ren_netz_korrigiert.gpkg` (Matching, Mapping), Kartierung, `virtuelle_knoten.gpkg` |
+| – | `data/virtuelle_knotenpunkte.py pruefen` | Prüfung der virtuellen Knoten |
+| TILDA | `ren-network/create_mask.py`, `mapping-zuteilung/update_assignment.py`, `befahrungsbedarf/build.py`, `maproulette-centerline-tracks/extract_centerline_tracks.py` | Maske, Zuteilung, Befahrungsbedarf, MapRoulette-Aufgaben |
+
+Voraussetzungen: `.env` mit `INPUTS_DRIVE_FOLDER_URL` (Eingangsdaten) und `VITE_KV_BASE_URL`, `VITE_KV_PROJECT`, `VITE_KV_API_KEY` (Lesezugriff auf die App, Werte wie in `infravelo-apps/netzanpassungen/.env`), siehe `.env.example`; `tilda-static-data` als Schwesterordner (Lieferung 2025); für die TILDA-Ausgaben deren eigene Eingangsdaten (`befahrungsbedarf/download_data.sh`, Symlinks in `maproulette-centerline-tracks/data/`). Ändert die Zuteilung `mapping-zuteilung/assignment.csv`, die Datei committen. Das Hochladen nach TILDA bleibt ein eigener Schritt (`bearbeitungsstand/update.sh`, `processing/copy_to_tilda_static.sh`).
 
 ## Setup
 
