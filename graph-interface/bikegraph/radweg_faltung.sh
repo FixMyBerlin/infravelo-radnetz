@@ -17,7 +17,7 @@
 #   CANDIDATE_RADIUS (Suchradius für Kandidatenkanten je Beobachtung, Standard 40 m: sehr breite Fahrbahnen wie der
 #   Große Stern liegen bis ~45 m vom Radweg); SAMPLE_M (Abstand der Beobachtungen entlang der Traces, Standard 5 m);
 #   CONTEXT_M (Kontext je Trace: Anlauf/Auslauf aus Wegen anderer Traces, stützt nur das Matching; Standard 0 = aus);
-#   ISOLIERT_FALTEN (Standard true; false: separate Radwege mit TILDA-Kategorie *_isolated werden nicht gefaltet und
+#   ISOLIERT_FALTEN (Standard false: separate Radwege mit TILDA-Kategorie *_isolated werden nicht gefaltet und
 #   gehen ungefaltet in den RVN-Schritt)
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -28,7 +28,7 @@ NULL_SWITCH_PENALTY="${NULL_SWITCH_PENALTY:-8}"
 CANDIDATE_RADIUS="${CANDIDATE_RADIUS:-40}"
 SAMPLE_M="${SAMPLE_M:-5}"
 CONTEXT_M="${CONTEXT_M:-0}"
-ISOLIERT_FALTEN="${ISOLIERT_FALTEN:-true}"
+ISOLIERT_FALTEN="${ISOLIERT_FALTEN:-false}"
 OUT="${OUT:-/tmp/radweg_faltung}"
 PSQL=(psql "${MATCHING_PG:?MATCHING_PG fehlt}" -v ON_ERROR_STOP=1 -q -P pager=off)
 mkdir -p "$OUT"

@@ -38,6 +38,9 @@ OUT_DIR=output/mm-datensatz-c ./graph-interface/bikegraph/datensatz_c.sh   # Dat
 2. **`radweg_faltung.sh`** (rund 40 s)
    - `sql/100_radweg_eingang.sql`: Straßennetz `bl_strassen1` = alle Fahrbahnkanten mit routing-Zeile, ohne Tunnel;
      Radwege `bl_input` (separate Radwege und Radstreifen).
+   - Separate Radwege mit TILDA-Kategorie `*_isolated` (TILDA: nicht neben einer Straße) werden nicht gefaltet: sie
+     fehlen im Eingang der Durchgänge (`bl_input1`) und gehen ungefaltet in den RVN-Schritt (`ISOLIERT_FALTEN=true`
+     faltet sie wie früher mit).
    - Matcher Durchgang 1 (Richtung beachtet), Durchgang 2b (Zweirichtungs-Radwege auf Straßen in beiden Richtungen) und
      2e (Einrichtungs-Radwege auf Straßen mit umgedrehten Einbahnen) für Radwege unter 50 % gefaltet.
    - `sql/101_radweg_ergebnis.sql`: `bikegraph.bl_faltung` (welcher Radweg auf welchem Stück welcher Straßenkante) und
