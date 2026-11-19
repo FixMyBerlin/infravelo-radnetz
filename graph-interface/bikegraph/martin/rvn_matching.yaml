@@ -244,15 +244,6 @@ postgres:
         strassenname: text
         abweichend: text
         anzahl: int4
-        fuehr_anders: bool
-        pflicht_anders: bool
-        breite_anders: bool
-        ofm_anders: bool
-        farbe_anders: bool
-        protek_anders: bool
-        trennstreifen_anders: bool
-        nutz_beschr_anders: bool
-        verkehrsri_anders: bool
         fuehr_baseline: text
         fuehr_neu: text
         pflicht_baseline: text

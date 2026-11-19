@@ -780,8 +780,15 @@
     "line-color": [
      "case",
      [
-      "get",
-      "fuehr_anders"
+      "any",
+      [
+       "has",
+       "fuehr_baseline"
+      ],
+      [
+       "has",
+       "fuehr_neu"
+      ]
      ],
      "#9467bd",
      "#ff7f0e"

@@ -9,9 +9,10 @@
 --               nur ri 0, wie sql/70)
 --   baseline_wins  Teil von diff_c mit Urteil Baseline (Baseline besser)
 --   neu_wins       Teil von diff_c mit Urteil Kandidat (neuer Datensatz besser)
---   diff_alle   alle Kanten-Richtungen, in denen irgendein Attribut abweicht (Führungsform eingeschlossen): je Attribut
---               ein Schalter <attribut>_anders und beide Werte, abweichend = Liste der Attribute; Breite als Zahl
---               verglichen (2 und 2.0 gleich); dieselben Richtungen wie diff_c
+--   diff_alle   alle Kanten-Richtungen, in denen irgendein Attribut abweicht (Führungsform eingeschlossen): beide Werte
+--               nur für die abweichenden Attribute (übereinstimmende bleiben leer, Martin lässt sie aus den Kacheln weg),
+--               abweichend = Liste der Attribute; Breite als Zahl verglichen (2 und 2.0 gleich); dieselben Richtungen
+--               wie diff_c
 CREATE SCHEMA IF NOT EXISTS datensatz_c;
 BEGIN;
 DROP TABLE IF EXISTS datensatz_c.baseline_c, datensatz_c.new_c, datensatz_c.diff_c, datensatz_c.baseline_wins, datensatz_c.neu_wins,
@@ -70,11 +71,18 @@ SELECT row_number() OVER (ORDER BY element_nr, ri)::bigint AS id, element_nr, ri
                  CASE WHEN nutz_beschr_anders THEN 'nutz_beschr' END, CASE WHEN verkehrsri_anders THEN 'verkehrsri' END) AS abweichend,
        (fuehr_anders::int + pflicht_anders::int + breite_anders::int + ofm_anders::int + farbe_anders::int + protek_anders::int
         + trennstreifen_anders::int + nutz_beschr_anders::int + verkehrsri_anders::int) AS anzahl,
-       fuehr_anders, pflicht_anders, breite_anders, ofm_anders, farbe_anders, protek_anders, trennstreifen_anders,
-       nutz_beschr_anders, verkehrsri_anders,
-       fuehr_baseline, fuehr_neu, pflicht_baseline, pflicht_neu, breite_baseline, breite_neu, ofm_baseline, ofm_neu,
-       farbe_baseline, farbe_neu, protek_baseline, protek_neu, trennstreifen_baseline, trennstreifen_neu,
-       nutz_beschr_baseline, nutz_beschr_neu, verkehrsri_baseline, verkehrsri_neu,
+       CASE WHEN fuehr_anders THEN coalesce(fuehr_baseline, '(leer)') END AS fuehr_baseline, CASE WHEN fuehr_anders THEN coalesce(fuehr_neu, '(leer)') END AS fuehr_neu,
+       CASE WHEN pflicht_anders THEN coalesce(pflicht_baseline, '(leer)') END AS pflicht_baseline, CASE WHEN pflicht_anders THEN coalesce(pflicht_neu, '(leer)') END AS pflicht_neu,
+       CASE WHEN breite_anders THEN coalesce(breite_baseline, '(leer)') END AS breite_baseline, CASE WHEN breite_anders THEN coalesce(breite_neu, '(leer)') END AS breite_neu,
+       CASE WHEN ofm_anders THEN coalesce(ofm_baseline, '(leer)') END AS ofm_baseline, CASE WHEN ofm_anders THEN coalesce(ofm_neu, '(leer)') END AS ofm_neu,
+       CASE WHEN farbe_anders THEN coalesce(farbe_baseline, '(leer)') END AS farbe_baseline, CASE WHEN farbe_anders THEN coalesce(farbe_neu, '(leer)') END AS farbe_neu,
+       CASE WHEN protek_anders THEN coalesce(protek_baseline, '(leer)') END AS protek_baseline, CASE WHEN protek_anders THEN coalesce(protek_neu, '(leer)') END AS protek_neu,
+       CASE WHEN trennstreifen_anders THEN coalesce(trennstreifen_baseline, '(leer)') END AS trennstreifen_baseline,
+       CASE WHEN trennstreifen_anders THEN coalesce(trennstreifen_neu, '(leer)') END AS trennstreifen_neu,
+       CASE WHEN nutz_beschr_anders THEN coalesce(nutz_beschr_baseline, '(leer)') END AS nutz_beschr_baseline,
+       CASE WHEN nutz_beschr_anders THEN coalesce(nutz_beschr_neu, '(leer)') END AS nutz_beschr_neu,
+       CASE WHEN verkehrsri_anders THEN coalesce(verkehrsri_baseline, '(leer)') END AS verkehrsri_baseline,
+       CASE WHEN verkehrsri_anders THEN coalesce(verkehrsri_neu, '(leer)') END AS verkehrsri_neu,
        tilda_ids_baseline, tilda_ids_neu, round(ST_Length(geom)::numeric, 1) AS laenge_m, tilda_link,
        ST_Multi(geom)::geometry(MultiLineString, 25833) AS geom
 FROM p
