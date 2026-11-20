@@ -267,7 +267,7 @@ mod tests {
     }
 
     fn trace_of(w: &TildaWay) -> Trace {
-        let tc = TraceConfig { strategy: TraceStrategy::Single, sample_interval_m: 5.0, heading_window_m: 2.0, max_turn_deg: 45.0, end_heading_m: 10.0, context_m: 0.0, context_alle_zweige: false, knick_ohne_abzweig: false };
+        let tc = TraceConfig { strategy: TraceStrategy::Single, sample_interval_m: 5.0, heading_window_m: 2.0, max_turn_deg: 45.0, end_heading_m: 10.0, context_m: 0.0, context_alle_zweige: false, knick_ohne_abzweig: false, kreuzung_m: 0.0 };
         Trace { id: 0, ways: vec![w.idx], kontext_ways: vec![], obs: sample_way(w, 0.0, false, &tc) }
     }
 
@@ -320,7 +320,7 @@ mod tests {
         let c = way(1, &[(50.0, -2.0), (84.0, 32.0)], false, "bikelanes");
         let ways = vec![a.clone(), c.clone()];
         let step = |w: u32| crate::trace::chain::Step { way: w, reversed: false };
-        let tc = TraceConfig { strategy: TraceStrategy::Topology, sample_interval_m: 5.0, heading_window_m: 2.0, max_turn_deg: 45.0, end_heading_m: 10.0, context_m: 75.0, context_alle_zweige: false, knick_ohne_abzweig: false };
+        let tc = TraceConfig { strategy: TraceStrategy::Topology, sample_interval_m: 5.0, heading_window_m: 2.0, max_turn_deg: 45.0, end_heading_m: 10.0, context_m: 75.0, context_alle_zweige: false, knick_ohne_abzweig: false, kreuzung_m: 0.0 };
         let tr = crate::trace::topology_trace(0, &ways, &[step(0)], &[step(1)], &[], &tc);
         assert!(tr.obs.iter().any(|o| o.kontext) && tr.obs.iter().any(|o| !o.kontext));
         let m = match_trace(&net, &ways, &hmm_cfg(), &tr, false);

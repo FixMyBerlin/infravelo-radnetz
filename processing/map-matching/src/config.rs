@@ -72,6 +72,10 @@ pub enum TraceStrategy {
     /// Traces folgen der Topologie des TILDA-Routing-Netzes (`from_node`/`to_node`):
     /// Kanten derselben Datenquelle in erlaubter Fahrtrichtung, an Knoten möglichst geradeaus.
     Topology,
+    /// Abschnitte zwischen Verzweigungen (Traces enden an jedem Knoten mit mehr als zwei Wegen) und dazu je
+    /// Verzweigung eine Trace für jeden Übergang von einem ankommenden in einen abgehenden Abschnitt (gekürzt auf
+    /// `kreuzung_m`); alle Traces erzeugen Intervalle.
+    Kreuzungen,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -97,6 +101,10 @@ pub struct TraceConfig {
     /// die Trace sie auch über `max_turn_deg` hinaus fort; der Winkel entscheidet dann nur an Abzweigungen.
     #[serde(default)]
     pub knick_ohne_abzweig: bool,
+    /// `kreuzungen`: Länge je Seite einer Übergangs-Trace (m, ganze Wege bis mindestens zu dieser Länge vor und nach
+    /// dem Knoten); 0 = ganze Abschnitte.
+    #[serde(default)]
+    pub kreuzung_m: f64,
 }
 
 fn default_max_turn_deg() -> f64 {
