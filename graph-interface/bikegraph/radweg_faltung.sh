@@ -18,7 +18,9 @@
 #   Große Stern liegen bis ~45 m vom Radweg); SAMPLE_M (Abstand der Beobachtungen entlang der Traces, Standard 5 m);
 #   CONTEXT_M (Kontext je Trace: Anlauf/Auslauf aus Wegen anderer Traces, stützt nur das Matching; Standard 0 = aus);
 #   ISOLIERT_FALTEN (Standard false: separate Radwege mit TILDA-Kategorie *_isolated werden nicht gefaltet und
-#   gehen ungefaltet in den RVN-Schritt)
+#   gehen ungefaltet in den RVN-Schritt); TRACE_STRATEGIE (Standard topology; kreuzungen: Abschnitte zwischen
+#   Verzweigungen und je Verzweigung jeder Übergang als eigene Trace, siehe map-matching trace.strategy) und KREUZUNG_M
+#   (kreuzungen: Länge je Seite eines Übergangs in m, Standard 0 = ganze Abschnitte)
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 PROCESSING="${PROCESSING:-$(cd "$HERE/../.." && pwd)/processing}"
@@ -29,6 +31,8 @@ CANDIDATE_RADIUS="${CANDIDATE_RADIUS:-40}"
 SAMPLE_M="${SAMPLE_M:-5}"
 CONTEXT_M="${CONTEXT_M:-0}"
 ISOLIERT_FALTEN="${ISOLIERT_FALTEN:-false}"
+TRACE_STRATEGIE="${TRACE_STRATEGIE:-topology}"
+KREUZUNG_M="${KREUZUNG_M:-0}"
 OUT="${OUT:-/tmp/radweg_faltung}"
 PSQL=(psql "${MATCHING_PG:?MATCHING_PG fehlt}" -v ON_ERROR_STOP=1 -q -P pager=off)
 mkdir -p "$OUT"
@@ -39,6 +43,7 @@ match() { # input reference intervals log
         --set postgres.input_edges="$1" --set postgres.reference_edges="$2" --set postgres.intervals="$3" \
         --set network.respect_direction=true --set 'paths.tilda=[{data_source="bikelanes", path="-"}]' \
         --set hmm.name_mismatch_penalty=0 --set hmm.null_switch_penalty="$NULL_SWITCH_PENALTY" --set hmm.candidate_radius_m="$CANDIDATE_RADIUS" --set trace.sample_interval_m="$SAMPLE_M" --set trace.context_m="$CONTEXT_M" --set trace.max_turn_deg="$MAX_TURN_DEG" \
+        --set trace.strategy="\"$TRACE_STRATEGIE\"" --set trace.kreuzung_m="$KREUZUNG_M" \
         --set network.topology_report=false --set postgres.intervals_only=true --set paths.output_dir="\"$OUT\"" \
         > "$OUT/$4.log" 2>&1)
     sed 's/\x1b\[[0-9;]*m//g' "$OUT/$4.log" | grep -E "Topologie-Traces|Traces:" | sed 's/^.*INFO /   /'
