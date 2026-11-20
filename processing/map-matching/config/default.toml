@@ -94,6 +94,8 @@ topology_report = true
 # "topology": Traces folgen dem TILDA-Routing-Netz (gleiche Datenquelle, erlaubte
 #             Fahrtrichtung, an Knoten möglichst geradeaus).
 # "single":   jeder TILDA-Weg ist eine eigene Trace (ohne Topologie).
+# "kreuzungen": Abschnitte zwischen Verzweigungen und je Verzweigung jeder Übergang ankommend -> abgehend als eigene
+#             Trace (kreuzung_m); alle erzeugen Intervalle.
 strategy = "topology"
 # topology: maximale Richtungsänderung an einem Knoten (Grad).
 max_turn_deg = 45.0
@@ -109,6 +111,9 @@ context_alle_zweige = false
 # topology: Hat ein Knoten außer dem ankommenden Weg genau eine Fortsetzung (Knick, keine Abzweigung), setzt die
 # Trace sie auch über max_turn_deg hinaus fort; der Winkel entscheidet dann nur an Abzweigungen.
 knick_ohne_abzweig = false
+# kreuzungen: Länge je Seite einer Übergangs-Trace an Verzweigungen (m, ganze Wege bis mindestens zu dieser Länge);
+# 0 = ganze Abschnitte.
+kreuzung_m = 0.0
 # Abstand der Beobachtungen entlang eines TILDA-Wegs (Anfang/Ende immer enthalten).
 sample_interval_m = 5.0
 # Halbe Fensterbreite zur Bestimmung des lokalen Kurses einer Beobachtung.

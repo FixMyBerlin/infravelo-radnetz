@@ -189,6 +189,22 @@ pub fn build_traces(cfg: &Config, ways: &[TildaWay]) -> Vec<Trace> {
             }
             traces
         }
+        TraceStrategy::Kreuzungen => {
+            let (abschnitte, uebergaenge) = chain::build_kreuzungen(ways, &cfg.trace);
+            info!(
+                "Kreuzungs-Traces: {} Wege -> {} Abschnitte und {} Übergänge (je Seite {} m)",
+                ways.len(),
+                abschnitte.len(),
+                uebergaenge.len(),
+                cfg.trace.kreuzung_m
+            );
+            abschnitte
+                .iter()
+                .chain(&uebergaenge)
+                .enumerate()
+                .map(|(i, steps)| topology_trace(i as u32, ways, &[], steps, &[], &cfg.trace))
+                .collect()
+        }
     }
 }
 

@@ -221,6 +221,114 @@ pub fn build_chains(ways: &[TildaWay], cfg: &TraceConfig) -> Vec<Vec<Step>> {
     chains
 }
 
+/// Strategie `kreuzungen`: Abschnitte und Übergänge an Verzweigungen. Ergebnis: (Abschnitte, Übergänge).
+/// - Abschnitte verketten Wege nur an Knoten mit genau zwei Wegen derselben Datenquelle (gleich welcher Winkel) und
+///   enden an jeder Verzweigung, Zusammenführung und an Enden.
+/// - Je Knoten mit mehr als zwei Wegen entsteht für jedes Paar (ankommender Abschnitt, abgehender Abschnitt) in
+///   erlaubter Richtung eine Übergangs-Trace aus beiden, je Seite auf `kreuzung_m` gekürzt (ganze Wege, 0 = ganz).
+///   Zwischen zwei Zweirichtungs-Abschnitten nur eine Richtung, die Spiegelung liefert die andere.
+pub fn build_kreuzungen(ways: &[TildaWay], cfg: &TraceConfig) -> (Vec<Vec<Step>>, Vec<Vec<Step>>) {
+    let topo = Topologie::new(ways, cfg);
+    let grad = |node: u64, src: &TildaWay| {
+        topo.at_node.get(&node).map_or(0, |l| l.iter().filter(|&&j| ways[j as usize].data_source == src.data_source).count())
+    };
+    let mut used = vec![false; ways.len()];
+    let mut order: Vec<u32> = (0..ways.len() as u32).collect();
+    order.sort_by(|&a, &b| ways[b as usize].line.length().total_cmp(&ways[a as usize].line.length()).then(a.cmp(&b)));
+
+    let mut abschnitte: Vec<Vec<Step>> = Vec::new();
+    for seed in order {
+        if used[seed as usize] {
+            continue;
+        }
+        used[seed as usize] = true;
+        let seed_step = Step { way: seed, reversed: false };
+        let Some(seed_ends) = &topo.ends[seed as usize] else {
+            abschnitte.push(vec![seed_step]);
+            continue;
+        };
+        let src = &ways[seed as usize];
+        let mut forward = vec![seed_step];
+        let (mut node, mut h) = seed_ends.exit(false);
+        while grad(node, src) == 2 {
+            let opts = topo.options(&|j| used[j as usize], src, node, h, true);
+            let [(_, s)] = opts.as_slice() else { break };
+            let s = *s;
+            used[s.way as usize] = true;
+            forward.push(s);
+            (node, h) = topo.ends[s.way as usize].as_ref().unwrap().exit(s.reversed);
+        }
+        let mut backward = Vec::new();
+        let (mut node, mut h) = seed_ends.entry(false);
+        while grad(node, src) == 2 {
+            let opts = topo.options(&|j| used[j as usize], src, node, h, false);
+            let [(_, s)] = opts.as_slice() else { break };
+            let s = *s;
+            used[s.way as usize] = true;
+            backward.push(s);
+            (node, h) = topo.ends[s.way as usize].as_ref().unwrap().entry(s.reversed);
+        }
+        backward.reverse();
+        backward.extend(forward);
+        abschnitte.push(backward);
+    }
+
+    // Je Knoten die Abschnitte, die dort enden oder beginnen: (Abschnitt, Durchlauf hinein, Durchlauf hinaus).
+    let umgekehrt = |steps: &[Step]| -> Vec<Step> { steps.iter().rev().map(|s| Step { way: s.way, reversed: !s.reversed }).collect() };
+    type Anschluss = (usize, Option<Vec<Step>>, Option<Vec<Step>>);
+    let mut am_knoten: FxHashMap<u64, Vec<Anschluss>> = FxHashMap::default();
+    for (k, steps) in abschnitte.iter().enumerate() {
+        let (Some(first), Some(last)) = (steps.first(), steps.last()) else { continue };
+        let (Some(e0), Some(e1)) = (&topo.ends[first.way as usize], &topo.ends[last.way as usize]) else { continue };
+        let zurueck = steps.iter().all(|s| !ways[s.way as usize].oneway).then(|| umgekehrt(steps));
+        am_knoten.entry(e1.exit(last.reversed).0).or_default().push((k, Some(steps.clone()), zurueck.clone()));
+        am_knoten.entry(e0.entry(first.reversed).0).or_default().push((k, zurueck, Some(steps.clone())));
+    }
+    // ganze Wege bis mindestens `m` Meter vom Knoten: hinein vom Ende her, hinaus vom Anfang
+    let kopf = |steps: &[Step], m: f64| -> Vec<Step> {
+        let mut out = Vec::new();
+        let mut len = 0.0;
+        for s in steps {
+            out.push(*s);
+            len += ways[s.way as usize].line.length();
+            if m > 0.0 && len >= m {
+                break;
+            }
+        }
+        out
+    };
+    let schwanz = |steps: &[Step], m: f64| -> Vec<Step> {
+        let mut out = kopf(&steps.iter().rev().copied().collect::<Vec<_>>(), m);
+        out.reverse();
+        out
+    };
+    let mut knoten: Vec<(u64, Vec<Anschluss>)> = am_knoten.into_iter().collect();
+    knoten.sort_by_key(|(n, _)| *n);
+    let mut uebergaenge = Vec::new();
+    for (node, liste) in &knoten {
+        for (i, (ka, a_hinein, a_hinaus)) in liste.iter().enumerate() {
+            for (j, (kb, b_hinein, b_hinaus)) in liste.iter().enumerate() {
+                if i == j || ka == kb {
+                    continue;
+                }
+                let (Some(hinein), Some(hinaus)) = (a_hinein, b_hinaus) else { continue };
+                let src = &ways[hinein[0].way as usize];
+                if ways[hinaus[0].way as usize].data_source != src.data_source || grad(*node, src) < 3 {
+                    continue;
+                }
+                // Zwei Zweirichtungs-Abschnitte: b -> a ist die Spiegelung von a -> b.
+                if a_hinaus.is_some() && b_hinein.is_some() && j < i {
+                    continue;
+                }
+                let mut t = schwanz(hinein, cfg.kreuzung_m);
+                t.extend(kopf(hinaus, cfg.kreuzung_m));
+                uebergaenge.push(t);
+            }
+        }
+    }
+    (abschnitte, uebergaenge)
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
@@ -253,7 +361,7 @@ mod tests {
     }
 
     fn cfg() -> TraceConfig {
-        TraceConfig { strategy: TraceStrategy::Topology, sample_interval_m: 5.0, heading_window_m: 2.0, max_turn_deg: 45.0, end_heading_m: 10.0, context_m: 0.0, context_alle_zweige: false, knick_ohne_abzweig: false }
+        TraceConfig { strategy: TraceStrategy::Topology, sample_interval_m: 5.0, heading_window_m: 2.0, max_turn_deg: 45.0, end_heading_m: 10.0, context_m: 0.0, context_alle_zweige: false, knick_ohne_abzweig: false, kreuzung_m: 0.0 }
     }
 
     #[test]
@@ -288,6 +396,36 @@ mod tests {
         ];
         let chains = build_chains(&ways, &cfg());
         assert_eq!(chains, vec![vec![Step { way: 0, reversed: false }, Step { way: 1, reversed: true }]]);
+    }
+
+    #[test]
+    fn kreuzungen_abschnitte_und_uebergaenge() {
+        // Knick um 90 Grad ohne Abzweigung: ein Abschnitt, kein Übergang.
+        let knick = vec![
+            way(0, &[(0.0, 0.0), (50.0, 0.0)], (0, 1), false, "strassen"),
+            way(1, &[(50.0, 0.0), (50.0, 50.0)], (1, 2), false, "strassen"),
+        ];
+        let (a, u) = build_kreuzungen(&knick, &cfg());
+        assert_eq!((a.len(), u.len()), (1, 0));
+        // T-Kreuzung aus Zweirichtungs-Wegen: drei Abschnitte, drei Übergänge (die Gegenrichtungen spiegelt das HMM).
+        let t = vec![
+            way(0, &[(0.0, 0.0), (50.0, 0.0)], (0, 1), false, "strassen"),
+            way(1, &[(50.0, 0.0), (100.0, 0.0)], (1, 2), false, "strassen"),
+            way(2, &[(50.0, 0.0), (50.0, 50.0)], (1, 3), false, "strassen"),
+        ];
+        let (a, u) = build_kreuzungen(&t, &cfg());
+        assert_eq!((a.len(), u.len()), (3, 3));
+        assert!(u.iter().all(|s| s.len() == 2));
+        // Einbahn hinein (0) und hinaus (1), Zweirichtung (2): 0 -> 1, 0 -> 2, 2 -> 1.
+        let t = vec![
+            way(0, &[(0.0, 0.0), (50.0, 0.0)], (0, 1), true, "strassen"),
+            way(1, &[(50.0, 0.0), (100.0, 0.0)], (1, 2), true, "strassen"),
+            way(2, &[(50.0, 0.0), (50.0, 50.0)], (1, 3), false, "strassen"),
+        ];
+        let (_, u) = build_kreuzungen(&t, &cfg());
+        let mut paare: Vec<(u32, u32)> = u.iter().map(|s| (s[0].way, s[1].way)).collect();
+        paare.sort_unstable();
+        assert_eq!(paare, vec![(0, 1), (0, 2), (2, 1)]);
     }
 
     #[test]
