@@ -5,8 +5,10 @@ Usage (from the project folder, after rules.py and history_check.py):
 
 Inputs in output/: R1/R2/R3 CSVs (rules.py), history_check.csv + history/*.parquet (history_check.py).
 Writes to output/:
-  auto__tracks-explicit.osc  delete the wrong tag; on a track side set the side default explicitly
-  auto__delete-only.osc     delete only (if tilda-geo reads tracks on the road side as one-way)
+  auto__1-sicher.osc       upload first: stretch of at least 200 m (confidence.py)
+  auto__2-kurz.osc         upload second: shorter stretch without a hint at a one-way street
+                           both: delete the wrong tag; on a track side set the side default explicitly
+  auto__delete-only.osc     all automatic ways, delete only (comparison, not uploaded)
   maid__oneway-check.json  MAID task file for everything that needs a person
   decisions.csv           one row per way with the decision and the reason
   decisions.json          counts
@@ -26,6 +28,7 @@ import duckdb
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from opl import is_fmc, read_ways  # noqa: E402
+from confidence import packages  # noqa: E402
 from rules import side_infra  # noqa: E402
 
 # First `yes` set by an fmc account (history_check.py); older tags are reviewed by hand.
@@ -38,6 +41,8 @@ SINGLE_SIDE_REASON = "right side not tagged yes (single-side left:oneway=yes)"
 # Ways edited from this day on count as corrected, whatever their tags say (false positives included).
 # tilda-geo checks the same date (`apply_cycleway_oneway_correction.lua`); keep both in sync.
 PSEUDO_TAG_CUTOFF = "2026-11-22T00:00:00Z"
+# Upload packages of the automatic ways (confidence.py); the tracks-explicit change, one file each.
+PACKAGES = ["1-sicher", "2-kurz"]
 PSEUDO_TAG_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "cycleway-oneway-corrections.csv")
 
 
@@ -145,6 +150,13 @@ def maid_task(row, w, reason, geom):
         "description": "Nichts ändern, Aufgabe als erledigt markieren. Gern ein Verkehrszeichen ergänzen.",
         "set": {"cycleway:left:check_date:oneway": "2026-11-18"},
     }]
+    if reason.startswith("kurzer Abschnitt"):
+        options.insert(1, {
+            "id": "oneway-road",
+            "label": "Die Straße ist hier eine Einbahnstraße",
+            "description": "Dann fehlt `oneway=yes` an der Fahrbahn; die Richtungsangabe der Radwege bleibt stehen.",
+            "set": {"oneway": "yes"},
+        })
     return {
         "type": "Feature",
         "geometry": geom,
@@ -184,29 +196,42 @@ def main():
                 r["rule"] = rule
                 rows.append(r)
 
-    decisions, osc_explicit, osc_delete, maid_rows, pseudo = [], [], [], [], []
+    decided = []
     for r in rows:
         w = ways[int(r["id"])]
         h = hist.get((w["id"], r["rule"]))
-        decision, reason = decide(r, h)
+        decided.append((r, w, h, *decide(r, h)))
+    pkg = packages(ways, {w["id"] for _, w, _, d, _ in decided if d in ("auto", "maid")},
+                   {w["id"] for _, w, _, d, _ in decided if d == "auto"}, pbf)
+
+    decisions, maid_rows, pseudo = [], [], []
+    osc = {p: [] for p in PACKAGES}
+    osc_delete = []
+    for r, w, h, decision, reason in decided:
+        package, stretch_m, pkg_reason = pkg.get(w["id"], ("", "", ""))
+        if decision == "auto" and package == "maid":
+            decision, reason = "maid", pkg_reason
         tags_explicit, added = new_tags(w["tags"], True)
         tags_delete, _ = new_tags(w["tags"], False)
         if decision == "auto":
-            osc_explicit.append((w, tags_explicit))
+            osc[package].append((w, tags_explicit))
             osc_delete.append((w, tags_delete))
         elif decision == "maid":
             maid_rows.append((r, w, reason))
+            package = "maid"
         if decision in ("auto", "maid") and w["timestamp"] < PSEUDO_TAG_CUTOFF:
             pseudo.append(w["id"])
         decisions.append({
-            "id": w["id"], "rule": r["rule"], "decision": decision, "reason": reason,
+            "id": w["id"], "rule": r["rule"], "decision": decision, "package": package if decision != "skip" else "",
+            "stretch_m": stretch_m, "reason": reason,
             "set_by": (h or {}).get("last_adder", ""), "first_yes": (h or {}).get("first_yes", ""),
             "left_infra": side_infra(w["tags"], "left") or "", "right_infra": side_infra(w["tags"], "right") or "",
             "track_explicit": ";".join(f"{k}={v}" for k, v in added.items()) if decision == "auto" else "",
             "g2": r["g2"], "url": f"https://www.openstreetmap.org/way/{w['id']}",
         })
 
-    write_osc(os.path.join(out, "auto__tracks-explicit.osc"), osc_explicit)
+    for p, items in osc.items():
+        write_osc(os.path.join(out, f"auto__{p}.osc"), items)
     write_osc(os.path.join(out, "auto__delete-only.osc"), osc_delete)
     write_pseudo_tags(PSEUDO_TAG_CSV, pseudo)
 
@@ -220,7 +245,7 @@ def main():
             "description": (
                 "Ways mit `cycleway:both|left:oneway=yes` oder `cycleway:oneway=yes` an Straßen ohne Einbahnregelung, "
                 "die nicht automatisch bereinigt werden: altes Tagging (vor Juli 2025), nicht von FMC gesetztes einseitiges Tagging "
-                "oder ein Risiko (oneway:bicycle, Hinweis, Detail-Tags in wörtlicher Richtung)."
+                "oder ein Risiko (oneway:bicycle, Hinweis, Detail-Tags in wörtlicher Richtung, kurzer Abschnitt, der eine Einbahnstraße sein könnte)."
             ),
         },
         "features": [maid_task(r, w, reason, geoms[w["id"]]) for r, w, reason in maid_rows if w["id"] in geoms],
@@ -239,6 +264,7 @@ def main():
         "by_reason": con.execute("select decision, reason, count(*) from d group by all order by 1, 3 desc").fetchall(),
         "auto_track_explicit": con.execute(
             "select track_explicit, count(*) from d where decision='auto' group by 1 order by 2 desc").fetchall(),
+        "by_package": con.execute("select package, count(*) from d where decision != 'skip' group by 1 order by 1").fetchall(),
         "auto_set_by_fmc": con.execute(
             "select lower(set_by) like 'fmc%', count(*) from d where decision='auto' group by 1").fetchall(),
         "g2": con.execute("select decision, count(*) from d where g2 group by 1").fetchall(),

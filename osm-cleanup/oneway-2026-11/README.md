@@ -6,16 +6,16 @@ This folder documents the rules and builds from them an osmChange file for the c
 
 Discussion and comments: [Claude Doc "FMC-Bereinigung cycleway:*:oneway in Berlin"](https://claude.ai/artifact/THKf7vJkzGgW1KcyHHhXBY).
 
-## Result (extract 2026-11-08, history up to 2026-11-16)
+## Result (extract 2026-11-21, history up to 2026-11-18)
 
 | Decision | Ways | Of these last set by FMC |
 | --- | ---: | ---: |
-| clean up automatically (`output/auto__*.osc`) | 2,240 | 1,763 |
-| check by hand (`output/maid__oneway-check.json`) | 117 | – |
-| skipped: tag already removed | 75 | – |
-| skipped: edited since the extract, rebuild with a fresh extract | 42 | – |
+| clean up automatically, package 1 (`output/auto__1-sicher.osc`) | 1,644 | |
+| clean up automatically, package 2 (`output/auto__2-kurz.osc`) | 591 | |
+| automatic in all | 2,235 | 1,741 |
+| check by hand (`output/maid__oneway-check.json`) | 160 | – |
 
-985 of the 2,240 have a track on an affected side (see "Tracks").
+The extract is newer than the history, so no way was skipped. 983 of the 2,235 have a track on an affected side (see "Tracks"). The packages are explained under "Quality check: length of the tagged stretch".
 
 ## Rules
 
@@ -37,13 +37,34 @@ Per way, in this order (`scripts/build_cleanup.py`, `decide`):
 
 "Set by FMC" means: the edit that set today's `yes` comes from an account starting with `fmc` (case-insensitive). The last editor of the way does not count; it says little about who set the tag (sample: `samples/results.md`).
 
+7. **Upload package** of the automatic ways (`scripts/confidence.py`), from the length of the tagged stretch (same name, or same `highway` without a name, connected, all candidates):
+   - `1-sicher`: stretch of at least 200 m. Upload first.
+   - `2-kurz`: shorter stretch without a hint at a one-way street, or the way itself shows two-way traffic. Upload second.
+   - → MAID: shorter stretch that could be a one-way street with a missing `oneway=yes` (whole street shorter than 200 m, touches a one-way way of the same name, no name, or `*_link`) and the way shows no two-way traffic (no `*:backward` tag, no `oneway=no`, no `lanes` ≥ 2 without `lanes:forward`). The task gets an extra answer "the street is a one-way street" (`oneway=yes`).
+
 Change: `yes` on `both`, `cycleway:oneway` and `left` is deleted, `cycleway:right:oneway` only when it is `yes`. `cycleway:right:oneway=no|-1` stays.
+
+## Quality check: length of the tagged stretch
+
+A correct `yes` on the left needs a one-way street. The candidates have no one-way rule, so the tag can only be right where `oneway=yes` is missing on the road. One-way streets with cycling infrastructure on the left (`oneway=yes`, `cycleway:left` or `:both` = `lane`/`track`) are short in Berlin (extract 2026-11-21): the 20 stretches that are not a dual carriageway are 1.2 km in all, median 47 m, 90 % below 155 m, the longest 188 m. 38 more stretches lie on dual carriageways, mostly short pieces at junctions. The sample is small, but it backs the threshold of 200 m.
+
+Result (extract 2026-11-21):
+
+| Package | Ways |
+| --- | ---: |
+| `auto__1-sicher.osc` | 1,644 |
+| `auto__2-kurz.osc` | 591 |
+| moved to MAID | 37 |
+
+Most short stretches are short because the street is split (bridges, junction pieces, crossings) or only some pieces carry the tag; 295 of 343 short stretches belong to a street longer than 200 m. Two samples of the short stretches (30 ways) were all tagging errors on two-way streets.
+
+Compared with the previous single file `auto__tracks-explicit.osc` (2,272 ways): the two packages hold the same change for 2,235 ways, the other 37 are now MAID tasks, the 123 earlier MAID tasks are unchanged, and `cycleway-oneway-corrections.csv` is unchanged (TILDA corrects MAID ways too).
 
 ## Tracks
 
 tilda-geo reads a track on the road line without a direction (`derive_oneway.lua`, `road_track_is_one_way`) as one-way (`implicit_yes`) when the other side of the road has cycling infrastructure (lane, track, `separate`, a sidewalk open to bicycles, …). It reads it as "probably both directions" (`assumed_no`) when the track is the only cycle path of the road. A lane always counts as "one direction".
 
-Deleting only would leave 985 ways with an untagged track side. In about 37 of them the other side has no cycling infrastructure, so tilda-geo would read a new two-way track. **Decided: on track sides we set the side direction explicitly** (`auto__tracks-explicit.osc`): `cycleway:left:oneway=-1` (959×), `cycleway:right:oneway=yes` (810×), on 985 ways. On lane sides the tag is only deleted.
+Deleting only would leave 985 ways with an untagged track side. In about 37 of them the other side has no cycling infrastructure, so tilda-geo would read a new two-way track. **Decided: on track sides we set the side direction explicitly** (`auto__1-sicher.osc`, `auto__2-kurz.osc`): `cycleway:left:oneway=-1` (959×), `cycleway:right:oneway=yes` (810×), on 985 ways. On lane sides the tag is only deleted.
 
 `auto__delete-only.osc` stays for comparison and is not uploaded.
 
@@ -67,7 +88,7 @@ The MAID task texts are German on purpose: they are read by mappers in Berlin.
 
 ## Corrections in TILDA before the OSM edit
 
-`cycleway-oneway-corrections.csv` lists the ids of all ways of the automatic and MAID cases (2,395, extract 2026-11-21). tilda-geo downloads it from GitHub (`main`) on every processing run and corrects these ways before it derives the direction, the same change as `auto__tracks-explicit.osc` (`processing/pseudoTags/cyclewayOnewayCorrectionsSource/` in tilda-geo). So TILDA shows the right directions while the OSM edit is still running.
+`cycleway-oneway-corrections.csv` lists the ids of all ways of the automatic and MAID cases (2,395, extract 2026-11-21). tilda-geo downloads it from GitHub (`main`) on every processing run and corrects these ways before it derives the direction, the same change as the `auto__*` packages (`processing/pseudoTags/cyclewayOnewayCorrectionsSource/` in tilda-geo). So TILDA shows the right directions while the OSM edit is still running.
 
 - Only the ids: tilda-geo derives the change itself.
 - Ways last edited on or after 2026-11-22 count as corrected in OSM and are used as tagged, also false positives of the list. The script leaves them out of the CSV, tilda-geo checks the same date (`PSEUDO_TAG_CUTOFF` and `CUTOFF` in `apply_cycleway_oneway_correction.lua`).
@@ -86,9 +107,10 @@ The two files in `maid/` are checked in for MAID; after a new run copy them ther
 
 | Path | Content |
 | --- | --- |
-| `output/auto__tracks-explicit.osc` | osmChange of the automatic cases, **upload this file** |
+| `output/auto__1-sicher.osc` | osmChange, stretch of at least 200 m, **upload first** |
+| `output/auto__2-kurz.osc` | osmChange, shorter stretches, **upload second** |
 | `output/auto__delete-only.osc` | comparison: delete only, do not upload |
-| `output/maid__oneway-check.json` | MAID tasks (options: restore the default / the tag is right) |
+| `output/maid__oneway-check.json` | MAID tasks (options: restore the default / the tag is right; short stretches also: the street is a one-way street) |
 | `output/decisions.csv`, `output/decisions.json` | decision and reason per way, counts |
 | `output/history_check.csv` | history per way: first FMC edit, first `yes`, who set it |
 | `output/R*.csv` | tag rules with risk reasons and detail tags |
