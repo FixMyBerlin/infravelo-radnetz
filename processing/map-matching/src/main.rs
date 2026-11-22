@@ -20,6 +20,10 @@ struct Cli {
     /// Netzquellen gemeinsam). Ohne Angabe gilt [paths].
     #[arg(long, global = true)]
     netz: Option<String>,
+    /// Eingang aus PostGIS (pgRouting-Tabellen aus graph-interface/, Verbindung aus MATCHING_PG)
+    /// statt aus den Dateien; entspricht --set postgres.enabled=true
+    #[arg(long, global = true)]
+    pg: bool,
     #[command(subcommand)]
     cmd: Cmd,
 }
@@ -49,6 +53,12 @@ enum Cmd {
         /// Direkt gegen beide Referenzen evaluieren
         #[arg(long)]
         eval: bool,
+    },
+    /// Nur Stufe 7 (Regeln, Aufteilung) auf den Intervallen in PostGIS (postgres.intervals,
+    /// von `run --pg` geschrieben); braucht --pg
+    Assemble {
+        #[command(flatten)]
+        area: Area,
     },
     /// Vergleicht eine Ergebnisdatei mit der Referenz
     Eval {
@@ -98,18 +108,22 @@ fn options(area: &Area, debug: bool, tilda_ids: Vec<String>) -> Result<RunOption
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    let cfg = Config::load(&cli.config, cli.netz.as_deref(), &cli.set)?;
+    // --pg zuerst, damit --set es noch überschreiben kann
+    let overrides: Vec<String> = cli.pg.then(|| "postgres.enabled=true".to_string()).into_iter().chain(cli.set.iter().cloned()).collect();
+    let cfg = Config::load(&cli.config, cli.netz.as_deref(), &overrides)?;
     let name = match &cli.cmd {
         Cmd::Run { .. } => "run",
+        Cmd::Assemble { .. } => "assemble",
         Cmd::Eval { .. } => "eval",
         Cmd::Topology { .. } => "topology",
         Cmd::DebugTrace { .. } => "debug_trace",
         Cmd::Tune { .. } => "tune",
     };
     let _guard = logging::init(&cfg.output_dir().join("logs"), name);
-    tracing::info!("Konfiguration: {} (Netz: {}, Overrides: {:?})", cli.config.display(), cli.netz.as_deref().unwrap_or("[paths]"), cli.set);
+    tracing::info!("Konfiguration: {} (Netz: {}, Eingang: {}, Overrides: {:?})", cli.config.display(), cli.netz.as_deref().unwrap_or("[paths]"), if cfg.postgres.enabled { "PostGIS" } else { "Dateien" }, cli.set);
     match cli.cmd {
         Cmd::Run { area, debug, tilda_ids, eval } => commands::run(&cfg, &options(&area, debug, tilda_ids)?, eval),
+        Cmd::Assemble { area } => commands::assemble(&cfg, &options(&area, false, vec![])?),
         Cmd::Eval { area, candidate, reference, secondary } => commands::eval_file(&cfg, &options(&area, false, vec![])?, candidate, reference, secondary),
         Cmd::Topology { area } => commands::topology(&cfg, &options(&area, false, vec![])?),
         Cmd::DebugTrace { tilda_ids } => commands::debug_trace(&cfg, &options(&Area::default(), true, tilda_ids)?),

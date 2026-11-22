@@ -58,6 +58,23 @@ tilda = [
 ]
 
 # -----------------------------------------------------------------------------
+# Eingang aus PostGIS statt aus den Dateien in [paths] (Schalter --pg oder
+# --set postgres.enabled=true). Die Tabellen erzeugt ../../graph-interface/load.sh
+# im pgRouting-Format. Topologie aus source/target, Einrichtungswege aus
+# reverse_cost < 0, Name aus match_key, Datenquelle aus trace_group (Werte wie
+# paths.tilda[].data_source), übrige Attribute aus attrs. Bezirke und
+# Zuschnitte bleiben Dateien aus [paths].
+[postgres]
+enabled = false
+conninfo_env = "MATCHING_PG"
+reference_edges = "matching.reference_edges"
+input_edges = "matching.input_edges"
+# Zwischenergebnis (Stufe 6): run --pg schreibt die Intervalle hierhin, assemble --pg liest sie
+intervals = "matching.intervals"
+# run --pg: nur die Intervalle schreiben, ohne Aufteilung, Ausgabedatei und Debug-Ebenen
+intervals_only = false
+
+# -----------------------------------------------------------------------------
 [network]
 # Endpunkte innerhalb dieser Toleranz gelten als identischer Knoten.
 # Rein numerisch (Gleitkomma-Rauschen), KEIN Reparatur-Snapping.
@@ -65,6 +82,12 @@ node_tolerance_m = 0.01
 # Offene Enden mit einem Nachbarn bis zu dieser Distanz werden im
 # Topologie-Report als "Lücke" statt als "freies Ende" klassifiziert.
 gap_report_m = 10.0
+# Fahrtrichtung des Referenznetzes beachten (nur --pg): cost < 0 sperrt die
+# Digitalisierungsrichtung, reverse_cost < 0 die Gegenrichtung (Kandidaten und Routing).
+respect_direction = false
+# Topologie-Report des Referenznetzes beim Laden (Lücken, freie Enden). Für große Netze, die nicht das RVN
+# sind (z. B. ein Radnetz-Graph als Referenz), ohne Nutzen und teuer: dann false.
+topology_report = true
 
 # -----------------------------------------------------------------------------
 [trace]
@@ -76,6 +99,16 @@ strategy = "topology"
 max_turn_deg = 45.0
 # topology: Länge, über die der Kurs an Kantenenden bestimmt wird (m).
 end_heading_m = 10.0
+# topology: Kontext je Trace (m): Anlauf vor dem ersten und Auslauf nach dem letzten Weg aus benachbarten Wegen anderer
+# Traces (nach denselben Regeln wie die Verkettung). Die Kontext-Beobachtungen zählen im Viterbi mit, erzeugen aber
+# keine Intervalle, Verbindungsstücke oder Brüche. 0 = aus.
+context_m = 0.0
+# topology: Beginnt eine Trace an einem Knoten mit genau einem ankommenden Weg, wird dieser auch über max_turn_deg
+# hinaus ihr Anlauf (jeder abgehende Zweig bekommt den Zulauf als Kontext).
+context_alle_zweige = false
+# topology: Hat ein Knoten außer dem ankommenden Weg genau eine Fortsetzung (Knick, keine Abzweigung), setzt die
+# Trace sie auch über max_turn_deg hinaus fort; der Winkel entscheidet dann nur an Abzweigungen.
+knick_ohne_abzweig = false
 # Abstand der Beobachtungen entlang eines TILDA-Wegs (Anfang/Ende immer enthalten).
 sample_interval_m = 5.0
 # Halbe Fensterbreite zur Bestimmung des lokalen Kurses einer Beobachtung.
@@ -129,6 +162,7 @@ transfer_attributes = [
   # Oberfläche, Fahrqualität und Höchstgeschwindigkeit der Fahrbahn. `tilda_maxspeed*` ersetzt das Matching je Fahrtrichtung durch
   # OSM `maxspeed:forward|backward`, falls der Weg es hat (`tilda_maxspeed_forward|backward`, siehe pipeline.rs).
   "tilda_surface", "tilda_smoothness", "tilda_smoothness_source", "tilda_maxspeed", "tilda_maxspeed_source", "tilda_maxspeed_conditional",
+  "routing_access_bicycle",
 ]
 
 # -----------------------------------------------------------------------------

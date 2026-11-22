@@ -166,7 +166,23 @@ Ist nur bei `Geschützter Radfahrstreifen` (`category=protectedCyclewayOnHighway
 - "Schadensschild/StVO Zusatzeichen (Straßenschäden, Gehwegschäden, Radwegschäden) "
   - `traffic_sign=Straßenschäden`, `traffic_sign=Gehwegschäden`, `traffic_sign=Radwegschäden`
   - UND `source:traffic_sign:mapillary=ID`
+- "Radverkehr nicht erlaubt (access_bicycle=<Wert>)" (Erweiterung 2026-11, mit infraVelo abzustimmen)
+  - aus TILDA `routing.access_bicycle`: `no`, `destination`, `private`, `customers`, `delivery`, `permit`, `agricultural_or_forestry`
+  - Solche Wege bleiben im Ergebnis und werden im Matching wie andere Wege behandelt, damit sichtbar wird, wo ein Weg für den Radverkehr geöffnet werden könnte.
+  - In Datensatz C gilt die Regel für den schlechtesten Fall über die ganze Kante; `nutz_beschr_hauptfuehrung` nimmt nur die Abschnitte der gewinnenden Führungsform (siehe unten).
+  - Mehrere Beschränkungen stehen nebeneinander, getrennt mit `; `.
 - "keine"
+
+### Zusatzfelder in Datensatz C: `<attr>_hauptfuehrung` und `<attr>_quelle` (Erweiterung 2026-11, mit infraVelo abzustimmen)
+
+Eine Kante besteht oft aus mehreren Abschnitten mit unterschiedlicher Führungsform. `fuehr` ist die Führungsform mit der größten Länge. Die anderen Attribute werden bisher über alle Abschnitte bestimmt und können deshalb von einer anderen Führungsform stammen, z. B. die kleinste Breite von einem Schutzstreifen an einer Kante, die als Gehweg geführt wird.
+
+Für `verkehrsri`, `pflicht`, `breite`, `ofm`, `farbe`, `protek`, `trennstreifen` und `nutz_beschr` gibt es je zwei Zusatzfelder, das bisherige Feld bleibt unverändert:
+
+- `<attr>_hauptfuehrung`: dieselbe Regel wie für `<attr>` (längster Abschnitt, kleinste Breite ohne Kreuzungswege, schlechtester Fall; `verkehrsri`: erster Abschnitt), aber nur über die Abschnitte mit der Führungsform aus `fuehr`.
+- `<attr>_quelle`: die Führungsform(en) der Abschnitte, von denen der bisherige Wert `<attr>` stammt.
+
+Bei „Keine Radinfrastruktur vorhanden“ sind die Zusatzfelder leer wie die Felder selbst.
 
 ### `Bemerkung`
 

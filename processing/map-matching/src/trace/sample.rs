@@ -21,6 +21,7 @@ pub fn sample_way(way: &TildaWay, offset: f64, reversed: bool, cfg: &TraceConfig
                 heading: if reversed { reverse_heading(heading) } else { heading },
                 way: way.idx,
                 trace_s: offset + d,
+                kontext: false,
             }
         })
         .collect()

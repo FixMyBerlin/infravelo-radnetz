@@ -68,9 +68,18 @@ WORST_CASE_ATTRIBUTES = {
     "nutz_beschr": "worst_nutz_beschr"  # Spezielle Logik
 }
 
+# Attribute, die zusätzlich nur aus den Segmenten der gewinnenden Führungsform aggregiert werden.
+# Je Attribut zwei weitere Spalten (Abstimmung mit infraVelo offen, die bisherigen Werte bleiben unverändert):
+#   <attr>_hauptfuehrung  gleiche Regel wie <attr>, nur auf den Segmenten mit der gewinnenden `fuehr`
+#   <attr>_quelle         Führungsform(en) der Segmente, aus denen der bisherige Wert <attr> stammt
+MAIN_FUEHR_ATTRIBUTES = ["verkehrsri", "pflicht", "breite", "ofm", "farbe", "protek", "trennstreifen", "nutz_beschr"]
+MAIN_FUEHR_SUFFIX = "_hauptfuehrung"
+SOURCE_SUFFIX = "_quelle"
+
 # Hierarchie für Nutzungsbeschränkungen (schlechteste zuerst)
 NUTZ_BESCHR_HIERARCHY = [
     "Physische Sperre",
+    "Radverkehr nicht erlaubt",
     "Schadensschild/StVO Zusatzeichen (Straßenschäden, Gehwegschäden, Radwegschäden)",
     "keine"
 ]
@@ -116,6 +125,12 @@ AGGREGATED_COLUMN_ORDER = [
 ]
 
 
+AGGREGATED_COLUMN_ORDER = [
+    c for col in AGGREGATED_COLUMN_ORDER
+    for c in ([col, col + MAIN_FUEHR_SUFFIX, col + SOURCE_SUFFIX] if col in MAIN_FUEHR_ATTRIBUTES else [col])
+]
+
+
 # --------------------------------------------------------- Hilfsfunktionen --
 def lines_from_geom(g):
     """
@@ -145,9 +160,12 @@ def find_worst_nutz_beschr(values):
     if not values:
         return "keine"
     
+    # Ein Wert kann mehrere Beschränkungen nebeneinander tragen ("…; Radverkehr nicht erlaubt (…)"):
+    # der erste Wert, der die schlechteste Beschränkung enthält, gewinnt, mit allen seinen Teilen.
     for worst_option in NUTZ_BESCHR_HIERARCHY:
-        if worst_option in values:
-            return worst_option
+        for v in sorted(values, key=lambda x: (-str(x).count(";"), str(x))):
+            if worst_option in str(v):
+                return v
     
     # Fallback: Ersten verfügbaren Wert verwenden
     return values[0]
@@ -489,6 +507,53 @@ def highest_maxspeed(segments_group):
     speeds = speeds[speeds <= 200]
     return int(speeds.max()) if len(speeds) > 0 else None
 
+def aggregate_attribute(segments_group, attr):
+    """Wert eines Attributs nach seiner Regel (wie in aggregate_edge_group)."""
+    if attr not in segments_group.columns or len(segments_group) == 0:
+        return None
+    if attr == "verkehrsri":
+        return segments_group.iloc[0][attr]  # bisher: Wert des ersten Segments
+    if attr == "breite":
+        return aggregate_breite_excluding_kreuzungsweg(segments_group)[0]
+    if attr in WORST_CASE_ATTRIBUTES:
+        return aggregate_by_worst_case(segments_group, attr, WORST_CASE_ATTRIBUTES[attr])
+    return aggregate_by_longest_section(segments_group, attr)
+
+
+def _same_value(a, b, attr):
+    if pd.isna(a) or pd.isna(b):
+        return False
+    if attr == "breite":
+        a_num, b_num = pd.to_numeric(a, errors="coerce"), pd.to_numeric(b, errors="coerce")
+        return pd.notna(a_num) and pd.notna(b_num) and abs(float(a_num) - float(b_num)) < 1e-9
+    return str(a) == str(b)
+
+
+def add_main_fuehr_variants(aggregated, edge_group):
+    """
+    Ergänzt je Attribut aus MAIN_FUEHR_ATTRIBUTES `<attr>_hauptfuehrung` und `<attr>_quelle`.
+    Der bisherige Wert `<attr>` bleibt unverändert.
+    """
+    fuehr = aggregated.get("fuehr")
+    has_fuehr = "fuehr" in edge_group.columns
+    main = edge_group[edge_group["fuehr"] == fuehr] if has_fuehr and pd.notna(fuehr) else edge_group.iloc[0:0]
+    for attr in MAIN_FUEHR_ATTRIBUTES:
+        if attr not in edge_group.columns:
+            continue
+        aggregated[attr + MAIN_FUEHR_SUFFIX] = aggregate_attribute(main, attr)
+        value = aggregated.get(attr)
+        candidates = edge_group
+        if attr == "verkehrsri":
+            candidates = edge_group.iloc[0:1]  # der bisherige Wert stammt vom ersten Segment
+        elif attr == "breite" and has_fuehr:
+            candidates = edge_group[~edge_group["fuehr"].apply(is_kreuzungsweg)]  # Kreuzungswege zählen nicht
+        sources = sorted({
+            str(f) for v, f in zip(candidates[attr], candidates["fuehr"] if has_fuehr else [None] * len(candidates))
+            if pd.notna(f) and _same_value(v, value, attr)
+        })
+        aggregated[attr + SOURCE_SUFFIX] = "; ".join(sources) if sources else None
+    return aggregated
+
 
 def aggregate_edge_group(edge_group):
     """
@@ -566,6 +631,8 @@ def aggregate_edge_group(edge_group):
     aggregated['tilda_maxspeed_max'] = highest_maxspeed(edge_group)
     aggregated['tilda_smoothness_worst'] = worst_smoothness(edge_group)
     
+    aggregated = add_main_fuehr_variants(aggregated, edge_group)
+
     # Berechne die Länge für ALLE Kanten (Einzelsegmente und aggregierte Kanten)
     aggregated['Länge'] = int(round(calculate_segment_length(aggregated.geometry)))
     
@@ -880,7 +947,11 @@ def process(input_path, output_path, crs, clip_region=None, data_dir="./data", a
             logging.info(f"  {keine_radinfra_count} Features mit 'Keine Radinfrastruktur vorhanden' gefunden")
             
             # Setze alle Attribute auf NULL und zähle Änderungen
-            for attr in NULL_ATTRIBUTES_KEINE_RADINFRA:
+            null_attrs = NULL_ATTRIBUTES_KEINE_RADINFRA + [
+                a + sfx for a in MAIN_FUEHR_ATTRIBUTES if a in NULL_ATTRIBUTES_KEINE_RADINFRA
+                for sfx in (MAIN_FUEHR_SUFFIX, SOURCE_SUFFIX)
+            ]
+            for attr in null_attrs:
                 if attr in result_gdf.columns:
                     attr_changes = (keine_radinfra_mask & result_gdf[attr].notna()).sum()
                     if attr_changes > 0:

@@ -18,10 +18,23 @@ use crate::trace;
 pub fn run(cfg: &Config, opts: &RunOptions, evaluate: bool) -> Result<()> {
     let t0 = Instant::now();
     let p = pipeline::prepare(cfg, opts)?;
+    if cfg.postgres.enabled && cfg.postgres.intervals_only {
+        // nur Intervalle (Stufe 6) nach PostGIS; Aufteilung macht `assemble --pg` bzw. der Aufrufer
+        let (traces, matches, stats) = pipeline::match_traces(&p, cfg, true);
+        pipeline::write_intervals_pg(&p, cfg, &matches)?;
+        pipeline::write_traces_pg(&p, cfg, &traces, &matches)?;
+        pipeline::write_stubs_pg(&p, cfg, &matches)?;
+        log_stats(&stats);
+        info!("Fertig in {:.1} s (nur Intervalle)", t0.elapsed().as_secs_f64());
+        return Ok(());
+    }
     let mut r = pipeline::match_and_assemble(&p, cfg, true);
     let out_dir = cfg.output_dir();
     let path = pipeline::output_path(cfg, &p.suffix);
     let t = Instant::now();
+    if cfg.postgres.enabled {
+        pipeline::write_intervals_pg(&p, cfg, &r.matches)?;
+    }
     pipeline::write_output(&p, cfg, &r.assembled.segments, &path)?;
     crate::debug::write_matched_ways(&p, &r, &out_dir.join(format!("matched_tilda_ways{}.fgb", p.suffix)))?;
     if opts.debug {
@@ -38,6 +51,28 @@ pub fn run(cfg: &Config, opts: &RunOptions, evaluate: bool) -> Result<()> {
         evaluate_against(cfg, &p, &cand, &label, true)?;
     }
     info!("Fertig in {:.1} s", t0.elapsed().as_secs_f64());
+    Ok(())
+}
+
+/// `assemble`: nur Stufe 7 auf dem Zwischenergebnis in PostGIS (`postgres.intervals`, von
+/// `run --pg` geschrieben oder von einem anderen Schritt erzeugt). Lädt Referenz- und
+/// Eingangsnetz für Geometrie und Attribute, matcht aber nichts.
+pub fn assemble(cfg: &Config, opts: &RunOptions) -> Result<()> {
+    if !cfg.postgres.enabled {
+        bail!("assemble liest die Intervalle aus PostGIS: --pg setzen");
+    }
+    let t0 = Instant::now();
+    let p = pipeline::prepare(cfg, opts)?;
+    let intervals = pipeline::read_intervals_pg(&p, cfg)?;
+    let mut stats = pipeline::RunStats { ways: p.ways.len(), topology_errors: p.net.topology.errors(), ..Default::default() };
+    let assembled = pipeline::assemble_intervals(&p, cfg, &intervals, &mut stats);
+    let out_dir = cfg.output_dir();
+    let path = pipeline::output_path(cfg, &p.suffix);
+    pipeline::write_output(&p, cfg, &assembled.segments, &path)?;
+    stats.timings_s.insert("gesamt".into(), t0.elapsed().as_secs_f64());
+    log_stats(&stats);
+    std::fs::write(out_dir.join(format!("stats_assemble{}.json", p.suffix)), serde_json::to_string_pretty(&stats)?)?;
+    info!("Fertig in {:.1} s: {}", t0.elapsed().as_secs_f64(), path.display());
     Ok(())
 }
 

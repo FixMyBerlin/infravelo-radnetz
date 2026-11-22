@@ -20,10 +20,24 @@ pub struct ObsState {
     pub n_candidates: u32,
 }
 
+/// Stück des Viterbi-Pfads zwischen zwei aufeinanderfolgenden gematchten Beobachtungen verschiedener Wege
+/// (Übergang an einem Knoten des Eingangsnetzes). Die Intervalle gehören je zu einem Weg; diese Verbindung gehört
+/// zu keinem und wird getrennt ausgegeben, damit der Pfad als Graph zusammenhängt.
+#[derive(Debug, Clone, Copy)]
+pub struct Stub {
+    pub dir: DirEdge,
+    /// Position auf der Kante (Geometrierichtung), from <= to
+    pub from: f64,
+    pub to: f64,
+    pub way_from: u32,
+    pub way_to: u32,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct TraceMatch {
     pub trace_id: u32,
     pub intervals: Vec<Interval>,
+    pub stubs: Vec<Stub>,
     pub states: Vec<ObsState>,
     pub breaks: Vec<usize>,
     pub lattice: Option<Vec<LatticeStep>>,
@@ -53,13 +67,17 @@ pub fn match_trace(net: &Network, ways: &[TildaWay], cfg: &HmmConfig, trace: &Tr
         .map(|(p, c)| ObsState { chosen: p.map(|i| c[i]), n_candidates: c.len() as u32 })
         .collect();
     let intervals = derive_intervals(net, ways, cfg, trace, &states, &mut router);
+    let stubs = derive_stubs(net, cfg, trace, &states, &mut router);
     let mut breaks = vit.breaks;
     breaks.extend(topology_breaks(cfg, trace, &states, &mut router));
+    // Brüche zählen nur auf eigenen Beobachtungen (nicht im Kontext anderer Traces).
+    breaks.retain(|&t| !trace.obs[t].kontext);
     breaks.sort_unstable();
     breaks.dedup();
     TraceMatch {
         trace_id: trace.id,
         intervals,
+        stubs,
         states,
         breaks,
         lattice: vit.lattice,
@@ -97,6 +115,37 @@ struct Piece {
     score: f64,
 }
 
+/// Verbindungsstücke des Viterbi-Pfads zwischen aufeinanderfolgenden gematchten Beobachtungen verschiedener Wege
+/// (dieselbe Zerlegung wie in `derive_intervals`, dort werden diese Paare übersprungen); nur zwischen eigenen Wegen.
+fn derive_stubs(net: &Network, cfg: &HmmConfig, trace: &Trace, states: &[ObsState], router: &mut Router) -> Vec<Stub> {
+    let mut out = Vec::new();
+    for t in 1..trace.obs.len() {
+        let (o0, o1) = (&trace.obs[t - 1], &trace.obs[t]);
+        let (Some(a), Some(b)) = (states[t - 1].chosen, states[t].chosen) else { continue };
+        if o0.way == o1.way || o0.kontext || o1.kontext {
+            continue;
+        }
+        let mut push = |d: DirEdge, x: f64, y: f64| {
+            let (f, g) = (net.to_base(d, x), net.to_base(d, y));
+            let (from, to) = if f <= g { (f, g) } else { (g, f) };
+            if to - from > 1e-6 {
+                out.push(Stub { dir: d, from, to, way_from: o0.way, way_to: o1.way });
+            }
+        };
+        if a.dir == b.dir {
+            push(a.dir, a.s, b.s);
+        } else {
+            push(a.dir, a.s, net.dir_len(a.dir));
+            let limit = transition::route_limit(cfg, (o1.trace_s - o0.trace_s).max(0.0));
+            for mid in router.intermediate(a.dir, b.dir, limit) {
+                push(mid, 0.0, net.dir_len(mid));
+            }
+            push(b.dir, 0.0, b.s);
+        }
+    }
+    out
+}
+
 /// Wandelt den Viterbi-Pfad in Intervalle je (TILDA-Weg, gerichtete Kante) um.
 /// Nur aufeinanderfolgende, gematchte Beobachtungen desselben Wegs erzeugen Intervalle;
 /// dazwischen durchfahrene Kanten werden vollständig zugeordnet.
@@ -104,14 +153,15 @@ fn derive_intervals(net: &Network, ways: &[TildaWay], cfg: &HmmConfig, trace: &T
     let mut pieces: FxHashMap<(u32, DirEdge), Vec<Piece>> = FxHashMap::default();
     let mut obs_count: FxHashMap<(u32, DirEdge), u32> = FxHashMap::default();
     for (o, st) in trace.obs.iter().zip(states) {
-        if let Some(c) = st.chosen {
+        if let (Some(c), false) = (st.chosen, o.kontext) {
             *obs_count.entry((o.way, c.dir)).or_default() += 1;
         }
     }
     for t in 1..trace.obs.len() {
         let (o0, o1) = (&trace.obs[t - 1], &trace.obs[t]);
         let (Some(a), Some(b)) = (states[t - 1].chosen, states[t].chosen) else { continue };
-        if o0.way != o1.way {
+        // Kontext-Beobachtungen (Wege anderer Traces) stützen nur den Viterbi und erzeugen keine Intervalle.
+        if o0.way != o1.way || o0.kontext || o1.kontext {
             continue;
         }
         let score = 0.5 * (a.log_emission + b.log_emission);
@@ -197,6 +247,7 @@ mod tests {
 
     fn way(idx: u32, pts: &[(f64, f64)], oneway: bool, source: &str) -> TildaWay {
         TildaWay {
+            db_id: None,
             idx,
             data_source: Arc::from(source),
             tilda_id: format!("way/{idx}"),
@@ -216,8 +267,8 @@ mod tests {
     }
 
     fn trace_of(w: &TildaWay) -> Trace {
-        let tc = TraceConfig { strategy: TraceStrategy::Single, sample_interval_m: 5.0, heading_window_m: 2.0, max_turn_deg: 45.0, end_heading_m: 10.0 };
-        Trace { id: 0, ways: vec![w.idx], obs: sample_way(w, 0.0, false, &tc) }
+        let tc = TraceConfig { strategy: TraceStrategy::Single, sample_interval_m: 5.0, heading_window_m: 2.0, max_turn_deg: 45.0, end_heading_m: 10.0, context_m: 0.0, context_alle_zweige: false, knick_ohne_abzweig: false };
+        Trace { id: 0, ways: vec![w.idx], kontext_ways: vec![], obs: sample_way(w, 0.0, false, &tc) }
     }
 
     #[test]
@@ -259,5 +310,22 @@ mod tests {
             let len = net.edges[i.dir.edge as usize].length();
             assert!(i.to - i.from < len + 1e-6);
         }
+    }
+
+    #[test]
+    fn context_observations_produce_no_intervals() {
+        // Gabelung: Fahrbahn A (0..50) und abzweigende Fahrbahn C; Radweg A ist Kontext, Radweg C die eigene Trace.
+        let net = network(&[&[(0.0, 0.0), (50.0, 0.0)], &[(50.0, 0.0), (85.0, 35.0)]]);
+        let a = way(0, &[(0.0, -2.0), (50.0, -2.0)], false, "bikelanes");
+        let c = way(1, &[(50.0, -2.0), (84.0, 32.0)], false, "bikelanes");
+        let ways = vec![a.clone(), c.clone()];
+        let step = |w: u32| crate::trace::chain::Step { way: w, reversed: false };
+        let tc = TraceConfig { strategy: TraceStrategy::Topology, sample_interval_m: 5.0, heading_window_m: 2.0, max_turn_deg: 45.0, end_heading_m: 10.0, context_m: 75.0, context_alle_zweige: false, knick_ohne_abzweig: false };
+        let tr = crate::trace::topology_trace(0, &ways, &[step(0)], &[step(1)], &[], &tc);
+        assert!(tr.obs.iter().any(|o| o.kontext) && tr.obs.iter().any(|o| !o.kontext));
+        let m = match_trace(&net, &ways, &hmm_cfg(), &tr, false);
+        assert!(!m.intervals.is_empty());
+        assert!(m.intervals.iter().all(|i| i.way == 1), "{:?}", m.intervals);
+        assert!(m.stubs.is_empty());
     }
 }
