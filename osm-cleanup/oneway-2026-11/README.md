@@ -110,6 +110,7 @@ The two files in `maid/` are checked in for MAID; after a new run copy them ther
 | `output/auto__1-sicher.osc` | osmChange, stretch of at least 200 m, **upload first** |
 | `output/auto__2-kurz.osc` | osmChange, shorter stretches, **upload second** |
 | `output/auto__delete-only.osc` | comparison: delete only, do not upload |
+| `maid/berlin-fahrtrichtung-links-pruefen.json` | checked-in copy of `output/maid__oneway-check.json` for MAID (160 tasks, extract 2026-11-21); copy again after a new run |
 | `output/maid__oneway-check.json` | MAID tasks (options: restore the default / the tag is right; short stretches also: the street is a one-way street) |
 | `output/decisions.csv`, `output/decisions.json` | decision and reason per way, counts |
 | `output/history_check.csv` | history per way: first FMC edit, first `yes`, who set it |
