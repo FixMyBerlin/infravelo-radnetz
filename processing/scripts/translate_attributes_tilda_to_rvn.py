@@ -536,6 +536,27 @@ def determine_nutz_beschr(row, fuehr: str) -> str:
     return "keine"
 
 
+# Fahrrad-Zugang aus TILDA-`routing` (`access_bicycle`), bei dem Radfahren nicht erlaubt ist.
+ACCESS_BICYCLE_RESTRICTED = {"no", "destination", "private", "customers", "delivery", "permit", "agricultural_or_forestry"}
+
+
+def cycling_restriction(row) -> str | None:
+    """Hinweis, wenn Radfahren auf dem Weg nach OSM nicht erlaubt ist (TILDA `routing.access_bicycle`).
+
+    Solche Wege bleiben im Ergebnis, damit sichtbar wird, wo ein Weg für den Radverkehr geöffnet werden könnte.
+    """
+    value = row.get("routing_access_bicycle")
+    if isinstance(value, str) and value in ACCESS_BICYCLE_RESTRICTED:
+        return f"Radverkehr nicht erlaubt (access_bicycle={value})"
+    return None
+
+
+def combine_nutz_beschr(*parts: str | None) -> str:
+    """Mehrere Nutzungsbeschränkungen nebeneinander; "keine", wenn es keine gibt."""
+    present = [p for p in parts if p and p != "keine"]
+    return "; ".join(present) if present else "keine"
+
+
 def determine_kommentar(row, translated_row=None) -> str:
     """
     Bestimmt den Kommentar basierend auf dem lifecycle-Attribut und fehlenden Attributen.
@@ -632,6 +653,28 @@ def calculate_segment_length(geometry):
     return geometry.length
 
 
+def lane_implicit_oneway_to_yes(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    """
+    Schreibt `oneway=implicit_yes` an Spuren auf der Fahrbahn (Seitenlinien `…/cycleway/left|right`, keine
+    Radwege oder Wege neben der Fahrbahn) als `yes`.
+
+    An einer Spur ist die Fahrtrichtung der Seite der Standard (StVO, Wiki); TILDA schreibt dann `implicit_yes`,
+    mit Tag `yes`. Im Ergebnis soll beides gleich aussehen. Radwege und Wege (`*_adjoining`, `*_isolated`) werden
+    ausdrücklich gemappt, dort bleibt `implicit_yes` als Hinweis auf den fehlenden Tag.
+    """
+    if "oneway" not in gdf.columns or "id" not in gdf.columns or "category" not in gdf.columns:
+        return gdf
+    category = gdf["category"].fillna("").astype(str)
+    is_lane = (
+        gdf["id"].astype(str).str.contains("/cycleway/", regex=False)
+        & ~category.str.contains("_adjoining|_isolated", regex=True)
+    )
+    mask = is_lane & (gdf["oneway"] == "implicit_yes")
+    logging.info(f"{int(mask.sum())} Spuren mit oneway=implicit_yes als yes übernommen")
+    gdf.loc[mask, "oneway"] = "yes"
+    return gdf
+
+
 def translate_tilda_attributes(gdf: gpd.GeoDataFrame, data_source: str) -> gpd.GeoDataFrame:
     """
     Übersetzt TILDA-Attribute in RVN-Attribute basierend auf den Mapping-Regeln.
@@ -644,9 +687,11 @@ def translate_tilda_attributes(gdf: gpd.GeoDataFrame, data_source: str) -> gpd.G
         GeoDataFrame mit RVN-Attributen
     """
     logging.info(f"Übersetze {len(gdf)} Features vom Typ '{data_source}'")
-    
+
     result_gdf = gdf.copy()
-    
+    if data_source == "bikelanes":
+        result_gdf = lane_implicit_oneway_to_yes(result_gdf)
+
     # Zähler für nicht-gefundene Zuordnungen
     not_found_counts = {
         "fuehr": 0,
@@ -697,7 +742,7 @@ def translate_tilda_attributes(gdf: gpd.GeoDataFrame, data_source: str) -> gpd.G
         result_gdf.loc[result_gdf.index[idx-1], "trennstreifen"] = trennstreifen
         
         # Nutzungsbeschränkung (berücksichtigt die bereits bestimmte Führung)
-        nutz_beschr = determine_nutz_beschr(row, fuehr)
+        nutz_beschr = combine_nutz_beschr(determine_nutz_beschr(row, fuehr), cycling_restriction(row))
         result_gdf.loc[result_gdf.index[idx-1], "nutz_beschr"] = nutz_beschr
         
         # Länge berechnen (gerundet, ohne Nachkommastellen)

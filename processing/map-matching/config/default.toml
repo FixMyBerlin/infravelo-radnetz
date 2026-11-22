@@ -158,6 +158,7 @@ transfer_attributes = [
   "fuehr", "pflicht", "breite", "ofm", "farbe", "protek", "trennstreifen", "nutz_beschr", "Kommentar", "verkehrsri",
   "tilda_id", "tilda_name", "tilda_oneway", "tilda_category", "tilda_traffic_sign",
   "tilda_mapillary", "tilda_mapillary_traffic_sign", "tilda_mapillary_backward", "tilda_mapillary_forward", "tilda_width_source",
+  "routing_access_bicycle",
 ]
 
 # -----------------------------------------------------------------------------
