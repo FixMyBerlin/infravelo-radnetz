@@ -67,7 +67,7 @@ The MAID task texts are German on purpose: they are read by mappers in Berlin.
 
 ## Corrections in TILDA before the OSM edit
 
-`cycleway-oneway-corrections.csv` lists the ids of all ways of the automatic and MAID cases (2,357, extract 2026-11-08). tilda-geo downloads it from GitHub (`main`) on every processing run and corrects these ways before it derives the direction, the same change as `auto__tracks-explicit.osc` (`processing/pseudoTags/cyclewayOnewayCorrectionsSource/` in tilda-geo). So TILDA shows the right directions while the OSM edit is still running.
+`cycleway-oneway-corrections.csv` lists the ids of all ways of the automatic and MAID cases (2,395, extract 2026-11-21). tilda-geo downloads it from GitHub (`main`) on every processing run and corrects these ways before it derives the direction, the same change as `auto__tracks-explicit.osc` (`processing/pseudoTags/cyclewayOnewayCorrectionsSource/` in tilda-geo). So TILDA shows the right directions while the OSM edit is still running.
 
 - Only the ids: tilda-geo derives the change itself.
 - Ways last edited on or after 2026-11-22 count as corrected in OSM and are used as tagged, also false positives of the list. The script leaves them out of the CSV, tilda-geo checks the same date (`PSEUDO_TAG_CUTOFF` and `CUTOFF` in `apply_cycleway_oneway_correction.lua`).
