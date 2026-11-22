@@ -10,6 +10,8 @@ Writes to output/:
   maid__oneway-check.json  MAID task file for everything that needs a person
   decisions.csv           one row per way with the decision and the reason
   decisions.json          counts
+Writes to the project folder (checked in, TILDA downloads it from GitHub):
+  cycleway-oneway-corrections.csv  ids of the ways TILDA corrects before it derives the direction (auto and MAID)
 See README.md for the rules.
 """
 
@@ -33,6 +35,10 @@ ONEWAY_KEYS = ["cycleway:oneway", "cycleway:both:oneway", "cycleway:left:oneway"
 # Risk reasons from rules.py that always go to a person. The R3 reason "right side not tagged yes" is not one of
 # them: single-side tags are decided by who set them (see decide()).
 SINGLE_SIDE_REASON = "right side not tagged yes (single-side left:oneway=yes)"
+# Ways edited from this day on count as corrected, whatever their tags say (false positives included).
+# tilda-geo checks the same date (`apply_cycleway_oneway_correction.lua`); keep both in sync.
+PSEUDO_TAG_CUTOFF = "2026-11-22T00:00:00Z"
+PSEUDO_TAG_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "cycleway-oneway-corrections.csv")
 
 
 def decide(row, hist):
@@ -78,6 +84,14 @@ def new_tags(tags, explicit_tracks):
                 out[f"cycleway:{s}:oneway"] = default
                 added[f"cycleway:{s}:oneway"] = default
     return out, added
+
+
+def write_pseudo_tags(path, ids):
+    """Way ids only: tilda-geo applies the same change as `new_tags(tags, True)` itself. Sorted, so weekly runs
+    diff line by line."""
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("osm_id\n")
+        f.writelines(f"{i}\n" for i in sorted(set(ids)))
 
 
 def write_osc(path, items):
@@ -170,7 +184,7 @@ def main():
                 r["rule"] = rule
                 rows.append(r)
 
-    decisions, osc_explicit, osc_delete, maid_rows = [], [], [], []
+    decisions, osc_explicit, osc_delete, maid_rows, pseudo = [], [], [], [], []
     for r in rows:
         w = ways[int(r["id"])]
         h = hist.get((w["id"], r["rule"]))
@@ -182,6 +196,8 @@ def main():
             osc_delete.append((w, tags_delete))
         elif decision == "maid":
             maid_rows.append((r, w, reason))
+        if decision in ("auto", "maid") and w["timestamp"] < PSEUDO_TAG_CUTOFF:
+            pseudo.append(w["id"])
         decisions.append({
             "id": w["id"], "rule": r["rule"], "decision": decision, "reason": reason,
             "set_by": (h or {}).get("last_adder", ""), "first_yes": (h or {}).get("first_yes", ""),
@@ -192,6 +208,7 @@ def main():
 
     write_osc(os.path.join(out, "auto__tracks-explicit.osc"), osc_explicit)
     write_osc(os.path.join(out, "auto__delete-only.osc"), osc_delete)
+    write_pseudo_tags(PSEUDO_TAG_CSV, pseudo)
 
     geoms = geometries(pbf, sorted({w["id"] for _, w, _ in maid_rows}))
     maid = {
@@ -226,6 +243,7 @@ def main():
             "select lower(set_by) like 'fmc%', count(*) from d where decision='auto' group by 1").fetchall(),
         "g2": con.execute("select decision, count(*) from d where g2 group by 1").fetchall(),
         "maid_tasks": len(maid["features"]),
+        "pseudo_tag_rows": len(set(pseudo)),
     }
     with open(os.path.join(out, "decisions.json"), "w", encoding="utf-8") as f:
         json.dump(summary, f, ensure_ascii=False, indent=1, default=str)

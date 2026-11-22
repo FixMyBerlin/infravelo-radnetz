@@ -41,13 +41,13 @@ Change: `yes` on `both`, `cycleway:oneway` and `left` is deleted, `cycleway:righ
 
 ## Tracks
 
-tilda-geo reads a track on the road line without a direction everywhere as "probably both directions" (`derive_oneway.lua`, `assumed_no`). This deliberately follows the rural case, where cycleways along roads are often used in both directions and `oneway=no` is often missing. A lane counts as "one direction".
+tilda-geo reads a track on the road line without a direction (`derive_oneway.lua`, `road_track_is_one_way`) as one-way (`implicit_yes`) when the other side of the road has cycling infrastructure (lane, track, `separate`, a sidewalk open to bicycles, …). It reads it as "probably both directions" (`assumed_no`) when the track is the only cycle path of the road. A lane always counts as "one direction".
 
-Deleting only would therefore create new "two-way cycleways" on the track sides. **Decided: on track sides we set the side direction explicitly** (`auto__tracks-explicit.osc`): `cycleway:left:oneway=-1` (959×), `cycleway:right:oneway=yes` (810×), on 985 ways. On lane sides the tag is only deleted.
+Deleting only would leave 985 ways with an untagged track side. In about 37 of them the other side has no cycling infrastructure, so tilda-geo would read a new two-way track. **Decided: on track sides we set the side direction explicitly** (`auto__tracks-explicit.osc`): `cycleway:left:oneway=-1` (959×), `cycleway:right:oneway=yes` (810×), on 985 ways. On lane sides the tag is only deleted.
 
 `auto__delete-only.osc` stays for comparison and is not uploaded.
 
-The network validator in tilda-schemas (`cycleway_oneway_redundant`) reports default directions as redundant. For tracks it has to follow the fallback of tilda-geo; that is a separate change in tilda-schemas.
+The network validator in tilda-schemas (`cycleway_oneway_redundant`) does not check track sides (since tagging 0.4.0), so the explicit side defaults are not flagged. A test for this is in tilda-schemas commit 7adb7fb (local, not released).
 
 ## Run
 
@@ -58,12 +58,20 @@ OHSOME_API_KEY=… scripts/run.sh
 1. Internal Geofabrik extract (with account names) from the Docker volume `tilda-geo_osmfiles`, read-only; Berlin via relation 62422.
 2. `rules.py`: tag rules R1–R5 and risk exclusions, one CSV per rule. R4/R5 (default values only, cosmetic) are not used.
 3. `history_check.py`: history of the candidates via the [ohsome API v2](https://docs.ohsome.org/ohsome-api/v2/) (`contributions.parquet`, per edit the account and the tags before/after). Key from [account.heigit.org](https://account.heigit.org/manage/key).
-4. `build_cleanup.py`: decision per way, osmChange, MAID file, `decisions.csv`.
+4. `build_cleanup.py`: decision per way, osmChange, MAID file, `decisions.csv`, and `cycleway-oneway-corrections.csv` for TILDA (see below).
 5. `validate_osc.py`: same version and nodes as in the extract, only the named tags changed. Check the MAID file with `bun run tasks-check` in the Maid repo.
 
 The MAID task texts are German on purpose: they are read by mappers in Berlin.
 
 `data/` and `output/` are not versioned.
+
+## Corrections in TILDA before the OSM edit
+
+`cycleway-oneway-corrections.csv` lists the ids of all ways of the automatic and MAID cases (2,357, extract 2026-11-08). tilda-geo downloads it from GitHub (`main`) on every processing run and corrects these ways before it derives the direction, the same change as `auto__tracks-explicit.osc` (`processing/pseudoTags/cyclewayOnewayCorrectionsSource/` in tilda-geo). So TILDA shows the right directions while the OSM edit is still running.
+
+- Only the ids: tilda-geo derives the change itself.
+- Ways last edited on or after 2026-11-22 count as corrected in OSM and are used as tagged, also false positives of the list. The script leaves them out of the CSV, tilda-geo checks the same date (`PSEUDO_TAG_CUTOFF` and `CUTOFF` in `apply_cycleway_oneway_correction.lua`).
+- Regenerate about once a week with `scripts/run.sh` and commit the CSV. The list shrinks as the OSM edit goes on; the next TILDA run picks it up.
 
 ## Files
 
@@ -75,5 +83,6 @@ The MAID task texts are German on purpose: they are read by mappers in Berlin.
 | `output/decisions.csv`, `output/decisions.json` | decision and reason per way, counts |
 | `output/history_check.csv` | history per way: first FMC edit, first `yes`, who set it |
 | `output/R*.csv` | tag rules with risk reasons and detail tags |
+| `cycleway-oneway-corrections.csv` | way ids TILDA corrects before the OSM edit, **checked in** |
 | `g2_bikelanes_diff_ids.txt` | ways from the road-side diff (tilda-geo, `road_side_of_lane`), to count the coverage |
 | `samples/results.md` | sample of 66 ways checked in the OSM history |
