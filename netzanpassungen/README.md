@@ -17,12 +17,15 @@ python netzanpassungen/kv_entries.py berlin --out eintraege.json         # nur l
 python netzanpassungen/test_match_cycle_routes.py         # Selbsttests
 python netzanpassungen/test_apply_app_result.py
 python netzanpassungen/test_kv_entries.py
+python netzanpassungen/test_bauwerke.py
+python netzanpassungen/test_write_app_input.py
 ```
 
 | Skript (bisher) | Aufgabe |
 |---|---|
 | `match_cycle_routes.py` (neu) | Schritt 2: Radfernwege automatisch auf Rohnetz und Detailnetz legen, in Abschnitte zerlegen |
 | `write_app_input.py` (`export_app_daten.py`) | schreibt `netzanpassungen_<gebiet>.json` für die App |
+| `bauwerke.py` (neu) | findet die Knoten an Brücken und Tunneln für die Prüfung „Brücken und Tunnel“ (von `write_app_input.py` benutzt) |
 | `apply_app_result.py` (`import_app_export.py`) | Schritt 3: Einträge der App auf `ren_netz_auto.gpkg` anwenden, Ergebnisnetze, Kartierung und `virtuelle_knoten.gpkg` schreiben |
 | `kv_entries.py` (neu) | liest alle Einträge eines Gebiets aus der KV-Datenbank der App (nur lesend, Zugang aus `.env`: `VITE_KV_BASE_URL`, `VITE_KV_PROJECT`, `VITE_KV_API_KEY`, siehe `.env.example`) |
 
@@ -52,6 +55,7 @@ Der Schlüssel `ref` ist der der App (`line_refs` in `write_app_input.py`, entsp
 | KV-Datenbank der App (`read_registry()`, `VITE_KV_*` in `.env`) | die 53 virtuellen Knoten von 2025: nur um an ihnen keinen Knotenvorschlag zu machen; sie stehen nicht in der Datei |
 | `ren-network/output/virtuelle_knoten_vorschlaege.gpkg` | Knotenvorschläge von Schritt 1 |
 | `data/netzquellen/touristisches_radnetz.gpkg` | Radfernwege, aus dem Drive (`data/download_inputs.py`, läuft zu Beginn) |
+| `data/Berlin Straßennetz Bauwerke.geojson` | Bauwerke (Brücken, Tunnel) aus dem Datensatz „Straßennetz Bauwerke“ der Senatsverwaltung (WFS `https://gdi.berlin.de/services/wfs/detailnetz`, Layer `b_bauwerke`, Stand 2026-10-08, DL-DE/BY-2.0), eingecheckt; erneuern mit `python data/download_bauwerke.py`. Nur für `bauwerk_knoten`: Fehlt die Datei, entfällt die Ebene mit einer Warnung |
 | `data/Berlin Bezirke.gpkg` | nur mit `--bezirk` |
 
 Ausgabe in `netzanpassungen/output/`:
@@ -63,6 +67,7 @@ Ausgabe in `netzanpassungen/output/`:
   - `radfernwege`: `name`
   - `radfernweg_abschnitte`: die Abschnitte von Schritt 2 mit Listen in `kanten` und `kandidaten`
   - `luecken`: die Abschnitte mit `zustand = luecke` ab 20 m Länge (Arbeitsliste der App), mit `id` (= Abschnitts-Id), `name` und `laenge_m`. Der Abgleich ist nicht mehr „10 m um irgendeine Kante“ (bisher `find_gaps`), sondern die Zuordnungsregel von Schritt 2.
+  - `bauwerk_knoten` (optional): Knoten an Brücken und Tunneln, an denen eine Kante unter der Brücke (bei Tunneln über dem Tunnel) mit den Kanten auf dem Bauwerk an einem Knoten zusammenläuft, sodass beim Routen die Ebene wechseln könnte. Punkte (Lage des Knotens), nur Knoten mit mindestens einer REN+-Kante, ein Punkt je Knoten (trifft ein Knoten mehrere Bauwerke, gilt das, an dem er „verbunden“ ist, sonst das längste); Berlin 2026-11-22: 69. Felder: `knoten` (Knoten-ID wie in `knoten`), `bauwerk` (Name), `art` (`BR`, `FBR`, `EBBR`, `TU`, `FTU`), `nr` (Bauwerksnummer oder leer), `ebenen_verschieden` (die Kanten auf dem Bauwerk und die Kanten, die es dort queren, haben unterschiedliche `verkehrsebene` im Detailnetz, beide bekannt), `vorschlag_unten` (Kanten-Schlüssel der App mit `|`, `ren:<ref>` / `detailnetz:<ref>`: bei Brücken die Kanten am Knoten, die das Bauwerk queren, bei Tunneln die Kanten am Knoten, die im Bauwerk liegen; kann leer sein). Verfahren (EPSG:25833, Pufferzone 8 m um die Bauwerkslinie): Eine Kante liegt **auf** dem Bauwerk, wenn sie mindestens 5 m und mindestens 50 % der Bauwerkslänge oder 70 % ihrer eigenen Länge in der Zone verläuft; sie **quert** es, wenn sie die Linie mehr als 5 m von deren Enden trifft und nicht „auf“ liegt. Kandidat ist ein Knoten, an dem eine Kante auf dem Bauwerk und eine querende Kante zusammenlaufen („verbunden“), oder der höchstens 6 m neben der Linie und mehr als 12 m von ihren Enden liegt, mit einer Kante, die höchstens 10 m in der Zone verläuft („mitten“). Die Werte stehen oben in `bauwerke.py`.
   - `knoten_vorschlaege` (Test): Punkte, an denen ein Radfernweg eine Detailnetzkante kreuzt, mindestens 15 m von jedem Knoten entfernt (Kreuzungen auf derselben Kante unter 10 m werden zusammengelegt). Felder: `element_nr`, `strassenname`, `verkehrsebene`, `routen`, `winkel_grad`, `steil` (Schnittwinkel ab 30°), `luecke_nah` (Anfang oder Ende einer Lücke innerhalb 25 m), `station_m`, `abstand_ende_m`.
 - `pruefliste_<gebiet>.csv`: Kantenenden, die mehr als 0,5 m neben ihrem Knoten liegen (Stand 2026-11-11: eins)
 
@@ -74,6 +79,7 @@ Mit `--bezirk` bleiben Kanten, Knoten und Radfernwege bis 200 m über die Bezirk
 
 - `ren-network/output/ren_netz.gpkg` (**Kunde**: Originallage, mit Radfernwegen, Richtung, Fahrbahn, Ausschluss, alles markiert) und `ren_netz_korrigiert.gpkg` (**Matching und Mapping**: zusätzlich die Lagekorrekturen mit `lage_korrigiert` und Kennzahlen), jeweils mit `.geojson` und der Kartierung (`ren_netz_kartierung.gpkg`, `ren_netz_kartierung_korrigiert.gpkg`: ohne `bearbeitet_2025 = ja` und ohne ausgeschlossene Kanten). Spalten, Prüfungen (5 cm gegen `original_coordinates`, Wiederholung des Protokolls) und die Verwendung: [`ren-network/README.md`](../ren-network/README.md#ergebnisnetze-schritt-3).
 - `ren-network/output/korrekturen_konflikte.csv` und `radfernweg_zuordnungen.csv`
+- `netzanpassungen/output/bauwerk_knoten.gpkg` (Layer `bauwerk_knoten`): die Knoten `<Knoten-ID>-unten` der Prüfung „Brücken und Tunnel“, siehe unten
 - `netzanpassungen/output/virtuelle_knoten.gpkg` (Layer `Virtuelle-Knotenpunkte`, EPSG:25833): jeder nummerierte Knoten der App, aktiv und gelöscht, darunter die 53 von 2025 (aus ihren Einträgen, `herkunft = 2025`, mit `id_rvn_2025`), in den Spalten des Verzeichnisses (`Knotenpunkt-ID`, `ist_virtuell`, `status`, `angelegt_am`, `geloescht_am`, `grund`, `id_rvn_2025`, `quelle`, `kommentar`) plus `herkunft` (`2025` | `gezeichnet` | `luecke` | `teilung` | `vorschlag`), `app_eintrag`, `vorschlag_id`, `traeger_netz`, `traeger_element_nr`, `station_m`. Das ist die Datei, die `processing/` und `knotenpunkte/` über `read_active()` aus `data/virtuelle_knotenpunkte.py` lesen; fehlt sie, brechen sie mit dem Hinweis ab, erst Schritt 3 laufen zu lassen. Gezeichnete Kanten stehen außerdem in `netzanpassungen/output/touristische_kanten.gpkg` (Layer `touristische_kanten`: `entry_id`, `element_nr`, `von_knoten`, `bis_knoten` als Text, `quelle`, `strassenname`, `routen_fernradweg`, `kommentar`). Beide Dateien entstehen bei jedem Lauf neu aus den Einträgen (mit `--ohne-export` bleiben sie unangetastet; fehlt `virtuelle_knoten.gpkg`, entsteht sie mit den 53).
 
 **Virtuelle Knoten** ([Regeln](../data/VIRTUELLE-KNOTENPUNKTE.md)). Die App ist der einzige Ort, an dem virtuelle Knoten entstehen, verschoben oder gelöscht werden, und sie gibt ihre Nummern (`nummer`, vier Ziffern, Zähler `zaehler:virtuelle-knoten` in der KV-Datenbank). Schritt 3:
@@ -85,6 +91,13 @@ Mit `--bezirk` bleiben Kanten, Knoten und Radfernwege bis 200 m über die Bezirk
 - Kantenenden der App: `k:<id>` sind Knoten der Eingabe (alte Kennungen von 2025 wie `k:V1112` lösen über `id_rvn_2025` auf), `v:<Eintrag>` Knoten der App; ein Eintrag der 53 von 2025 löst dabei auf seine Nummer auf (die App nennt Einträge mit dem letzten Teil ihrer KV-Id).
 
 Berlin, 2026-11-19 (KV-Datenbank, Gebiet berlin): 39 Knoten in der App, keiner hat schon eine Nummer, deshalb 0 Knoten der App in `virtuelle_knoten.gpkg` (nur die 53), 13 von 40 gezeichneten Kanten im Netz, 340 offene Vorschläge. Probelauf mit Nummern wie bei der einmaligen Nummerierung der App (älteste zuerst, ab `0054`): 36 aktive Knoten der App, 7 Kanten in 14 Teilkanten geteilt, alle 40 gezeichneten Kanten im Netz, 92 Knoten in `virtuelle_knoten.gpkg` (53 + 39, davon 3 gelöscht).
+
+**Prüfung „Brücken und Tunnel“** (`bridge_check`, Tag `bauwerk`, KV-Id `{gebiet}:bauwerk:bw-<Knoten-ID, wie `correctionEntryId` kodiert>`; `kv_entries.py` liest sie wie alle Einträge über das Gebiets-Tag, Schritt 1 ignoriert sie wie `route_check`). Ein Eintrag je Knoten aus `bauwerk_knoten`: `knoten` (`k:<Knoten-ID>`), `bauwerk` (`name`, `art`), `ergebnis` (`ok` | `getrennt`), bei `getrennt` `unten` (Kanten, deren Ende an diesem Knoten auf der unteren Ebene liegt), `kanten` (alle Kanten am Knoten bei der Entscheidung), optional `kommentar`, `geloescht`. Schritt 3 wendet sie als Letztes an, wenn Kanten und ihre Enden feststehen (nach Teilung und Übernahme der Vorschläge):
+
+- `ok` und gelöschte Einträge ändern nichts.
+- `getrennt`: Jede REN+-Kante in `unten` (`ren:<ref>`; Detailnetz-Schlüssel sind keine REN+-Kanten und bleiben unbeachtet), die am Knoten endet, bekommt dort den neuen Knoten `<Knoten-ID>-unten`: in `von_knoten`, `bis_knoten`, `knoten_anfang` und `knoten_ende`, wo sie den Knoten nennen. Ist die Kante geteilt, gilt das Teilstück am Knoten (gefunden über `ursprung_element_nr`). Die `element_nr` bleibt. Der neue Knoten liegt an derselben Stelle wie der Knoten, die Kantenenden bleiben darauf liegen, `<Knoten-ID>` und `<Knoten-ID>-unten` werden nicht wieder zusammengelegt. Er steht in `netzanpassungen/output/bauwerk_knoten.gpkg` (Layer `bauwerk_knoten`, EPSG:25833: `id`, `ursprung_knoten`, `bauwerk`, `art`, `eintrag_id`), **nicht** in `virtuelle_knoten.gpkg`, deren Nummern vierstellig sein müssen. Die Datei entsteht bei jedem Lauf neu.
+- Alle Kanten am Knoten (beide Ebenen) bekommen die Spalten `bauwerk` (Name) und `bauwerk_lage` (`oben` | `unten`), dazu einen Satz in `aenderung`; andere Kanten lassen beide leer.
+- Gibt es eine Kante in `unten` nicht mehr, oder endet sie nicht mehr am Knoten, oder gibt es den Knoten nicht, steht ein Konflikt (`art = bridge_check`) in `korrekturen_konflikte.csv`, und die Kante (bzw. der Eintrag) wird übersprungen; die übrigen Kanten des Eintrags werden getrennt.
 
 **Zuordnungen** (`section_assignment`, ein Eintrag je Abschnitt aus `radfernweg_abschnitte.gpkg`):
 

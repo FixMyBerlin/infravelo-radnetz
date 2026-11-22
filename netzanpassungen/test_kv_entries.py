@@ -68,6 +68,15 @@ class KvEntriesTest(unittest.TestCase):
         kv_entries.fetch_entries("berlin", env=ENV, get_json=fake, page_size=2)
         self.assertIn("cursor=2", fake.calls[1][0])
 
+    def test_reads_the_entries_of_every_kind_tag_of_the_area(self):
+        def tagged(index, kind, tag):
+            return {**entry(index, kind=kind), "id": f"berlin:{tag}:{index}", "tags": ["berlin", tag]}
+        items = [tagged(1, "route_check", "routenpruefung"), tagged(2, "bridge_check", "bauwerk"),
+                 {**tagged(3, "bridge_check", "bauwerk"), "tags": ["neukoelln", "bauwerk"]}]
+        result = kv_entries.fetch_entries("berlin", env=ENV, get_json=FakeKv(items, 500))
+        self.assertEqual([(e["id"], e["data"]["kind"]) for e in result["entries"]],
+                         [("berlin:routenpruefung:1", "route_check"), ("berlin:bauwerk:2", "bridge_check")])
+
     def test_empty_area(self):
         result = kv_entries.fetch_entries("leer", env=ENV, get_json=FakeKv([entry(1)], 500))
         self.assertEqual(result["entries"], [])

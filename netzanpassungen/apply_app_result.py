@@ -34,6 +34,10 @@ Einträge des Exports (Einträge mit geloescht = true werden übersprungen):
   einem aktiven Knoten der App ohne vorschlag_id gilt als von diesem Knoten übernommen (keine erneute Teilung).
   Eine Korrektur, die auf dem Original steht (coordinates = original_coordinates, attribute leer, z. B. nach
   „zurückgesetzt“), ändert nichts und wird übersprungen.
+- bridge_check: Prüfung „Brücken und Tunnel“ eines Knotens (Tag `bauwerk`). `ok` ändert nichts. `getrennt`: die Enden der
+  REN+-Kanten in `unten` am Knoten bekommen den neuen Knoten `<Knoten>-unten` (gleiche Lage, steht in
+  netzanpassungen/output/bauwerk_knoten.gpkg), alle Kanten am Knoten die Spalten bauwerk und bauwerk_lage (oben | unten). Wird als Letztes
+  angewendet (apply_bridge_checks); eine fehlende Kante oder ein fehlender Knoten ist ein Konflikt.
 - Nach dem Abspielen liegt jedes Kantenende, das einen Knoten nennt (virtuell oder Detailnetz) und höchstens 3 m
   daneben liegt, genau auf dem Knoten (beide Ergebnisnetze). Treffen sich alle Kanten eines Knotens weiter weg an
   einem Punkt, bleibt alles, und der Knoten steht in korrekturen_konflikte.csv (eine Person entscheidet).
@@ -86,6 +90,7 @@ OUTPUT:
 - netzanpassungen/output/virtuelle_knoten.gpkg (Layer Virtuelle-Knotenpunkte: die Spalten des Verzeichnisses
   plus herkunft, app_eintrag, vorschlag_id, traeger_netz, traeger_element_nr, station_m)
 - netzanpassungen/output/touristische_kanten.gpkg (Layer touristische_kanten)
+- netzanpassungen/output/bauwerk_knoten.gpkg (Layer bauwerk_knoten: die Knoten `<Knoten>-unten` der Prüfung Brücken und Tunnel)
 
 Aufruf:
     python netzanpassungen/apply_app_result.py                       # Einträge aus der KV-Datenbank, Gebiet berlin
@@ -156,11 +161,17 @@ NODE_END_SNAP_M = 3.0
 NODE_MEETING_SPREAD_M = 1.0
 NEW_EDGES_PATH = APP_OUTPUT_DIR / "touristische_kanten.gpkg"
 NEW_EDGES_LAYER = "touristische_kanten"
+# Brücken und Tunnel (bridge_check): the new node of the lower level is written to its own file, not to the registry of
+# virtual nodes (its id `<Knoten>-unten` is no four-digit number)
+BRIDGE_NODES_NAME = "bauwerk_knoten.gpkg"
+BRIDGE_NODES_LAYER = "bauwerk_knoten"
+LOWER_NODE_SUFFIX = "-unten"
+NODE_COLUMNS = ("von_knoten", "bis_knoten", "knoten_anfang", "knoten_ende")
 
 # Spalten, die beide Ergebnisnetze zusätzlich zum Netz aus Schritt 2 tragen (Reihenfolge der Datei)
 MARK_COLUMNS = ["verkehrsrichtung_original", "verkehrsrichtung_korrigiert", "fahrbahn_typ", "fahrbahn_gruppe",
                 "ausgeschlossen", "ausschluss_grund", "eintrag_ids", "anzahl_vorgaenge", "letzte_aenderung_am",
-                "letzte_aenderung_von", "korrektur_kommentar", "aenderung", "element_nr_eingabe"]
+                "letzte_aenderung_von", "korrektur_kommentar", "aenderung", "element_nr_eingabe", "bauwerk", "bauwerk_lage"]
 # Nur im korrigierten Netz
 LAGE_COLUMNS = ["lage_korrigiert", "hausdorff_m", "max_verschiebung_m", "differenzflaeche_m2", "laenge_alt_m", "laenge_neu_m"]
 CONFLICT_COLUMNS = ["grund", "art", "eintrag_id", "ref", "element_nr", "abweichung_m", "bearbeitet_von", "bearbeitet_am"]
@@ -298,6 +309,8 @@ def blank_correction_columns(network):
     network["letzte_aenderung_am"] = None
     network["letzte_aenderung_von"] = None
     network["korrektur_kommentar"] = None
+    network["bauwerk"] = None
+    network["bauwerk_lage"] = None
     for column in ("quelle", "grund_aufnahme", "routen_fernradweg", "routen_quelle"):
         if column not in network.columns:
             network[column] = "radnetz" if column == "quelle" else None
@@ -1275,6 +1288,114 @@ def add_drawn_edges(network, original_geometry, new_edges, entries, extra_routes
     return network, original_geometry, labels
 
 
+def bridge_conflict(entry, reason, ref=None, element_nr=None):
+    return {"grund": reason, "art": "bridge_check", "eintrag_id": entry.get("id"), "ref": ref, "element_nr": element_nr,
+            "abweichung_m": None, "bearbeitet_von": entry.get("updated_by"), "bearbeitet_am": entry.get("updated_at")}
+
+
+def apply_bridge_checks(network, entries, parts, labels_of_ref, app_nodes, node_positions, known_ids):
+    """Prüfung „Brücken und Tunnel“ (bridge_check): `getrennt` gibt den Kantenenden der unteren Ebene einen eigenen Knoten.
+
+    Jede REN+-Kante in `unten` (`ren:<ref>`), deren Ende am Knoten liegt, bekommt dort den Knoten `<Knoten>-unten` (an
+    derselben Stelle; von_knoten, bis_knoten, knoten_anfang, knoten_ende, wo sie den Knoten nennen; die element_nr bleibt).
+    Alle Kanten am Knoten bekommen `bauwerk` (Name) und `bauwerk_lage` (`oben` | `unten`). `ok` ändert nichts, ein gelöschter
+    Eintrag zählt nicht. Eine Kante, die es nicht mehr gibt oder die nicht mehr am Knoten endet, und ein Knoten, den es nicht
+    gibt, sind Konflikte; die Kante wird dann übersprungen. Das Netz ist am Ende von Schritt 3 (nach Teilung und
+    Übernahme der Vorschläge): eine geteilte Kante findet man über `ursprung_element_nr`.
+    `node_positions`: Knoten-ID -> Punkt (Detailnetz, virtuelle Knoten, Vorschläge). Gibt (Netz, neue Knoten, Konflikte,
+    Zähler) zurück; neue Knoten: Zeilen mit id, ursprung_knoten, bauwerk, art, eintrag_id und geometry."""
+    network = network.copy()
+    new_nodes, conflicts = [], []
+    stats = {"ok": 0, "getrennt": 0, "getrennte_kanten": 0, "konflikte": 0}
+    checks = [entry for entry in active_entries(entries, "bridge_check") if not entry["data"].get("geloescht")]
+    if not checks:
+        return network, new_nodes, conflicts, stats
+    columns = [column for column in NODE_COLUMNS if column in network.columns]
+    by_node = defaultdict(set)  # node -> labels of the edges that name it at one of their ends
+    for label, values in zip(network.index, zip(*(network[column].map(node_text) for column in columns))):
+        for value in values:
+            if has_text(value):
+                by_node[value].add(label)
+    for entry in sorted(checks, key=lambda item: item.get("created_at") or ""):
+        data = entry["data"]
+        if data.get("ergebnis") != "getrennt":
+            stats["ok"] += 1
+            continue
+        stats["getrennt"] += 1
+        structure = data.get("bauwerk") or {}
+        name = structure.get("name") or ""
+        found = []
+
+        def report(reason, ref=None, element_nr=None):
+            found.append(bridge_conflict(entry, reason, ref, element_nr))
+
+        node = app_nodes.node_of_key(data.get("knoten") or "", known_ids)
+        node = app_nodes.accepted.get(node, node)
+        point = node_positions.get(node) if node else None
+        if point is None:
+            report(f"Brücken und Tunnel: Knoten {data.get('knoten')} gibt es nicht (mehr), die Ebenen sind dort nicht getrennt "
+                   f"({name})", ref=data.get("knoten"))
+            conflicts += found
+            continue
+        at_node = sorted(by_node.get(node, ()))
+        lower = {}  # label -> the keys of `unten` that name it
+        for key in data.get("unten") or []:
+            kind, _, ref = key.partition(":")
+            if kind != "ren":
+                continue  # Detailnetz edges are no REN+ edges: nothing to change
+            item = parts.by_ref.get(ref)
+            if item is None:
+                report(f"Brücken und Tunnel: Kante {key} unten am Knoten {node} gibt es nicht mehr ({name})", ref=ref)
+                continue
+            label = labels_of_ref[ref]
+            candidates = [label] if label in network.index else [
+                other for other in network.index if network.at[other, "ursprung_element_nr"] == item["element_nr"]]
+            ending = [other for other in candidates if other in at_node]
+            if not ending:
+                report(f"Brücken und Tunnel: Kante {key} unten endet nicht mehr am Knoten {node} ({name})",
+                       ref=ref, element_nr=item["element_nr"])
+                continue
+            for other in ending:
+                lower.setdefault(other, []).append(key)
+        conflicts += found
+        stats["konflikte"] += len(found)
+        if not lower:
+            continue
+        new_node = f"{node}{LOWER_NODE_SUFFIX}"
+        for label in at_node:
+            network.at[label, "bauwerk"] = name
+            network.at[label, "bauwerk_lage"] = "unten" if label in lower else "oben"
+            add_entry_id(network, label, entry["id"])
+        for label in lower:
+            for column in columns:
+                if node_text(network.at[label, column]) == node:
+                    network.at[label, column] = new_node
+            by_node[node].discard(label)
+            by_node[new_node].add(label)
+            add_change(network, label, f"Am Bauwerk {name} ({structure.get('art')}) vom Knoten {node} getrennt: "
+                                       f"Ende an der unteren Ebene, neuer Knoten {new_node}")
+            stats["getrennte_kanten"] += 1
+        for label in at_node:
+            if label not in lower:
+                add_change(network, label, f"Am Bauwerk {name} ({structure.get('art')}): obere Ebene am Knoten {node}, "
+                                           f"untere Ebene getrennt (Knoten {new_node})")
+        new_nodes.append({"id": new_node, "ursprung_knoten": node, "bauwerk": name, "art": structure.get("art"),
+                          "eintrag_id": entry["id"], "geometry": point})
+    return network, new_nodes, conflicts, stats
+
+
+def write_bridge_nodes(path, new_nodes):
+    """bauwerk_knoten.gpkg: the new nodes of the lower level; without any, an old file is removed."""
+    path = Path(path)
+    if not new_nodes:
+        path.unlink(missing_ok=True)
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    frame = gpd.GeoDataFrame(new_nodes, geometry="geometry", crs=CRS)
+    path.unlink(missing_ok=True)
+    frame.to_file(path, layer=BRIDGE_NODES_LAYER, driver="GPKG")
+
+
 def ren_end_cuts(network, excluded_labels):
     """T-junctions inside the REN+ network: {Indexmarke der durchgehenden Kante: [(Station, Knoten-ID, Punkt)]}.
 
@@ -1671,11 +1792,11 @@ def load_entries(export_path=None, gebiet=None):
 
 def run(export_path, ren_path=AUTO_PATH, output_dir=OUTPUT_DIR, virtual_nodes_path=VIRTUAL_NODES_PATH,
         new_edges_path=NEW_EDGES_PATH, detail_path=None, sections_path=SECTIONS_PATH, registry_path=None,
-        proposals_path=None, official_nodes=None):
+        proposals_path=None, official_nodes=None, bridge_nodes_path=None):
     """Der ganze Schritt 3. `export_path`: JSON-Datei wie der App-Export oder schon gelesene Einträge
     ({gebiet, exported_at, entries}); None: ohne App-Einträge. `official_nodes`: Detailnetzknoten (Knotenpunkt-ID,
     geometry); Kantenenden, die sie nennen, rücken wie bei virtuellen Knoten auf sie. Gibt Zähler und Konflikte zurück
-    (für Tests)."""
+    (für Tests). `bridge_nodes_path`: bauwerk_knoten.gpkg (Standard: neben `new_edges_path`)."""
     export = export_path if isinstance(export_path, dict) else load_entries(export_path)
     entries = export["entries"]
     logging.info(f"Export {export.get('gebiet')} vom {export.get('exported_at')}: {len(entries)} Einträge")
@@ -1777,6 +1898,19 @@ def run(export_path, ren_path=AUTO_PATH, output_dir=OUTPUT_DIR, virtual_nodes_pa
     if official_nodes is not None:
         node_points.update(zip(official_nodes[ren.NODE_ID_COLUMN].astype(str), official_nodes.geometry))
     node_points.update(zip(active_nodes[vk.ID_COLUMN].astype(str), active_nodes.geometry))
+    # Brücken und Tunnel: runs last of the edits, so the edges and their ends are final; the node of the lower level lies
+    # where the node is, so the snapping below keeps both together
+    node_positions = dict(node_points)
+    node_positions.update(zip(proposals["id"].astype(str), proposals.geometry))
+    corrected, bridge_nodes, bridge_conflicts, bridge_stats = apply_bridge_checks(
+        corrected, entries, parts, {item["ref"]: labels[item["row"]] for item in parts.items}, app_nodes, node_positions,
+        known_ids | set(node_positions))
+    conflicts += bridge_conflicts
+    stats.update({f"bauwerk_{key}": value for key, value in bridge_stats.items()})
+    node_points.update({node["id"]: node["geometry"] for node in bridge_nodes})
+    logging.info(f"Brücken und Tunnel: {bridge_stats['ok']} OK, {bridge_stats['getrennt']} getrennt "
+                 f"({bridge_stats['getrennte_kanten']} Kantenenden auf den Knoten der unteren Ebene, "
+                 f"{bridge_stats['konflikte']} Konflikte)")
     corrected, original_geometry, stats["enden_auf_knoten_gelegt"], node_conflicts = snap_ends_to_virtual_nodes(
         corrected, original_geometry, node_points)
     conflicts += node_conflicts
@@ -1792,6 +1926,8 @@ def run(export_path, ren_path=AUTO_PATH, output_dir=OUTPUT_DIR, virtual_nodes_pa
     else:
         write_virtual_nodes(Path(virtual_nodes_path), all_nodes)
         write_new_edges(Path(new_edges_path), new_edges)
+        write_bridge_nodes(Path(bridge_nodes_path) if bridge_nodes_path else Path(new_edges_path).parent / BRIDGE_NODES_NAME,
+                           bridge_nodes)
         logging.info(f"Virtual nodes: {len(all_nodes)} ({all_nodes['herkunft'].value_counts(dropna=False).to_dict()}, "
                      f"{all_nodes['status'].value_counts().to_dict()}) to {virtual_nodes_path}; proposals: "
                      f"{stats['vorschlaege_uebernommen']} accepted, {stats['vorschlaege_offen']} open; "

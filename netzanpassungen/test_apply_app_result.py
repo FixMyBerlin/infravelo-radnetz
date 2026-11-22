@@ -1220,5 +1220,148 @@ class TJunctionTest(unittest.TestCase):
         self.assertIn("keine Teilkante liegt ganz zwischen 0 und 50 m", reasons["tC"])
 
 
+BRIDGE_NODE = "20000002"
+
+
+def bridge_network():
+    """Edges at one node (20000002) of a bridge: A and B lie on the bridge, C and D run under it; E is far away."""
+    rows = [
+        ("20000001_20000002.01", MultiLineString([line((0, 3000), (100, 3000))])),
+        ("20000002_20000003.01", MultiLineString([line((100, 3000), (200, 3000))])),
+        ("20000004_20000002.01", MultiLineString([line((100, 2900), (100, 3000))])),
+        ("20000002_20000005.01", MultiLineString([line((100, 3000), (100, 3100))])),
+        ("20000009_20000010.01", MultiLineString([line((500, 3000), (600, 3000))])),
+    ]
+    return gpd.GeoDataFrame(
+        {"lfd_nr": list(range(1, len(rows) + 1)), "element_nr": [r[0] for r in rows], "bearbeitet_2025": ["nein"] * len(rows),
+         "laenge_m": [round(r[1].length, 1) for r in rows], "element_nr_berechnet": ["nein"] * len(rows),
+         "von_knoten": pd.array([int(r[0].split("_")[0]) for r in rows], dtype="Int64"),
+         "bis_knoten": pd.array([int(r[0].split("_")[1].split(".")[0]) for r in rows], dtype="Int64"),
+         "knoten_anfang": [None] * len(rows), "knoten_ende": [None] * len(rows),
+         "bezirksnummer": pd.array([1] * len(rows), dtype="Int64"), "strassenname": [None] * len(rows),
+         "radverkehrsnetz": ["Radvorrangnetz"] * len(rows), "strassenklasse": [None] * len(rows),
+         "netz_quellen": ["radverkehrsnetz"] * len(rows), "in_detailnetz": ["ja"] * len(rows),
+         "hauptverkehrsstrasse": ["nein"] * len(rows), "anteil_2025": [0.0] * len(rows), "verkehrsrichtung": ["B"] * len(rows),
+         "quelle": ["radnetz"] * len(rows), "grund_aufnahme": [None] * len(rows),
+         "routen_fernradweg": [None] * len(rows), "routen_quelle": [None] * len(rows)},
+        geometry=[r[1] for r in rows], crs=imp.CRS)
+
+
+def bridge_check(node="k:" + BRIDGE_NODE, result="getrennt", lower=("ren:20000004_20000002.01", "ren:20000002_20000005.01"),
+                 **fields):
+    edges = ["ren:20000001_20000002.01", "ren:20000002_20000003.01", "ren:20000004_20000002.01", "ren:20000002_20000005.01"]
+    data = {"kind": "bridge_check", "knoten": node, "bauwerk": {"name": "Teststeg", "art": "BR"}, "ergebnis": result,
+            "kanten": edges, **fields}
+    if result == "getrennt":
+        data["unten"] = list(lower)
+    return stored(f"test:bauwerk:bw-{node.removeprefix('k:')}", data)
+
+
+class BridgeCheckTest(unittest.TestCase):
+    """The check „Brücken und Tunnel“: `getrennt` gives the ends of the lower level their own node `<id>-unten`."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.dir = Path(self.tmp.name)
+        bridge_network().to_file(self.dir / "ren_netz_auto.gpkg", layer="ren_netz", driver="GPKG")
+        sections = gpd.GeoDataFrame({"id": ["route-t@0-100"], "radfernweg": ["Route T"], "kanten": [""]},
+                                    geometry=[line((0, 500), (100, 500))], crs=imp.CRS)
+        sections.to_file(self.dir / "radfernweg_abschnitte.gpkg", layer=imp.SECTIONS_LAYER, driver="GPKG")
+        part_detailnetz().to_file(self.dir / "detailnetz.gpkg", driver="GPKG")
+        build_registry().to_file(self.dir / "registry.gpkg", layer=imp.VIRTUAL_NODES_LAYER, driver="GPKG")
+        build_proposals().iloc[0:0].to_file(self.dir / "proposals.gpkg", layer=imp.ren.PROPOSALS_LAYER, driver="GPKG")
+        self.official = gpd.GeoDataFrame({imp.ren.NODE_ID_COLUMN: [BRIDGE_NODE]}, geometry=[Point(X0 + 100, Y0 + 3000)], crs=imp.CRS)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def run_import(self, entries):
+        export = {"gebiet": "test", "exported_at": "x", "entries": entries}
+        stats, conflicts = imp.run(export, ren_path=self.dir / "ren_netz_auto.gpkg", output_dir=self.dir / "out",
+                                   virtual_nodes_path=self.dir / "app-output" / "virtuelle_knoten.gpkg",
+                                   new_edges_path=self.dir / "app-output" / "touristische_kanten.gpkg",
+                                   detail_path=self.dir / "detailnetz.gpkg", sections_path=self.dir / "radfernweg_abschnitte.gpkg",
+                                   registry_path=self.dir / "registry.gpkg", proposals_path=self.dir / "proposals.gpkg",
+                                   official_nodes=self.official)
+        networks = {name: gpd.read_file(self.dir / "out" / name, layer="ren_netz").set_index("element_nr") for name in
+                    ("ren_netz.gpkg", "ren_netz_korrigiert.gpkg")}
+        return stats, conflicts, networks
+
+    def test_split_moves_the_end_of_the_lower_level_and_marks_both_levels(self):
+        stats, conflicts, networks = self.run_import([bridge_check()])
+        self.assertEqual([c for c in conflicts if c["art"] == "bridge_check"], [])
+        self.assertEqual((stats["bauwerk_getrennt"], stats["bauwerk_getrennte_kanten"]), (1, 2))
+        new_node = f"{BRIDGE_NODE}-unten"
+        for name, network in networks.items():
+            self.assertEqual(network.loc["20000004_20000002.01", "bis_knoten"], new_node, name)
+            self.assertEqual(network.loc["20000004_20000002.01", "von_knoten"], "20000004", name)
+            self.assertEqual(network.loc["20000002_20000005.01", "von_knoten"], new_node, name)
+            self.assertEqual(network.loc["20000001_20000002.01", "bis_knoten"], BRIDGE_NODE, name)  # upper level stays
+            self.assertEqual(network.loc["20000002_20000003.01", "von_knoten"], BRIDGE_NODE, name)
+            self.assertEqual(network["bauwerk_lage"].dropna().to_dict(), {
+                "20000001_20000002.01": "oben", "20000002_20000003.01": "oben", "20000004_20000002.01": "unten",
+                "20000002_20000005.01": "unten"}, name)  # the edge elsewhere stays empty
+            self.assertEqual(network.loc["20000001_20000002.01", "bauwerk"], "Teststeg", name)
+            self.assertTrue(pd.isna(network.loc["20000009_20000010.01", "bauwerk"]), name)
+            self.assertIn("vom Knoten 20000002 getrennt", network.loc["20000004_20000002.01", "aenderung"], name)
+            self.assertIn("test:bauwerk:bw-20000002", network.loc["20000004_20000002.01", "eintrag_ids"], name)
+        # the node of the lower level lies where the node lies; the edge ends stay on it
+        nodes = gpd.read_file(self.dir / "app-output" / imp.BRIDGE_NODES_NAME, layer=imp.BRIDGE_NODES_LAYER)
+        self.assertEqual(list(nodes["id"]), [new_node])
+        self.assertEqual(list(nodes["ursprung_knoten"]), [BRIDGE_NODE])
+        self.assertLess(nodes.geometry.iloc[0].distance(Point(X0 + 100, Y0 + 3000)), 1e-6)
+        lower = networks["ren_netz.gpkg"].loc["20000004_20000002.01"].geometry.geoms[0]
+        self.assertLess(Point(lower.coords[-1]).distance(nodes.geometry.iloc[0]), 1e-6)
+
+    def test_ok_changes_nothing(self):
+        stats, conflicts, networks = self.run_import([bridge_check(result="ok")])
+        self.assertEqual(stats["bauwerk_ok"], 1)
+        self.assertEqual([c for c in conflicts if c["art"] == "bridge_check"], [])
+        for name, network in networks.items():
+            self.assertEqual(set(network["von_knoten"]) | set(network["bis_knoten"]),
+                             {f"2000000{n}" for n in (1, 2, 3, 4, 5)} | {"20000009", "20000010"}, name)
+            self.assertTrue(network["bauwerk"].isna().all() and network["bauwerk_lage"].isna().all(), name)
+        self.assertFalse((self.dir / "app-output" / imp.BRIDGE_NODES_NAME).exists())
+
+    def test_deleted_check_changes_nothing(self):
+        _, _, networks = self.run_import([bridge_check(geloescht=True)])
+        self.assertTrue(networks["ren_netz.gpkg"]["bauwerk_lage"].isna().all())
+        self.assertFalse((self.dir / "app-output" / imp.BRIDGE_NODES_NAME).exists())
+
+    def test_an_edge_that_is_gone_or_no_longer_at_the_node_is_a_conflict(self):
+        # D is fine, C does not exist, E lies elsewhere (does not end at the node)
+        entry = bridge_check(lower=("ren:20000002_20000005.01", "ren:gibt-es-nicht", "ren:20000009_20000010.01"))
+        _, conflicts, networks = self.run_import([entry])
+        reasons = [c["grund"] for c in conflicts if c["art"] == "bridge_check"]
+        self.assertEqual(len(reasons), 2, reasons)
+        self.assertTrue(any("ren:gibt-es-nicht" in reason and "gibt es nicht mehr" in reason for reason in reasons), reasons)
+        self.assertTrue(any("ren:20000009_20000010.01" in reason and "endet nicht mehr am Knoten" in reason for reason in reasons), reasons)
+        network = networks["ren_netz.gpkg"]
+        self.assertEqual(network.loc["20000002_20000005.01", "von_knoten"], f"{BRIDGE_NODE}-unten")
+        self.assertEqual(network.loc["20000004_20000002.01", "bis_knoten"], BRIDGE_NODE)  # not named: stays on the upper level
+        self.assertEqual(network.loc["20000004_20000002.01", "bauwerk_lage"], "oben")
+        self.assertTrue(pd.isna(network.loc["20000009_20000010.01", "bauwerk_lage"]))
+
+    def test_a_node_that_does_not_exist_is_a_conflict(self):
+        _, conflicts, networks = self.run_import([bridge_check(node="k:99999999")])
+        reasons = [c["grund"] for c in conflicts if c["art"] == "bridge_check"]
+        self.assertEqual(len(reasons), 1, reasons)
+        self.assertIn("Knoten k:99999999 gibt es nicht", reasons[0])
+        self.assertTrue(networks["ren_netz.gpkg"]["bauwerk_lage"].isna().all())
+
+    def test_an_edge_split_at_a_virtual_node_is_found_by_its_origin(self):
+        node = stored("nB", {"kind": "virtual_node", "name": "0071", "name_vorschlag": "0071", "nummer": "0071",
+                             "lngLat": lnglat(100, 3040), "traeger": {"art": "ren", "ref": "20000002_20000005.01", "station_m": 40.0}})
+        _, conflicts, networks = self.run_import([node, bridge_check()])
+        self.assertEqual([c for c in conflicts if c["art"] == "bridge_check"], [])
+        network = networks["ren_netz.gpkg"]
+        pieces = network[network["ursprung_element_nr"] == "20000002_20000005.01"]
+        self.assertEqual(len(pieces), 2)
+        at_node = pieces[pieces["von_knoten"] == f"{BRIDGE_NODE}-unten"]
+        self.assertEqual(len(at_node), 1)  # only the piece at the node changes its end
+        self.assertEqual(at_node["bauwerk_lage"].iloc[0], "unten")
+        self.assertEqual(pieces[pieces["bis_knoten"] == "20000005"]["bauwerk_lage"].isna().all(), True)
+
+
 if __name__ == "__main__":
     unittest.main()

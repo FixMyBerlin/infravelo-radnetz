@@ -15,6 +15,11 @@ next_cursor}`; pages are read until next_cursor is empty.
 
 The three values come from the .env in the repo root (same names as in the app, see .env.example).
 
+Every entry carries the area tag next to the tag of its kind (`korrektur`, `zuordnung`, `routenpruefung`, `bauwerk`, …), so
+one read by area returns all kinds, the checks of the app included: `route_check` (tag `routenpruefung`) and `bridge_check`
+(tag `bauwerk`, KV id `{gebiet}:bauwerk:bw-<node id>`). Step 3 picks the kinds it needs by `data.kind`; `route_check` is ignored
+by steps 1 and 3, `bridge_check` by step 1 and applied by step 3.
+
 Result: the same shape as the app export „Alle Einträge“ (`{gebiet, exported_at, entries}`), so step 3
 treats both alike.
 

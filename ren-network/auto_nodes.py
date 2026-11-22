@@ -693,6 +693,10 @@ def corrected_edges(entries):
     return found
 
 
+# Kinds of app entries that depend on no proposal and no element_nr of step 1
+IGNORED_APP_KINDS = ("route_check", "bridge_check")
+
+
 def app_references(entries):
     """Proposal ids and element_nr that non-deleted entries of the Netzanpassungen app depend on: every `P<x>-<y>`
     and every `<von>_<bis>.<nn>` in the JSON of an entry's data (vorschlag_id of a virtual_node, kante.ref,
@@ -701,8 +705,9 @@ def app_references(entries):
     found = set()
     for entry in entries or []:
         data = entry.get("data") or {}
-        # An OK of the route check depends on nothing: it lapses by itself when the edges of its section change
-        if not data.get("geloescht") and data.get("kind") != "route_check" and not is_noop_correction(data):
+        # An OK of the route check depends on nothing: it lapses by itself when the edges of its section change.
+        # The same holds for the check of a node at a bridge or tunnel (bridge_check): it joins nothing at a proposal.
+        if not data.get("geloescht") and data.get("kind") not in IGNORED_APP_KINDS and not is_noop_correction(data):
             text = json.dumps(data, ensure_ascii=False)
             found |= set(PROPOSAL_ID_IN_TEXT.findall(text)) | set(ELEMENT_NR_IN_TEXT.findall(text))
     return found
