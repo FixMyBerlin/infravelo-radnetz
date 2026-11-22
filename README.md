@@ -24,13 +24,12 @@ Jeder Ordner ist für eine Aufgabe zuständig und hat eine eigene README.
 
 ## REN+-Netz in einem Befehl
 
-`run_pipeline.sh` baut das REN+-Netz von den Netzquellen bis zu den TILDA-Ausgaben und bricht beim ersten Fehler ab (Gesamtbild: [`docs/network-pipeline.md`](./docs/network-pipeline.md)):
+`run_pipeline.sh` baut das REN+-Netz von den Netzquellen bis Schritt 3 und bricht beim ersten Fehler ab (Gesamtbild: [`docs/network-pipeline.md`](./docs/network-pipeline.md)):
 
 ```sh
 ./run_pipeline.sh                       # Einträge der App Netzanpassungen aus der KV-Datenbank, Gebiet berlin
 ./run_pipeline.sh --export <datei>.json # statt der KV-Datenbank der App-Export „Alle Einträge“
 ./run_pipeline.sh --gebiet <gebiet>     # anderes Gebiet der App
-./run_pipeline.sh --ohne-tilda          # nur bis Schritt 3
 ```
 
 | Schritt | Skript | Ergebnis |
@@ -40,9 +39,25 @@ Jeder Ordner ist für eine Aufgabe zuständig und hat eine eigene README.
 | – | `netzanpassungen/write_app_input.py` | `netzanpassungen_<gebiet>.json` für die App |
 | 3 | `netzanpassungen/apply_app_result.py` | `ren_netz.gpkg` (Kunde), `ren_netz_korrigiert.gpkg` (Matching, Mapping), Kartierung, `virtuelle_knoten.gpkg` |
 | – | `data/virtuelle_knotenpunkte.py pruefen` | Prüfung der virtuellen Knoten |
-| TILDA | `ren-network/create_mask.py`, `mapping-zuteilung/update_assignment.py`, `befahrungsbedarf/build.py`, `maproulette-centerline-tracks/extract_centerline_tracks.py` | Maske, Zuteilung, Befahrungsbedarf, MapRoulette-Aufgaben |
 
-Voraussetzungen: `.env` mit `INPUTS_DRIVE_FOLDER_URL` (Eingangsdaten) und `VITE_KV_BASE_URL`, `VITE_KV_PROJECT`, `VITE_KV_API_KEY` (Lesezugriff auf die App, Werte wie in `infravelo-apps/netzanpassungen/.env`), siehe `.env.example`; `tilda-static-data` als Schwesterordner (Lieferung 2025); für die TILDA-Ausgaben deren eigene Eingangsdaten (`befahrungsbedarf/download_data.sh`, Symlinks in `maproulette-centerline-tracks/data/`). Ändert die Zuteilung `mapping-zuteilung/assignment.csv`, die Datei committen. Das Hochladen nach TILDA bleibt ein eigener Schritt (`bearbeitungsstand/update.sh`, `processing/copy_to_tilda_static.sh`).
+Voraussetzungen: `.env` mit `INPUTS_DRIVE_FOLDER_URL` (Eingangsdaten) und `VITE_KV_BASE_URL`, `VITE_KV_PROJECT`, `VITE_KV_API_KEY` (Lesezugriff auf die App, Werte wie in `infravelo-apps/netzanpassungen/.env`), siehe `.env.example`; `tilda-static-data` als Schwesterordner (Lieferung 2025).
+
+### Ausgaben für TILDA und die Mapper: nur von Hand
+
+Maske, Zuteilung (Gebiete und Kanten je Mapper), Befahrungsbedarf und MapRoulette-Aufgaben baut `run_pipeline.sh` nicht. Sie laufen nur auf Anweisung, mit einem eigenen Skript auf dem Ergebnis von Schritt 3:
+
+```sh
+./run_mapper_outputs.sh
+```
+
+| Skript | Ergebnis |
+|---|---|
+| `ren-network/create_mask.py` | Maske |
+| `mapping-zuteilung/update_assignment.py` | Zuteilung |
+| `befahrungsbedarf/build.py` | Befahrungsbedarf |
+| `maproulette-centerline-tracks/extract_centerline_tracks.py` | MapRoulette-Aufgaben |
+
+Voraussetzungen: ein Lauf von `run_pipeline.sh`, die eigenen Eingangsdaten der Skripte (`befahrungsbedarf/download_data.sh`, Symlinks in `maproulette-centerline-tracks/data/`). Ändert die Zuteilung `mapping-zuteilung/assignment.csv`, die Datei committen. Das Skript schreibt nur in dieses Repo. Das Hochladen nach tilda-static-data und TILDA bleibt ein eigener Schritt von Hand (`bearbeitungsstand/update.sh`, `processing/copy_to_tilda_static.sh`).
 
 ## Setup
 

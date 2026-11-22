@@ -1,6 +1,6 @@
 # Network pipeline: from the raw network to the customer network and the working network
 
-As of 2026-11-19. Two repos take part: this repo `infravelo-radnetz` (Python, all network files) and [`infravelo-apps`](https://github.com/FixMyBerlin/infravelo-apps) with the **Netzanpassungen app** (`netzanpassungen/` there, all handwork, stored in the app's KV database). The app itself is described in its [README](https://github.com/FixMyBerlin/infravelo-apps/blob/main/netzanpassungen/README.md). The state before this pipeline is tagged `old-pipeline-2026-11`.
+As of 2026-11-22. Two repos take part: this repo `infravelo-radnetz` (Python, all network files) and [`infravelo-apps`](https://github.com/FixMyBerlin/infravelo-apps) with the **Netzanpassungen app** (`netzanpassungen/` there, all handwork, stored in the app's KV database). The app itself is described in its [README](https://github.com/FixMyBerlin/infravelo-apps/blob/main/netzanpassungen/README.md). The state before this pipeline is tagged `old-pipeline-2026-11`.
 
 **Language rule for both repos:** code, comments, file names, commit messages and our documents are in English. The app UI and the customer's data fields (`element_nr`, `verkehrsrichtung`, `routen_fernradweg`, `fahrbahn_typ`, …) stay German.
 
@@ -23,17 +23,26 @@ flowchart TD
   APP["<b>Netzanpassungen app</b><br/>all handwork, incl. every new virtual node<br/><i>KV database</i>"]
   S3["<b>Step 3</b> apply the app result<br/><i>reads the KV database itself</i>"]
   NET["<b>REN+ network and virtual nodes</b><br/>column <i>aenderung</i> on every changed edge"]
-  OUT["Customer, TILDA and Mapper<br/><i>see Outputs</i>"]
+  OUT["Customer and matching<br/><i>see Outputs</i>"]
   MM["Matching (Rust)"]
+  MAP["<b>run_mapper_outputs.sh</b><br/>mask, Zuteilung, Befahrungsbedarf, MapRoulette<br/><i>only by hand, on request</i>"]
+  UP["Upload to tilda-static-data and TILDA<br/><i>own scripts, only by hand</i>"]
   IN --> S1 --> S2 --> AE --> APP
   S1 -. "node proposals" .-> AE
   APP == "automatic, no export" ==> S3
   S2 --> S3
   S3 --> NET --> OUT
   NET --> MM --> OUT
+  NET -. "by hand" .-> MAP -. "by hand" .-> UP
+  subgraph RP["./run_pipeline.sh"]
+    S1
+    S2
+    AE
+    S3
+  end
 ```
 
-Everything from step 1 to the TILDA outputs runs with one command: `./run_pipeline.sh` (options `--gebiet`, `--export`, `--ohne-tilda`; see the comment at its top).
+Steps 1 to 3 run with one command: `./run_pipeline.sh` (options `--gebiet`, `--export`; see the comment at its top). It never builds the outputs for TILDA and the Mapper (mask, Zuteilung of areas and edges, Befahrungsbedarf, MapRoulette tracks): they run only by hand, on request, with `./run_mapper_outputs.sh` on the result of step 3. Neither script writes to tilda-static-data or uploads to TILDA; that is a third step by hand (`bearbeitungsstand/update.sh`, `processing/copy_to_tilda_static.sh`).
 
 ## Virtual nodes
 
@@ -83,8 +92,8 @@ flowchart TD
   subgraph WORK["For matching"]
     W1["<b>ren_netz_korrigiert.gpkg</b><br/>+ position corrections"]
   end
-  subgraph TI["For TILDA and the Mapper"]
-    T1["ren_netz_kartierung_korrigiert.geojson"]
+  T1["ren_netz_kartierung_korrigiert.geojson<br/><i>from step 3, for TILDA</i>"]
+  subgraph TI["For TILDA and the Mapper: ./run_mapper_outputs.sh, only by hand"]
     T2["mask (create_mask.py)"]
     T3["zuteilung_gebiete.geojson, zuteilung_netz.geojson"]
     T4["befahrungsbedarf: strecken.geojson"]
@@ -94,15 +103,16 @@ flowchart TD
   NET --> K2
   NET --> W1 --> K3
   NET --> T1
-  NET --> T2
-  NET --> T3
-  NET --> T4
-  NET --> T5
+  NET -. "by hand" .-> T2
+  NET -. "by hand" .-> T3
+  NET -. "by hand" .-> T4
+  NET -. "by hand" .-> T5
 ```
 
 - **`ren_netz.gpkg` (customer):** the raw network split at all virtual nodes, plus Radfernwege (assigned automatically and by hand), drawn edges, direction, carriageway, excluded edges, in **original position**. Every change is described in the text column `aenderung` (German, one sentence per change, joined with „; “) and marked in its own columns (`quelle`, `verkehrsrichtung_korrigiert`, `ausgeschlossen`, `element_nr_eingabe`, `eintrag_ids`, …). There are no separate documentation files.
 - **`ren_netz_korrigiert.gpkg` (working):** the same plus the position corrections; matching and mapping use it. `map_back_to_original.py` maps the matching result back onto `ren_netz.gpkg` by `element_nr`.
-- Both also come as the filtered mapping version (`…_kartierung…`).
+- Both also come as the filtered mapping version (`…_kartierung…`); step 3 writes `ren_netz_kartierung_korrigiert.geojson` too.
+- **For TILDA and the Mapper** (mask, Zuteilung, Befahrungsbedarf, MapRoulette tracks): only `./run_mapper_outputs.sh` builds them, by hand and on request, never `./run_pipeline.sh`. Uploading them to tilda-static-data and TILDA is another step by hand.
 
 ## The steps
 

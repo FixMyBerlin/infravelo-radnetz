@@ -8,28 +8,23 @@ set -euo pipefail
 #   4. netzanpassungen/apply_app_result.py   step 3: app entries from the KV database (read-only),
 #                                            ren_netz.gpkg, ren_netz_korrigiert.gpkg (with Kartierung),
 #                                            netzanpassungen/output/virtuelle_knoten.gpkg
-#   5. TILDA outputs: mask (ren-network/create_mask.py), Zuteilung (mapping-zuteilung/update_assignment.py),
-#      Befahrungsbedarf (befahrungsbedarf/build.py), MapRoulette tracks
-#      (maproulette-centerline-tracks/extract_centerline_tracks.py)
+# The outputs for TILDA and the Mapper (mask, Zuteilung, Befahrungsbedarf, MapRoulette tracks) are not part
+# of it: they run only by hand with ./run_mapper_outputs.sh, after this script.
 # Stops at the first error.
 #
 # Usage (repo root):
-#   ./run_pipeline.sh                       # everything, app entries of area berlin from the KV database
+#   ./run_pipeline.sh                       # steps 1 to 3, app entries of area berlin from the KV database
 #   ./run_pipeline.sh --gebiet neukoelln    # another area of the app
 #   ./run_pipeline.sh --export <file>.json  # app export „Alle Einträge“ instead of the KV database
-#   ./run_pipeline.sh --ohne-tilda          # only steps 1 to 3, no TILDA outputs
 #
 # Needs .env with INPUTS_DRIVE_FOLDER_URL (input data) and VITE_KV_BASE_URL, VITE_KV_PROJECT,
-# VITE_KV_API_KEY (app entries), see .env.example. The TILDA outputs need their own inputs:
-# befahrungsbedarf/data/ (befahrungsbedarf/download_data.sh) and maproulette-centerline-tracks/data/
-# (symlinks, see the READMEs). Uploading to TILDA stays a separate step (bearbeitungsstand/update.sh,
-# processing/copy_to_tilda_static.sh).
+# VITE_KV_API_KEY (app entries), see .env.example. Uploading to TILDA stays a separate step
+# (bearbeitungsstand/update.sh, processing/copy_to_tilda_static.sh).
 
 REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
 PYTHON="${PYTHON:-$REPO_DIR/.venv/bin/python}"
 GEBIET="berlin"
 EXPORT=""
-TILDA=1
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -42,15 +37,15 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         --ohne-tilda)
-            TILDA=0
+            # Earlier option; the TILDA outputs are now ./run_mapper_outputs.sh and never part of this script.
             shift
             ;;
         -h|--help)
-            sed -n '4,27p' "$0"
+            sed -n '4,21p' "$0"
             exit 0
             ;;
         *)
-            echo "Unknown argument: $1 (allowed: --gebiet <area>, --export <file>, --ohne-tilda)" >&2
+            echo "Unknown argument: $1 (allowed: --gebiet <area>, --export <file>)" >&2
             exit 1
             ;;
     esac
@@ -80,14 +75,5 @@ else
 fi
 run "Check the virtual nodes" "$PYTHON" data/virtuelle_knotenpunkte.py pruefen
 
-if [[ "$TILDA" == 1 ]]; then
-    run "TILDA: mask" "$PYTHON" ren-network/create_mask.py
-    run "TILDA: Zuteilung" "$PYTHON" mapping-zuteilung/update_assignment.py
-    run "TILDA: Befahrungsbedarf" "$PYTHON" befahrungsbedarf/build.py
-    run "TILDA: MapRoulette tracks" "$PYTHON" maproulette-centerline-tracks/extract_centerline_tracks.py
-    echo ""
-    echo "Done. If mapping-zuteilung/assignment.csv changed (new edges), commit it."
-else
-    echo ""
-    echo "Done (without TILDA outputs)."
-fi
+echo ""
+echo "Done. Outputs for TILDA and the Mapper only by hand: ./run_mapper_outputs.sh"

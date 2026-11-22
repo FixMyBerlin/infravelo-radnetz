@@ -191,7 +191,7 @@ In TILDA zeigen „REN+ Gesamtnetz“ und „Netz“ (Kategorie „Netz: REN+ Ka
 python ren-network/create_mask.py
 ```
 
-Ausgabe: `ren-network/output/ren_netz_maske.geojson` und `ren_netz_kartierung_maske.geojson` (WGS84, je ein MultiPolygon). Nach jeder Änderung am Netz neu erzeugen.
+Ausgabe: `ren-network/output/ren_netz_maske.geojson` und `ren_netz_kartierung_maske.geojson` (WGS84, je ein MultiPolygon). Läuft nur von Hand, auf Anweisung: einzeln oder mit den anderen Ausgaben für TILDA und die Mapper über `./run_mapper_outputs.sh` (nie über `./run_pipeline.sh`).
 
 ## Prüfliste doppelter Kanten
 

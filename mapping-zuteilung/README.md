@@ -7,7 +7,7 @@ Teilt das Kartierungsnetz auf die Mapping-Accounts auf: Pro Bezirk bekommt jeder
 | Phase | Skript | Wann |
 |---|---|---|
 | Ersterfassung | `assign_accounts.py` | einmalig; bricht ab, solange `assignment.csv` existiert |
-| **Update** | `update_assignment.py` | bei jedem neuen Netz und um den Bearbeitungsstand zu übertragen |
+| **Update** | `update_assignment.py` | nur von Hand, auf Anweisung: nach einem neuen Netz (`./run_mapper_outputs.sh`) und um den Bearbeitungsstand zu übertragen (`bearbeitungsstand/update.sh`) |
 
 Gemeinsam genutzt: `assignment_output.py` (Tabellen der Zuteilung, Bearbeitungsstand, Statistik, Editor-Links, Ausgabe).
 
