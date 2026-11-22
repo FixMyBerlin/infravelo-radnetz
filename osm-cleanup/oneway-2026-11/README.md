@@ -73,6 +73,13 @@ The MAID task texts are German on purpose: they are read by mappers in Berlin.
 - Ways last edited on or after 2026-11-22 count as corrected in OSM and are used as tagged, also false positives of the list. The script leaves them out of the CSV, tilda-geo checks the same date (`PSEUDO_TAG_CUTOFF` and `CUTOFF` in `apply_cycleway_oneway_correction.lua`).
 - Regenerate about once a week with `scripts/run.sh` and commit the CSV. The list shrinks as the OSM edit goes on; the next TILDA run picks it up.
 
+## Follow-up MAID lists (2026-11-22)
+
+`scripts/build_maid_followups.py` writes two more MAID files from the same extract:
+
+- `output/maid__track-direction.json` (522 tasks): tracks tagged on the road without a direction. tilda-geo guesses it from the other side of the road, which changes Datensatz C. Selection: `track_ids_datensatz_c.txt` (508 ways from the Rust comparison of `rvn_matching` and develop) plus every such side in the infraVelo net. Default answer: the side default (left `-1`, right `yes`); alternative: two-way per side.
+- `output/maid__lane-foot.json` (75 tasks): lanes on the road with `traffic_mode:<x>=foot` (no separation), which tilda-geo reads as a foot and cycle path next to the road. Answers: remove the foot tags (lane on the carriageway), make it a `track`, or keep.
+
 ## Files
 
 | Path | Content |
