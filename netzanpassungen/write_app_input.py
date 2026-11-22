@@ -34,11 +34,15 @@ Die Datei enthält FeatureCollections in WGS84:
 - luecken: die Abschnitte mit zustand luecke ab MIN_GAP_LENGTH_M, mit id (= Abschnitts-Id)
 - knoten_vorschlaege: Punkte, an denen ein Radfernweg eine Detailnetzkante
   kreuzt, ohne dass dort ein Knoten liegt (Vorschlag für einen virtuellen Knoten)
+- bauwerk_knoten (optional): Knoten an Brücken und Tunneln, an denen eine Kante unter der Brücke (über dem Tunnel)
+  mit den Kanten auf dem Bauwerk zusammenläuft (Prüfung „Brücken und Tunnel“ der App, bauwerke.py). Fehlt
+  data/Berlin Straßennetz Bauwerke.geojson, entfällt die Ebene mit einer Warnung.
 
 INPUT:
 - data/Berlin Straßenabschnitte Detailnetz.fgb (jüngster Stand)
 - KV-Datenbank der App (VITE_KV_* in .env): die 53 von 2025, nur damit an ihnen kein Knotenvorschlag entsteht
 - ren-network/output/virtuelle_knoten_vorschlaege.gpkg (merge_networks.py, Schritt 1)
+- data/Berlin Straßennetz Bauwerke.geojson (Senat, „Straßennetz Bauwerke“, data/download_bauwerke.py; nur für bauwerk_knoten)
 - netzanpassungen/output/ren_netz_auto.gpkg und radfernweg_abschnitte.gpkg (match_cycle_routes.py)
 - data/netzquellen/touristisches_radnetz.gpkg (aus dem Drive, data/download_inputs.py)
 - data/Berlin Bezirke.gpkg (nur mit --bezirk)
@@ -73,6 +77,9 @@ sys.path.append(str(ROOT / "data"))
 
 import merge_networks as ren  # noqa: E402
 import virtuelle_knotenpunkte as vk  # noqa: E402
+
+sys.path.append(str(Path(__file__).resolve().parent))
+import bauwerke  # noqa: E402
 
 CRS = f"EPSG:{ren.DEFAULT_CRS}"
 SCHEMA = "netzanpassungen-app/v1"
@@ -414,6 +421,14 @@ def main():
 
     suggestions = find_node_suggestions(routes, detail, nodes_for_suggestions, gaps)
 
+    # Brücken und Tunnel: Kandidaten mit den Schlüsseln der Linien wie in der App (vor dem Zuschnitt auf das Gebiet)
+    structures = bauwerke.load_structures()
+    bridge_nodes = None
+    if structures is not None:
+        detail_keyed, ren_keyed = detail.copy(), ren_netz.copy()
+        detail_keyed["ref"], ren_keyed["ref"] = line_refs(detail["element_nr"]), line_refs(ren_netz["element_nr"])
+        bridge_nodes = bauwerke.find_candidates(structures, detail_keyed, ren_keyed, all_nodes)
+
     detail = within_area(detail, area)
     suggestions = within_area(suggestions, area)
     all_nodes = within_area(all_nodes, area)
@@ -421,6 +436,8 @@ def main():
     routes = within_area(routes, area)
     sections = within_area(sections, area)
     gaps = within_area(gaps, area)
+    if bridge_nodes is not None:
+        bridge_nodes = within_area(bridge_nodes, area)
 
     output = {
         "schema": SCHEMA,
@@ -446,6 +463,8 @@ def main():
         "luecken": feature_collection(gaps),
         "knoten_vorschlaege": feature_collection(suggestions),
     }
+    if bridge_nodes is not None:
+        output["bauwerk_knoten"] = feature_collection(bridge_nodes)
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     path = OUTPUT_DIR / f"netzanpassungen_{gebiet}.json"

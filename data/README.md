@@ -13,6 +13,7 @@ Diese Dateien werden nicht von Skripten generiert und müssen manuell aktualisie
 - `Bezirk Neukölln Grenze.fgb` – Bezirksgrenze von Neukölln für gezielte Testverarbeitung.
 - `Verbindungspunkte im RVN.gpkg` – Verbindungspunkte aus dem Radvorrangnetz/Detailnetz zur Netzwerkanalyse.
 - Die 53 virtuellen Knotenpunkte der Lieferung 2025 (Nummern `0001`–`0053`) liegen nicht mehr hier: Die App Netzanpassungen hat sie einmalig als Einträge übernommen, die Pipeline liest sie aus ihrer KV-Datenbank (`read_registry()` in `virtuelle_knotenpunkte.py`). Die Lieferung ist Archiv in [`netzanpassungen/one_time_import/2025/Virtuelle-Knotenpunkte.gpkg`](../netzanpassungen/one_time_import/2025/Virtuelle-Knotenpunkte.gpkg). Neue virtuelle Knoten entstehen nur in der App; Schritt 3 schreibt alle zusammen nach `netzanpassungen/output/virtuelle_knoten.gpkg`. Regeln: [VIRTUELLE-KNOTENPUNKTE.md](./VIRTUELLE-KNOTENPUNKTE.md). Die Zuordnung der alten `V…`-Kennungen (Spalte `id_rvn_2025`) steht in `virtuelle_knotenpunkte_alt_neu.csv`.
+- `Berlin Straßennetz Bauwerke.geojson` – Bauwerke (Brücken, Tunnel) des Detailnetzes, Layer `b_bauwerke` des WFS `https://gdi.berlin.de/services/wfs/detailnetz` (Stand 2026-10-08). Für die Prüfung „Brücken und Tunnel“ der App (`netzanpassungen/bauwerke.py`). Erneuern: `.venv/bin/python data/download_bauwerke.py`.
 - `OSM-highway=bus_stop.geojson` – Bushaltestellen aus OpenStreetMap für Konvertierungen von Schutzstreifen.
 - `Stop-Positions-Bus-OSM.fgb` – Bushaltestellen-Positionen aus OpenStreetMap als FlatGeobuf.
 

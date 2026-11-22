@@ -55,6 +55,13 @@ Gleiche Lizenzangaben, aber Anpasungen: Extrakt aus `Berlin Bezirke.gpkg`
 * **Anpassung:** Layer `detailnetz:a_verbindungspunkte` (alle Verbindungspunkte, Stand 2026-09-29)
 * Export von https://daten.berlin.de/datensaetze/detailnetz-berlin-wfs-4f2045ef
 
+## Berlin Straßennetz Bauwerke.geojson
+
+* **Lizenz:** DL-DE/BY-2.0
+* **Urheber:** © Geoportal Berlin / Detailnetz Berlin Bauwerke
+* **Anpassung:** Layer `b_bauwerke` (Stand 2026-10-08), Koordinaten in WGS84
+* Export von https://daten.berlin.de/datensaetze/detailnetz-berlin-wfs-4f2045ef
+
 ## Verbindungspunkte im RVN.gpkg
 
 * **Lizenz:** dl-zero-de/2.0
