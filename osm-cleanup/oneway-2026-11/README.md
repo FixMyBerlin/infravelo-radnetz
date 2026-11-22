@@ -77,8 +77,10 @@ The MAID task texts are German on purpose: they are read by mappers in Berlin.
 
 `scripts/build_maid_followups.py` writes two more MAID files from the same extract:
 
-- `output/maid__track-direction.json` (522 tasks): tracks tagged on the road without a direction. tilda-geo guesses it from the other side of the road, which changes Datensatz C. Selection: `track_ids_datensatz_c.txt` (508 ways from the Rust comparison of `rvn_matching` and develop) plus every such side in the infraVelo net. Default answer: the side default (left `-1`, right `yes`); alternative: two-way per side.
-- `output/maid__lane-foot.json` (75 tasks): lanes on the road with `traffic_mode:<x>=foot` (no separation), which tilda-geo reads as a foot and cycle path next to the road. Answers: remove the foot tags (lane on the carriageway), make it a `track`, or keep.
+Both only cover the RVN: `rvn_way_ids.txt` lists the OSM ways matched to the Radvorrangnetz part of the REN+ (`radverkehrsnetz=Radvorrangnetz`) in Datensatz C, extract 2026-11-21.
+
+- `output/maid__track-direction.json` (39 tasks): tracks tagged on the road without a direction. tilda-geo guesses it from the other side of the road. Default answer: the side default (left `-1`, right `yes`); alternative: two-way per side.
+- `output/maid__lane-foot.json` (24 tasks): lanes on the road with `traffic_mode:<x>=foot` (no separation), which tilda-geo reads as a foot and cycle path next to the road. Answers: remove the foot tags (lane on the carriageway), make it a `track`, or keep.
 
 ## Files
 

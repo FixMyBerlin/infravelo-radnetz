@@ -5,16 +5,17 @@ Usage (from the project folder, after run.sh has built data/):
 
 1. maid__track-direction.json: tracks tagged on the road (`cycleway:<side>=track`) without a direction
    (`cycleway:<side>:oneway`, `:both:oneway`, `cycleway:oneway`). tilda-geo then guesses the direction from the
-   other side of the road. Selection: the ways in `track_ids_datensatz_c.txt` (they change Datensatz C) and every
-   such side in the infraVelo net (`../../tilda-pseudo-tags/infravelo-netz.csv`).
+   other side of the road.
    Default answer: the side default (left `-1`, right `yes`), one click.
 2. maid__lane-foot.json: lanes on the road (`cycleway:<side>=lane`) with `traffic_mode:<left|right>=foot` or
    `segregated`. tilda-geo reads them as a foot and cycle path next to the road (`footAndCyclewaySegregated_adjoining`),
    which a lane on the carriageway cannot be. Default answer for a Schutzstreifen (`lane=advisory`, always on the
    carriageway): remove the foot tags.
+
+Both lists only hold ways of the RVN (`rvn_way_ids.txt`: the OSM ways matched to the Radvorrangnetz part of the REN+
+in Datensatz C). The delivery covers the RVN only.
 """
 
-import csv
 import json
 import os
 import sys
@@ -41,15 +42,14 @@ def osm_link(i):
     return f"https://www.openstreetmap.org/way/{i}"
 
 
-def track_tasks(ways, ids, net):
+def track_tasks(ways, rvn):
     tasks = []
     for i, w in sorted(ways.items()):
         t = w["tags"]
         if t.get("oneway") in ("-1", "reversible") or t.get("junction") in ("roundabout", "circular"):
             continue
         sides = [s for s in ("left", "right") if infra(t, s) == "track" and not direction(t, s)]
-        in_net = [s for s in sides if net.get((i, f"cycleway/{s}")) or net.get((i, ""))]
-        if not sides or (i not in ids and not in_net):
+        if not sides or i not in rvn:
             continue
         # On a one-way road the wiki default of both sides is the road direction; only the right side is unambiguous.
         if t.get("oneway") == "yes":
@@ -77,7 +77,7 @@ def track_tasks(ways, ids, net):
             "description": (
                 f"Der Radweg {side_text} (`cycleway:<Seite>=track`) hat keine Fahrtrichtung. "
                 "TILDA muss sie raten: einrichtig, wenn auf der anderen Seite ein Radweg oder eine Spur ist, sonst zweirichtig.\n\n"
-                + ("Liegt im infraVelo-Radnetz (Radvorrangnetz).\n\n" if in_net else "")
+                + "Liegt im Radvorrangnetz.\n\n"
                 + "In Berlin sind Radwege fast immer Einrichtungsradwege (StVO § 2 Abs. 4). `oneway` bezieht sich auf die Linienrichtung."
             ),
             "osm": [f"way/{i}"],
@@ -104,12 +104,12 @@ def foot_keys(t, s):
     return keys
 
 
-def lane_tasks(ways):
+def lane_tasks(ways, rvn):
     tasks = []
     for i, w in sorted(ways.items()):
         t = w["tags"]
         sides = [s for s in ("left", "right") if infra(t, s) == "lane" and foot_keys(t, s)]
-        if not sides:
+        if not sides or i not in rvn:
             continue
         keys = sorted({k for s in sides for k in foot_keys(t, s)})
         lanes = {t.get(f"cycleway:{s}:lane") or t.get("cycleway:both:lane") for s in sides}
@@ -169,23 +169,19 @@ def write(path, list_id, title, description, tasks, geoms):
 def main():
     opl, pbf, out = sys.argv[1:4]
     ways = {w["id"]: w for w in read_ways(opl)}
-    with open(os.path.join(HERE, "track_ids_datensatz_c.txt"), encoding="utf-8") as f:
-        ids = {int(x) for x in f if x.strip() and not x.startswith("#")}
-    net = {}
-    with open(os.path.join(HERE, "..", "..", "tilda-pseudo-tags", "infravelo-netz.csv"), encoding="utf-8") as f:
-        for r in csv.DictReader(f):
-            net[(int(r["osm_id"]), r["id_suffix"])] = r["infravelo_netz"]
+    with open(os.path.join(HERE, "rvn_way_ids.txt"), encoding="utf-8") as f:
+        rvn = {int(x) for x in f if x.strip() and not x.startswith("#")}
 
-    tracks = track_tasks(ways, ids, net)
-    lanes = lane_tasks(ways)
+    tracks = track_tasks(ways, rvn)
+    lanes = lane_tasks(ways, rvn)
     geoms = geometries(pbf, sorted({i for i, _ in tracks + lanes}))
-    n1 = write(os.path.join(out, "maid__track-direction.json"), "berlin-track-direction-2026-11",
-               "Berlin: Fahrtrichtung von Radwegen an der Straße angeben",
+    n1 = write(os.path.join(out, "maid__track-direction.json"), "berlin-rvn-track-direction-2026-11",
+               "Radvorrangnetz Berlin: Fahrtrichtung von Radwegen an der Straße angeben",
                "Radwege, die an der Straße getaggt sind (`cycleway:<Seite>=track`), ohne Fahrtrichtung. "
-               "Sie ändern das Ergebnis des infraVelo-Netzabgleichs (Datensatz C) oder liegen im Radvorrangnetz.",
+               "Nur Wege im Radvorrangnetz. Ohne Angabe muss TILDA die Richtung raten.",
                tracks, geoms)
-    n2 = write(os.path.join(out, "maid__lane-foot.json"), "berlin-lane-foot-2026-11",
-               "Berlin: Schutz- und Radfahrstreifen mit Fußverkehr prüfen",
+    n2 = write(os.path.join(out, "maid__lane-foot.json"), "berlin-rvn-lane-foot-2026-11",
+               "Radvorrangnetz Berlin: Schutz- und Radfahrstreifen mit Fußverkehr prüfen",
                "Spuren auf der Fahrbahn (`cycleway:<Seite>=lane`), die zugleich Fußverkehr daneben oder `segregated` haben. "
                "TILDA liest sie als getrennten Geh- und Radweg.",
                lanes, geoms)
