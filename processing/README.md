@@ -77,7 +77,7 @@ Die Pfade je Netz stehen in `helpers/netz.py` und in `map-matching/config/defaul
 
 ### 1. TILDA-Daten vorbereiten (`process_tilda_data.sh`)
 
-Schneidet TILDA-Rohdaten (`data-raw-tilda/`) auf Berlin zu und übersetzt Attribute zu RVN-Format.
+Schneidet TILDA-Rohdaten (`data-raw-tilda/`) auf Berlin zu und übersetzt Attribute zu RVN-Format. Radwege, Straßen und Wege laufen parallel in je einem eigenen Prozess. Im Terminal steht je Datensatz eine Statuszeile, die vollständige Ausgabe mit allen Warnungen in `output/logs/process_tilda_data_<zeit>_<datensatz>.log`.
 
 **Ausgabe**: `data/TILDA *.fgb` und `output/TILDA-translated/*.fgb`
 

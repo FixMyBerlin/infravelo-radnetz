@@ -21,6 +21,7 @@ OUTPUT:
 import argparse
 import logging
 import os
+import sys
 from pathlib import Path
 from datetime import datetime
 import geopandas as gpd
@@ -758,7 +759,8 @@ def translate_tilda_attributes(gdf: gpd.GeoDataFrame, data_source: str) -> gpd.G
     }
     
     total = len(result_gdf)
-    
+    show_progress = sys.stdout.isatty()
+
     for idx, (_, row) in enumerate(result_gdf.iterrows(), 1):
         # Verkehrsrichtung (Radverkehr)
         verkehrsri = determine_verkehrsri(row, data_source)
@@ -813,8 +815,9 @@ def translate_tilda_attributes(gdf: gpd.GeoDataFrame, data_source: str) -> gpd.G
         kommentar = determine_kommentar(row, translated_row)
         result_gdf.loc[result_gdf.index[idx-1], "Kommentar"] = kommentar
         
-        # Fortschrittsanzeige
-        print_progressbar(idx, total, prefix=f"Übersetze {data_source}: ")
+        # Fortschrittsanzeige nur im Terminal; in eine Log-Datei würde jede Zeile ein Balken
+        if show_progress:
+            print_progressbar(idx, total, prefix=f"Übersetze {data_source}: ")
     
     # Logge Statistiken über nicht-gefundene Zuordnungen
     for attr, count in not_found_counts.items():
@@ -905,27 +908,38 @@ def main():
                        help=f"Ziel-EPSG (default: {DEFAULT_CRS})")
     parser.add_argument("--clip", type=str, choices=['neukoelln', 'norden', 'sueden'],
                        help="Regionaler Zuschnitt: 'neukoelln', 'norden' oder 'sueden'")
-    
+    parser.add_argument("--source", choices=list(INPUT_FILES),
+                       help="Nur diesen Datensatz übersetzen (default: alle drei). "
+                            "process_tilda_data.sh startet je Datensatz einen eigenen Prozess.")
+
     args = parser.parse_args()
-    
+
     logging.info("Starte TILDA-zu-RVN Attributübersetzung")
     if args.clip:
         logging.info(f"Clipping auf {args.clip} aktiviert")
-    
-    # Verarbeite alle Eingabedateien
-    for data_source, filename in INPUT_FILES.items():
-        input_path = os.path.join(args.data_dir, filename)
-        
+
+    sources = [args.source] if args.source else list(INPUT_FILES)
+    failed = []
+    for data_source in sources:
+        input_path = os.path.join(args.data_dir, INPUT_FILES[data_source])
+
         if not os.path.exists(input_path):
-            logging.warning(f"Datei nicht gefunden: {input_path}")
+            if args.source:
+                logging.error(f"Datei nicht gefunden: {input_path}")
+                failed.append(data_source)
+            else:
+                logging.warning(f"Datei nicht gefunden: {input_path}")
             continue
-        
+
         try:
             process_file(input_path, data_source, args.output_dir, args.crs, args.clip, args.data_dir)
         except Exception as e:
-            logging.error(f"Fehler beim Verarbeiten von {input_path}: {e}")
-            continue
-    
+            logging.exception(f"Fehler beim Verarbeiten von {input_path}: {e}")
+            failed.append(data_source)
+
+    if failed:
+        logging.error(f"✘ Übersetzung fehlgeschlagen für: {', '.join(failed)}")
+        sys.exit(1)
     logging.info("✔ TILDA-zu-RVN Attributübersetzung abgeschlossen")
 
 
