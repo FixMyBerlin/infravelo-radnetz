@@ -14,6 +14,9 @@ map-matching-ren/
 # Gesicherte Legacy-Referenz und QGIS-Vergleichsordner
 reference-legacy/
 vergleich-qgis/
+# Ausgaben der Graph-Pipeline (graph-interface/bikegraph: radweg_faltung.sh, datensatz_c.sh)
+mm-datensatz-c*/
+radweg-faltung/
 # Ausgaben von prepare_tilda_routing.py und der Verteilung auf dem REN+
 TILDA-routing/
 TILDA-routing-ren/
