@@ -1,0 +1,297 @@
+# Martin: Ebenen des Routing-Matchers (routing/README.md), Schema routing_martin (routing/martin.sql, von routing_qa.sh).
+# Erzeugt von routing/martin_konfig.py aus den Spalten der Tabellen. Eigene Konfiguration neben rvn_matching.yaml: Martin
+# startet nur, wenn alle Tabellen existieren, also erst routing_qa.sh laufen lassen. Start (Verbindung aus DATABASE_URL):
+#   docker run -d --name routing-qa-martin --network host -e DATABASE_URL=postgresql://USER:PASS@localhost:5433/postgres \
+#     -v "$PWD/graph-interface/bikegraph/martin:/cfg:ro" ghcr.io/maplibre/martin:latest --config /cfg/routing_qa.yaml
+# Vorschau: http://localhost:3001/ · Kacheln: http://localhost:3001/{routing_radwege,routing_wege,routing_strassen,routing_rvn_diff,routing_routen,routing_crossings,routing_unbequem,routing_luecken,routing_rvn,routing_diff_v7,routing_urteil_routing,routing_urteil_v7,routing_urteil_grenzfall,routing_haltestellen}/{z}/{x}/{y}
+listen_addresses: '0.0.0.0:3001'
+# Kein Kachel-Cache: routing_qa.sh baut die Tabellen neu
+cache_size_mb: 0
+web_ui: enable-for-all
+postgres:
+  connection_string: ${DATABASE_URL}
+  auto_publish: false
+  tables:
+    routing_radwege:
+      schema: routing_martin
+      table: routing_radwege
+      srid: 25833
+      geometry_column: geom
+      geometry_type: LINESTRING
+      id_column: id
+      minzoom: 12
+      properties:
+        highway: text
+        herkunft: text
+        routing_id: text
+        fuehr0: text
+        fuehr1: text
+        faktor0: numeric
+        faktor1: numeric
+        richtung: text
+        len: numeric
+    routing_wege:
+      schema: routing_martin
+      table: routing_wege
+      srid: 25833
+      geometry_column: geom
+      geometry_type: LINESTRING
+      id_column: id
+      minzoom: 13
+      properties:
+        highway: text
+        herkunft: text
+        routing_id: text
+        fuehr0: text
+        fuehr1: text
+        faktor0: numeric
+        faktor1: numeric
+        richtung: text
+        zusatz: text
+        faktor_plus: numeric
+        len: numeric
+    routing_strassen:
+      schema: routing_martin
+      table: routing_strassen
+      srid: 25833
+      geometry_column: geom
+      geometry_type: LINESTRING
+      id_column: id
+      minzoom: 13
+      properties:
+        highway: text
+        herkunft: text
+        routing_id: text
+        fuehr0: text
+        fuehr1: text
+        faktor0: numeric
+        faktor1: numeric
+        richtung: text
+        zusatz: text
+        faktor_plus: numeric
+        len: numeric
+    routing_rvn_diff:
+      schema: routing_martin
+      table: routing_rvn_diff
+      srid: 25833
+      geometry_column: geom
+      geometry_type: MULTILINESTRING
+      id_column: id
+      properties:
+        element_nr: text
+        art: text
+        beschreibung: text
+        element_darunter: text
+        strassenname: text
+        laenge_m: numeric
+    routing_routen:
+      schema: routing_martin
+      table: routing_routen
+      srid: 25833
+      geometry_column: geom
+      geometry_type: LINESTRING
+      id_column: id
+      minzoom: 12
+      properties:
+        kante: int8
+        ri: int4
+        routing_id: text
+        objekt: text
+        fuehr: text
+        faktor: numeric
+        routen: int4
+        rids: text
+    routing_crossings:
+      schema: routing_martin
+      table: routing_crossings
+      srid: 25833
+      geometry_column: geom
+      geometry_type: MULTILINESTRING
+      id_column: id
+      minzoom: 12
+      properties:
+        knoten: int8
+        abschnitt_von: int4
+        abschnitt_nach: int4
+        kanten: int4
+        m: numeric
+        fuehr: text
+        fuehr_alle: text
+        von_gabelung: bool
+        bis_gabelung: bool
+        zusatz: text
+        zusatz_m: numeric
+        unbequem: bool
+        lang: bool
+        mittel_m: numeric
+        faktor: numeric
+        rang: int4
+    routing_unbequem:
+      schema: routing_martin
+      table: routing_unbequem
+      srid: 25833
+      geometry_column: geom
+      geometry_type: LINESTRING
+      id_column: id
+      properties:
+        art: text
+        kante: int8
+        rid: int4
+        routen: int4
+        rids: text
+        m: numeric
+        highway: text
+    routing_luecken:
+      schema: routing_martin
+      table: routing_luecken
+      srid: 25833
+      geometry_column: geom
+      geometry_type: POINT
+      id_column: id
+      properties:
+        abschnitt: int4
+        rid: int4
+        ursache: text
+        lage_m: numeric
+        len: numeric
+    routing_rvn:
+      schema: routing_martin
+      table: routing_rvn
+      srid: 25833
+      geometry_column: geom
+      geometry_type: LINESTRING
+      id_column: id
+      properties:
+        rvn_id: int8
+        element_nr: text
+        ri: int4
+        abschnitt: int4
+        routing: text
+        v7: text
+        henri: text
+        status: text
+        rueckfall: bool
+        zusatz: text
+        zusatz_m: numeric
+        unbequem: bool
+        m: numeric
+        m_gesamt: numeric
+        abdeckung: numeric
+        fuehr_weg: text
+        kandidat: bool
+        kandidat_mehr: numeric
+    routing_diff_v7:
+      schema: routing_martin
+      table: routing_diff_v7
+      srid: 25833
+      geometry_column: geom
+      geometry_type: LINESTRING
+      id_column: id
+      properties:
+        rvn_id: int8
+        element_nr: text
+        ri: int4
+        abschnitt: int4
+        routing: text
+        v7: text
+        henri: text
+        klasse: text
+        routing_gleich_henri: bool
+        abdeckung: numeric
+    routing_urteil_routing:
+      schema: routing_martin
+      table: routing_urteil_routing
+      srid: 25833
+      geometry_column: geom
+      geometry_type: LINESTRING
+      id_column: id
+      properties:
+        rvn_id: int8
+        element_nr: text
+        ri: int4
+        strasse: text
+        laenge_m: numeric
+        routing: text
+        v7: text
+        urteil: text
+        grund: text
+        m_routing: numeric
+        abstand_routing: numeric
+        m_v7: numeric
+        abstand_v7: numeric
+        belege: text
+        rueckfall: bool
+        unbequem: bool
+        kandidat: bool
+        viewer: text
+    routing_urteil_v7:
+      schema: routing_martin
+      table: routing_urteil_v7
+      srid: 25833
+      geometry_column: geom
+      geometry_type: LINESTRING
+      id_column: id
+      properties:
+        rvn_id: int8
+        element_nr: text
+        ri: int4
+        strasse: text
+        laenge_m: numeric
+        routing: text
+        v7: text
+        urteil: text
+        grund: text
+        m_routing: numeric
+        abstand_routing: numeric
+        m_v7: numeric
+        abstand_v7: numeric
+        belege: text
+        rueckfall: bool
+        unbequem: bool
+        kandidat: bool
+        viewer: text
+    routing_urteil_grenzfall:
+      schema: routing_martin
+      table: routing_urteil_grenzfall
+      srid: 25833
+      geometry_column: geom
+      geometry_type: LINESTRING
+      id_column: id
+      properties:
+        rvn_id: int8
+        element_nr: text
+        ri: int4
+        strasse: text
+        laenge_m: numeric
+        routing: text
+        v7: text
+        urteil: text
+        grund: text
+        m_routing: numeric
+        abstand_routing: numeric
+        m_v7: numeric
+        abstand_v7: numeric
+        belege: text
+        rueckfall: bool
+        unbequem: bool
+        kandidat: bool
+        viewer: text
+    routing_haltestellen:
+      schema: routing_martin
+      table: routing_haltestellen
+      srid: 25833
+      geometry_column: geom
+      geometry_type: POINT
+      id_column: id
+      properties:
+        name: text
+        osm_id: text
+        route_ref: text
+        bus_bay: text
+        shelter: text
+        rvn_id: int4
+        abstand_rvn_m: numeric
+        streifen_20m: text
+styles:
+  sources:
+    routing_qa: /cfg/styles/routing_qa.json

@@ -61,6 +61,13 @@ OUT_DIR=output/mm-datensatz-c ./graph-interface/bikegraph/datensatz_c.sh   # Dat
 Die Konvertierung braucht `processing/output/bus_stops_on_rvn.fgb` (aus `processing/process_radnetz.sh`); fehlt die
 Datei, entfallen die Schutzstreifen-Umwandlungen an Bushaltestellen.
 
+## Routing-Matcher (Qualitätssicherung)
+
+`routing/routing_qa.sh` bildet das RVN als zweite Matching-Option über gewichtete Wege durch einen Routing-Graphen ab und
+vergleicht das Ergebnis mit v7: Unterschiede mit Urteil, unbequeme Verbindungen, lange Kreuzungen und Abbrüche als Bericht in
+`processing/output/routing-qa/` und als Martin-Ebenen (Schema `routing_martin`). Nicht für die Abgabe; siehe
+`routing/README.md`.
+
 ## Martin
 
 `martin/rvn_matching.yaml` (Start siehe Kopf der Datei) zeigt die Ebenen beider Schemas; Kachel-Cache aus, damit neu
