@@ -26,13 +26,25 @@
 --    die Brücke wird dann auch auf diesem Graphen gesucht (wie Schritte 2b und 3 ohne Kette). Berlin mit Kaskade und
 --    gabel_durchgehend=teilrouten: 9915 wie v7 / 64 Rückfälle (Kaskade allein 9907 / 84); 84 Routen aus Teilrouten
 --    über Zusatzkanten (ohne Kette 43), Brücken 124 / 2382 m (ohne Kette 44 / 1116 m).
--- Ausgang wie Teil 2: pfad (ein Weg je Route), teilroute (art: weg, bruecke, uebersprungen, ohne; bis_knoten = Ankunft
--- des Stücks), bruecke (teil_ziel = Stück, dessen Ziel die Brücke erreicht).
+-- 6. Halbe Wege (kette_halb, Standard true): bleibt ein Stück ohne Weg und ohne Brücke (Lücke über :brueck_m), fährt
+--    der Weg trotzdem so weit wie möglich in seine RVN-Kante hinein: vorwärts ab dem Ende des bisherigen Wegs (ohne ihn
+--    abzuschneiden) oder der Startmenge bis zum erreichbaren
+--    Knoten, der am weitesten entlang der Kante liegt (Lage auf der Kante, bei gleicher die günstigsten Kosten), und
+--    rückwärts vom am weitesten vorn liegenden Knoten, von dem aus das Ziel erreichbar ist (nicht vor dem vorwärts
+--    erreichten), bis zum Ziel; dazwischen eine Trennkante. So bekommt die Kante ihre Formen bis zur Lücke von beiden
+--    Seiten, offen bleibt nur die Lücke selbst. Das nächste Stück setzt danach neu an (wie ohne halbe Wege): ab dem
+--    rückwärtigen Teil weiterzufahren führte oft zu einer Brücke statt eines Wegs für das nächste Stück. Teile unter
+--    :halb_min_m (25 m) entlang der Kante entfallen (kürzere gäben eine Form aus wenigen Metern). art = halb, bis_knoten = Ende des vorwärtigen Teils (Abbruchpunkt).
+-- Ausgang wie Teil 2: pfad (ein Weg je Route), teilroute (art: weg, bruecke, halb, uebersprungen, ohne; bis_knoten =
+-- Ankunft des Stücks), bruecke (teil_ziel = Stück, dessen Ziel die Brücke erreicht).
 -- Beidseitige Kette (von x vorwärts, von y rückwärts, Brücke wo sie sich treffen) geprüft und verworfen: bei Routen mit
 -- einer Brücke liegt die beidseitige Brücke in 144 von 169 Fällen auf denselben Knoten, 7 innerhalb 25 m, 2 woanders,
 -- 16 ohne Paar (nur die Kette findet eine Brücke); Kosten rund 180 ms je Route.
--- psql-Variablen: kette_m (Standard 300) und die aus abschnitte_2_routing.sql
+-- psql-Variablen: kette_m (Standard 300), kette_halb (Standard true), halb_min_m (Standard 25) und die aus
+-- abschnitte_2_routing.sql
 \if :{?kette_m} \else \set kette_m 300 \endif
+\if :{?kette_halb} \else \set kette_halb true \endif
+\if :{?halb_min_m} \else \set halb_min_m 25 \endif
 
 -- Arbeitstabellen je Route (die Funktion leert sie)
 CREATE TEMP TABLE k_kanten (id bigint, source bigint, target bigint, cost float8, reverse_cost float8);
@@ -140,10 +152,63 @@ BEGIN
     RETURN NULL;
 END $f$;
 
+-- Halbe Wege für Stück t ohne Weg und ohne Brücke (Schritt 6). Ergebnis: 0 nichts, 1 nur vorwärts, 2 rückwärts bis zum
+-- Ziel (die Kette geht dort weiter); bis_knoten des vorwärtigen Teils in k_teil durch den Aufrufer
+CREATE FUNCTION pg_temp.kette_halb(p_rid int, p_t int, p_frisch boolean, p_kette_m float8, p_min_m float8, p_q text,
+                                   OUT ergebnis int, OUT bis bigint) LANGUAGE plpgsql AS $f$
+DECLARE v_geom geometry; v_len float8; v_saat int; v_a record; v_b record; v_vor_lage float8 := 0;
+BEGIN
+    ergebnis := 0; bis := NULL;
+    SELECT geom, ST_Length(geom) INTO v_geom, v_len FROM teilstueck WHERE rid = p_rid AND t = p_t;
+    -- vorwärts: ab dem bisherigen Weg, sonst ab der eigenen Startmenge
+    v_saat := pg_temp.kette_mengen(p_rid, p_t, p_t, p_frisch, p_kette_m);
+    -- nur am Ende des bisherigen Wegs ansetzen (Kennung -seq, das Ende hat die kleinste): sonst schneidet der halbe Weg
+    -- den Weg der vorigen Stücke ab
+    IF v_saat > 0 AND NOT p_frisch THEN
+        DELETE FROM k_virt WHERE source = -1 AND id <> (SELECT min(id) FROM k_virt WHERE source = -1);
+    END IF;
+    IF v_saat = 0 AND NOT p_frisch THEN v_saat := pg_temp.kette_mengen(p_rid, p_t, p_t, true, p_kette_m); END IF;
+    IF v_saat > 0 THEN
+        TRUNCATE k_vor;
+        EXECUTE format('INSERT INTO k_vor SELECT d.node, d.agg_cost FROM pgr_drivingDistance(%L, -1::bigint, 1e9::float8, true) d WHERE d.node >= 0', p_q);
+        SELECT v.node, ST_LineLocatePoint(v_geom, k.geom) * v_len AS lage INTO v_a
+        FROM k_vor v JOIN routing_graph.knoten k ON k.id = v.node
+        ORDER BY ST_LineLocatePoint(v_geom, k.geom) DESC, v.k LIMIT 1;
+        IF FOUND AND v_a.lage >= p_min_m THEN
+            TRUNCATE k_neu;
+            EXECUTE format('INSERT INTO k_neu SELECT d.seq, d.node, d.edge, d.cost, d.agg_cost FROM pgr_dijkstra(%L, -1::bigint, %s::bigint, true) d', p_q, v_a.node);
+            IF EXISTS (SELECT 1 FROM k_neu) THEN
+                PERFORM pg_temp.kette_anhaengen(p_rid, p_t);
+                ergebnis := 1; bis := v_a.node; v_vor_lage := v_a.lage;
+            END IF;
+        END IF;
+    END IF;
+    -- rückwärts: vom am weitesten vorn liegenden Knoten, der das Ziel erreicht, bis zum Ziel (neu angesetzt, mit Trennkante)
+    PERFORM pg_temp.kette_mengen(p_rid, p_t, p_t, true, p_kette_m);
+    IF NOT EXISTS (SELECT 1 FROM k_virt WHERE target = -2) THEN RETURN; END IF;
+    TRUNCATE k_rueck;
+    EXECUTE format('INSERT INTO k_rueck SELECT d.node, d.agg_cost FROM pgr_drivingDistance(%L, -2::bigint, 1e9::float8, true) d WHERE d.node >= 0',
+                   format('SELECT id, target AS source, source AS target, cost, reverse_cost FROM (%s) x', p_q));
+    SELECT w.node, ST_LineLocatePoint(v_geom, k.geom) * v_len AS lage INTO v_b
+    FROM k_rueck w JOIN routing_graph.knoten k ON k.id = w.node
+    WHERE ST_LineLocatePoint(v_geom, k.geom) * v_len >= v_vor_lage
+    ORDER BY ST_LineLocatePoint(v_geom, k.geom), w.k LIMIT 1;
+    IF FOUND AND v_len - v_b.lage >= p_min_m THEN
+        TRUNCATE k_neu;
+        EXECUTE format('INSERT INTO k_neu SELECT d.seq, d.node, d.edge, d.cost, d.agg_cost FROM pgr_dijkstra(%L, %s::bigint, -2::bigint, true) d', p_q, v_b.node);
+        IF EXISTS (SELECT 1 FROM k_neu) THEN
+            PERFORM pg_temp.kette_anhaengen(p_rid, p_t);
+            ergebnis := 2;
+        END IF;
+    END IF;
+END $f$;
+
 -- Kette je Route
-CREATE FUNCTION pg_temp.kette(p_rid int, p_kette_m float8, p_brueck_m float8, p_faktor float8, p_zweit boolean) RETURNS int
+CREATE FUNCTION pg_temp.kette(p_rid int, p_kette_m float8, p_brueck_m float8, p_faktor float8, p_zweit boolean,
+                              p_halb boolean, p_halb_min_m float8) RETURNS int
 LANGUAGE plpgsql AS $f$
 DECLARE v_n int; v_i int := 1; v_frisch boolean := true; v_z int; v_q text; v_q_plus text; v_saat int; v_ok boolean; v_versuch int;
+        v_halb record;
 BEGIN
     TRUNCATE k_kanten, k_kanten_plus, k_weg, k_teil;
     INSERT INTO k_kanten
@@ -200,6 +265,10 @@ BEGIN
         END LOOP;
         IF v_ok THEN
             v_frisch := false; v_i := v_z + 1;
+        ELSIF p_halb THEN
+            v_halb := pg_temp.kette_halb(p_rid, v_i, v_frisch, p_kette_m, p_halb_min_m, CASE WHEN p_zweit THEN v_q_plus ELSE v_q END);
+            INSERT INTO k_teil VALUES (v_i, CASE WHEN v_halb.ergebnis > 0 THEN 'halb' ELSE 'ohne' END, v_halb.bis);
+            v_frisch := true; v_i := v_i + 1;   -- das nächste Stück setzt neu an wie ohne halbe Wege
         ELSE
             INSERT INTO k_teil VALUES (v_i, 'ohne', NULL);
             v_frisch := true; v_i := v_i + 1;
@@ -214,5 +283,5 @@ BEGIN
     RETURN (SELECT count(*) FROM k_weg)::int;
 END $f$;
 
-SELECT format('SELECT pg_temp.kette(%s, %s, %s, %s, %L)', o.rid, :kette_m, :brueck_m, :brueck_faktor, :zweitlauf)
+SELECT format('SELECT pg_temp.kette(%s, %s, %s, %s, %L, %L, %s)', o.rid, :kette_m, :brueck_m, :brueck_faktor, :zweitlauf, :kette_halb, :halb_min_m)
 FROM ohne_weg o ORDER BY o.rid \gexec
