@@ -14,10 +14,11 @@
 --   2b Teilroute mit Zusatzkanten, wenn Schritt 2 keinen Weg findet
 --   3  Brücken nur für Teilrouten, die auch so keinen Weg haben, gesucht auf dem Graphen mit Zusatzkanten
 -- Protokoll je Route mit Metern auf Zusatzkanten im endgültigen Weg in zweitlauf; Teil 3 kennzeichnet sie (unbequem).
--- Mit -v kette=true (Standard false) ersetzt abschnitte_2_kette.sql die Schritte 2 bis 4: ein zusammenhängender Weg
+-- Mit -v kette=true (Standard true; -v kette=false für unabhängige Teilrouten je RVN-Kante) ersetzt abschnitte_2_kette.sql
+-- die Schritte 2 bis 4: ein zusammenhängender Weg
 -- Stück für Stück, Brücken genau an der Lücke, Stücke mit leerer Zielmenge übersprungen (ohne die Ersatzmengen unten).
 -- psql-Variablen: schema, teil, teile, brueck_m, brueck_faktor, fang_m, korridor_m, anschluss_faktor, quer_faktor
--- (Standardwerte wie in Teil 1), kette, kette_m (Standard 300), zweitlauf (Standard false)
+-- (Standardwerte wie in Teil 1), kette (Standard true), kette_m (Standard 300), zweitlauf (Standard false)
 \if :{?schema} \else \set schema routing_abschnitte \endif
 \if :{?teil} \else \set teil 0 \endif
 \if :{?teile} \else \set teile 1 \endif
@@ -27,7 +28,7 @@
 \if :{?korridor_m} \else \set korridor_m 50 \endif
 \if :{?anschluss_faktor} \else \set anschluss_faktor 2.0 \endif
 \if :{?quer_faktor} \else \set quer_faktor 0.2 \endif
-\if :{?kette} \else \set kette false \endif
+\if :{?kette} \else \set kette true \endif
 \if :{?zweitlauf} \else \set zweitlauf false \endif
 SET search_path TO :"schema", public;
 

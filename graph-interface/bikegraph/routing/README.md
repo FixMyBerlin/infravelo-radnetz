@@ -64,8 +64,9 @@ Ebenen im Schema `routing_martin`: `routing_rvn` (Ergebnis je RVN-Kante), `routi
    Radfahrstreifen wie in v7.
 2. `abschnitte_1_vorbereitung.sql`: gerichtete Abschnitte zwischen Kreuzungen, je Kreuzung und Paar aus ankommendem und
    abgehendem Abschnitt eine Route, Korridor 50 m mit Abstandsterm zur RVN-Linie.
-3. `abschnitte_2_routing.sql`: kürzester Weg je Route; ohne Weg Teilrouten je RVN-Kante, dann über Zusatzkanten, dann
-   Brücken über die Lücke.
+3. `abschnitte_2_routing.sql`: kürzester Weg je Route; ohne durchgehenden Weg als Kette (`abschnitte_2_kette.sql`):
+   ein zusammenhängender Weg Stück für Stück entlang der RVN-Kanten, jedes Stück ab dem Ende des bisherigen Wegs, zuletzt
+   über Zusatzkanten, Brücken genau an der Lücke (`-v kette=false`: unabhängige Teilrouten je RVN-Kante).
 4. `abschnitte_2s_steiner.py`: je Kreuzung alle Routen gemeinsam als Steiner-Wald (MILP): Kanten, die schon eine Route
    benutzt, kosten nur noch einen Teil (`STEINER_LAMBDA`), über alle Kreuzungen geteilt. Das gibt einheitliche, kurze
    Kreuzungen statt paralleler Umwege.
