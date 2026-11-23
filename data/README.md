@@ -58,6 +58,7 @@ Einige Eingangsdaten liegen nicht im Repo und werden auch von keinem Skript gela
 | `netzquellen_radschnellverbindungen.gpkg` | `data/netzquellen/radschnellverbindungen.gpkg` |
 | `netzquellen_touristisches_radnetz.gpkg` | `data/netzquellen/touristisches_radnetz.gpkg` |
 | `detailnetz_strassenabschnitte_2026-10-06.fgb` | `data/Berlin Straßenabschnitte Detailnetz 2026-10-06.fgb` |
+| `Berlin Straßenabschnitte Detailnetz 2025-11-17.fgb` | `data/Berlin Straßenabschnitte Detailnetz 2025-11-17.fgb` |
 | `detailnetz_verbindungspunkte.fgb` | `data/Berlin Verbindungspunkte Detailnetz.fgb` |
 | `lor_planungsraeume_2021.geojson` | `mapping-zuteilung/data/lor_plr_2021.geojson` |
 
