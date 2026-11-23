@@ -18,7 +18,7 @@
 -- die Schritte 2 bis 4: ein zusammenhängender Weg
 -- Stück für Stück, Brücken genau an der Lücke, Stücke mit leerer Zielmenge übersprungen (ohne die Ersatzmengen unten).
 -- psql-Variablen: schema, teil, teile, brueck_m, brueck_faktor, fang_m, korridor_m, anschluss_faktor, quer_faktor
--- (Standardwerte wie in Teil 1), kette (Standard true), kette_m (Standard 300), zweitlauf (Standard false)
+-- (Standardwerte wie in Teil 1), strafe_strasse, strafe_weg (wie Teil 1), kette (Standard true), kette_m (Standard 300), zweitlauf (Standard false)
 \if :{?schema} \else \set schema routing_abschnitte \endif
 \if :{?teil} \else \set teil 0 \endif
 \if :{?teile} \else \set teile 1 \endif
@@ -29,6 +29,8 @@
 \if :{?anschluss_faktor} \else \set anschluss_faktor 2.0 \endif
 \if :{?quer_faktor} \else \set quer_faktor 0.2 \endif
 \if :{?kette} \else \set kette true \endif
+\if :{?strafe_strasse} \else \set strafe_strasse 10 \endif
+\if :{?strafe_weg} \else \set strafe_weg 25 \endif
 \if :{?zweitlauf} \else \set zweitlauf false \endif
 SET search_path TO :"schema", public;
 
@@ -56,16 +58,20 @@ SELECT o.rid, row_number() OVER (PARTITION BY o.rid ORDER BY CASE WHEN ak.abschn
        ak.rvn_id, ak.ri, ak.geom
 FROM ohne_weg o JOIN routen r ON r.rid = o.rid JOIN abschnitt_kanten ak ON ak.abschnitt = r.x OR ak.abschnitt = r.y;
 CREATE INDEX ON teilstueck (rid, t);
--- Start- und Zielmenge je Teilroute an den Enden ihrer RVN-Kante (Kosten wie in Teil 1)
+-- Start- und Zielmenge je Teilroute an den Enden ihrer RVN-Kante (Kosten wie in Teil 1, mit knoten_strafe)
 CREATE TEMP TABLE teil_virt AS
 SELECT t.rid, t.t, -(row_number() OVER ())::bigint AS id, -1::bigint AS source, k.id AS target,
-       ST_LineLocatePoint(t.geom, k.geom) * ST_Length(t.geom) * :anschluss_faktor + ST_Distance(k.geom, t.geom) * :quer_faktor AS cost
+       ST_LineLocatePoint(t.geom, k.geom) * ST_Length(t.geom) * :anschluss_faktor + ST_Distance(k.geom, t.geom) * :quer_faktor
+       + coalesce(ks.strafe, :strafe_weg) AS cost
 FROM teilstueck t JOIN routing_graph.knoten k ON ST_DWithin(k.geom, ST_StartPoint(t.geom), :fang_m) AND ST_DWithin(k.geom, t.geom, :korridor_m)
+LEFT JOIN knoten_strafe ks ON ks.knoten = k.id AND ks.rolle = 'aus'
 WHERE ST_Distance(k.geom, ST_StartPoint(t.geom)) < ST_Distance(k.geom, ST_EndPoint(t.geom))
 UNION ALL
 SELECT t.rid, t.t, -(10000000 + row_number() OVER ())::bigint, k.id, -2,
        (1 - ST_LineLocatePoint(t.geom, k.geom)) * ST_Length(t.geom) * :anschluss_faktor + ST_Distance(k.geom, t.geom) * :quer_faktor
+       + coalesce(ks.strafe, :strafe_weg)
 FROM teilstueck t JOIN routing_graph.knoten k ON ST_DWithin(k.geom, ST_EndPoint(t.geom), :fang_m) AND ST_DWithin(k.geom, t.geom, :korridor_m)
+LEFT JOIN knoten_strafe ks ON ks.knoten = k.id AND ks.rolle = 'ein'
 WHERE ST_Distance(k.geom, ST_EndPoint(t.geom)) <= ST_Distance(k.geom, ST_StartPoint(t.geom));
 -- Leere Start- oder Zielmenge (kein Knoten im Fang am Kantenende, das Netz endet davor): stattdessen alle Korridorknoten
 -- der nahen Kantenhälfte, mit denselben Kosten (sie bevorzugen den Knoten nächst dem Ende). Nicht in der Kette: dort
@@ -74,13 +80,17 @@ WHERE ST_Distance(k.geom, ST_EndPoint(t.geom)) <= ST_Distance(k.geom, ST_StartPo
 INSERT INTO teil_virt
 SELECT t.rid, t.t, -(20000000 + row_number() OVER ())::bigint, -1, k.id,
        ST_LineLocatePoint(t.geom, k.geom) * ST_Length(t.geom) * :anschluss_faktor + ST_Distance(k.geom, t.geom) * :quer_faktor
+       + coalesce(ks.strafe, :strafe_weg)
 FROM teilstueck t JOIN routing_graph.knoten k ON ST_DWithin(k.geom, t.geom, :korridor_m)
+LEFT JOIN knoten_strafe ks ON ks.knoten = k.id AND ks.rolle = 'aus'
 LEFT JOIN (SELECT DISTINCT rid, t FROM teil_virt WHERE source = -1) s ON s.rid = t.rid AND s.t = t.t
 WHERE s.rid IS NULL AND ST_Distance(k.geom, ST_StartPoint(t.geom)) < ST_Distance(k.geom, ST_EndPoint(t.geom));
 INSERT INTO teil_virt
 SELECT t.rid, t.t, -(30000000 + row_number() OVER ())::bigint, k.id, -2,
        (1 - ST_LineLocatePoint(t.geom, k.geom)) * ST_Length(t.geom) * :anschluss_faktor + ST_Distance(k.geom, t.geom) * :quer_faktor
+       + coalesce(ks.strafe, :strafe_weg)
 FROM teilstueck t JOIN routing_graph.knoten k ON ST_DWithin(k.geom, t.geom, :korridor_m)
+LEFT JOIN knoten_strafe ks ON ks.knoten = k.id AND ks.rolle = 'ein'
 LEFT JOIN (SELECT DISTINCT rid, t FROM teil_virt WHERE target = -2) s ON s.rid = t.rid AND s.t = t.t
 WHERE s.rid IS NULL AND ST_Distance(k.geom, ST_EndPoint(t.geom)) <= ST_Distance(k.geom, ST_StartPoint(t.geom));
 \endif

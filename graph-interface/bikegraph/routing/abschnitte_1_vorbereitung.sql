@@ -34,7 +34,10 @@
 -- 4. Die Abschnittsmitten auf die RVN-Kanten des Abschnitts projiziert; Führungsform je RVN-Kante und Richtung: längste
 --    Summe (jede Route zählt, Überlappungen also mehrfach). Kreuzungsstücke zählen nur für Abschnitte ohne Mitte.
 -- Start- und Zielmengen: Knoten im Umkreis :fang_m im Korridor, getrennt (ein Knoten gehört zum näheren der beiden Punkte).
--- Kosten der virtuellen Kanten = übersprungene RVN-Meter x anschluss_faktor + seitlicher Abstand x quer_faktor; Kosten
+-- Kosten der virtuellen Kanten = übersprungene RVN-Meter x anschluss_faktor + seitlicher Abstand x quer_faktor + Strafe
+-- des Knotens nach seiner besten offenen Kante in Fahrtrichtung (abgehend am Start, ankommend am Ziel; knoten_strafe):
+-- Radinfrastruktur (Stufe 1 wie v7) 0, Fahrbahn (Mischverkehr) :strafe_strasse, sonst (Wege, Gehwege, ohne TILDA-Objekt,
+-- Sonstige Wege) :strafe_weg; so beginnen und enden Routen lieber auf der Radinfrastruktur. Kosten
 -- jeder Kante des Graphen = Länge x Faktor (graph.sql).
 -- Eingang: routing_graph.g, routing_graph.knoten (graph.sql), matching.reference_edges (RVN)
 -- Ausgang (Schema :schema, Standard routing_abschnitte):
@@ -59,7 +62,7 @@
 -- nach y erlaubt sind, Standard 50), brueck_m (Brücken über Netzlücken: größter Abstand, Standard 50), brueck_faktor (Kosten je m
 -- Brücke, Standard 10), fortschritt (Fortschrittskosten, Standard false), fortschritt_toleranz_m (Standard 0),
 -- abstand_faktor (Standard 0.1), abstand_sigma_m (Standard 10), name_faktor (Standard 0 = aus), naechste_toleranz_m
--- (Standard 10, 0 = aus); siehe korridor_kanten
+-- (Standard 10, 0 = aus); siehe korridor_kanten; strafe_strasse (Standard 10), strafe_weg (Standard 25)
 \if :{?schema} \else \set schema routing_abschnitte \endif
 \if :{?naechste_toleranz_m} \else \set naechste_toleranz_m 10 \endif
 \if :{?lon} \else \set lon 13.35009 \endif
@@ -77,6 +80,8 @@
 \if :{?abstand_sigma_m} \else \set abstand_sigma_m 10 \endif
 \if :{?name_faktor} \else \set name_faktor 0 \endif
 \if :{?brueck_faktor} \else \set brueck_faktor 10 \endif
+\if :{?strafe_strasse} \else \set strafe_strasse 10 \endif
+\if :{?strafe_weg} \else \set strafe_weg 25 \endif
 DROP SCHEMA IF EXISTS :"schema" CASCADE;
 CREATE SCHEMA :"schema";
 SET search_path TO :"schema", public;
@@ -198,17 +203,38 @@ UPDATE routen SET kreuzung = ST_EndPoint(start_linie),
 \echo 'Entartete Routen (Start und Ziel näher als an der Kreuzung)'
 SELECT count(*) FILTER (WHERE entartet) AS entartet, count(*) AS routen FROM routen;
 
+-- Strafe je Knoten und Rolle (aus = abgehend, für Startmengen; ein = ankommend, für Zielmengen), auch für Teil 2
+CREATE TABLE knoten_strafe AS
+WITH r AS (
+    SELECT source AS knoten, 'aus' AS rolle, fuehr0 AS fuehr FROM routing_graph.g WHERE faktor0 IS NOT NULL
+    UNION ALL SELECT target, 'aus', fuehr1 FROM routing_graph.g WHERE faktor1 IS NOT NULL
+    UNION ALL SELECT target, 'ein', fuehr0 FROM routing_graph.g WHERE faktor0 IS NOT NULL
+    UNION ALL SELECT source, 'ein', fuehr1 FROM routing_graph.g WHERE faktor1 IS NOT NULL)
+SELECT knoten, rolle,
+       min(CASE WHEN fuehr IN ('Radfahrstreifen', 'Radfahrstreifen mit Linienverkehr frei (Z237 mit Z1026-32)',
+           'Bussonderfahrstreifen mit Radverkehr frei (Z245 mit Z1022‐10)', 'Geschützter Radfahrstreifen', 'Schutzstreifen',
+           'Fahrradstraße /-zone (Z 244)', 'Radweg', 'Gemeinsamer Geh- und Radweg mit Z240',
+           'Gehweg mit Zusatzzeichen "Radverkehr frei" (Z239 mit Z1022-10)', 'Fußgängerzone "Radverkehr frei" (Z242 mit Z1022-10)',
+           'Kreuzungsweg', '[TODO] Klärung notwendig') THEN 0
+                WHEN fuehr = 'Mischverkehr mit motorisiertem Verkehr' THEN :strafe_strasse ELSE :strafe_weg END)::float8 AS strafe
+FROM r GROUP BY 1, 2;
+ALTER TABLE knoten_strafe ADD PRIMARY KEY (knoten, rolle);
+
 -- virtuelle Kanten: Start -1 -> Knoten der Startmenge, Knoten der Zielmenge -> Ziel -2
 CREATE TABLE virt AS
 SELECT r.rid, -(row_number() OVER ())::bigint AS id, -1::bigint AS source, k.id AS target,
-       ST_LineLocatePoint(r.start_linie, k.geom) * ST_Length(r.start_linie) * :anschluss_faktor + ST_Distance(k.geom, r.start_linie) * :quer_faktor AS cost
+       ST_LineLocatePoint(r.start_linie, k.geom) * ST_Length(r.start_linie) * :anschluss_faktor + ST_Distance(k.geom, r.start_linie) * :quer_faktor
+       + coalesce(ks.strafe, :strafe_weg) AS cost
 FROM routen r JOIN routing_graph.knoten k ON ST_DWithin(k.geom, r.start, :fang_m) AND ST_DWithin(k.geom, r.linie, :korridor_m)
+LEFT JOIN knoten_strafe ks ON ks.knoten = k.id AND ks.rolle = 'aus'
 WHERE ST_Distance(k.geom, r.start) < ST_Distance(k.geom, r.ziel)
   AND (r.y IS NULL OR ST_Distance(k.geom, r.start_linie) <= ST_Distance(k.geom, r.ziel_linie))
 UNION ALL
 SELECT r.rid, -(10000000 + row_number() OVER ())::bigint, k.id, -2,
        (1 - ST_LineLocatePoint(r.ziel_linie, k.geom)) * ST_Length(r.ziel_linie) * :anschluss_faktor + ST_Distance(k.geom, r.ziel_linie) * :quer_faktor
+       + coalesce(ks.strafe, :strafe_weg)
 FROM routen r JOIN routing_graph.knoten k ON ST_DWithin(k.geom, r.ziel, :fang_m) AND ST_DWithin(k.geom, r.linie, :korridor_m)
+LEFT JOIN knoten_strafe ks ON ks.knoten = k.id AND ks.rolle = 'ein'
 WHERE ST_Distance(k.geom, r.ziel) <= ST_Distance(k.geom, r.start)
   AND (r.y IS NULL OR ST_Distance(k.geom, r.ziel_linie) <= ST_Distance(k.geom, r.start_linie));
 CREATE INDEX ON virt (rid);
