@@ -203,8 +203,9 @@ def determine_verkehrsri(row, data_source: str) -> str:
     Returns:
         Verkehrsrichtung oder TODO-Hinweis
     """
-    oneway = str(row.get("oneway", "")).strip()
-    oneway_bicycle = str(row.get("oneway_bicycle", "")).strip()
+    # TILDA schreibt fehlende Werte und oneway=no als null; pandas liest sie als NaN, str(NaN) wäre "nan".
+    oneway = "" if pd.isna(row.get("oneway")) else str(row.get("oneway")).strip()
+    oneway_bicycle = "" if pd.isna(row.get("oneway_bicycle")) else str(row.get("oneway_bicycle")).strip()
     
     if data_source == "bikelanes":
         # Spezifische Regeln für bikelanes
