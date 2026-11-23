@@ -11,3 +11,6 @@ scikit-learn
 
 # Eingangsdaten aus Google Drive (data/download_inputs.py)
 gdown
+
+# Knotenlisten aus dem OSM-Auszug (graph-interface/bikegraph/osm_nodes.py)
+osmium
