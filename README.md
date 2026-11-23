@@ -17,7 +17,6 @@ Jeder Ordner ist für eine Aufgabe zuständig und hat eine eigene README.
 - [`bearbeitungsstand/`](./bearbeitungsstand/README.md) – Liest aus dem Mapping-Editor, welche Linien erledigt sind; genutzt von den beiden Ordnern darüber.
 - [`tilda-qa/`](./tilda-qa/README.md) – QA-Ansichten in TILDA je Lieferung: Bereiche je Netzkante und Referenzwerte zum Stand der Lieferung (SQL-Dateien für tilda-geo `data-schema/`).
 - [`osm-cleanup/`](./osm-cleanup/) – Bereinigungen in OSM, je Bereinigung ein Ordner mit README, Regeln und Skripten; zuerst [`oneway-2026-11/`](./osm-cleanup/oneway-2026-11/README.md) (falsche `cycleway:*:oneway=yes`).
-- [`inspector/`](./inspector/README.md) – Web-Tool zur Qualitätssicherung der verarbeiteten Daten.
 - [`data/`](./data/README.md) – Gemeinsame Eingangsdaten (Detailnetz, Radvorrangsnetz, Bezirke, manuelle Listen).
 
 **Virtuelle Knotenpunkte:** Nummern, Anlegen, Löschen und `element_nr` regelt [`data/VIRTUELLE-KNOTENPUNKTE.md`](./data/VIRTUELLE-KNOTENPUNKTE.md). Gilt für alle Repos des Projekts.
@@ -94,9 +93,6 @@ python netzanpassungen/apply_app_result.py <export-alle-eintraege>.json   # oder
 
 # Knotenpunkte erzeugen
 python knotenpunkte/download_lsa.py && python knotenpunkte/build_knotenpunkte.py
-
-# QA Inspector
-cd inspector && npm run dev
 ```
 
 ## Stand 2025 (Radvorrangnetz)
@@ -109,7 +105,7 @@ git worktree add ../radnetz-rvn-2025 rvn-final-state
 
 ## Lizenzen
 
-Der Quellcode der Verarbeitungsskripte und des Inspectors steht unter der AGPL-3.0-Lizenz. Details findest du in der Datei [LICENSE](./LICENSE).
+Der Quellcode der Verarbeitungsskripte steht unter der AGPL-3.0-Lizenz. Details findest du in der Datei [LICENSE](./LICENSE).
 
 Die verwendeten Roh-Geodaten sind pro Datei lizenziert, siehe [data/LIZENZEN.md](./data/LIZENZEN.md) (Deutsch).
 
