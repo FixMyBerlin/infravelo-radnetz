@@ -6,7 +6,9 @@
 #      zusätzlich Knicken ohne Abzweigung über den Abknickwinkel hinaus, KNICK_OHNE_ABZWEIG)
 #   3  Intervalle (sql/105): Wege mit ihrem eigenen Objekt, Straßen mit allen Kandidaten ihrer Kante und Richtung
 #   4  assemble, Konvertierung, Aggregation -> <OUT_DIR>/post/aggregated.gpkg
-#   5  Vergleich mit der Baseline (compare_c.sh)
+#   5  Vergleich mit der Baseline (compare_c.sh) und 6 Martin-Ebenen (sql/106): wahlweise, nur wenn die Baseline-Datei
+#      existiert (VERGLEICH=auto, Standard) bzw. immer (VERGLEICH=1) oder nie (VERGLEICH=0); der Datensatz C ist nach
+#      Schritt 4 fertig
 # Voraussetzung: radweg_faltung.sh gelaufen; bikegraph.input_edges (graph.sh, Schritt 0); gebauter Matcher; Python-Umgebung
 # mit geopandas (PY). Umgebung: MATCHING_PG, PGPASSWORD; REST_MIN_M (Standard 10), OUT_DIR (relativ zu PROCESSING,
 # Standard output/mm-datensatz-c-a), BASELINE (Standard processing/output/post-baseline/aggregated.gpkg des
@@ -70,6 +72,11 @@ sed 's/\x1b\[[0-9;]*m//g' "$LOG/assemble.log" | grep -E "Intervalle|Fertig" | se
     --output "$OUT_DIR/post/aggregated.gpkg" --jobs "$JOBS" > "$LOG/agg.log" 2>&1)
 echo "   -> $PROCESSING/$OUT_DIR/post/aggregated.gpkg"
 
+VERGLEICH="${VERGLEICH:-auto}"
+if [ "$VERGLEICH" = 0 ] || { [ "$VERGLEICH" = auto ] && [ ! -f "$BASELINE" ]; }; then
+    echo "== 5./6. Vergleich mit der Baseline und Martin-Ebenen übersprungen (VERGLEICH=$VERGLEICH, Baseline: $BASELINE)"
+    exit 0
+fi
 echo "== 5. Vergleich mit der Baseline"
 "$HERE/compare_c.sh" "$BASELINE" "$PROCESSING/$OUT_DIR/post/aggregated.gpkg" "$PROCESSING/$OUT_DIR/vergleich_baseline.csv"
 
