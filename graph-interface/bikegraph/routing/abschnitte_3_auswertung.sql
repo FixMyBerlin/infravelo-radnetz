@@ -4,13 +4,14 @@
 -- Tabellen löschen.
 -- psql-Variablen: schema, kreuzung_anteil (Standard 0.1, siehe Ergebnis), abstimmung (Standard stelle, siehe Ergebnis),
 -- kreuzung_alle (Standard true, siehe Projektion), ganze_routen (Standard true, siehe Projektion),
--- gabel_durchgehend (Standard aus, siehe stimme)
+-- gabel_durchgehend (Standard aus, siehe stimme), vorrang (Standard true, siehe Ergebnis)
 \if :{?schema} \else \set schema routing_abschnitte \endif
 \if :{?gabel_durchgehend} \else \set gabel_durchgehend aus \endif
 \if :{?kreuzung_alle} \else \set kreuzung_alle true \endif
 \if :{?ganze_routen} \else \set ganze_routen true \endif
 \if :{?kreuzung_anteil} \else \set kreuzung_anteil 0.1 \endif
 \if :{?abstimmung} \else \set abstimmung stelle \endif
+\if :{?vorrang} \else \set vorrang true \endif
 SET search_path TO :"schema", public;
 DROP TABLE IF EXISTS rolle, gabelung, naht, durchfahrt, grenze, abschnitt_pfad, abschnitt_route, kreuzung_pfad, kreuzung_route,
     rvn_stuecke, ergebnis;
@@ -268,6 +269,9 @@ CREATE INDEX ON rvn_stuecke (rvn_id, ri);
 --           besten Stufe unter den dort liegenden Stücken (Radinfrastruktur vor Mischverkehr vor Sonstigen Wegen vor keiner;
 --           gleiche Stufe: mehr Routen), dann je Kante die Form mit der größten Länge. Nebeneinander liegende Formen (Fahrbahn
 --           und Seitenweg an derselben Stelle) entscheidet die Stufe, nacheinander liegende die Länge.
+--           Vorher wie in v7 (rules.prefer in processing/map-matching/config/default.toml; -v vorrang=false schaltet ab): an
+--           einer Stelle mit Bussonderfahrstreifen oder Radfahrstreifen mit Linienverkehr entfällt ein Radweg ohne Z237/240/241,
+--           an einer Stelle mit geschütztem Radfahrstreifen entfällt der Bussonderfahrstreifen.
 -- Abdeckung = Anteil der Kante unter mindestens einem Stück.
 -- Kreuzungsweg stimmt nur mit, wenn die übrigen Formen höchstens kreuzung_anteil der Kante überdecken (Vereinigung ihrer
 -- Stücke): sonst gewinnen die Querungen der Seitenstraßen entlang der Kante, die sich über mehrere Routen aufsummieren.
@@ -289,10 +293,21 @@ SELECT DISTINCT rvn_id, ri, x FROM (SELECT rvn_id, ri, von AS x FROM rvn_stuecke
 CREATE TEMP TABLE st_iv AS SELECT rvn_id, ri, x AS a, lead(x) OVER (PARTITION BY rvn_id, ri ORDER BY x) AS b FROM st_grenzen;
 DELETE FROM st_iv WHERE b IS NULL OR b - a < 0.01;
 CREATE INDEX ON st_iv (rvn_id, ri);
+CREATE TEMP TABLE st_zeichen AS
+SELECT DISTINCT input_ref FROM bikegraph.input_edges WHERE attrs->>'tilda_traffic_sign' ~ '(^|[^0-9])(237|240|241)';
+CREATE INDEX ON st_zeichen (input_ref);
 CREATE TEMP TABLE st_form AS
-SELECT i.rvn_id, i.ri, i.a, i.b, s.fuehr, count(DISTINCT s.rid) AS routen
+SELECT i.rvn_id, i.ri, i.a, i.b, s.fuehr, count(DISTINCT s.rid) AS routen, bool_or(z.input_ref IS NOT NULL) AS beschildert
 FROM st_iv i JOIN rvn_stuecke s ON s.rvn_id = i.rvn_id AND s.ri = i.ri AND s.von <= i.a + 0.001 AND s.bis >= i.b - 0.001
+LEFT JOIN st_zeichen z ON z.input_ref = s.objekt
 GROUP BY 1, 2, 3, 4, 5;
+CREATE INDEX ON st_form (rvn_id, ri, a);
+-- Vorrang wie in v7 (siehe oben), je Stelle
+DELETE FROM st_form l USING st_form w
+WHERE :vorrang AND w.rvn_id = l.rvn_id AND w.ri = l.ri AND w.a = l.a
+  AND ((l.fuehr = 'Radweg' AND NOT l.beschildert
+        AND (w.fuehr LIKE 'Bussonderfahrstreifen%' OR w.fuehr LIKE 'Radfahrstreifen mit Linienverkehr%'))
+    OR (l.fuehr LIKE 'Bussonderfahrstreifen%' AND w.fuehr = 'Geschützter Radfahrstreifen'));
 CREATE TEMP TABLE je_basis AS
 SELECT rvn_id, ri, fuehr, sum(b - a) AS m FROM (
     SELECT DISTINCT ON (rvn_id, ri, a) rvn_id, ri, a, b, fuehr FROM st_form ORDER BY rvn_id, ri, a, pg_temp.stufe(fuehr), routen DESC) x
