@@ -14,6 +14,8 @@ Signifikante Änderungen:
 - Jede Änderung der Benutzungspflicht und Nutzungsbeschränkung aufgrund baulicher Mängel
 - Änderung der Ausprägung von Attributen auf mindestens 50m Länge: 
   Art der RVA, Breite (>30cm), Oberflächenmaterial, Protektion, Sicherheitstrennstreifen
+  Diese Erkennung schreibt nur Log-Meldungen. Die 50-m-Regel gilt für die Erfassung;
+  die Aggregation nimmt alle Segmente der Kante, ohne Mindestlänge (siehe REQUIREMENTS.md).
 
 Aggregationsregeln:
 - Längster Abschnitt: Bezirk, Art der Radverkehrsführung, Benutzungspflicht, 
@@ -68,13 +70,17 @@ WORST_CASE_ATTRIBUTES = {
     "nutz_beschr": "worst_nutz_beschr"  # Spezielle Logik
 }
 
-# Attribute, die zusätzlich nur aus den Segmenten der gewinnenden Führungsform aggregiert werden.
-# Je Attribut zwei weitere Spalten (Abstimmung mit infraVelo offen, die bisherigen Werte bleiben unverändert):
-#   <attr>_hauptfuehrung  gleiche Regel wie <attr>, nur auf den Segmenten mit der gewinnenden `fuehr`
-#   <attr>_quelle         Führungsform(en) der Segmente, aus denen der bisherige Wert <attr> stammt
-MAIN_FUEHR_ATTRIBUTES = ["verkehrsri", "pflicht", "breite", "ofm", "farbe", "protek", "trennstreifen", "nutz_beschr"]
-MAIN_FUEHR_SUFFIX = "_hauptfuehrung"
-SOURCE_SUFFIX = "_quelle"
+# Attribute mit einer weiteren Spalte <attr>_anteile: Aufteilung der Kante auf die Ausprägungen (siehe add_shares).
+# Die Spalten ändern keinen Wert.
+SHARE_ATTRIBUTES = [
+    "fuehr", "verkehrsri", "pflicht", "breite", "ofm", "farbe", "protek", "trennstreifen", "nutz_beschr",
+    "tilda_smoothness", "tilda_maxspeed",
+]
+SHARE_SUFFIX = "_anteile"
+# Attribute, bei denen Kreuzungswege nicht zählen, außer die Kante besteht nur aus Kreuzungswegen
+WITHOUT_CROSSINGS_ATTRIBUTES = ["breite", "tilda_maxspeed", "tilda_smoothness"]
+# Name für Kreuzungswege (aus OSM und an Knotenpunkten konvertiert) in <attr>_anteile
+CROSSING_LABEL = "Kreuzungsbereich"
 
 # Hierarchie für Nutzungsbeschränkungen (schlechteste zuerst)
 NUTZ_BESCHR_HIERARCHY = [
@@ -91,9 +97,10 @@ TRENNSTREIFEN_HIERARCHY = [
     "entfällt"
 ]
 
-# OSM-Reihenfolge der Fahrqualität (beste zuerst) für `tilda_smoothness_worst`
+# Reihenfolge der Fahrqualität (beste zuerst) für `tilda_smoothness`: die Werte von TILDA (topic-docs, `smoothness`);
+# TILDA fasst horrible, very_horrible und impassable zu very_bad zusammen
 SMOOTHNESS_ORDER = [
-    "excellent", "good", "intermediate", "bad", "very_bad", "horrible", "very_horrible", "impassable"
+    "excellent", "good", "intermediate", "bad", "very_bad"
 ]
 
 # Spalten, die nach der Aggregation gelöscht werden sollen
@@ -127,7 +134,7 @@ AGGREGATED_COLUMN_ORDER = [
 
 AGGREGATED_COLUMN_ORDER = [
     c for col in AGGREGATED_COLUMN_ORDER
-    for c in ([col, col + MAIN_FUEHR_SUFFIX, col + SOURCE_SUFFIX] if col in MAIN_FUEHR_ATTRIBUTES else [col])
+    for c in ([col, col + SHARE_SUFFIX] if col in SHARE_ATTRIBUTES else [col])
 ]
 
 
@@ -507,51 +514,69 @@ def highest_maxspeed(segments_group):
     speeds = speeds[speeds <= 200]
     return int(speeds.max()) if len(speeds) > 0 else None
 
-def aggregate_attribute(segments_group, attr):
-    """Wert eines Attributs nach seiner Regel (wie in aggregate_edge_group)."""
-    if attr not in segments_group.columns or len(segments_group) == 0:
-        return None
-    if attr == "verkehrsri":
-        return segments_group.iloc[0][attr]  # bisher: Wert des ersten Segments
+def _share_label(attr, value):
+    if pd.isna(value):
+        return "ohne Wert"
     if attr == "breite":
-        return aggregate_breite_excluding_kreuzungsweg(segments_group)[0]
-    if attr in WORST_CASE_ATTRIBUTES:
-        return aggregate_by_worst_case(segments_group, attr, WORST_CASE_ATTRIBUTES[attr])
-    return aggregate_by_longest_section(segments_group, attr)
+        number = pd.to_numeric(value, errors="coerce")
+        if pd.notna(number):
+            return f"{float(number):.2f} m".replace(".", ",")
+    if attr == "tilda_maxspeed":
+        return f"{value} km/h"
+    if attr == "fuehr" and is_kreuzungsweg(value):
+        return CROSSING_LABEL
+    return str(value)
 
 
-def _same_value(a, b, attr):
-    if pd.isna(a) or pd.isna(b):
-        return False
-    if attr == "breite":
-        a_num, b_num = pd.to_numeric(a, errors="coerce"), pd.to_numeric(b, errors="coerce")
-        return pd.notna(a_num) and pd.notna(b_num) and abs(float(a_num) - float(b_num)) < 1e-9
-    return str(a) == str(b)
+def _share_percent(share):
+    percent = round(share * 100)
+    return "<1 %" if percent == 0 else f"{percent} %"
 
 
-def add_main_fuehr_variants(aggregated, edge_group):
+def add_shares(aggregated, edge_group):
     """
-    Ergänzt je Attribut aus MAIN_FUEHR_ATTRIBUTES `<attr>_hauptfuehrung` und `<attr>_quelle`.
-    Der bisherige Wert `<attr>` bleibt unverändert.
+    Ergänzt je Attribut aus SHARE_ATTRIBUTES `<attr>_anteile`: je Ausprägung der Anteil an der Länge der Segmente,
+    in Klammern die Führungsformen bzw. „nicht gewertet, da Kreuzungsbereich“ bei Kreuzungswegen, wo sie nicht zählen
+    (WITHOUT_CROSSINGS_ATTRIBUTES).
+    Der Wert der Kante steht vorne, danach die übrigen Ausprägungen nach Anteil, z. B. für `breite`:
+    „8 % 0,90 m (Radweg); 86 % 1,50 m (Radweg); 6 % 2,00 m (nicht gewertet, da Kreuzungsbereich)“.
     """
-    fuehr = aggregated.get("fuehr")
+    lengths = {idx: calculate_segment_length(g) for idx, g in zip(edge_group.index, edge_group.geometry)}
+    total = sum(lengths.values())
     has_fuehr = "fuehr" in edge_group.columns
-    main = edge_group[edge_group["fuehr"] == fuehr] if has_fuehr and pd.notna(fuehr) else edge_group.iloc[0:0]
-    for attr in MAIN_FUEHR_ATTRIBUTES:
+    for attr in SHARE_ATTRIBUTES:
         if attr not in edge_group.columns:
             continue
-        aggregated[attr + MAIN_FUEHR_SUFFIX] = aggregate_attribute(main, attr)
-        value = aggregated.get(attr)
-        candidates = edge_group
-        if attr == "verkehrsri":
-            candidates = edge_group.iloc[0:1]  # der bisherige Wert stammt vom ersten Segment
-        elif attr == "breite" and has_fuehr:
-            candidates = edge_group[~edge_group["fuehr"].apply(is_kreuzungsweg)]  # Kreuzungswege zählen nicht
-        sources = sorted({
-            str(f) for v, f in zip(candidates[attr], candidates["fuehr"] if has_fuehr else [None] * len(candidates))
-            if pd.notna(f) and _same_value(v, value, attr)
-        })
-        aggregated[attr + SOURCE_SUFFIX] = "; ".join(sources) if sources else None
+        if total <= 0:
+            aggregated[attr + SHARE_SUFFIX] = None
+            continue
+        chosen = aggregated.get(attr)
+        # Wie aggregate_breite_excluding_kreuzungsweg: Breiten von Kreuzungswegen zählen nicht, außer es gibt nur
+        # Kreuzungswege (dann bleibt die Breite leer, bei einem einzelnen konvertierten Segment bleibt sie stehen)
+        crossing = (edge_group["fuehr"].apply(is_kreuzungsweg) if has_fuehr and attr in WITHOUT_CROSSINGS_ATTRIBUTES
+                    else pd.Series(False, index=edge_group.index))
+        if crossing.all():
+            crossing[:] = False
+        entries = {}
+        for idx, value, fuehr in zip(edge_group.index, edge_group[attr],
+                                     edge_group["fuehr"] if has_fuehr else [None] * len(edge_group)):
+            excluded = bool(pd.notna(value) and crossing[idx])
+            entry = entries.setdefault((_share_label(attr, value), excluded), {"length": 0.0, "fuehr": []})
+            entry["length"] += lengths[idx]
+            fuehr_label = CROSSING_LABEL if is_kreuzungsweg(fuehr) else fuehr
+            if attr != "fuehr" and pd.notna(fuehr) and fuehr_label not in entry["fuehr"]:
+                entry["fuehr"] = sorted(entry["fuehr"] + [fuehr_label])
+        parts = []
+        chosen_label = _share_label(attr, chosen) if pd.notna(chosen) else None
+        for (label, excluded), entry in sorted(
+            entries.items(), key=lambda item: (item[0] != (chosen_label, False), -item[1]["length"])
+        ):
+            details = [" / ".join(entry["fuehr"])] if entry["fuehr"] and not excluded else []
+            if excluded:
+                details.append(f"nicht gewertet, da {CROSSING_LABEL}")
+            text = f"{_share_percent(entry['length'] / total)} {label}"
+            parts.append(f"{text} ({', '.join(details)})" if details else text)
+        aggregated[attr + SHARE_SUFFIX] = "; ".join(parts)
     return aggregated
 
 
@@ -623,15 +648,23 @@ def aggregate_edge_group(edge_group):
                 aggregated[attr] = aggregate_by_worst_case(edge_group, attr, agg_type)
         
         # TILDA-Attribute durch Semikolon-Kombination aggregieren (dynamisch erkannt)
-        tilda_attributes = [col for col in edge_group.columns if col.startswith('tilda_')]
+        tilda_attributes = [col for col in edge_group.columns
+                            if col.startswith('tilda_') and col not in ('tilda_maxspeed', 'tilda_smoothness')]
         for attr in tilda_attributes:
             aggregated[attr] = aggregate_tilda_attributes(edge_group, attr)
 
-    # Ein Wert je Kante und Richtung neben der Semikolon-Liste (auch bei Einzelsegmenten)
-    aggregated['tilda_maxspeed_max'] = highest_maxspeed(edge_group)
-    aggregated['tilda_smoothness_worst'] = worst_smoothness(edge_group)
+    # Ein Wert je Kante und Richtung (auch bei Einzelsegmenten), ohne Kreuzungswege wie bei `fuehr`
+    without_crossings = edge_group
+    if 'fuehr' in edge_group.columns:
+        non_crossings = edge_group[~edge_group['fuehr'].apply(is_kreuzungsweg)]
+        if len(non_crossings) > 0:
+            without_crossings = non_crossings
+    if 'tilda_maxspeed' in edge_group.columns:
+        aggregated['tilda_maxspeed'] = highest_maxspeed(without_crossings)
+    if 'tilda_smoothness' in edge_group.columns:
+        aggregated['tilda_smoothness'] = worst_smoothness(without_crossings)
     
-    aggregated = add_main_fuehr_variants(aggregated, edge_group)
+    aggregated = add_shares(aggregated, edge_group)
 
     # Berechne die Länge für ALLE Kanten (Einzelsegmente und aggregierte Kanten)
     aggregated['Länge'] = int(round(calculate_segment_length(aggregated.geometry)))
@@ -948,8 +981,7 @@ def process(input_path, output_path, crs, clip_region=None, data_dir="./data", a
             
             # Setze alle Attribute auf NULL und zähle Änderungen
             null_attrs = NULL_ATTRIBUTES_KEINE_RADINFRA + [
-                a + sfx for a in MAIN_FUEHR_ATTRIBUTES if a in NULL_ATTRIBUTES_KEINE_RADINFRA
-                for sfx in (MAIN_FUEHR_SUFFIX, SOURCE_SUFFIX)
+                a + SHARE_SUFFIX for a in SHARE_ATTRIBUTES if a in NULL_ATTRIBUTES_KEINE_RADINFRA
             ]
             for attr in null_attrs:
                 if attr in result_gdf.columns:

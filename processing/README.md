@@ -116,9 +116,11 @@ Konvertiert Schutzstreifen unter bestimmten Bedingungen:
 #### Schritt 4: Aggregation (`start_aggregation.py`)
 Aggregiert Segmente nach `element_nr` + `ri` (Fahrtrichtung). Regelbasiert: längster Abschnitt für Führungsform/Bezirk/Material, schlechteste Ausprägung für Breite/Trennstreifen.
 
+Die Aggregation nimmt alle Segmente der Kante, ohne Mindestlänge. Die geltenden Regeln und ihre gewollten Besonderheiten stehen in [REQUIREMENTS.md](REQUIREMENTS.md#aggregation-in-datensatz-c-geltende-regeln). Je Attribut zeigt `<attr>_anteile`, woraus der Wert entsteht, z. B. `8 % 0,90 m (Radweg); 86 % 1,50 m (Radweg); 6 % 2,00 m (nicht gewertet, da Kreuzungsbereich)` (der erste Eintrag ist der Wert der Kante).
+
 **Ausgabe**: `output/aggregated_rvn_final.gpkg` (Layer: `hinrichtung`, `gegenrichtung`)
 
-Die `tilda_*`-Spalten (auch die neuen) fasst die Aggregation je Kante und Richtung als sortierte, mit `;` verbundene Liste der verschiedenen Werte zusammen. Dazu kommen zwei einzelne Werte: `tilda_maxspeed_max` (höchste numerische `tilda_maxspeed`, ganze km/h) und `tilda_smoothness_worst` (schlechteste `tilda_smoothness` nach der OSM-Reihenfolge `excellent` < `good` < `intermediate` < `bad` < `very_bad` < `horrible` < `very_horrible` < `impassable`).
+Die `tilda_*`-Spalten (auch die neuen) fasst die Aggregation je Kante und Richtung als sortierte, mit `;` verbundene Liste der verschiedenen Werte zusammen. Ausnahmen sind zwei einzelne Werte, beide ohne Kreuzungswege (außer die Kante besteht nur daraus): `tilda_maxspeed` (höchste numerische Geschwindigkeit, ganze km/h) und `tilda_smoothness` (schlechteste Fahrqualität nach der Reihenfolge der TILDA-Werte `excellent` < `good` < `intermediate` < `bad` < `very_bad`).
 
 ### 4. Validierung (`run_validation.sh`)
 

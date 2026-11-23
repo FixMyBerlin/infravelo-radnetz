@@ -169,20 +169,48 @@ Ist nur bei `Geschützter Radfahrstreifen` (`category=protectedCyclewayOnHighway
 - "Radverkehr nicht erlaubt (access_bicycle=<Wert>)" (Erweiterung 2026-11, mit infraVelo abzustimmen)
   - aus TILDA `routing.access_bicycle`: `no`, `destination`, `private`, `customers`, `delivery`, `permit`, `agricultural_or_forestry`
   - Solche Wege bleiben im Ergebnis und werden im Matching wie andere Wege behandelt, damit sichtbar wird, wo ein Weg für den Radverkehr geöffnet werden könnte.
-  - In Datensatz C gilt die Regel für den schlechtesten Fall über die ganze Kante; `nutz_beschr_hauptfuehrung` nimmt nur die Abschnitte der gewinnenden Führungsform (siehe unten).
+  - In Datensatz C gilt die Regel für den schlechtesten Fall über die ganze Kante; `nutz_beschr_anteile` zeigt, auf welchem Anteil der Kante die Beschränkung liegt (siehe unten).
   - Mehrere Beschränkungen stehen nebeneinander, getrennt mit `; `.
 - "keine"
 
-### Zusatzfelder in Datensatz C: `<attr>_hauptfuehrung` und `<attr>_quelle` (Erweiterung 2026-11, mit infraVelo abzustimmen)
+### Zusatzfelder in Datensatz C: `<attr>_anteile` (Erweiterung 2026-11)
 
-Eine Kante besteht oft aus mehreren Abschnitten mit unterschiedlicher Führungsform. `fuehr` ist die Führungsform mit der größten Länge. Die anderen Attribute werden bisher über alle Abschnitte bestimmt und können deshalb von einer anderen Führungsform stammen, z. B. die kleinste Breite von einem Schutzstreifen an einer Kante, die als Gehweg geführt wird.
+Eine Kante besteht oft aus mehreren Abschnitten mit unterschiedlicher Führungsform. `fuehr` ist die Führungsform mit der größten Länge. Die anderen Attribute werden über alle Abschnitte bestimmt und können deshalb von einer anderen Führungsform stammen, z. B. die kleinste Breite von einem Schutzstreifen an einer Kante, die als Gehweg geführt wird.
 
-Für `verkehrsri`, `pflicht`, `breite`, `ofm`, `farbe`, `protek`, `trennstreifen` und `nutz_beschr` gibt es je zwei Zusatzfelder, das bisherige Feld bleibt unverändert:
+Für `fuehr`, `verkehrsri`, `pflicht`, `breite`, `ofm`, `farbe`, `protek`, `trennstreifen`, `nutz_beschr`, `tilda_smoothness` und `tilda_maxspeed` zeigt `<attr>_anteile`, woraus der Wert der Kante entsteht. Die Felder ändern keinen Wert.
 
-- `<attr>_hauptfuehrung`: dieselbe Regel wie für `<attr>` (längster Abschnitt, kleinste Breite ohne Kreuzungswege, schlechtester Fall; `verkehrsri`: erster Abschnitt), aber nur über die Abschnitte mit der Führungsform aus `fuehr`.
-- `<attr>_quelle`: die Führungsform(en) der Abschnitte, von denen der bisherige Wert `<attr>` stammt.
+- Jeder Eintrag: Anteil an der Länge der Abschnitte, die Ausprägung, in Klammern die Führungsform(en) der Abschnitte mit dieser Ausprägung (nicht bei `fuehr`) und ein Zusatz. Getrennt mit `; `. Kreuzungswege (beide Arten) heißen hier „Kreuzungsbereich“.
+- Reihenfolge: Der erste Eintrag ist der Wert der Kante, danach die übrigen Ausprägungen, größter Anteil zuerst. Ist das Feld der Kante leer, gibt es keinen solchen Eintrag, und alle stehen nach Anteil.
+- Zusatz `nicht gewertet, da Kreuzungsbereich` (ohne Führungsform): Werte von Kreuzungswegen bei `breite`, `tilda_maxspeed` und `tilda_smoothness`, außer die Kante besteht nur aus Kreuzungswegen.
 
-Bei „Keine Radinfrastruktur vorhanden“ sind die Zusatzfelder leer wie die Felder selbst.
+Beispiel `breite_anteile` (Warschauer Straße, Hinrichtung): `8 % 0,90 m (Radweg); 86 % 1,50 m (Radweg); 6 % 2,00 m (nicht gewertet, da Kreuzungsbereich)`. Alle drei Breiten liegen an Radweg-Abschnitten; die kleinste, 0,90 m, gilt für die Kante, obwohl sie nur 8 % der Länge ausmacht.
+
+Bei „Keine Radinfrastruktur vorhanden“ sind die Zusatzfelder leer wie die Felder selbst; `fuehr_anteile` bleibt.
+
+### Aggregation in Datensatz C: geltende Regeln
+
+Datensatz C fasst alle Segmente einer Kante und Richtung (`element_nr`, `ri`) aus Datensatz B zu einer Kante zusammen (`processing/start_aggregation.py`). Diese Regeln gelten seit der Lieferung 2025 (die `tilda_*`-Felder kamen 2026-11 dazu). Sie bleiben unverändert, damit sich die gelieferten Daten nicht ändern (2026-11). Die Besonderheiten unten sind deshalb gewollt, keine Fehler.
+
+| Attribut | Regel |
+| --- | --- |
+| `fuehr` | längster Abschnitt (Summe der Längen je Ausprägung), ohne „Kreuzungsweg“ und „Kreuzungsweg (Konvertiert)“, außer es gibt nur diese |
+| `pflicht`, `ofm`, `farbe`, `protek`, Bezirk | längster Abschnitt |
+| `breite` | kleinste Breite, ohne „Kreuzungsweg“ und „Kreuzungsweg (Konvertiert)“ |
+| `trennstreifen` | schlechteste Ausprägung: „nein“ vor „ja“ vor „entfällt“ |
+| `nutz_beschr` | schlechteste Ausprägung: „Physische Sperre (…)“ vor „Radverkehr nicht erlaubt (…)“ vor „Schadensschild/StVO Zusatzeichen (…)“ vor „keine“ |
+| `verkehrsri` | Wert des ersten Segments |
+| übrige `tilda_*` | alle verschiedenen Werte, sortiert, mit `;` verbunden |
+| `tilda_maxspeed` | höchstes Tempo (Werte über 200 zählen nicht), ohne „Kreuzungsweg“ und „Kreuzungsweg (Konvertiert)“, außer es gibt nur diese |
+| `tilda_smoothness` | schlechteste Fahrqualität, ohne „Kreuzungsweg“ und „Kreuzungsweg (Konvertiert)“, außer es gibt nur diese |
+
+Bei „Keine Radinfrastruktur vorhanden“ sind `ofm`, `protek`, `pflicht`, `breite`, `farbe`, `verkehrsri`, `trennstreifen`, `nutz_beschr` und `Kommentar` leer.
+
+**Gewollte Besonderheiten:**
+
+- **Keine Mindestlänge.** Die Regel für signifikante Änderungen (ab 50 m, Breite ab 30 cm, siehe `start_aggregation.py`) gilt für die Erfassung, nicht für die Auswertung. Auch ein kurzes Stück geht in die Aggregation ein: Ein 10 m schmales Stück an einer Baumscheibe bestimmt die Breite der ganzen Kante, ein kurzes „nein“ den Trennstreifen. Zur Einordnung (Datensatz B des Radvorrangnetzes vom Januar 2026, 10.246 Kanten und Richtungen): Mit einer 50-m-Regel hätten 360 Kanten eine größere Breite (Median +1,0 m) und 219 einen anderen Trennstreifen. Führungsform, Oberfläche und Protektion änderten sich nicht, weil der längste Abschnitt kurze Stücke ohnehin nicht wählt.
+- **Jedes Attribut für sich.** Jedes Attribut wird unabhängig über alle Segmente bestimmt. Die Werte einer Kante können deshalb aus verschiedenen Segmenten und Führungsformen stammen, z. B. die kleinste Breite von einem kurzen Schutzstreifen an einer Kante, deren `fuehr` „Sonstige Wege“ ist. `<attr>_anteile` zeigt, woher ein Wert kommt.
+- **Kreuzungsbereich.** Kreuzungswege sind Wege der TILDA-Kategorie `crossing` (`fuehr` „Kreuzungsweg“) und Abschnitte von Radweg, Radfahrstreifen, Schutzstreifen, Busstreifen oder gemeinsamem Geh- und Radweg unter 50 m, die zu mindestens 60 % im Radius eines betrachteten Knotenpunkts liegen (`fuehr` „Kreuzungsweg (Konvertiert)“, übrige Attribute wie vorher; `helpers/convert_segments_near_intersections.py`). Nur `fuehr`, `breite`, `tilda_maxspeed` und `tilda_smoothness` behandeln sie gesondert (siehe Tabelle). Bei allen anderen Attributen zählen sie voll mit, auch mit ihrer Länge beim längsten Abschnitt; `verkehrsri` kommt oft von einem Kreuzungsweg, wenn er das erste Segment ist.
+- **Kanten nur aus Kreuzungswegen.** Bei mehreren Segmenten bleibt `breite` leer, `Kommentar` bekommt „Breite nicht ermittelbar (nur Kreuzungswege vorhanden)“. Bei einem einzelnen Segment gilt das nur für `fuehr` genau „Kreuzungsweg“; ein einzelnes Segment „Kreuzungsweg (Konvertiert)“ behält seine Breite (111 Kanten und Richtungen im Radvorrangnetz, Stand Januar 2026).
 
 ### `Bemerkung`
 
