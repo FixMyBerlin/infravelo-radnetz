@@ -1,0 +1,886 @@
+{
+ "version": 8,
+ "name": "Routing-Matcher (QA)",
+ "center": [
+  13.405,
+  52.52
+ ],
+ "zoom": 12,
+ "sources": {
+  "basemap": {
+   "type": "raster",
+   "tiles": [
+    "https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"
+   ],
+   "tileSize": 256,
+   "attribution": "© OpenStreetMap contributors © CARTO"
+  },
+  "routing_radwege": {
+   "type": "vector",
+   "url": "http://localhost:3001/routing_radwege"
+  },
+  "routing_wege": {
+   "type": "vector",
+   "url": "http://localhost:3001/routing_wege"
+  },
+  "routing_strassen": {
+   "type": "vector",
+   "url": "http://localhost:3001/routing_strassen"
+  },
+  "routing_rvn_diff": {
+   "type": "vector",
+   "url": "http://localhost:3001/routing_rvn_diff"
+  },
+  "routing_routen": {
+   "type": "vector",
+   "url": "http://localhost:3001/routing_routen"
+  },
+  "routing_crossings": {
+   "type": "vector",
+   "url": "http://localhost:3001/routing_crossings"
+  },
+  "routing_unbequem": {
+   "type": "vector",
+   "url": "http://localhost:3001/routing_unbequem"
+  },
+  "routing_luecken": {
+   "type": "vector",
+   "url": "http://localhost:3001/routing_luecken"
+  },
+  "routing_rvn": {
+   "type": "vector",
+   "url": "http://localhost:3001/routing_rvn"
+  },
+  "routing_diff_v7": {
+   "type": "vector",
+   "url": "http://localhost:3001/routing_diff_v7"
+  },
+  "routing_urteil_routing": {
+   "type": "vector",
+   "url": "http://localhost:3001/routing_urteil_routing"
+  },
+  "routing_urteil_v7": {
+   "type": "vector",
+   "url": "http://localhost:3001/routing_urteil_v7"
+  },
+  "routing_urteil_grenzfall": {
+   "type": "vector",
+   "url": "http://localhost:3001/routing_urteil_grenzfall"
+  },
+  "routing_haltestellen": {
+   "type": "vector",
+   "url": "http://localhost:3001/routing_haltestellen"
+  }
+ },
+ "layers": [
+  {
+   "id": "basemap",
+   "type": "raster",
+   "source": "basemap"
+  },
+  {
+   "id": "routing_strassen",
+   "type": "line",
+   "source": "routing_strassen",
+   "source-layer": "routing_strassen",
+   "paint": {
+    "line-color": [
+     "case",
+     [
+      "==",
+      [
+       "get",
+       "richtung"
+      ],
+      "gesperrt"
+     ],
+     "#ef9a9a",
+     [
+      "has",
+      "zusatz"
+     ],
+     "#bcaaa4",
+     "#9e9e9e"
+    ],
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     0.5,
+     18,
+     2
+    ]
+   },
+   "layout": {
+    "visibility": "none"
+   }
+  },
+  {
+   "id": "routing_wege",
+   "type": "line",
+   "source": "routing_wege",
+   "source-layer": "routing_wege",
+   "paint": {
+    "line-color": [
+     "match",
+     [
+      "get",
+      "highway"
+     ],
+     "steps",
+     "#7b1fa2",
+     "elevator",
+     "#7b1fa2",
+     "#90caf9"
+    ],
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     13,
+     0.5,
+     18,
+     2
+    ]
+   },
+   "layout": {
+    "visibility": "none"
+   }
+  },
+  {
+   "id": "routing_radwege",
+   "type": "line",
+   "source": "routing_radwege",
+   "source-layer": "routing_radwege",
+   "paint": {
+    "line-color": [
+     "match",
+     [
+      "coalesce",
+      [
+       "get",
+       "fuehr0"
+      ],
+      [
+       "get",
+       "fuehr1"
+      ]
+     ],
+     "Radweg",
+     "#00a046",
+     "Geschützter Radfahrstreifen",
+     "#00897b",
+     "Radfahrstreifen",
+     "#64dd17",
+     "Schutzstreifen",
+     "#c0ca33",
+     "Bussonderfahrstreifen mit Radverkehr frei (Z245 mit Z1022‐10)",
+     "#6d4c41",
+     "Fahrradstraße /-zone (Z 244)",
+     "#1b5e20",
+     "Gemeinsamer Geh- und Radweg mit Z240",
+     "#26a69a",
+     "Sonstige Wege (Gehwege, Wege durch Grünflächen, Plätze)",
+     "#2979ff",
+     "Mischverkehr mit motorisiertem Verkehr",
+     "#ff9100",
+     "Keine Radinfrastruktur vorhanden",
+     "#ffd600",
+     "Kreuzungsweg",
+     "#d500f9",
+     "#757575"
+    ],
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     12,
+     1,
+     17,
+     3
+    ]
+   },
+   "layout": {
+    "visibility": "none"
+   }
+  },
+  {
+   "id": "routing_rvn_diff",
+   "type": "line",
+   "source": "routing_rvn_diff",
+   "source-layer": "routing_rvn_diff",
+   "paint": {
+    "line-color": [
+     "match",
+     [
+      "get",
+      "art"
+     ],
+     "entfernt",
+     "#d50000",
+     "gelöst",
+     "#ff9100",
+     "neu",
+     "#00c853",
+     "#000000"
+    ],
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     10,
+     3,
+     17,
+     9
+    ],
+    "line-opacity": 0.8
+   },
+   "layout": {
+    "visibility": "none"
+   }
+  },
+  {
+   "id": "routing_routen",
+   "type": "line",
+   "source": "routing_routen",
+   "source-layer": "routing_routen",
+   "paint": {
+    "line-color": [
+     "match",
+     [
+      "get",
+      "fuehr"
+     ],
+     "Radweg",
+     "#00a046",
+     "Geschützter Radfahrstreifen",
+     "#00897b",
+     "Radfahrstreifen",
+     "#64dd17",
+     "Schutzstreifen",
+     "#c0ca33",
+     "Bussonderfahrstreifen mit Radverkehr frei (Z245 mit Z1022‐10)",
+     "#6d4c41",
+     "Fahrradstraße /-zone (Z 244)",
+     "#1b5e20",
+     "Gemeinsamer Geh- und Radweg mit Z240",
+     "#26a69a",
+     "Sonstige Wege (Gehwege, Wege durch Grünflächen, Plätze)",
+     "#2979ff",
+     "Mischverkehr mit motorisiertem Verkehr",
+     "#ff9100",
+     "Keine Radinfrastruktur vorhanden",
+     "#ffd600",
+     "Kreuzungsweg",
+     "#d500f9",
+     "#757575"
+    ],
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     12,
+     [
+      "min",
+      [
+       "+",
+       1,
+       [
+        "*",
+        0.5,
+        [
+         "get",
+         "routen"
+        ]
+       ]
+      ],
+      4
+     ],
+     17,
+     [
+      "min",
+      [
+       "+",
+       2,
+       [
+        "*",
+        1.5,
+        [
+         "get",
+         "routen"
+        ]
+       ]
+      ],
+      12
+     ]
+    ]
+   },
+   "layout": {
+    "visibility": "none"
+   }
+  },
+  {
+   "id": "routing_crossings",
+   "type": "line",
+   "source": "routing_crossings",
+   "source-layer": "routing_crossings",
+   "paint": {
+    "line-color": [
+     "match",
+     [
+      "get",
+      "fuehr"
+     ],
+     "Radweg",
+     "#00a046",
+     "Geschützter Radfahrstreifen",
+     "#00897b",
+     "Radfahrstreifen",
+     "#64dd17",
+     "Schutzstreifen",
+     "#c0ca33",
+     "Bussonderfahrstreifen mit Radverkehr frei (Z245 mit Z1022‐10)",
+     "#6d4c41",
+     "Fahrradstraße /-zone (Z 244)",
+     "#1b5e20",
+     "Gemeinsamer Geh- und Radweg mit Z240",
+     "#26a69a",
+     "Sonstige Wege (Gehwege, Wege durch Grünflächen, Plätze)",
+     "#2979ff",
+     "Mischverkehr mit motorisiertem Verkehr",
+     "#ff9100",
+     "Keine Radinfrastruktur vorhanden",
+     "#ffd600",
+     "Kreuzungsweg",
+     "#d500f9",
+     "#757575"
+    ],
+    "line-width": [
+     "case",
+     [
+      "get",
+      "lang"
+     ],
+     [
+      "interpolate",
+      [
+       "linear"
+      ],
+      [
+       "zoom"
+      ],
+      12,
+      2,
+      17,
+      6
+     ],
+     [
+      "interpolate",
+      [
+       "linear"
+      ],
+      [
+       "zoom"
+      ],
+      12,
+      1,
+      17,
+      4
+     ]
+    ],
+    "line-dasharray": [
+     2,
+     1
+    ]
+   },
+   "layout": {
+    "visibility": "none"
+   }
+  },
+  {
+   "id": "routing_unbequem",
+   "type": "line",
+   "source": "routing_unbequem",
+   "source-layer": "routing_unbequem",
+   "paint": {
+    "line-color": [
+     "match",
+     [
+      "get",
+      "art"
+     ],
+     "treppe",
+     "#7b1fa2",
+     "service",
+     "#6d4c41",
+     "baustelle",
+     "#ff6d00",
+     "brücke",
+     "#d50000",
+     "#000000"
+    ],
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     10,
+     3,
+     17,
+     8
+    ],
+    "line-dasharray": [
+     1,
+     1
+    ]
+   },
+   "layout": {
+    "visibility": "none"
+   }
+  },
+  {
+   "id": "routing_rvn",
+   "type": "line",
+   "source": "routing_rvn",
+   "source-layer": "routing_rvn",
+   "paint": {
+    "line-color": [
+     "match",
+     [
+      "get",
+      "status"
+     ],
+     "gleich",
+     "#2e7d32",
+     "anders",
+     "#d50000",
+     "#9e9e9e"
+    ],
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     12,
+     2,
+     17,
+     6
+    ],
+    "line-offset": [
+     "match",
+     [
+      "get",
+      "ri"
+     ],
+     0,
+     [
+      "interpolate",
+      [
+       "linear"
+      ],
+      [
+       "zoom"
+      ],
+      12,
+      1.5,
+      16,
+      5
+     ],
+     [
+      "interpolate",
+      [
+       "linear"
+      ],
+      [
+       "zoom"
+      ],
+      12,
+      -1.5,
+      16,
+      -5
+     ]
+    ]
+   },
+   "layout": {
+    "visibility": "none"
+   }
+  },
+  {
+   "id": "routing_diff_v7",
+   "type": "line",
+   "source": "routing_diff_v7",
+   "source-layer": "routing_diff_v7",
+   "paint": {
+    "line-color": [
+     "match",
+     [
+      "get",
+      "klasse"
+     ],
+     "Rückfall (keine Radinfra)",
+     "#9e9e9e",
+     "anders, v7 = Henri",
+     "#d50000",
+     "#ff9100"
+    ],
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     10,
+     2,
+     16,
+     6
+    ],
+    "line-offset": [
+     "match",
+     [
+      "get",
+      "ri"
+     ],
+     0,
+     [
+      "interpolate",
+      [
+       "linear"
+      ],
+      [
+       "zoom"
+      ],
+      12,
+      1.5,
+      16,
+      5
+     ],
+     [
+      "interpolate",
+      [
+       "linear"
+      ],
+      [
+       "zoom"
+      ],
+      12,
+      -1.5,
+      16,
+      -5
+     ]
+    ]
+   },
+   "layout": {
+    "visibility": "none"
+   }
+  },
+  {
+   "id": "routing_urteil_routing",
+   "type": "line",
+   "source": "routing_urteil_routing",
+   "source-layer": "routing_urteil_routing",
+   "paint": {
+    "line-color": "#2e7d32",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     10,
+     3,
+     17,
+     8
+    ],
+    "line-offset": [
+     "match",
+     [
+      "get",
+      "ri"
+     ],
+     0,
+     [
+      "interpolate",
+      [
+       "linear"
+      ],
+      [
+       "zoom"
+      ],
+      12,
+      1.5,
+      16,
+      5
+     ],
+     [
+      "interpolate",
+      [
+       "linear"
+      ],
+      [
+       "zoom"
+      ],
+      12,
+      -1.5,
+      16,
+      -5
+     ]
+    ]
+   },
+   "layout": {
+    "visibility": "none"
+   }
+  },
+  {
+   "id": "routing_urteil_v7",
+   "type": "line",
+   "source": "routing_urteil_v7",
+   "source-layer": "routing_urteil_v7",
+   "paint": {
+    "line-color": "#d50000",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     10,
+     3,
+     17,
+     8
+    ],
+    "line-offset": [
+     "match",
+     [
+      "get",
+      "ri"
+     ],
+     0,
+     [
+      "interpolate",
+      [
+       "linear"
+      ],
+      [
+       "zoom"
+      ],
+      12,
+      1.5,
+      16,
+      5
+     ],
+     [
+      "interpolate",
+      [
+       "linear"
+      ],
+      [
+       "zoom"
+      ],
+      12,
+      -1.5,
+      16,
+      -5
+     ]
+    ]
+   },
+   "layout": {
+    "visibility": "none"
+   }
+  },
+  {
+   "id": "routing_urteil_grenzfall",
+   "type": "line",
+   "source": "routing_urteil_grenzfall",
+   "source-layer": "routing_urteil_grenzfall",
+   "paint": {
+    "line-color": [
+     "match",
+     [
+      "get",
+      "urteil"
+     ],
+     "Grenzfall",
+     "#ff9100",
+     "TILDA-Daten",
+     "#7b1fa2",
+     "#9e9e9e"
+    ],
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     10,
+     3,
+     17,
+     8
+    ],
+    "line-offset": [
+     "match",
+     [
+      "get",
+      "ri"
+     ],
+     0,
+     [
+      "interpolate",
+      [
+       "linear"
+      ],
+      [
+       "zoom"
+      ],
+      12,
+      1.5,
+      16,
+      5
+     ],
+     [
+      "interpolate",
+      [
+       "linear"
+      ],
+      [
+       "zoom"
+      ],
+      12,
+      -1.5,
+      16,
+      -5
+     ]
+    ]
+   },
+   "layout": {
+    "visibility": "none"
+   }
+  },
+  {
+   "id": "routing_luecken",
+   "type": "circle",
+   "source": "routing_luecken",
+   "source-layer": "routing_luecken",
+   "paint": {
+    "circle-color": [
+     "match",
+     [
+      "slice",
+      [
+       "get",
+       "ursache"
+      ],
+      0,
+      8
+     ],
+     "entfernt",
+     "#6a1b9a",
+     "gesperrt",
+     "#d50000",
+     "Einbahn:",
+     "#ff6d00",
+     "#000000"
+    ],
+    "circle-radius": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     12,
+     4,
+     17,
+     9
+    ],
+    "circle-stroke-color": "#ffffff",
+    "circle-stroke-width": 1.5
+   },
+   "layout": {
+    "visibility": "none"
+   }
+  },
+  {
+   "id": "routing_haltestellen",
+   "type": "circle",
+   "source": "routing_haltestellen",
+   "source-layer": "routing_haltestellen",
+   "paint": {
+    "circle-color": [
+     "case",
+     [
+      "!",
+      [
+       "has",
+       "streifen_20m"
+      ]
+     ],
+     "#9e9e9e",
+     [
+      "in",
+      "Radfahrstreifen",
+      [
+       "get",
+       "streifen_20m"
+      ]
+     ],
+     "#1565c0",
+     "#00acc1"
+    ],
+    "circle-radius": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     12,
+     3,
+     17,
+     7
+    ],
+    "circle-stroke-color": "#ffffff",
+    "circle-stroke-width": 1.5
+   },
+   "layout": {
+    "visibility": "none"
+   }
+  }
+ ]
+}
