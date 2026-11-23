@@ -21,7 +21,9 @@
 --    kandidat_mehr kennzeichnen den Wechsel. Mit vorrang (Standard true) gewinnt auch eine Form gleicher Stufe nach den
 --    Regeln von v7 (rules.prefer in processing/map-matching/config/default.toml, wie die Abstimmung in Teil 3): geschützter
 --    Radfahrstreifen vor Bussonderfahrstreifen, Bussonderfahrstreifen / Radfahrstreifen mit Linienverkehr vor einem Radweg
---    ohne Z237/240/241.
+--    ohne Z237/240/241. Wie in v7 zählt dabei nur, dass die Form an derselben Stelle liegt: x50 vorhanden (sie deckt
+--    kandidat_abdeckung der RVN-Kante parallel in Fahrtrichtung), ohne Grenze für die Mehrkosten (z. B. ein
+--    Zweirichtungs-Radfahrstreifen auf der anderen Straßenseite, Bülowstraße: zweimal queren kostet mehr als kandidat_mehr).
 -- psql-Variablen: schema, kandidat_mehr (Standard 100; 0 = nur Kandidaten ohne Mehrkosten), kandidat_abstand_m (30),
 -- kandidat_parallel (0.87, also <= 30 Grad), kandidat_abdeckung (0.5), vorrang (true)
 \if :{?schema} \else \set schema routing_abschnitte \endif
@@ -124,8 +126,8 @@ CREATE INDEX ON kandidat (rvn_id, ri);
 CREATE TEMP TABLE wahl AS
 SELECT DISTINCT ON (e.rvn_id, e.ri) e.rvn_id, e.ri, k.fuehr, k.x50
 FROM ergebnis e JOIN kandidat k ON k.rvn_id = e.rvn_id AND k.ri = e.ri
-WHERE k.x50 <= :kandidat_mehr AND (pg_temp.stufe(k.fuehr) < pg_temp.stufe(e.fuehr_weg)
-    OR :vorrang AND ((k.fuehr = 'Geschützter Radfahrstreifen' AND e.fuehr_weg LIKE 'Bussonderfahrstreifen%')
+WHERE (k.x50 <= :kandidat_mehr AND pg_temp.stufe(k.fuehr) < pg_temp.stufe(e.fuehr_weg)
+    OR :vorrang AND k.x50 IS NOT NULL AND ((k.fuehr = 'Geschützter Radfahrstreifen' AND e.fuehr_weg LIKE 'Bussonderfahrstreifen%')
         OR (k.fuehr LIKE 'Bussonderfahrstreifen%' OR k.fuehr LIKE 'Radfahrstreifen mit Linienverkehr%') AND e.fuehr_weg = 'Radweg'
            AND NOT EXISTS (SELECT 1 FROM rvn_stuecke s JOIN bikegraph.input_edges i ON i.input_ref = s.objekt
                            WHERE s.rvn_id = e.rvn_id AND s.ri = e.ri AND s.fuehr = 'Radweg'
