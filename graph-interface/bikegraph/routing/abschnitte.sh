@@ -8,7 +8,8 @@
 #           ZWEITLAUF (1 = letzte Option über Zusatzkanten in Teil 2: ganze Route, Teilrouten, Brücken; Standard 1),
 #           STEINER (1 = Teil 2s, Standard 1), KANDIDATEN (1 = Teil 4, Standard 1), VERSATZ (Faktor des Versatzes in Teil 5,
 #           0 = ohne, Standard 0)
-# Teil 2 als Kette (abschnitte_2_kette.sql): -v kette=true, Fenster -v kette_m=300 (Standard aus).
+# Teil 2 als Kette (abschnitte_2_kette.sql): Standard an (-v kette=false: unabhängige Teilrouten je RVN-Kante), Fenster
+# -v kette_m=300.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 TEILE="${TEILE:-4}"

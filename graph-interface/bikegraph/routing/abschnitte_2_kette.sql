@@ -1,4 +1,4 @@
--- Routing der RVN-Abschnitte, Teil 2 als Kette (aus abschnitte_2_routing.sql mit -v kette=true; Standard aus): Routen
+-- Routing der RVN-Abschnitte, Teil 2 als Kette (aus abschnitte_2_routing.sql; Standard an, -v kette=false schaltet ab): Routen
 -- ohne ganzen Weg werden nicht aus unabhängigen Teilrouten je RVN-Kante zusammengesetzt, sondern als ein
 -- zusammenhängender Weg Stück für Stück entlang ihrer RVN-Kanten (Reihenfolge wie teilstueck: x, dann y).
 -- 1. Stück 1 beginnt an der Startmenge seiner RVN-Kante (teil_virt). Jedes weitere Stück beginnt dort, wo der Weg bisher
