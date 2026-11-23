@@ -71,9 +71,12 @@ Ebenen im Schema `routing_martin`: `routing_rvn` (Ergebnis je RVN-Kante), `routi
    benutzt, kosten nur noch einen Teil (`STEINER_LAMBDA`), über alle Kreuzungen geteilt. Das gibt einheitliche, kurze
    Kreuzungen statt paralleler Umwege.
 5. `abschnitte_3_auswertung.sql`: die ganzen Routen auf die RVN-Kanten ihrer Abschnitte projiziert, Führungsform je Stelle
-   nach Stufe (Radinfrastruktur vor Mischverkehr vor Sonstigen Wegen) und Zahl der Routen, je Kante die längste.
-6. `abschnitte_4_kandidaten.sql`: parallele Radinfrastruktur neben dem Weg als Kandidat (bessere Stufe bei kleinem Umweg).
+   nach Stufe (Radinfrastruktur vor Mischverkehr vor Sonstigen Wegen, Stufen wie `rules.tiers` von v7) und Zahl der
+   Routen, je Kante die längste. Vorher die Vorrangregeln von v7 (`rules.prefer`): Bussonderfahrstreifen vor Radweg ohne
+   Z237/240/241, geschützter Radfahrstreifen vor Bussonderfahrstreifen (`-v vorrang=false` schaltet ab).
+6. `abschnitte_4_kandidaten.sql`: parallele Radinfrastruktur neben dem Weg als Kandidat (bessere Stufe oder Vorrang wie
+   v7 bei kleinem Umweg).
 7. `luecken.sql`, `martin.sql`, `qa_bericht.sql`: Abbrüche, Martin-Ebenen, Zusammenfassung.
 
-Stand Berlin (geteilter Steiner, λ = 0.3): 9963 von 10325 RVN-Kantenrichtungen wie v7; von den Unterschieden urteilt die
+Stand Berlin (geteilter Steiner, λ = 0.3, Kette, Vorrang): 9978 von 10325 RVN-Kantenrichtungen wie v7; von den Unterschieden urteilt die
 Beurteilung etwa ein Drittel für das Routing, ein Fünftel für v7, der Rest sind Grenzfälle.
