@@ -57,6 +57,9 @@ OUT_DIR=output/mm-datensatz-c ./graph-interface/bikegraph/datensatz_c.sh   # Dat
    - `compare_c.sh` + `sql/70_compare_c.sql`: Vergleich mit der Baseline je RVN-Kante und Richtung (nur die Richtungen,
      die das RVN vorsieht) → `vergleich_baseline.csv`, `bikegraph.c_faelle`.
    - `sql/106_datensatz_c_martin.sql`: Schema `datensatz_c` für Martin.
+   - Vergleich und Martin-Ebenen (Schritte 5 und 6) laufen nur, wenn die Baseline-Datei (`BASELINE`) existiert
+     (`VERGLEICH=auto`); `VERGLEICH=0` überspringt sie, `VERGLEICH=1` erzwingt sie. Der Datensatz C ist nach Schritt 4
+     fertig.
 
 Die Konvertierung braucht `processing/output/bus_stops_on_rvn.fgb` (aus `processing/process_radnetz.sh`); fehlt die
 Datei, entfallen die Schutzstreifen-Umwandlungen an Bushaltestellen.
