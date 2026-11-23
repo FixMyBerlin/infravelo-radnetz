@@ -23,7 +23,7 @@ for t in $(seq 0 $((TEILE - 1))); do
 done
 for p in "${pids[@]}"; do wait "$p"; done
 # Teil 2s (STEINER=1): Wege je Kreuzung gemeinsam als Steiner-Wald (MILP), ersetzt die Wege aus Teil 2 der durchgehenden
-# Routen; Python mit scipy und psycopg2 aus STEINER_PY (Standard python3), lambda aus STEINER_LAMBDA (Standard 0.3).
+# Routen; Python mit scipy und psycopg2 aus STEINER_PY (Standard python3), lambda aus STEINER_LAMBDA (Standard 0.7).
 # Schema wie für psql über STEINER_SCHEMA (Standard routing_abschnitte). Die Vereinigung ist über alle Kreuzungen gemeinsam
 # (Kanten anderer Routen gelten als bezahlt); STEINER_RUNDEN Runden (Standard 3, Ende früher, wenn sich nichts ändert);
 # STEINER_ALLEIN=1: jede Kreuzung für sich (eine Runde, ohne bezahlte Kanten); STEINER_NACHBAR=1: Enden der Routen am Netz
@@ -47,7 +47,7 @@ if [ "${STEINER:-1}" = 1 ]; then
         pids=()
         for t in $(seq 0 $((TEILE - 1))); do
             "${STEINER_PY:-python3}" "$HERE/abschnitte_2s_steiner.py" --schema "${STEINER_SCHEMA:-routing_abschnitte}" --teil "$t" \
-                --teile "$TEILE" --lambda "${STEINER_LAMBDA:-0.3}" --runde "$runde" "${ALLEIN[@]}" "${NACHBAR[@]}" "${FARBE[@]}" &
+                --teile "$TEILE" --lambda "${STEINER_LAMBDA:-0.7}" --runde "$runde" "${ALLEIN[@]}" "${NACHBAR[@]}" "${FARBE[@]}" &
             pids+=($!)
         done
         for p in "${pids[@]}"; do wait "$p"; done

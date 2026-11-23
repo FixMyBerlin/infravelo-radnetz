@@ -25,7 +25,7 @@ RVN-Knoten. Lückenlos nur, wenn benachbarte Kreuzungen nicht gleichzeitig gelö
 einmal (steiner_farbe, Nachbarn = über einen Abschnitt verbunden, verschiedene Farben), --farbe F löst nur die Kreuzungen
 der Farbe F; abschnitte.sh löst die Farben nacheinander, je Farbe parallel.
 
-Aufruf: abschnitte_2s_steiner.py --schema S --teil T --teile N [--lambda 0.3] [--zeit 120] [--knoten b1,b2] [--runde 1]
+Aufruf: abschnitte_2s_steiner.py --schema S --teil T --teile N [--lambda 0.7] [--zeit 120] [--knoten b1,b2] [--runde 1]
         [--allein] [--nachbar] [--farbe F] [--faerben]
         (--allein: ohne die bezahlten Kanten der Nachbarn, jede Kreuzung für sich)
 Verbindung: MATCHING_PG (libpq-Verbindungstext), Passwort aus PGPASSWORD. Braucht scipy (>= 1.9) und psycopg2.
@@ -44,7 +44,7 @@ ap = argparse.ArgumentParser()
 ap.add_argument("--schema", default="routing_abschnitte")
 ap.add_argument("--teil", type=int, default=0)
 ap.add_argument("--teile", type=int, default=1)
-ap.add_argument("--lambda", dest="lam", type=float, default=0.3)
+ap.add_argument("--lambda", dest="lam", type=float, default=0.7)
 ap.add_argument("--zeit", type=float, default=120)
 ap.add_argument("--knoten", default="")
 ap.add_argument("--runde", type=int, default=1)
