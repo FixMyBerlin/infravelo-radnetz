@@ -71,6 +71,26 @@ vergleicht das Ergebnis mit v7: Unterschiede mit Urteil, unbequeme Verbindungen,
 `processing/output/routing-qa/` und als Martin-Ebenen (Schema `routing_martin`). Nicht für die Abgabe; siehe
 `routing/README.md`.
 
+## Geometrischer Vergleich (`diff_geo.sh`)
+
+`compare_c.sh` vergleicht je `element_nr` und `ri`. Zwischen RVN-Ständen (Lieferung 2025, alte Pipeline, heutiger Lauf)
+sind Kanten aber umbenannt (virtuelle Knoten) oder anders geteilt. `diff_geo.sh` vergleicht deshalb geometrisch, für
+Datensatz B und C:
+
+```sh
+LABEL_A=lieferung2025 LABEL_B=neu ./graph-interface/bikegraph/diff_geo.sh \
+  ../tilda-static-data/geojson/region-infravelo/infravelo-datensatz-c-fortlaufend/aggregated_rvn_final.geojson.gz \
+  processing/output/mm-datensatz-c/post/aggregated.gpkg c_lieferung2025_neu processing/output/diff
+```
+
+- Beide Datensätze in Stücke von 5 m mit Fahrtrichtung (`ri` 0 in Digitalisierungsrichtung, 1 umgekehrt); Gegenstück ist
+  das nächste Stück der anderen Seite bis 2 m mit höchstens 45° Richtungsabweichung (`SAMPLE_M`, `TOL_M`, `MAX_WINKEL`).
+- Verglichen: `fuehr`, `pflicht`, `breite` (als Zahl), `ofm`, `farbe`, `protek`, `trennstreifen`, `nutz_beschr`.
+- Ausgang: `<name>.geojson` (WGS84, Farben nach simplestyle: orange „Attribute anders“, rot „nur in A“, blau „nur in B“),
+  `<name>.gpkg`, `<name>_zusammenfassung.csv`, `<name>_unterschiede.csv`; Tabellen `diff.<name>_*`. Je Abschnitt
+  `unterschied` als Text (A → B) und alle Attribute beider Seiten (`*_<LABEL_B>` = `identisch`, wenn gleich).
+- `sql/80_diff_geo.sql`.
+
 ## Martin
 
 `martin/rvn_matching.yaml` (Start siehe Kopf der Datei) zeigt die Ebenen beider Schemas; Kachel-Cache aus, damit neu
