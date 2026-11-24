@@ -494,15 +494,22 @@ def aggregate_tilda_attributes(segments_group, attribute):
     return ';'.join(unique_values) if len(unique_values) > 0 else None
 
 
-def worst_smoothness(segments_group):
+def longest_smoothness(segments_group):
     """
-    Schlechteste Fahrqualität (`tilda_smoothness`) der Segmente einer Kante nach der OSM-Reihenfolge
-    (excellent < good < ... < impassable). Unbekannte Werte werden ignoriert.
+    Fahrqualität (`tilda_smoothness`) mit dem größten Längenanteil an der Kante, wie die Bewertung des
+    Radvorrangnetzes (infravelo-radnetz-bewertung, Annahme A17). Bei gleicher Länge zählt die schlechtere nach
+    SMOOTHNESS_ORDER. Unbekannte Werte werden ignoriert.
     """
     if 'tilda_smoothness' not in segments_group.columns:
         return None
-    ranks = segments_group['tilda_smoothness'].map({value: rank for rank, value in enumerate(SMOOTHNESS_ORDER)}).dropna()
-    return SMOOTHNESS_ORDER[int(ranks.max())] if len(ranks) > 0 else None
+    rank = {value: index for index, value in enumerate(SMOOTHNESS_ORDER)}
+    lengths = {}
+    for value, geometry in zip(segments_group['tilda_smoothness'], segments_group.geometry):
+        if value in rank:
+            lengths[value] = lengths.get(value, 0) + calculate_segment_length(geometry)
+    if not lengths:
+        return None
+    return max(lengths, key=lambda value: (lengths[value], rank[value]))
 
 
 def highest_maxspeed(segments_group):
@@ -662,7 +669,7 @@ def aggregate_edge_group(edge_group):
     if 'tilda_maxspeed' in edge_group.columns:
         aggregated['tilda_maxspeed'] = highest_maxspeed(without_crossings)
     if 'tilda_smoothness' in edge_group.columns:
-        aggregated['tilda_smoothness'] = worst_smoothness(without_crossings)
+        aggregated['tilda_smoothness'] = longest_smoothness(without_crossings)
     
     aggregated = add_shares(aggregated, edge_group)
 

@@ -189,7 +189,7 @@ Bei „Keine Radinfrastruktur vorhanden“ sind die Zusatzfelder leer wie die Fe
 
 ### Aggregation in Datensatz C: geltende Regeln
 
-Datensatz C fasst alle Segmente einer Kante und Richtung (`element_nr`, `ri`) aus Datensatz B zu einer Kante zusammen (`processing/start_aggregation.py`). Diese Regeln gelten seit der Lieferung 2025 (die `tilda_*`-Felder kamen 2026-11 dazu). Sie bleiben unverändert, damit sich die gelieferten Daten nicht ändern (2026-11). Die Besonderheiten unten sind deshalb gewollt, keine Fehler.
+Datensatz C fasst alle Segmente einer Kante und Richtung (`element_nr`, `ri`) aus Datensatz B zu einer Kante zusammen (`processing/start_aggregation.py`). Diese Regeln gelten seit der Lieferung 2025 (die `tilda_*`-Felder kamen 2026-11 dazu). Sie bleiben unverändert, damit sich die gelieferten Daten nicht ändern (2026-11); nur `tilda_smoothness` folgt seit 2026-11-24 dem längsten Abschnitt wie die Bewertung. Die Besonderheiten unten sind deshalb gewollt, keine Fehler.
 
 | Attribut | Regel |
 | --- | --- |
@@ -201,7 +201,7 @@ Datensatz C fasst alle Segmente einer Kante und Richtung (`element_nr`, `ri`) au
 | `verkehrsri` | Wert des ersten Segments |
 | übrige `tilda_*` | alle verschiedenen Werte, sortiert, mit `;` verbunden |
 | `tilda_maxspeed` | höchstes Tempo (Werte über 200 zählen nicht), ohne „Kreuzungsweg“ und „Kreuzungsweg (Konvertiert)“, außer es gibt nur diese |
-| `tilda_smoothness` | schlechteste Fahrqualität, ohne „Kreuzungsweg“ und „Kreuzungsweg (Konvertiert)“, außer es gibt nur diese |
+| `tilda_smoothness` | längster Abschnitt (Summe der Längen je Ausprägung), bei gleicher Länge die schlechtere Fahrqualität, ohne „Kreuzungsweg“ und „Kreuzungsweg (Konvertiert)“, außer es gibt nur diese. So bewertet auch `infravelo-radnetz-bewertung` (Annahme A17). |
 
 Bei „Keine Radinfrastruktur vorhanden“ sind `ofm`, `protek`, `pflicht`, `breite`, `farbe`, `verkehrsri`, `trennstreifen`, `nutz_beschr` und `Kommentar` leer.
 

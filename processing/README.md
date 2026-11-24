@@ -120,7 +120,7 @@ Die Aggregation nimmt alle Segmente der Kante, ohne Mindestlänge. Die geltenden
 
 **Ausgabe**: `output/aggregated_rvn_final.gpkg` (Layer: `hinrichtung`, `gegenrichtung`)
 
-Die `tilda_*`-Spalten (auch die neuen) fasst die Aggregation je Kante und Richtung als sortierte, mit `;` verbundene Liste der verschiedenen Werte zusammen. Ausnahmen sind zwei einzelne Werte, beide ohne Kreuzungswege (außer die Kante besteht nur daraus): `tilda_maxspeed` (höchste numerische Geschwindigkeit, ganze km/h) und `tilda_smoothness` (schlechteste Fahrqualität nach der Reihenfolge der TILDA-Werte `excellent` < `good` < `intermediate` < `bad` < `very_bad`).
+Die `tilda_*`-Spalten (auch die neuen) fasst die Aggregation je Kante und Richtung als sortierte, mit `;` verbundene Liste der verschiedenen Werte zusammen. Ausnahmen sind zwei einzelne Werte, beide ohne Kreuzungswege (außer die Kante besteht nur daraus): `tilda_maxspeed` (höchste numerische Geschwindigkeit, ganze km/h) und `tilda_smoothness` (Fahrqualität mit dem größten Längenanteil wie in der Bewertung, bei gleicher Länge die schlechtere nach der Reihenfolge der TILDA-Werte `excellent` < `good` < `intermediate` < `bad` < `very_bad`).
 
 ### 4. Validierung (`run_validation.sh`)
 
