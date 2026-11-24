@@ -69,7 +69,7 @@ if [[ -t 1 && "${TERM:-dumb}" != "dumb" ]] && stty size </dev/tty >/dev/null 2>&
     STATUS_UI=1
 fi
 
-now() { printf '%(%s)T' -1; }
+now() { date +%s; }
 
 duration() {
     local seconds=$1
