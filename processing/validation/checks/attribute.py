@@ -87,3 +87,28 @@ def element_nr_unknown(ctx, ds):
     gdf = ctx.datensatz(ds)
     maske = gdf["element_nr"].astype(str).str.contains("UNKNOWN", case=False, na=False)
     return Ergebnis(geprueft=len(gdf), verstoesse=verstoesse(gdf, maske, "element_nr"))
+
+
+# Bei Mischverkehr gibt es keine eigene Radverkehrsanlage: keine Benutzungspflicht,
+# keine Protektion, kein Trennstreifen
+WERTE_BEI_MISCHVERKEHR = {"protek": "Ohne", "trennstreifen": "entfällt"}
+
+
+def _ist_wahr(series):
+    """pflicht kommt je nach Datei als bool oder als Text „True“/„False“."""
+    return series.astype(str).str.strip().str.lower().isin(["true", "1", "ja"])
+
+
+@pruefung("MISCHVERKEHR", "Mischverkehr ohne Pflicht, Protektion und Trennstreifen", datensaetze=["B", "C"],
+          regel=f"Bei fuehr = „{MISCHVERKEHR}“ ist pflicht nie true, protek = „Ohne“ und "
+                "trennstreifen = „entfällt“. NULL meldet die Prüfung NULL. Detail = Attribut.")
+def mischverkehr(ctx, ds):
+    gdf = ctx.datensatz(ds)
+    gdf = gdf[gdf["fuehr"] == MISCHVERKEHR]
+    teile = []
+    if "pflicht" in gdf:
+        teile.append(verstoesse(gdf, _ist_wahr(gdf["pflicht"]), "pflicht"))
+    for attr, wert in WERTE_BEI_MISCHVERKEHR.items():
+        if attr in gdf:
+            teile.append(verstoesse(gdf, gdf[attr].notna() & (gdf[attr] != wert), attr))
+    return Ergebnis(geprueft=len(gdf), verstoesse=zusammenfuegen(teile))
