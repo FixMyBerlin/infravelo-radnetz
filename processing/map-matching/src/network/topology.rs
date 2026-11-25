@@ -113,6 +113,14 @@ pub fn analyze(net: &Network, tolerance: f64, gap_report_m: f64, multipart: usiz
         endpoint_nodes.entry(e.from).or_default().push(i as u32);
         endpoint_nodes.entry(e.to).or_default().push(i as u32);
     }
+    // Knoten in Gitterzellen der Kantenlänge gap_report_m: der nächste Knoten im Quadrat ±gap_report_m liegt in einer
+    // der 3×3 Nachbarzellen (statt je offenem Ende alle Knoten zu prüfen; bei großen Netzen sonst quadratisch).
+    let cell = gap_report_m.max(1e-6);
+    let key = |c: Coord<f64>| ((c.x / cell).floor() as i64, (c.y / cell).floor() as i64);
+    let mut grid: FxHashMap<(i64, i64), Vec<u32>> = FxHashMap::default();
+    for (n, c) in net.nodes.iter().enumerate() {
+        grid.entry(key(*c)).or_default().push(n as u32);
+    }
     for (node, edges) in &endpoint_nodes {
         if edges.len() != 1 {
             continue;
@@ -120,13 +128,16 @@ pub fn analyze(net: &Network, tolerance: f64, gap_report_m: f64, multipart: usiz
         let edge = edges[0];
         let at = net.nodes[*node as usize];
         let nearest_line = net.spatial.nearest_other(&net.edges, at, edge, gap_report_m);
-        let nearest_node = net
-            .nodes
-            .iter()
-            .enumerate()
+        let (kx, ky) = key(at);
+        // gleiche Auswahl wie zuvor: kleinster Abstand, bei Gleichstand der kleinste Knotenindex
+        let nearest_node = (kx - 1..=kx + 1)
+            .flat_map(|x| (ky - 1..=ky + 1).map(move |y| (x, y)))
+            .filter_map(|k| grid.get(&k))
+            .flatten()
+            .map(|&n| (n as usize, net.nodes[n as usize]))
             .filter(|(n, c)| *n as u32 != *node && (c.x - at.x).abs() <= gap_report_m && (c.y - at.y).abs() <= gap_report_m)
-            .map(|(n, c)| (n, dist(*c, at)))
-            .min_by(|a, b| a.1.total_cmp(&b.1));
+            .map(|(n, c)| (n, dist(c, at)))
+            .min_by(|a, b| a.1.total_cmp(&b.1).then(a.0.cmp(&b.0)));
         let (kind, other, d, detail) = match (nearest_line, nearest_node) {
             (Some(h), _) if h.proj.dist <= tolerance => (
                 IssueKind::TJunctionWithoutNode,

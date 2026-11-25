@@ -4,8 +4,9 @@ use std::path::Path;
 
 use anyhow::{Context, Result, bail};
 use gdal::spatial_ref::SpatialRef;
+use gdal::vector::sql::Dialect;
 use gdal::vector::{Feature, FieldDefn, LayerAccess, LayerOptions, OGRFieldType, OGRwkbGeometryType, ToGdal};
-use gdal::{Dataset, DriverManager};
+use gdal::{Dataset, DatasetOptions, DriverManager, GdalOpenFlags};
 use geo::{Geometry, LineString, MultiPolygon};
 use tracing::{debug, warn};
 
@@ -79,8 +80,27 @@ pub fn read_lines(path: &Path, layer: Option<&str>, fields: &[&str]) -> Result<V
         Some(name) => ds.layer_by_name(name).with_context(|| format!("{}: Ebene '{name}' fehlt", path.display()))?,
         None => ds.layer(0)?,
     };
-    check_crs(&lyr, path)?;
-    let idx = field_indices(&lyr, fields, path);
+    read_layer_lines(&mut lyr, fields, path)
+}
+
+/// Liest die Linien-Features einer SQL-Abfrage gegen PostGIS (GDAL-Treiber PostgreSQL).
+/// `conninfo` ist eine libpq-Verbindung (`host=… dbname=…`); das Passwort kommt aus
+/// `PGPASSWORD` oder `~/.pgpass`.
+pub fn read_lines_sql(conninfo: &str, sql: &str, fields: &[&str]) -> Result<Vec<LineFeature>> {
+    let label = Path::new("PostGIS");
+    // Nur den Vektor-Treiber: Der PostGIS-Raster-Treiber würde sonst die Datenbank durchsuchen und abbrechen.
+    let options = DatasetOptions { open_flags: GdalOpenFlags::GDAL_OF_VECTOR, allowed_drivers: Some(&["PostgreSQL"]), ..Default::default() };
+    let ds = Dataset::open_ex(format!("PG:{conninfo}"), options).context("PostGIS-Verbindung fehlgeschlagen (MATCHING_PG, PGPASSWORD)")?;
+    let mut rs = ds
+        .execute_sql(sql, None, Dialect::DEFAULT)
+        .with_context(|| format!("SQL fehlgeschlagen: {sql}"))?
+        .ok_or_else(|| anyhow::anyhow!("SQL liefert keine Ebene: {sql}"))?;
+    read_layer_lines(&mut *rs, fields, label)
+}
+
+fn read_layer_lines<L: LayerAccess>(lyr: &mut L, fields: &[&str], path: &Path) -> Result<Vec<LineFeature>> {
+    check_crs(lyr, path)?;
+    let idx = field_indices(lyr, fields, path);
     let mut out = Vec::with_capacity(lyr.feature_count() as usize);
     let mut skipped = 0usize;
     for feature in lyr.features() {
@@ -183,12 +203,63 @@ where
     let mut ds = driver
         .create_vector_only(path)
         .with_context(|| format!("Datei nicht schreibbar: {}", path.display()))?;
+    let n = write_layer(&mut ds, layer_name, geom_type, fields, rows, None)?;
+    ds.close()?;
+    Ok(n)
+}
+
+/// Schreibt Features in eine PostGIS-Tabelle `schema.table` (ersetzt eine vorhandene Tabelle).
+/// Eine Transaktion, Laden per COPY. `post_sql` läuft danach (z. B. Spaltentypen ändern).
+pub fn write_pg<I>(conninfo: &str, schema: &str, table: &str, geom_type: GeomType, fields: &[(&str, FieldKind)], rows: I, post_sql: &[String]) -> Result<usize>
+where
+    I: IntoIterator<Item = (Geometry<f64>, Vec<Value>)>,
+{
+    gdal::config::set_config_option("PG_USE_COPY", "YES")?;
+    let options = DatasetOptions {
+        open_flags: GdalOpenFlags::GDAL_OF_VECTOR | GdalOpenFlags::GDAL_OF_UPDATE,
+        allowed_drivers: Some(&["PostgreSQL"]),
+        ..Default::default()
+    };
+    let mut ds = Dataset::open_ex(format!("PG:{conninfo}"), options).context("PostGIS-Verbindung fehlgeschlagen (MATCHING_PG, PGPASSWORD)")?;
+    let schema_opt = format!("SCHEMA={schema}");
+    let layer_options = ["OVERWRITE=YES", schema_opt.as_str(), "GEOMETRY_NAME=geom", "FID=fid", "LAUNDER=NO", "SPATIAL_INDEX=GIST"];
+    let mut txn = ds.start_transaction().context("PostGIS: Transaktion nicht möglich")?;
+    let n = write_layer(&mut txn, table, geom_type, fields, rows, Some(&layer_options))
+        .with_context(|| format!("Schreiben nach {schema}.{table} fehlgeschlagen"))?;
+    txn.commit()?;
+    // z. B. Spaltentypen nachziehen; ExecuteSQL liefert für DDL keine Ebene
+    for sql in post_sql {
+        ds.execute_sql(sql, None, Dialect::DEFAULT).with_context(|| format!("SQL fehlgeschlagen: {sql}"))?;
+    }
+    Ok(n)
+}
+
+/// Liest die Spalten `fields` einer SQL-Abfrage ohne Geometrie (z. B. eine Intervalltabelle).
+pub fn read_rows_sql(conninfo: &str, sql: &str, fields: &[&str]) -> Result<Vec<Vec<Option<String>>>> {
+    let label = Path::new("PostGIS");
+    let options = DatasetOptions { open_flags: GdalOpenFlags::GDAL_OF_VECTOR, allowed_drivers: Some(&["PostgreSQL"]), ..Default::default() };
+    let ds = Dataset::open_ex(format!("PG:{conninfo}"), options).context("PostGIS-Verbindung fehlgeschlagen (MATCHING_PG, PGPASSWORD)")?;
+    let mut rs = ds
+        .execute_sql(sql, None, Dialect::DEFAULT)
+        .with_context(|| format!("SQL fehlgeschlagen: {sql}"))?
+        .ok_or_else(|| anyhow::anyhow!("SQL liefert keine Ebene: {sql}"))?;
+    let idx = field_indices(&*rs, fields, label);
+    if let Some(missing) = fields.iter().zip(&idx).find(|(_, i)| i.is_none()) {
+        bail!("SQL liefert die Spalte '{}' nicht: {sql}", missing.0);
+    }
+    Ok(rs.features().map(|f| read_fields(&f, &idx)).collect())
+}
+
+fn write_layer<I>(ds: &mut Dataset, layer_name: &str, geom_type: GeomType, fields: &[(&str, FieldKind)], rows: I, options: Option<&[&str]>) -> Result<usize>
+where
+    I: IntoIterator<Item = (Geometry<f64>, Vec<Value>)>,
+{
     let srs = SpatialRef::from_epsg(EPSG)?;
     let layer = ds.create_layer(LayerOptions {
         name: layer_name,
         srs: Some(&srs),
         ty: geom_type.ogr(),
-        options: None,
+        options,
     })?;
     for (name, kind) in fields {
         let ty = match kind {
@@ -215,7 +286,6 @@ where
         n += 1;
     }
     drop(layer);
-    ds.close()?;
     Ok(n)
 }
 

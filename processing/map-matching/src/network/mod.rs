@@ -23,6 +23,11 @@ use topology::TopologyReport;
 #[derive(Debug, Clone)]
 pub struct Edge {
     pub element_nr: String,
+    /// `id` der Zeile in der PostGIS-Referenztabelle (nur bei `--pg`).
+    pub db_id: Option<i64>,
+    /// Zulässige Richtungen `[ri = 0, ri = 1]` für Kandidaten und Routing. Nur mit
+    /// `network.respect_direction` aus `cost`/`reverse_cost` (< 0 = gesperrt), sonst beide.
+    pub allowed: [bool; 2],
     pub beginnt_bei_vp: Option<String>,
     pub endet_bei_vp: Option<String>,
     pub strassenname: Option<String>,
@@ -57,8 +62,12 @@ const NETWORK_FIELDS: [&str; 6] = ["element_nr", "beginnt_bei_vp", "endet_bei_vp
 
 impl Network {
     /// Lädt das RVN und baut Graph, räumlichen Index und Topologie-Report.
-    /// `keep` filtert Kanten (z. B. für `--clip`).
+    /// `keep` filtert Kanten (z. B. für `--clip`). Mit `postgres.enabled` kommt das Netz aus
+    /// der pgRouting-Tabelle `postgres.reference_edges` statt aus `path`.
     pub fn load(cfg: &Config, path: &Path, keep: impl Fn(&Polyline) -> bool) -> Result<Network> {
+        if cfg.postgres.enabled {
+            return Network::load_pg(cfg, keep);
+        }
         let raw = io::read_lines(path, None, &NETWORK_FIELDS)?;
         let mut edges = Vec::with_capacity(raw.len());
         let mut multipart = 0usize;
@@ -78,6 +87,8 @@ impl Network {
                     continue;
                 }
                 edges.push(Edge {
+                    db_id: None,
+                    allowed: [true, true],
                     element_nr: element_nr.clone(),
                     beginnt_bei_vp: f.fields[1].clone(),
                     endet_bei_vp: f.fields[2].clone(),
@@ -105,7 +116,74 @@ impl Network {
         Ok(net)
     }
 
+    /// Lädt das Referenznetz aus der pgRouting-Tabelle `postgres.reference_edges`.
+    /// Die Knoten kommen aus `source`/`target`, nicht aus den Koordinaten. Jede Zeile ist eine
+    /// Kante (MultiLineStrings sind dort schon in Teile zerlegt). `reverse_cost` wird nicht
+    /// ausgewertet: Gematcht wird gegen beide Richtungen, ob eine Richtung zulässig ist,
+    /// entscheidet die Nachbearbeitung.
+    fn load_pg(cfg: &Config, keep: impl Fn(&Polyline) -> bool) -> Result<Network> {
+        let table = &cfg.postgres.reference_edges;
+        let sql = format!(
+            "SELECT id::text AS ref_id, source::text AS source, target::text AS target, element_nr, beginnt_bei_vp, endet_bei_vp, \
+             strassenname, verkehrsrichtung, edge_source, match_key, cost::text AS cost_txt, reverse_cost::text AS reverse_cost_txt, \
+             geom FROM {table} ORDER BY id"
+        );
+        let fields = ["source", "target", "element_nr", "beginnt_bei_vp", "endet_bei_vp", "strassenname", "verkehrsrichtung", "edge_source", "match_key", "ref_id", "cost_txt", "reverse_cost_txt"];
+        let raw = io::read_lines_sql(&cfg.postgres.conninfo()?, &sql, &fields)?;
+        let mut edges = Vec::with_capacity(raw.len());
+        let mut ends: Vec<(u64, u64)> = Vec::with_capacity(raw.len());
+        for f in raw {
+            let parse = |i: usize| f.fields[i].as_deref().and_then(|v| v.parse::<u64>().ok());
+            let (Some(source), Some(target), Some(element_nr)) = (parse(0), parse(1), f.fields[2].clone()) else {
+                warn!("{table}: Kante ohne source, target oder element_nr übersprungen");
+                continue;
+            };
+            let [ls] = f.lines.as_slice() else {
+                bail!("{table}: Kante {element_nr} ist kein einfacher LineString (MultiLineStrings vorher zerlegen)");
+            };
+            let line = Polyline::from_linestring(ls);
+            if line.coords.len() < 2 || !keep(&line) {
+                continue;
+            }
+            edges.push(Edge {
+                db_id: f.fields[9].as_deref().and_then(|v| v.parse().ok()),
+                allowed: if cfg.network.respect_direction {
+                    let open = |i: usize| f.fields[i].as_deref().and_then(|v| v.parse::<f64>().ok()).is_none_or(|c| c >= 0.0);
+                    [open(10), open(11)]
+                } else {
+                    [true, true]
+                },
+                element_nr,
+                beginnt_bei_vp: f.fields[3].clone(),
+                endet_bei_vp: f.fields[4].clone(),
+                strassenname: f.fields[5].clone(),
+                verkehrsrichtung: f.fields[6].clone(),
+                edge_source: f.fields[7].clone(),
+                name_norm: f.fields[8].clone().unwrap_or_default(),
+                line,
+                from: 0,
+                to: 0,
+            });
+            ends.push((source, target));
+        }
+        if edges.is_empty() {
+            bail!("{table} enthält nach dem Filtern keine Kanten");
+        }
+        // gap_report_m < 0: ohne Topologie-Report (network.topology_report = false)
+        let gap = if cfg.network.topology_report { cfg.network.gap_report_m } else { -1.0 };
+        let net = Network::build_with_nodes(edges, &ends, cfg.network.node_tolerance_m, gap);
+        info!(
+            "Referenznetz aus {table} geladen: {} Kanten, {} Knoten (source/target), {} Komponenten, {} Topologie-Auffälligkeiten",
+            net.edges.len(),
+            net.nodes.len(),
+            net.topology.components,
+            net.topology.issues.len()
+        );
+        Ok(net)
+    }
+
     /// Baut den Graphen aus bereits geladenen Kanten (auch für Tests).
+    /// Knoten: Endpunkte innerhalb `tolerance` (transitiv).
     pub fn build(mut edges: Vec<Edge>, tolerance: f64, gap_report_m: f64, multipart: usize) -> Network {
         let endpoints: Vec<Coord<f64>> = edges.iter().flat_map(|e| [e.line.start(), e.line.end()]).collect();
         let (node_of, nodes) = cluster_points(&endpoints, tolerance);
@@ -113,11 +191,37 @@ impl Network {
             e.from = node_of[2 * i];
             e.to = node_of[2 * i + 1];
         }
+        Network::finish(edges, nodes, tolerance, gap_report_m, multipart)
+    }
+
+    /// Baut den Graphen mit vorgegebener Topologie (`source`/`target` je Kante, beliebige IDs).
+    /// Die Knoten werden in der Reihenfolge ihres ersten Auftretens nummeriert (wie `cluster_points`),
+    /// die Lage ist das erste Kantenende, das den Knoten nennt.
+    pub fn build_with_nodes(mut edges: Vec<Edge>, ends: &[(u64, u64)], tolerance: f64, gap_report_m: f64) -> Network {
+        let mut index: FxHashMap<u64, u32> = FxHashMap::default();
+        let mut nodes: Vec<Coord<f64>> = Vec::new();
+        for (e, &(source, target)) in edges.iter_mut().zip(ends) {
+            for (id, at, slot) in [(source, e.line.start(), 0), (target, e.line.end(), 1)] {
+                let n = *index.entry(id).or_insert_with(|| {
+                    nodes.push(at);
+                    (nodes.len() - 1) as u32
+                });
+                if slot == 0 { e.from = n } else { e.to = n }
+            }
+        }
+        Network::finish(edges, nodes, tolerance, gap_report_m, 0)
+    }
+
+    fn finish(edges: Vec<Edge>, nodes: Vec<Coord<f64>>, tolerance: f64, gap_report_m: f64, multipart: usize) -> Network {
         let mut out = vec![Vec::new(); nodes.len()];
         for (i, e) in edges.iter().enumerate() {
             let i = i as u32;
-            out[e.from as usize].push(DirEdge::new(i, 0));
-            out[e.to as usize].push(DirEdge::new(i, 1));
+            if e.allowed[0] {
+                out[e.from as usize].push(DirEdge::new(i, 0));
+            }
+            if e.allowed[1] {
+                out[e.to as usize].push(DirEdge::new(i, 1));
+            }
         }
         let mut by_element: FxHashMap<String, Vec<u32>> = FxHashMap::default();
         for (i, e) in edges.iter().enumerate() {
@@ -129,7 +233,9 @@ impl Network {
         }
         let spatial = SpatialIndex::build(&edges);
         let mut net = Network { edges, nodes, out, by_element, spatial, topology: TopologyReport::default() };
-        net.topology = topology::analyze(&net, tolerance, gap_report_m, multipart);
+        if gap_report_m >= 0.0 {
+            net.topology = topology::analyze(&net, tolerance, gap_report_m, multipart);
+        }
         net
     }
 
@@ -218,6 +324,8 @@ pub(crate) mod test_util {
             .iter()
             .enumerate()
             .map(|(i, l)| Edge {
+                db_id: None,
+                allowed: [true, true],
                 element_nr: format!("e{i}"),
                 beginnt_bei_vp: None,
                 endet_bei_vp: None,
@@ -237,6 +345,22 @@ pub(crate) mod test_util {
 #[cfg(test)]
 mod tests {
     use super::test_util::network;
+
+    #[test]
+    fn explicit_nodes_match_geometric_nodes_and_override_geometry() {
+        use super::Network;
+        // gleiche Topologie wie geometrisch: identische Knotennummern
+        let geo = network(&[&[(0.0, 0.0), (10.0, 0.0)], &[(10.0, 0.0), (20.0, 0.0)]]);
+        let ids = Network::build_with_nodes(geo.edges.clone(), &[(70, 71), (71, 72)], 0.01, 10.0);
+        assert_eq!((ids.edges[0].from, ids.edges[0].to, ids.edges[1].to), (geo.edges[0].from, geo.edges[0].to, geo.edges[1].to));
+        assert_eq!(ids.nodes.len(), 3);
+        // source/target bestimmen die Verbindung, nicht die Koordinaten
+        let apart = network(&[&[(0.0, 0.0), (10.0, 0.0)], &[(10.5, 0.0), (20.0, 0.0)]]);
+        assert_eq!(apart.topology.components, 2);
+        let joined = Network::build_with_nodes(apart.edges.clone(), &[(1, 2), (2, 3)], 0.01, 10.0);
+        assert_eq!(joined.edges[0].to, joined.edges[1].from);
+        assert_eq!(joined.topology.components, 1);
+    }
 
     #[test]
     fn nodes_are_merged_within_tolerance_only() {

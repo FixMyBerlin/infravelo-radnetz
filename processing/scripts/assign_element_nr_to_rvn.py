@@ -16,7 +16,7 @@ Mit --netz ren für das REN+ (Pfade je Netz in helpers/netz.py).
 INPUT:
 - output/rvn/Berlin Radvorrangsnetz_mit_virtuellen-knotenpunkten.fgb
 - output/knotenpunkte/knotenpunkte_mit_id.gpkg
-- data/Virtuelle-Knotenpunkte.gpkg (nur status = aktiv)
+- virtuelle Knotenpunkte über read_active() aus data/virtuelle_knotenpunkte.py (nur status = aktiv)
 
 Virtuelle Knotenpunkte erkennt das Skript an ist_virtuell = 1, nicht an der Form der ID
 (Regeln in data/VIRTUELLE-KNOTENPUNKTE.md).
@@ -636,7 +636,7 @@ def create_element_numbers_for_rvn(netz=DEFAULT_NETZ):
     # Dateipfade definieren
     radvorrangsnetz_path = PFADE[netz]['geteilt']
     knotenpunkte_path = 'output/knotenpunkte/knotenpunkte_mit_id.gpkg'
-    virtuelle_knotenpunkte_path = vk.PATH
+    virtuelle_knotenpunkte_path = vk.OUTPUT_PATH
     output_path = PFADE[netz]['mit_element_nr']
     
     # Stelle sicher, dass das Ausgabeverzeichnis existiert

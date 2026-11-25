@@ -15,6 +15,8 @@ pub struct Config {
     pub assemble: AssembleConfig,
     pub rules: RulesConfig,
     pub eval: EvalConfig,
+    #[serde(default)]
+    pub postgres: PostgresConfig,
     /// Verzeichnis, gegen das `paths.root` aufgelöst wird (nicht Teil der TOML-Datei).
     #[serde(skip)]
     pub base_dir: PathBuf,
@@ -47,6 +49,19 @@ pub struct TildaSourceConfig {
 pub struct NetworkConfig {
     pub node_tolerance_m: f64,
     pub gap_report_m: f64,
+    /// Fahrtrichtung des Referenznetzes beachten (nur `--pg`): `cost < 0` sperrt ri = 0,
+    /// `reverse_cost < 0` sperrt ri = 1 für Kandidaten und Routing. Gespiegelte Intervalle von
+    /// Zweirichtungswegen landen weiter in beiden Richtungen.
+    #[serde(default)]
+    pub respect_direction: bool,
+    /// Topologie-Report des Referenznetzes beim Laden (Lücken, freie Enden, Komponenten). Für große Netze, die
+    /// nicht das RVN sind (z. B. ein Radnetz-Graph als Referenz), ohne Nutzen: dann `false`.
+    #[serde(default = "default_true")]
+    pub topology_report: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
@@ -57,6 +72,10 @@ pub enum TraceStrategy {
     /// Traces folgen der Topologie des TILDA-Routing-Netzes (`from_node`/`to_node`):
     /// Kanten derselben Datenquelle in erlaubter Fahrtrichtung, an Knoten möglichst geradeaus.
     Topology,
+    /// Abschnitte zwischen Verzweigungen (Traces enden an jedem Knoten mit mehr als zwei Wegen) und dazu je
+    /// Verzweigung eine Trace für jeden Übergang von einem ankommenden in einen abgehenden Abschnitt (gekürzt auf
+    /// `kreuzung_m`); alle Traces erzeugen Intervalle.
+    Kreuzungen,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -70,6 +89,22 @@ pub struct TraceConfig {
     /// `topology`: Länge, über die der Kurs an Kantenenden bestimmt wird (m).
     #[serde(default = "default_end_heading_m")]
     pub end_heading_m: f64,
+    /// `topology`: Kontext je Trace (m): Anlauf vor dem ersten und Auslauf nach dem letzten Weg aus benachbarten Wegen
+    /// anderer Traces; stützt nur das Matching, erzeugt keine Intervalle. 0 = aus.
+    #[serde(default)]
+    pub context_m: f64,
+    /// `topology`: Beginnt eine Trace an einem Knoten mit genau einem ankommenden Weg, wird dieser auch über
+    /// `max_turn_deg` hinaus ihr Anlauf (jeder abgehende Zweig bekommt den Zulauf als Kontext).
+    #[serde(default)]
+    pub context_alle_zweige: bool,
+    /// `topology`: Hat ein Knoten außer dem ankommenden Weg genau eine Fortsetzung (Knick, keine Abzweigung), setzt
+    /// die Trace sie auch über `max_turn_deg` hinaus fort; der Winkel entscheidet dann nur an Abzweigungen.
+    #[serde(default)]
+    pub knick_ohne_abzweig: bool,
+    /// `kreuzungen`: Länge je Seite einer Übergangs-Trace (m, ganze Wege bis mindestens zu dieser Länge vor und nach
+    /// dem Knoten); 0 = ganze Abschnitte.
+    #[serde(default)]
+    pub kreuzung_m: f64,
 }
 
 fn default_max_turn_deg() -> f64 {
@@ -136,6 +171,58 @@ pub struct RulesConfig {
     #[serde(default)]
     pub prefer: Vec<PreferRule>,
     pub tiers: Vec<TierRule>,
+}
+
+/// Eingang aus PostGIS statt aus Dateien: zwei Kantentabellen im pgRouting-Format
+/// (siehe graph-interface/ im Repo-Root). Bezirke und Zuschnitte bleiben Dateien aus `[paths]`.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct PostgresConfig {
+    pub enabled: bool,
+    /// Umgebungsvariable mit der libpq-Verbindung (`host=… port=… dbname=… user=…`).
+    pub conninfo_env: String,
+    /// Referenznetz: id, source, target, cost, reverse_cost, geom, match_key, element_nr, …
+    pub reference_edges: String,
+    /// Eingangsnetz: id, source, target, cost, reverse_cost, geom, match_key, trace_group, input_ref, attrs (jsonb)
+    pub input_edges: String,
+    /// Zwischenergebnis nach dem Matching (Stufe 6): Intervalle je gerichteter Referenzkante
+    /// (`schema.tabelle`). `run --pg` schreibt sie, `assemble --pg` liest sie.
+    #[serde(default = "default_intervals_table")]
+    pub intervals: String,
+    /// `run --pg`: nur die Intervalle schreiben, ohne Aufteilung, Ausgabedatei und Debug-Ebenen.
+    #[serde(default)]
+    pub intervals_only: bool,
+}
+
+fn default_intervals_table() -> String {
+    "matching.intervals".into()
+}
+
+impl Default for PostgresConfig {
+    fn default() -> Self {
+        PostgresConfig {
+            enabled: false,
+            conninfo_env: "MATCHING_PG".into(),
+            reference_edges: "matching.reference_edges".into(),
+            input_edges: "matching.input_edges".into(),
+            intervals: default_intervals_table(),
+            intervals_only: false,
+        }
+    }
+}
+
+impl PostgresConfig {
+    /// `schema.tabelle` der Intervalle, aufgeteilt.
+    pub fn intervals_table(&self) -> Result<(&str, &str)> {
+        self.intervals
+            .split_once('.')
+            .ok_or_else(|| anyhow!("postgres.intervals muss die Form schema.tabelle haben: {}", self.intervals))
+    }
+
+    pub fn conninfo(&self) -> Result<String> {
+        std::env::var(&self.conninfo_env).with_context(|| {
+            format!("postgres.enabled: Umgebungsvariable {} fehlt (libpq-Verbindung, z. B. \"host=127.0.0.1 port=5432 dbname=… user=…\")", self.conninfo_env)
+        })
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

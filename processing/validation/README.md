@@ -53,7 +53,7 @@ validation/runs/20261118-143012_ren/
 | B | Radverkehrsanlagen | `output/snapping_converted_bikelanes{_ren}{_clip}.fgb` | `element_nr ri=… tilda_id` |
 | C | Aggregiertes Netz | `output/aggregated_rvn_final{_ren}{_clip}.gpkg` (beide Layer) | `element_nr ri=…` |
 | K | Knotenpunkte, Abgabestand | `knotenpunkte/output/knotenpunkte_abgabe.gpkg` (Projekt-Root, unabhängig von `--output-dir`) | `Knotenpunkt‐ID` |
-| VK | Virtuelle Knotenpunkte | `data/Virtuelle-Knotenpunkte.gpkg` (Projekt-Root) | Nummer |
+| VK | Virtuelle Knotenpunkte | `netzanpassungen/output/virtuelle_knoten.gpkg` (Projekt-Root, Schritt 3; dazu das Archiv der 53 von 2025 in `netzanpassungen/one_time_import/2025/`) | Nummer |
 
 Der Diff braucht Schlüssel, die über Läufe gleich bleiben. Zeilennummern wie `afid`, `sfid` oder der Index ändern sich bei jeder Prozessierung und taugen deshalb nicht. Kommt ein Schlüssel mehrfach vor, wird er nach Lage mit `#2`, `#3` … ergänzt. In B ist das üblich: Ein TILDA-Weg kann auf derselben Kante in mehreren getrennten Stücken liegen, z. B. wenn ein Teil an einer Kreuzung zu „Kreuzungsweg (Konvertiert)“ wird.
 

@@ -14,6 +14,8 @@ Signifikante Änderungen:
 - Jede Änderung der Benutzungspflicht und Nutzungsbeschränkung aufgrund baulicher Mängel
 - Änderung der Ausprägung von Attributen auf mindestens 50m Länge: 
   Art der RVA, Breite (>30cm), Oberflächenmaterial, Protektion, Sicherheitstrennstreifen
+  Diese Erkennung schreibt nur Log-Meldungen. Die 50-m-Regel gilt für die Erfassung;
+  die Aggregation nimmt alle Segmente der Kante, ohne Mindestlänge (siehe REQUIREMENTS.md).
 
 Aggregationsregeln:
 - Längster Abschnitt: Bezirk, Art der Radverkehrsführung, Benutzungspflicht, 
@@ -68,9 +70,22 @@ WORST_CASE_ATTRIBUTES = {
     "nutz_beschr": "worst_nutz_beschr"  # Spezielle Logik
 }
 
+# Attribute mit einer weiteren Spalte <attr>_anteile: Aufteilung der Kante auf die Ausprägungen (siehe add_shares).
+# Die Spalten ändern keinen Wert.
+SHARE_ATTRIBUTES = [
+    "fuehr", "verkehrsri", "pflicht", "breite", "ofm", "farbe", "protek", "trennstreifen", "nutz_beschr",
+    "tilda_smoothness", "tilda_maxspeed",
+]
+SHARE_SUFFIX = "_anteile"
+# Attribute, bei denen Kreuzungswege nicht zählen, außer die Kante besteht nur aus Kreuzungswegen
+WITHOUT_CROSSINGS_ATTRIBUTES = ["breite", "tilda_maxspeed", "tilda_smoothness"]
+# Name für Kreuzungswege (aus OSM und an Knotenpunkten konvertiert) in <attr>_anteile
+CROSSING_LABEL = "Kreuzungsbereich"
+
 # Hierarchie für Nutzungsbeschränkungen (schlechteste zuerst)
 NUTZ_BESCHR_HIERARCHY = [
     "Physische Sperre",
+    "Radverkehr nicht erlaubt",
     "Schadensschild/StVO Zusatzeichen (Straßenschäden, Gehwegschäden, Radwegschäden)",
     "keine"
 ]
@@ -80,6 +95,12 @@ TRENNSTREIFEN_HIERARCHY = [
     "nein",  # Worst case
     "ja",    # Best case
     "entfällt"
+]
+
+# Reihenfolge der Fahrqualität (beste zuerst) für `tilda_smoothness`: die Werte von TILDA (topic-docs, `smoothness`);
+# TILDA fasst horrible, very_horrible und impassable zu very_bad zusammen
+SMOOTHNESS_ORDER = [
+    "excellent", "good", "intermediate", "bad", "very_bad"
 ]
 
 # Spalten, die nach der Aggregation gelöscht werden sollen
@@ -108,6 +129,12 @@ AGGREGATED_COLUMN_ORDER = [
     "trennstreifen",          # 16. trennstreifen
     "nutz_beschr",            # 17. nutzungsbeschränkung
     "Kommentar",              # 18. Kommentar
+]
+
+
+AGGREGATED_COLUMN_ORDER = [
+    c for col in AGGREGATED_COLUMN_ORDER
+    for c in ([col, col + SHARE_SUFFIX] if col in SHARE_ATTRIBUTES else [col])
 ]
 
 
@@ -140,9 +167,12 @@ def find_worst_nutz_beschr(values):
     if not values:
         return "keine"
     
+    # Ein Wert kann mehrere Beschränkungen nebeneinander tragen ("…; Radverkehr nicht erlaubt (…)"):
+    # der erste Wert, der die schlechteste Beschränkung enthält, gewinnt, mit allen seinen Teilen.
     for worst_option in NUTZ_BESCHR_HIERARCHY:
-        if worst_option in values:
-            return worst_option
+        for v in sorted(values, key=lambda x: (-str(x).count(";"), str(x))):
+            if worst_option in str(v):
+                return v
     
     # Fallback: Ersten verfügbaren Wert verwenden
     return values[0]
@@ -464,6 +494,99 @@ def aggregate_tilda_attributes(segments_group, attribute):
     return ';'.join(unique_values) if len(unique_values) > 0 else None
 
 
+def longest_smoothness(segments_group):
+    """
+    Fahrqualität (`tilda_smoothness`) mit dem größten Längenanteil an der Kante, wie die Bewertung des
+    Radvorrangnetzes (infravelo-radnetz-bewertung, Annahme A17). Bei gleicher Länge zählt die schlechtere nach
+    SMOOTHNESS_ORDER. Unbekannte Werte werden ignoriert.
+    """
+    if 'tilda_smoothness' not in segments_group.columns:
+        return None
+    rank = {value: index for index, value in enumerate(SMOOTHNESS_ORDER)}
+    lengths = {}
+    for value, geometry in zip(segments_group['tilda_smoothness'], segments_group.geometry):
+        if value in rank:
+            lengths[value] = lengths.get(value, 0) + calculate_segment_length(geometry)
+    if not lengths:
+        return None
+    return max(lengths, key=lambda value: (lengths[value], rank[value]))
+
+
+def highest_maxspeed(segments_group):
+    """Höchste numerische `tilda_maxspeed` der Segmente einer Kante (km/h), sonst None.
+    Werte über 200 sind Tippfehler in OSM (z. B. eine Telefonnummer im Tag) und zählen nicht."""
+    if 'tilda_maxspeed' not in segments_group.columns:
+        return None
+    speeds = pd.to_numeric(segments_group['tilda_maxspeed'], errors='coerce').dropna()
+    speeds = speeds[speeds <= 200]
+    return int(speeds.max()) if len(speeds) > 0 else None
+
+def _share_label(attr, value):
+    if pd.isna(value):
+        return "ohne Wert"
+    if attr == "breite":
+        number = pd.to_numeric(value, errors="coerce")
+        if pd.notna(number):
+            return f"{float(number):.2f} m".replace(".", ",")
+    if attr == "tilda_maxspeed":
+        return f"{value} km/h"
+    if attr == "fuehr" and is_kreuzungsweg(value):
+        return CROSSING_LABEL
+    return str(value)
+
+
+def _share_percent(share):
+    percent = round(share * 100)
+    return "<1 %" if percent == 0 else f"{percent} %"
+
+
+def add_shares(aggregated, edge_group):
+    """
+    Ergänzt je Attribut aus SHARE_ATTRIBUTES `<attr>_anteile`: je Ausprägung der Anteil an der Länge der Segmente,
+    in Klammern die Führungsformen bzw. „nicht gewertet, da Kreuzungsbereich“ bei Kreuzungswegen, wo sie nicht zählen
+    (WITHOUT_CROSSINGS_ATTRIBUTES).
+    Der Wert der Kante steht vorne, danach die übrigen Ausprägungen nach Anteil, z. B. für `breite`:
+    „8 % 0,90 m (Radweg); 86 % 1,50 m (Radweg); 6 % 2,00 m (nicht gewertet, da Kreuzungsbereich)“.
+    """
+    lengths = {idx: calculate_segment_length(g) for idx, g in zip(edge_group.index, edge_group.geometry)}
+    total = sum(lengths.values())
+    has_fuehr = "fuehr" in edge_group.columns
+    for attr in SHARE_ATTRIBUTES:
+        if attr not in edge_group.columns:
+            continue
+        if total <= 0:
+            aggregated[attr + SHARE_SUFFIX] = None
+            continue
+        chosen = aggregated.get(attr)
+        # Wie aggregate_breite_excluding_kreuzungsweg: Breiten von Kreuzungswegen zählen nicht, außer es gibt nur
+        # Kreuzungswege (dann bleibt die Breite leer, bei einem einzelnen konvertierten Segment bleibt sie stehen)
+        crossing = (edge_group["fuehr"].apply(is_kreuzungsweg) if has_fuehr and attr in WITHOUT_CROSSINGS_ATTRIBUTES
+                    else pd.Series(False, index=edge_group.index))
+        if crossing.all():
+            crossing[:] = False
+        entries = {}
+        for idx, value, fuehr in zip(edge_group.index, edge_group[attr],
+                                     edge_group["fuehr"] if has_fuehr else [None] * len(edge_group)):
+            excluded = bool(pd.notna(value) and crossing[idx])
+            entry = entries.setdefault((_share_label(attr, value), excluded), {"length": 0.0, "fuehr": []})
+            entry["length"] += lengths[idx]
+            fuehr_label = CROSSING_LABEL if is_kreuzungsweg(fuehr) else fuehr
+            if attr != "fuehr" and pd.notna(fuehr) and fuehr_label not in entry["fuehr"]:
+                entry["fuehr"] = sorted(entry["fuehr"] + [fuehr_label])
+        parts = []
+        chosen_label = _share_label(attr, chosen) if pd.notna(chosen) else None
+        for (label, excluded), entry in sorted(
+            entries.items(), key=lambda item: (item[0] != (chosen_label, False), -item[1]["length"])
+        ):
+            details = [" / ".join(entry["fuehr"])] if entry["fuehr"] and not excluded else []
+            if excluded:
+                details.append(f"nicht gewertet, da {CROSSING_LABEL}")
+            text = f"{_share_percent(entry['length'] / total)} {label}"
+            parts.append(f"{text} ({', '.join(details)})" if details else text)
+        aggregated[attr + SHARE_SUFFIX] = "; ".join(parts)
+    return aggregated
+
+
 def aggregate_edge_group(edge_group):
     """
     Aggregiert alle Segmente einer Kante (gleiche element_nr und ri) zu einer finalen Kante.
@@ -532,10 +655,24 @@ def aggregate_edge_group(edge_group):
                 aggregated[attr] = aggregate_by_worst_case(edge_group, attr, agg_type)
         
         # TILDA-Attribute durch Semikolon-Kombination aggregieren (dynamisch erkannt)
-        tilda_attributes = [col for col in edge_group.columns if col.startswith('tilda_')]
+        tilda_attributes = [col for col in edge_group.columns
+                            if col.startswith('tilda_') and col not in ('tilda_maxspeed', 'tilda_smoothness')]
         for attr in tilda_attributes:
             aggregated[attr] = aggregate_tilda_attributes(edge_group, attr)
+
+    # Ein Wert je Kante und Richtung (auch bei Einzelsegmenten), ohne Kreuzungswege wie bei `fuehr`
+    without_crossings = edge_group
+    if 'fuehr' in edge_group.columns:
+        non_crossings = edge_group[~edge_group['fuehr'].apply(is_kreuzungsweg)]
+        if len(non_crossings) > 0:
+            without_crossings = non_crossings
+    if 'tilda_maxspeed' in edge_group.columns:
+        aggregated['tilda_maxspeed'] = highest_maxspeed(without_crossings)
+    if 'tilda_smoothness' in edge_group.columns:
+        aggregated['tilda_smoothness'] = longest_smoothness(without_crossings)
     
+    aggregated = add_shares(aggregated, edge_group)
+
     # Berechne die Länge für ALLE Kanten (Einzelsegmente und aggregierte Kanten)
     aggregated['Länge'] = int(round(calculate_segment_length(aggregated.geometry)))
     
@@ -850,7 +987,10 @@ def process(input_path, output_path, crs, clip_region=None, data_dir="./data", a
             logging.info(f"  {keine_radinfra_count} Features mit 'Keine Radinfrastruktur vorhanden' gefunden")
             
             # Setze alle Attribute auf NULL und zähle Änderungen
-            for attr in NULL_ATTRIBUTES_KEINE_RADINFRA:
+            null_attrs = NULL_ATTRIBUTES_KEINE_RADINFRA + [
+                a + SHARE_SUFFIX for a in SHARE_ATTRIBUTES if a in NULL_ATTRIBUTES_KEINE_RADINFRA
+            ]
+            for attr in null_attrs:
                 if attr in result_gdf.columns:
                     attr_changes = (keine_radinfra_mask & result_gdf[attr].notna()).sum()
                     if attr_changes > 0:

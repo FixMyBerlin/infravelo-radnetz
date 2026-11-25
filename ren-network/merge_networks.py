@@ -1,0 +1,748 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+merge_networks.py  (Schritt 1 der Pipeline, bisher unify_networks.py)
+--------------------------------------------------------------------
+Führt Radergänzungsnetz, Hauptstraßennetz und Radschnellverbindungen zu einem
+einheitlichen Rohnetz für REN+ zusammen (Zustand vor dem Matching).
+
+Reine Rohdatenzusammenführung, ohne Bezug zur App Netzanpassungen. Das touristische
+Radnetz (Radfernwege) ordnet Schritt 2 zu (netzanpassungen/match_cycle_routes.py);
+'routen_fernradweg' bleibt hier leer. Die Kartierung (ohne bearbeitet_2025 = ja)
+schreibt Schritt 3 (netzanpassungen/apply_app_result.py) für beide Ergebnisnetze.
+
+Fehlende element_nr werden aus den Knotenpunkten an den Kantenenden berechnet
+(processing/scripts/assign_element_nr_to_rvn.py): Liegt an einem Ende kein Knotenpunkt,
+wird entlang verbundener Kanten derselben Quelle weitergesucht. Verbindet das
+Detailnetz dieselben zwei Knotenpunkte, wird dessen element_nr übernommen,
+sonst entsteht von_bis.01. Kanten, an deren Enden kein Knotenpunkt gefunden
+wird, bleiben ohne element_nr einzeln erhalten.
+
+Pro element_nr entsteht eine Kante. Kantenenden bis 15 m vor dem Knoten, den ihre element_nr nennt, enden auf
+diesem Knoten. Linien verschiedener Quellen zwischen denselben zwei Knoten, die höchstens 15 m (Hausdorff)
+auseinander liegen, werden eine Kante, auch wenn die Quellen verschiedene element_nr tragen (z. B. Radverkehrsnetz
+27570001_28560007.01, Hauptstraßennetz 27570001_28560007.02); sie behält die niedrigste Nummer. Linien derselben
+Quelle bleiben getrennt.
+
+Then (auto_nodes.py, English): edges are split at the 53 virtual nodes of 2025
+(active ones, read from the KV database of the Netzanpassungen app) and at node proposals found by snapping edge ends to other
+edges (ids P<x>-<y>, no numbers: numbers are given only in the Netzanpassungen app), and every edge gets a
+unique element_nr from its two end nodes. The step fails if one is missing or duplicated. Where only the ends of two
+lines meet (no differing attribute values), there is no proposal: the two lines become one edge, unless entries of the
+app name that proposal (read once from the KV database; offline: no such check, with a warning). Where three or more
+arms meet, lines passing through are split and every edge ends exactly on the proposal point.
+
+Jede Kante wird über die Geometrie mit der Lieferung 2025 verglichen
+(Ergebnisdatensatz C des Radvorrangnetzes): bearbeitet_2025 = ja, teilweise
+oder nein. Das Kartierungs-Netz (Schritt 3) ist das Netz ohne die Kanten mit "ja";
+teilweise gelieferte Kanten bleiben als Ganzes enthalten und tragen einen
+Hinweis (hinweis_2025).
+
+Ergänzende Daten (Straßenname, Straßenklasse) kommen aus dem Detailnetz.
+
+Autobahnen und ihre Zubringer gehören nicht zum Netz: Kanten des
+Hauptstraßennetzes, die im Detailnetz als Autobahn geführt sind
+(strassenklasse2 AUBA/AUTO), werden vor dem Zusammenführen entfernt. Gehört
+dieselbe Kante auch zum Radverkehrsnetz oder zu einer Radschnellverbindung,
+bleibt sie über diese Quelle erhalten.
+
+Einzelne Kanten, die diese Regel nicht erfasst, bleiben im Original-Netz. Sie
+werden in der App Netzanpassungen ausgeschlossen (Korrektur „Kante ausschließen“);
+in ren_netz.gpkg und ren_netz_korrigiert.gpkg (apply_app_result.py) sind sie markiert,
+die Kartierung lässt sie weg.
+
+INPUT:
+- data/netzquellen/radverkehrsnetz.gpkg
+- data/netzquellen/hauptstrassennetz.gpkg
+- data/netzquellen/radschnellverbindungen.gpkg
+- data/Berlin Straßenabschnitte Detailnetz.fgb
+  (liegt ein neuerer Stand als "Berlin Straßenabschnitte Detailnetz <Datum>.fgb"
+  daneben, wird der jüngste verwendet)
+- data/Berlin Verbindungspunkte Detailnetz.fgb
+- data/Berlin Bezirke.gpkg
+- KV database of the Netzanpassungen app (VITE_KV_* in .env): the 53 virtual nodes of 2025 as entries
+  (data/virtuelle_knotenpunkte.py read_registry; the file in netzanpassungen/one_time_import/2025/ is an archive)
+- ../tilda-static-data/geojson/region-infravelo/infravelo-datensatz-c-fortlaufend/
+  aggregated_rvn_final.geojson.gz (Ergebnis 2025; tilda-static-data muss als
+  Schwesterordner ausgecheckt sein)
+
+OUTPUT:
+- ren-network/output/ren_netz_roh.gpkg (Layer: ren_netz)
+- ren-network/output/virtuelle_knoten_vorschlaege.gpkg (Layer virtuelle_knoten_vorschlaege: node proposals
+  with id, art, host edge and station)
+- ren-network/output/ren_netz_roh.geojson (WGS84, z.B. für play.placemark.io)
+- ren-network/output/element_nr_nicht_im_detailnetz.csv
+- ren-network/output/bearbeitet_2025_abweichungen.csv
+"""
+
+import gzip
+import io
+import logging
+import sys
+from pathlib import Path
+
+import geopandas as gpd
+import pandas as pd
+import shapely
+from shapely.geometry import LineString, MultiLineString
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.append(str(ROOT / "processing"))
+sys.path.append(str(ROOT / "processing" / "scripts"))
+sys.path.append(str(ROOT / "data"))
+
+sys.path.append(str(ROOT / "ren-network"))
+
+import auto_nodes  # noqa: E402
+from assign_element_nr_to_rvn import assign_element_numbers  # noqa: E402
+from assign_node_ids import assign_node_ids_to_points  # noqa: E402
+from helpers.district_assignment import assign_district_to_edges  # noqa: E402
+from download_inputs import download as download_inputs  # noqa: E402
+import virtuelle_knotenpunkte as vk  # noqa: E402
+
+try:
+    from helpers.globals import DEFAULT_CRS
+except ImportError:
+    DEFAULT_CRS = 25833
+
+SOURCES_DIR = ROOT / "data" / "netzquellen"
+DETAILNETZ_PATH = ROOT / "data" / "Berlin Straßenabschnitte Detailnetz.fgb"
+# Lokale, nicht versionierte Stände mit Datum im Namen haben Vorrang
+DETAILNETZ_DATED_GLOB = "Berlin Straßenabschnitte Detailnetz *.fgb"
+VERBINDUNGSPUNKTE_PATH = ROOT / "data" / "Berlin Verbindungspunkte Detailnetz.fgb"
+# Spaltenname aus assign_node_ids / assign_element_nr_to_rvn (mit U+2010 als Bindestrich)
+NODE_ID_COLUMN = "Knotenpunkt‐ID"
+DISTRICTS_PATH = ROOT / "data" / "Berlin Bezirke.gpkg"
+OUTPUT_DIR = ROOT / "ren-network" / "output"
+OUTPUT_PATH = OUTPUT_DIR / "ren_netz_roh.gpkg"
+OUTPUT_LAYER = "ren_netz"
+# Node proposals of step 1 (where edges meet without a node); the app accepts them and gives numbers
+PROPOSALS_PATH = OUTPUT_DIR / "virtuelle_knoten_vorschlaege.gpkg"
+PROPOSALS_LAYER = "virtuelle_knoten_vorschlaege"
+MISSING_REPORT_PATH = OUTPUT_DIR / "element_nr_nicht_im_detailnetz.csv"
+# Ergebnis 2025 (Datensatz C): lebt nur in tilda-static-data, das als Schwesterordner
+# ausgecheckt sein muss. processing/copy_to_tilda_static.sh schreibt es dorthin.
+TILDA_STATIC_DATA_DIR = ROOT.parent / "tilda-static-data"
+RESULT_2025_PATH = (TILDA_STATIC_DATA_DIR / "geojson" / "region-infravelo"
+                    / "infravelo-datensatz-c-fortlaufend" / "aggregated_rvn_final.geojson.gz")
+RESULT_2025_REPORT_PATH = OUTPUT_DIR / "bearbeitet_2025_abweichungen.csv"
+
+# Reihenfolge bestimmt, aus welcher Quelle die Geometrie übernommen wird
+SOURCE_PRIORITY = ["radverkehrsnetz", "radschnellverbindungen", "hauptstrassennetz"]
+
+# Deckt eine Quelle nur einen Teil der Kante ab (z.B. das Radverkehrsnetz, das
+# vor dem Knotenpunkt abbiegt), gewinnt die Quelle mit der vollständigen
+# Geometrie. Bis zu dieser Differenz gelten Geometrien als gleich lang.
+GEOMETRY_LENGTH_TOLERANCE_M = 10
+
+# Rang der Radverkehrsnetz-Ausprägungen (höher gewinnt bei Konflikten)
+RVN_VORRANG = "Radvorrangnetz"
+RVN_ERGAENZUNG = "Radergänzungsnetz"
+RVN_KEIN = "Kein Radverkehrsnetz vorhanden"
+RVN_RANK = {RVN_VORRANG: 2, RVN_ERGAENZUNG: 1}
+
+# Straßenstufen I bis III sind Hauptverkehrsstraßen
+HAUPTVERKEHRSSTRASSEN_KLASSEN = {"I", "II", "III"}
+
+# strassenklasse2 im Detailnetz: Autobahn inkl. Zubringer und Anschlussstellen
+AUTOBAHN_KLASSEN = {"AUBA", "AUTO"}
+
+# Abgleich mit der Lieferung 2025 über die Geometrie: Eine Kante gilt als
+# geliefert, soweit sie im Puffer um die Kanten der Lieferung liegt.
+RESULT_2025_BUFFER_M = 5
+# bearbeitet_2025 = ja: mindestens dieser Anteil geliefert und höchstens so viele Meter offen
+RESULT_2025_DONE_SHARE = 0.9
+RESULT_2025_MAX_OPEN_M = 100
+# bearbeitet_2025 = teilweise: mindestens dieser Anteil und diese Länge geliefert.
+# Kürzere Überdeckungen sind Berührungen an Kreuzungen.
+RESULT_2025_PARTLY_SHARE = 0.2
+RESULT_2025_MIN_OVERLAP_M = 30
+
+ELEMENT_NR_PATTERN = r"^(\d+)_(\d+)\.\d+$"
+
+FINAL_COLUMNS = [
+    "lfd_nr",
+    "element_nr",
+    "element_nr_berechnet",
+    "ursprung_element_nr",
+    "von_knoten",
+    "bis_knoten",
+    "knoten_anfang",
+    "knoten_ende",
+    "laenge_m",
+    "bezirksnummer",
+    "strassenname",
+    "radverkehrsnetz",
+    "routen_fernradweg",
+    "hauptverkehrsstrasse",
+    "strassenklasse",
+    "netz_quellen",
+    "netz_quellen_teilweise",
+    "in_detailnetz",
+    "bearbeitet_2025",
+    "anteil_2025",
+    "element_nr_2025",
+    "hinweis_2025",
+    "geometry",
+]
+
+MISSING_REPORT_COLUMNS = ["lfd_nr", "element_nr", "element_nr_berechnet", "netz_quellen", "bezirksnummer", "strassenname", "laenge_m"]
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
+
+def _read_source(name):
+    gdf = gpd.read_file(SOURCES_DIR / f"{name}.gpkg")
+    if gdf.crs is None or gdf.crs.to_epsg() != DEFAULT_CRS:
+        gdf = gdf.to_crs(f"EPSG:{DEFAULT_CRS}")
+    return gdf
+
+
+def _blank_to_none(series):
+    return series.where(series.notna() & (series.astype(str).str.strip() != ""), None)
+
+
+def load_sources():
+    """Lädt die drei Netze und bringt sie auf ein gemeinsames Spaltenschema."""
+    frames = []
+
+    radverkehr = _read_source("radverkehrsnetz")
+    frames.append(gpd.GeoDataFrame({
+        "element_nr": _blank_to_none(radverkehr["elem_nr"]),
+        "radverkehrsnetz": radverkehr["ist_radvorrangnetz"].map(
+            {"Radvorrangnetz": RVN_VORRANG, "Ergänzungsnetz": RVN_ERGAENZUNG}),
+        "strassenname": None,
+        "strassenklasse": None,
+        "netz": "radverkehrsnetz",
+    }, geometry=radverkehr.geometry, crs=radverkehr.crs))
+
+    schnell = _read_source("radschnellverbindungen")
+    frames.append(gpd.GeoDataFrame({
+        "element_nr": _blank_to_none(schnell["element_nr"]),
+        # 'Sonstiges' gehört nicht zum Radverkehrsnetz
+        "radverkehrsnetz": schnell["RVN"].map(
+            {"Vorrangnetz": RVN_VORRANG, "Ergänzungsnetz": RVN_ERGAENZUNG}),
+        "strassenname": None,
+        "strassenklasse": None,
+        "netz": "radschnellverbindungen",
+    }, geometry=schnell.geometry, crs=schnell.crs))
+
+    haupt = _read_source("hauptstrassennetz")
+    frames.append(gpd.GeoDataFrame({
+        "element_nr": _blank_to_none(haupt["element_nr"]),
+        "radverkehrsnetz": None,
+        "strassenname": _blank_to_none(haupt["strassenname"]),
+        "strassenklasse": _blank_to_none(haupt["strassenklasse1"]),
+        "netz": "hauptstrassennetz",
+    }, geometry=haupt.geometry, crs=haupt.crs))
+
+    for frame in frames:
+        logging.info(f"{frame['netz'].iloc[0]}: {len(frame)} Kanten, {frame['element_nr'].isna().sum()} ohne element_nr")
+
+    return gpd.GeoDataFrame(pd.concat(frames, ignore_index=True), crs=f"EPSG:{DEFAULT_CRS}")
+
+
+def load_detailnetz():
+    dated = sorted(DETAILNETZ_PATH.parent.glob(DETAILNETZ_DATED_GLOB))
+    path = dated[-1] if dated else DETAILNETZ_PATH
+    logging.info(f"Detailnetz: {path.name}")
+    detail = gpd.read_file(path, columns=[
+        "element_nr", "strassenname", "strassenklasse1", "strassenklasse2", "beginnt_bei_vp", "endet_bei_vp"])
+    if detail.crs is None or detail.crs.to_epsg() != DEFAULT_CRS:
+        detail = detail.to_crs(f"EPSG:{DEFAULT_CRS}")
+    return detail
+
+
+def remove_motorways(sources, detail):
+    """Entfernt Autobahnen und Zubringer aus dem Hauptstraßennetz."""
+    motorway_element_nr = set(detail.loc[detail["strassenklasse2"].isin(AUTOBAHN_KLASSEN), "element_nr"])
+    is_motorway = (sources["netz"] == "hauptstrassennetz") & sources["element_nr"].isin(motorway_element_nr)
+    logging.info(f"hauptstrassennetz: {is_motorway.sum()} Autobahn-Kanten entfernt "
+                 f"({sources.loc[is_motorway].geometry.length.sum() / 1000:.1f} km)")
+
+    remaining = sources.loc[~is_motorway].reset_index(drop=True)
+    kept_elsewhere = sorted(set(remaining["element_nr"].dropna()) & motorway_element_nr)
+    if kept_elsewhere:
+        logging.warning(f"{len(kept_elsewhere)} Autobahn-Kanten bleiben über Radverkehrsnetz oder "
+                        f"Radschnellverbindungen im Netz: {kept_elsewhere}")
+    return remaining
+
+
+def load_nodes(detail):
+    """Verbindungspunkte mit Knotenpunkt-ID aus beginnt_bei_vp / endet_bei_vp des Detailnetzes."""
+    points = gpd.read_file(VERBINDUNGSPUNKTE_PATH)
+    nodes = assign_node_ids_to_points(points, detail[["beginnt_bei_vp", "endet_bei_vp", "geometry"]])
+    nodes = nodes.loc[nodes[NODE_ID_COLUMN].notna(), [NODE_ID_COLUMN, "geometry"]].reset_index(drop=True)
+    nodes[NODE_ID_COLUMN] = nodes[NODE_ID_COLUMN].astype(str)
+    logging.info(f"Verbindungspunkte mit Knotenpunkt-ID: {len(nodes)}/{len(points)}")
+    return nodes
+
+
+def _detailnetz_by_node_pair(detail):
+    """Detailnetz-Abschnitte je ungeordnetem Knotenpaar."""
+    pairs = {}
+    for element_nr, von, bis, geom in zip(detail["element_nr"], detail["beginnt_bei_vp"],
+                                          detail["endet_bei_vp"], detail.geometry):
+        if pd.notna(element_nr) and pd.notna(von) and pd.notna(bis):
+            pairs.setdefault(frozenset((str(von), str(bis))), []).append((element_nr, geom))
+    return pairs
+
+
+def _element_nr_for_nodes(von, bis, geom, detail_pairs):
+    """element_nr des Detailnetzes zwischen beiden Knoten, unabhängig von der
+    Digitalisierungsrichtung; bei mehreren Abschnitten der geometrisch nächste.
+    Ohne passenden Abschnitt: von_bis.01"""
+    candidates = detail_pairs.get(frozenset((von, bis)))
+    if not candidates:
+        return f"{von}_{bis}.01"
+    return min(candidates, key=lambda c: geom.hausdorff_distance(c[1]))[0]
+
+
+def assign_missing_element_nr(sources, detail, nodes):
+    """Berechnet fehlende element_nr aus den Knotenpunkten an den Kantenenden."""
+    sources = sources.copy()
+    sources["element_nr_berechnet"] = False
+    detail_pairs = _detailnetz_by_node_pair(detail)
+
+    # Graph pro Quelle, da nur Kanten derselben Quelle gemeinsame Endpunkte haben
+    for netz, group in sources[sources["element_nr"].isna()].groupby("netz", sort=False):
+        computed = assign_element_numbers(group[["geometry"]], nodes)
+        computed.index = group.index
+        complete = computed[computed["beginnt_bei_vp"].notna() & computed["endet_bei_vp"].notna()]
+
+        from_detail = 0
+        # Alle Kanten einer Kette (gleiche vorläufige element_nr) werden gemeinsam zugeordnet
+        for _, chain in complete.groupby("element_nr"):
+            von, bis = chain["beginnt_bei_vp"].iloc[0], chain["endet_bei_vp"].iloc[0]
+            element_nr = _element_nr_for_nodes(von, bis, shapely.unary_union(chain.geometry.values), detail_pairs)
+            from_detail += frozenset((von, bis)) in detail_pairs
+            sources.loc[chain.index, "element_nr"] = element_nr
+            sources.loc[chain.index, "element_nr_berechnet"] = True
+
+        logging.info(
+            f"{netz}: element_nr für {len(complete)}/{len(group)} Kanten ohne element_nr berechnet "
+            f"({complete['element_nr'].nunique()} Knotenpaare, davon {from_detail} im Detailnetz), "
+            f"{len(group) - len(complete)} ohne Knotenpunkt an beiden Enden"
+        )
+    return sources
+
+
+def _as_multiline(geom):
+    if isinstance(geom, LineString):
+        return MultiLineString([geom])
+    return geom
+
+
+def _merge_parts(geoms):
+    """Fasst mehrere Teilgeometrien einer element_nr zu einer MultiLineString zusammen."""
+    if len(geoms) == 1:
+        return _as_multiline(geoms[0])
+    merged = shapely.line_merge(shapely.unary_union(geoms))
+    return _as_multiline(merged)
+
+
+def _best_rvn(values):
+    ranked = [v for v in values if v in RVN_RANK]
+    return max(ranked, key=RVN_RANK.get) if ranked else None
+
+
+def _first_valid(values):
+    for value in values:
+        if pd.notna(value):
+            return value
+    return None
+
+
+def merge_by_element_nr(sources):
+    """Eine Kante pro element_nr; Kanten ohne element_nr bleiben einzeln."""
+    sources = sources.copy()
+    sources["prio"] = sources["netz"].map({n: i for i, n in enumerate(SOURCE_PRIORITY)})
+
+    keyed = sources[sources["element_nr"].notna()]
+    unkeyed = sources[sources["element_nr"].isna()]
+
+    rows = []
+    multi_part_groups = 0
+    partial_geometry_groups = 0
+    for element_nr, group in keyed.groupby("element_nr", sort=False):
+        # Geometrie aus der Quelle mit höchster Priorität, die die Kante vollständig abdeckt
+        length_by_prio = group.geometry.length.groupby(group["prio"]).sum()
+        complete = length_by_prio[length_by_prio >= length_by_prio.max() - GEOMETRY_LENGTH_TOLERANCE_M]
+        best_prio = complete.index.min()
+        if best_prio != group["prio"].min():
+            partial_geometry_groups += 1
+        # Quellen, die nur einen Teil der Kante abdecken
+        partial_sources = sorted(set(group.loc[~group["prio"].isin(complete.index), "netz"]))
+        parts = list(group.loc[group["prio"] == best_prio, "geometry"])
+        if len(parts) > 1:
+            multi_part_groups += 1
+        ordered = group.sort_values("prio")
+        rows.append({
+            "element_nr": element_nr,
+            "geometry": _merge_parts(parts),
+            "radverkehrsnetz": _best_rvn(group["radverkehrsnetz"]),
+            "strassenname": _first_valid(ordered["strassenname"].iloc[::-1]),
+            "strassenklasse": _first_valid(ordered["strassenklasse"].iloc[::-1]),
+            "netz_quellen": ";".join(sorted(set(group["netz"]))),
+            "netz_quellen_teilweise": ";".join(partial_sources) or None,
+            "element_nr_berechnet": "ja" if group["element_nr_berechnet"].any() else "nein",
+        })
+
+    for _, row in unkeyed.iterrows():
+        rows.append({
+            "element_nr": None,
+            "element_nr_berechnet": None,
+            "geometry": _as_multiline(row.geometry),
+            "radverkehrsnetz": row["radverkehrsnetz"],
+            "strassenname": row["strassenname"],
+            "strassenklasse": row["strassenklasse"],
+            "netz_quellen": row["netz"],
+            "netz_quellen_teilweise": None,
+        })
+
+    merged = gpd.GeoDataFrame(rows, geometry="geometry", crs=f"EPSG:{DEFAULT_CRS}")
+    logging.info(
+        f"Zusammengeführt: {len(keyed)} + {len(unkeyed)} Quellkanten -> {len(merged)} Kanten "
+        f"({merged['element_nr'].notna().sum()} mit element_nr, {len(unkeyed)} ohne). "
+        f"element_nr mit mehreren Teilgeometrien in derselben Quelle: {multi_part_groups}. "
+        f"Geometrie aus nachrangiger Quelle, weil die vorrangige nur einen Teil abdeckt: {partial_geometry_groups}"
+    )
+    return merged
+
+
+def _sources(value):
+    return set(value.split(";")) if isinstance(value, str) and value else set()
+
+
+def _line_ends(geometry):
+    parts = list(geometry.geoms) if geometry.geom_type == "MultiLineString" else [geometry]
+    return shapely.get_point(parts[0], 0), shapely.get_point(parts[-1], -1)
+
+
+def combine_parallel(rows, owner):
+    """Eine Kante aus parallelen Linien verschiedener Quellen zwischen denselben Knoten (Zeilen als dict).
+    Wie beim Zusammenführen pro element_nr: Geometrie aus der vorrangigen Quelle, außer sie ist mehr als
+    GEOMETRY_LENGTH_TOLERANCE_M kürzer; radverkehrsnetz nach höchstem Rang; netz_quellen alle Quellen;
+    strassenname/strassenklasse aus der Quelle, die sie hat. element_nr und Knoten bleiben die von rows[owner],
+    die Geometrie wird in dessen Richtung gedreht."""
+    prio = {name: i for i, name in enumerate(SOURCE_PRIORITY)}
+    ranks = [min((prio.get(s, len(prio)) for s in _sources(row["netz_quellen"])), default=len(prio)) for row in rows]
+    lengths = [row["geometry"].length for row in rows]
+    complete = [i for i in range(len(rows)) if lengths[i] >= max(lengths) - GEOMETRY_LENGTH_TOLERANCE_M]
+    best = min(complete, key=lambda i: (ranks[i], i))
+
+    geometry = rows[best]["geometry"]
+    start, end = _line_ends(geometry)
+    owner_start, owner_end = _line_ends(rows[owner]["geometry"])
+    if start.distance(owner_end) + end.distance(owner_start) < start.distance(owner_start) + end.distance(owner_end):
+        geometry = shapely.reverse(geometry)
+
+    sources = set().union(*(_sources(row["netz_quellen"]) for row in rows))
+    partial = set().union(*(_sources(row.get("netz_quellen_teilweise")) for row in rows))
+    partial |= set().union(*(_sources(rows[i]["netz_quellen"]) for i in range(len(rows)) if i not in complete))
+    by_low_priority = [rows[i] for i in sorted(range(len(rows)), key=lambda i: -ranks[i])]
+    return {
+        **rows[owner],
+        "geometry": geometry,
+        "radverkehrsnetz": _best_rvn([row["radverkehrsnetz"] for row in rows]),
+        "strassenname": _first_valid([row["strassenname"] for row in by_low_priority]),
+        "strassenklasse": _first_valid([row["strassenklasse"] for row in by_low_priority]),
+        "netz_quellen": ";".join(sorted(sources)),
+        "netz_quellen_teilweise": ";".join(sorted(partial)) or None,
+    }
+
+
+def merge_parallel_edges(network, detail_element_nrs=frozenset()):
+    """Linien verschiedener Quellen zwischen denselben zwei Knoten (laut element_nr), die höchstens
+    auto_nodes.PARALLEL_TOL_M (Hausdorff) auseinander liegen, werden eine Kante. Das Zusammenführen pro element_nr
+    erfasst sie nicht, wenn die Quellen für dieselbe Strecke verschiedene element_nr tragen (z. B. Radverkehrsnetz
+    27570001_28560007.01, Hauptstraßennetz und Detailnetz 27570001_28560007.02). Die Kante behält die Nummer, die
+    im Detailnetz steht, sonst die niedrigste (.01). Linien derselben Quelle zwischen denselben Knoten bleiben getrennt,
+    außer sie liegen höchstens auto_nodes.DUPLICATE_TOL_M auseinander (dieselbe Linie doppelt)."""
+    network = network.reset_index(drop=True)
+    parsed = [auto_nodes.parse_element_nr(nr) for nr in network["element_nr"]]
+    pairs = [auto_nodes.pair_key(p[0], p[1]) if p else None for p in parsed]
+    sources = [_sources(value) for value in network["netz_quellen"]]
+    detail = [nr if nr in detail_element_nrs else None for nr in network["element_nr"]]
+    clusters = auto_nodes.parallel_clusters(list(network.geometry), pairs, sources, detail_numbers=detail)
+
+    records = network.to_dict("records")
+    dropped = set()
+    for cluster in clusters:
+        owner = min(cluster, key=lambda i: (network.at[i, "element_nr"] not in detail_element_nrs,
+                                            parsed[i][2], network.at[i, "element_nr"]))
+        records[owner] = combine_parallel([records[i] for i in cluster], cluster.index(owner))
+        dropped |= set(cluster) - {owner}
+        logging.debug(f"Parallel: {[network.at[i, 'element_nr'] for i in cluster]} -> {network.at[owner, 'element_nr']}")
+    merged = gpd.GeoDataFrame([r for i, r in enumerate(records) if i not in dropped], geometry="geometry", crs=network.crs)
+    logging.info(f"Parallele und doppelte Linien zwischen denselben Knoten: {len(clusters)} Strecken, "
+                 f"{len(dropped)} element_nr entfallen (Toleranz {auto_nodes.PARALLEL_TOL_M:g} m Hausdorff)")
+    return merged
+
+
+def snap_ends_to_named_nodes(network, nodes, nodes_2025):
+    """Kantenenden nahe dem Knoten, den ihre element_nr nennt, enden auf diesem Knoten (auto_nodes)."""
+    network, moved = auto_nodes.snap_ends_to_named_nodes(network.reset_index(drop=True), nodes, NODE_ID_COLUMN,
+                                                         nodes_2025)
+    distances = pd.Series([distance for _, _, distance in moved], dtype=float)
+    logging.info(f"{len(moved)} Kantenenden auf den Knoten ihrer element_nr gelegt (bis "
+                 f"{auto_nodes.NAMED_NODE_TOL_M:g} m, Median {distances.median():.1f} m)")
+    return network
+
+
+def add_detailnetz_attributes(network, detail):
+    """Ergänzt Straßenname und Straßenklasse aus dem Detailnetz über die element_nr."""
+    detail = detail.drop_duplicates("element_nr").set_index("element_nr")
+
+    network = network.copy()
+    in_detail = network["element_nr"].isin(detail.index)
+    logging.info(f"element_nr im Detailnetz gefunden: {in_detail.sum()}/{network['element_nr'].notna().sum()}")
+    # Kanten ohne element_nr können nicht nachgeschlagen werden und bleiben leer
+    network["in_detailnetz"] = in_detail.map({True: "ja", False: "nein"}).where(network["element_nr"].notna(), None)
+
+    dn_name = network["element_nr"].map(detail["strassenname"])
+    dn_klasse = _blank_to_none(network["element_nr"].map(detail["strassenklasse1"]))
+    log_klassen_differences(network, dn_klasse)
+
+    network["strassenname"] = network["strassenname"].fillna(_blank_to_none(dn_name))
+    network["strassenklasse"] = network["strassenklasse"].fillna(dn_klasse)
+    return network
+
+
+def log_klassen_differences(network, dn_klasse):
+    """Listet Kanten, bei denen Detailnetz und Hauptstraßennetz bei der Straßenklasse abweichen."""
+    in_hsn = network["netz_quellen"].str.contains("hauptstrassennetz")
+    hsn_klasse = network["strassenklasse"]
+
+    abweichend = in_hsn & hsn_klasse.notna() & dn_klasse.notna() & (hsn_klasse != dn_klasse)
+    if abweichend.any():
+        details = [f"{e} (HSN {h}, DN {d})" for e, h, d in
+                   zip(network.loc[abweichend, "element_nr"], hsn_klasse[abweichend], dn_klasse[abweichend])]
+        logging.warning(f"{abweichend.sum()} Kanten mit abweichender Straßenklasse zwischen "
+                        f"Hauptstraßennetz und Detailnetz: {details}")
+
+    nicht_in_hsn = ~in_hsn & dn_klasse.isin(HAUPTVERKEHRSSTRASSEN_KLASSEN)
+    if nicht_in_hsn.any():
+        details = [f"{e} (DN {d})" for e, d in
+                   zip(network.loc[nicht_in_hsn, "element_nr"], dn_klasse[nicht_in_hsn])]
+        logging.warning(f"{nicht_in_hsn.sum()} Kanten sind laut Detailnetz Hauptverkehrsstraße (Klasse I-III), "
+                        f"fehlen aber im Hauptstraßennetz: {details}")
+
+
+def add_nodes(network):
+    """von_knoten / bis_knoten as text from the element_nr (format von_bis.NN). Text, because virtual node
+    numbers have four digits with leading zeros (0012), see data/VIRTUELLE-KNOTENPUNKTE.md."""
+    parts = network["element_nr"].str.extract(auto_nodes.ELEMENT_NR_PATTERN.pattern)
+    invalid = network.loc[network["element_nr"].notna() & parts[0].isna(), "element_nr"]
+    if len(invalid):
+        logging.warning(
+            f"{len(invalid)} element_nr do not match the pattern von_bis.NN, "
+            f"von_knoten/bis_knoten stay empty: {sorted(invalid)}"
+        )
+    network["von_knoten"] = parts[0].astype("string")
+    network["bis_knoten"] = parts[1].astype("string")
+    return network
+
+
+def fetch_app_entries():
+    """All entries of the Netzanpassungen app for area berlin (KV database, netzanpassungen/kv_entries.py), fetched
+    once for the nodes of 2025 and the proposals the app uses. None when the database cannot be reached."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "netzanpassungen"))
+    import kv_entries
+    try:
+        return kv_entries.fetch_entries(vk.AREA_2025)["entries"]
+    except (Exception, SystemExit) as error:
+        logging.warning(f"KV database of the Netzanpassungen app not reachable ({error}): lines are joined at "
+                        "proposals without checking whether app entries use them")
+        return None
+
+
+def load_nodes_2025(entries=None):
+    """The virtual nodes of 2025 (0001-0053, column Knotenpunkt-ID) that are still active, from the entries of the
+    Netzanpassungen app (KV database; data/virtuelle_knotenpunkte.py read_registry)."""
+    nodes = vk.read_registry(entries=entries)
+    nodes = nodes[nodes["status"] == vk.STATUS_ACTIVE].reset_index(drop=True)
+    logging.info(f"Virtual nodes of 2025 (app): {len(nodes)} active")
+    return nodes
+
+
+def number_edges(network, detail, nodes, nodes_2025, app_refs=frozenset(), corrected=frozenset()):
+    """Sets virtual nodes by snapping, splits edges at them and gives every edge a unique element_nr from its end
+    nodes (ren-network/auto_nodes.py). Returns (network with one LineString edge per row, node proposals)."""
+    lines = network.explode(index_parts=False).reset_index(drop=True)
+    lines = lines[lines.geometry.geom_type == "LineString"].reset_index(drop=True)
+    result, proposals, report = auto_nodes.snap_and_number(
+        lines, nodes, nodes_2025, detail["element_nr"].dropna(), NODE_ID_COLUMN, combine=combine_parallel,
+        app_refs=app_refs, detail_lines=detail.geometry, corrected=corrected)
+    auto_nodes.log_report(report)
+    detail_element_nrs = set(detail["element_nr"].dropna())
+    result["in_detailnetz"] = result["element_nr"].isin(detail_element_nrs).map({True: "ja", False: "nein"})
+    return result, proposals
+
+
+def add_district(network):
+    """Bezirksnummer (01-12) nach größtem räumlichen Anteil, wie in der Aggregation."""
+    network = assign_district_to_edges(network.copy(), str(DISTRICTS_PATH), f"EPSG:{DEFAULT_CRS}")
+    network["bezirksnummer"] = pd.to_numeric(network["Bezirksnummer"]).astype("Int64")
+    return network
+
+
+def finalize(network):
+    network = network.copy()
+    network["radverkehrsnetz"] = network["radverkehrsnetz"].fillna(RVN_KEIN)
+    network["laenge_m"] = network.geometry.length.round(1)
+    # Nur Kanten aus dem Hauptstraßennetz können Hauptverkehrsstraßen sein
+    in_hauptstrassennetz = network["netz_quellen"].str.contains("hauptstrassennetz")
+    ist_hvs = network["strassenklasse"].isin(HAUPTVERKEHRSSTRASSEN_KLASSEN)
+    network["hauptverkehrsstrasse"] = (in_hauptstrassennetz & ist_hvs).map({True: "ja", False: "nein"})
+    # Radfernwege ordnet Schritt 2 zu (netzanpassungen/match_cycle_routes.py)
+    network["routen_fernradweg"] = None
+
+    network = network.sort_values("element_nr", na_position="last", kind="stable").reset_index(drop=True)
+    network["lfd_nr"] = range(1, len(network) + 1)
+    return network[FINAL_COLUMNS]
+
+
+def add_bearbeitet_2025(network):
+    """
+    Vergleicht jede Kante über die Geometrie mit der Lieferung 2025 (Datensatz C).
+    bearbeitet_2025: ja (fast vollständig geliefert), teilweise oder nein.
+    Maßgeblich ist die Geometrie, nicht die element_nr: Nummern haben sich seit
+    2025 geändert, und manche Nummer liegt heute an anderer Stelle.
+    """
+    if not RESULT_2025_PATH.exists():
+        raise SystemExit(f"Ergebnis 2025 fehlt: {RESULT_2025_PATH}. "
+                         f"tilda-static-data als Schwesterordner von infravelo-radnetz auschecken.")
+    with gzip.open(RESULT_2025_PATH) as file:
+        result = gpd.read_file(io.BytesIO(file.read())).to_crs(network.crs)
+    result = result.drop_duplicates(["element_nr", "ri"]).reset_index(drop=True)
+    element_nrs = set(result["element_nr"].dropna())
+    same_element_nr = network["element_nr"].isin(element_nrs)
+
+    buffers = result.geometry.buffer(RESULT_2025_BUFFER_M)
+    covered_m = pd.Series(0.0, index=network.index)
+    element_nr_2025 = pd.Series(None, index=network.index, dtype=object)
+    for index, geom in network.geometry.items():
+        nearby = buffers.iloc[buffers.sindex.query(geom, predicate="intersects")]
+        if len(nearby):
+            covered_m[index] = geom.intersection(nearby.union_all()).length
+            # Kanten von 2025, die ein nennenswertes Stück abdecken, längstes zuerst
+            overlap = nearby.intersection(geom).length.groupby(result["element_nr"]).max().sort_values(ascending=False)
+            overlap = overlap[overlap >= RESULT_2025_MIN_OVERLAP_M]
+            if len(overlap):
+                element_nr_2025[index] = ";".join(overlap.index)
+    length = network.geometry.length
+    share = covered_m / length
+
+    done = (share >= RESULT_2025_DONE_SHARE) & (length - covered_m <= RESULT_2025_MAX_OPEN_M)
+    partly = ~done & (share >= RESULT_2025_PARTLY_SHARE) & (covered_m >= RESULT_2025_MIN_OVERLAP_M)
+    status = pd.Series("nein", index=network.index).mask(partly, "teilweise").mask(done, "ja")
+
+    def note(index):
+        percent, meters = f"{share[index]:.0%}".replace("%", " %"), f"{covered_m[index]:.0f} m"
+        moved = "Die element_nr stand in der Lieferung 2025, lag dort aber an anderer Stelle"
+        if partly[index]:
+            text = (f"Teilweise 2025 geliefert: {percent} der Kante ({meters}) liegen auf Kanten der Lieferung 2025 "
+                    f"({element_nr_2025[index].replace(';', ', ')}). Die Kante bleibt als Ganzes im Kartierungs-Netz, "
+                    "weil der Rest noch nicht bearbeitet wurde.")
+            return f"{moved} oder war kürzer. {text}" if same_element_nr[index] else text
+        if done[index] and isinstance(element_nr_2025[index], str) and element_nr_2025[index] != network.at[index, "element_nr"]:
+            return f"2025 unter anderer Nummer geliefert: {element_nr_2025[index].replace(';', ', ')}."
+        if not done[index] and same_element_nr[index]:
+            return (f"{moved} (Überdeckung {percent}). Die Kante gilt deshalb als nicht bearbeitet "
+                    "und bleibt im Kartierungs-Netz.")
+        return None
+
+    network = network.copy()
+    network["bearbeitet_2025"] = status
+    network["anteil_2025"] = share.round(2)
+    # Nummern der Kanten in der Lieferung 2025, die diese Kante abdecken
+    network["element_nr_2025"] = element_nr_2025.where(done | partly)
+    network["hinweis_2025"] = [note(index) for index in network.index]
+    for value in ["ja", "teilweise", "nein"]:
+        logging.info(f"bearbeitet_2025 = {value}: {(status == value).sum()} Kanten, "
+                     f"{length[status == value].sum() / 1000:.1f} km, davon geliefert {covered_m[status == value].sum() / 1000:.1f} km")
+
+    # Prüfliste: alle Kanten mit Hinweis, neues Radvorrangnetz und entfallene Nummern
+    grund = network["hinweis_2025"].copy()
+    new_priority = (network["radverkehrsnetz"] == RVN_VORRANG) & (status == "nein") & grund.isna()
+    grund[new_priority] = "Radvorrangnetz, aber nicht Teil der Lieferung 2025."
+    report = network.loc[grund.notna(), ["element_nr", "element_nr_2025", "bearbeitet_2025", "anteil_2025",
+                                         "strassenname", "radverkehrsnetz", "netz_quellen"]].copy()
+    report["laenge_m"] = length.round(1)
+    report["grund"] = grund
+    missing = sorted(element_nrs - set(network["element_nr"].dropna()) - set(";".join(element_nr_2025.dropna()).split(";")))
+    report = pd.concat([report, pd.DataFrame({"element_nr_2025": missing, "grund": "2025 geliefert, heute nicht mehr im Netz."})])
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    report.to_csv(RESULT_2025_REPORT_PATH, index=False)
+    logging.info(f"Prüfliste zur Lieferung 2025: {len(report)} Zeilen: {RESULT_2025_REPORT_PATH}")
+    return network
+
+
+def write_network(network, path):
+    network.to_file(path, layer=OUTPUT_LAYER, driver="GPKG")
+    logging.info(f"Geschrieben: {path}")
+    geojson_path = path.with_suffix(".geojson")
+    network.to_crs("EPSG:4326").to_file(geojson_path, driver="GeoJSON", COORDINATE_PRECISION=6)
+    logging.info(f"Geschrieben: {geojson_path}")
+
+
+def write_proposals(proposals, path=None):
+    """Node proposals of step 1 (id P<x>-<y>, art, host edge, station)."""
+    path = path or PROPOSALS_PATH
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists():
+        path.unlink()
+    proposals.to_file(path, layer=PROPOSALS_LAYER, driver="GPKG")
+    logging.info(f"Node proposals: {len(proposals)} ({proposals['art'].value_counts().to_dict()}): {path}")
+
+
+def write_missing_report(network):
+    """Schreibt alle Kanten, deren element_nr nicht im Detailnetz vorkommt, in eine CSV."""
+    missing = network.loc[network["in_detailnetz"] == "nein", MISSING_REPORT_COLUMNS]
+    missing.to_csv(MISSING_REPORT_PATH, index=False)
+    logging.info(f"{len(missing)} Kanten mit element_nr nicht im Detailnetz: {MISSING_REPORT_PATH}")
+
+
+def log_summary(network):
+    logging.info(f"Kanten gesamt: {len(network)}, Länge {network['laenge_m'].sum() / 1000:.1f} km")
+    for column in ["radverkehrsnetz", "hauptverkehrsstrasse", "netz_quellen", "netz_quellen_teilweise", "in_detailnetz",
+                   "element_nr_berechnet", "bearbeitet_2025"]:
+        logging.info(f"{column}: {network[column].value_counts(dropna=False).to_dict()}")
+    for column in ["element_nr", "von_knoten", "bis_knoten", "bezirksnummer", "strassenname"]:
+        logging.info(f"{column}: {network[column].isna().sum()} ohne Wert")
+    auto_nodes.assert_unique(network)
+    logging.info(f"element_nr: {network['element_nr'].nunique()} different, none missing, none duplicated")
+
+
+def main():
+    # Gleiche Eingangsdaten für alle: vor jedem Lauf aus dem gemeinsamen Drive-Ordner
+    download_inputs()
+    sources = load_sources()
+    detail = load_detailnetz()
+    sources = remove_motorways(sources, detail)
+    nodes = load_nodes(detail)
+    sources = assign_missing_element_nr(sources, detail, nodes)
+    network = merge_by_element_nr(sources)
+    entries = fetch_app_entries()
+    nodes_2025 = load_nodes_2025(entries)
+    app_refs = auto_nodes.app_references(entries)
+    logging.info(f"Proposal ids and element_nr named by entries of the app: {len(app_refs)}")
+    network = snap_ends_to_named_nodes(network, nodes, nodes_2025)
+    network = merge_parallel_edges(network, frozenset(detail["element_nr"].dropna()))
+    network = add_detailnetz_attributes(network, detail)
+    network, proposals = number_edges(network, detail, nodes, nodes_2025, app_refs,
+                                      auto_nodes.corrected_edges(entries))
+    network = add_district(network)
+    network = add_bearbeitet_2025(network)
+    network = finalize(network)
+    log_summary(network)
+
+    OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    write_network(network, OUTPUT_PATH)
+    write_proposals(proposals)
+    write_missing_report(network)
+
+
+if __name__ == "__main__":
+    main()

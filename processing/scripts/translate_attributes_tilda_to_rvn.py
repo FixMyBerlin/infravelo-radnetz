@@ -21,6 +21,7 @@ OUTPUT:
 import argparse
 import logging
 import os
+import sys
 from pathlib import Path
 from datetime import datetime
 import geopandas as gpd
@@ -102,8 +103,13 @@ TRAFFIC_SIGNS_NUTZ_BESCHR = ["Gehwegschäden", "Radwegschäden", "Geh- und Radwe
 
 # Liste der zu entfernenden Attribute (ohne tilda-Prefix)
 # Enthält sowohl Attribute von Bikelanes, Roads und Paths
+# (`maxspeed*` und `smoothness_source` bleiben, siehe add_maxspeed_attributes; die rohen
+# `osm_maxspeed*`-Spalten gehen darin auf)
 CONFIG_REMOVE_TILDA_ATTRIBUTES = [
-    "lit", "description", "maxspeed_name_ref", "maxspeed_confidence", "maxspeed_conditional", "maxspeed_source", "mapillary_coverage",  "bridge", "tunnel", "todos", "updated_age", "updated_at", "surface_confidence", "surface_source", "smoothness_confidence", "smoothness_source", "length", "offset", "_parent_highway"
+    "lit", "description", "maxspeed_name_ref", "maxspeed_confidence", "mapillary_coverage",  "bridge", "tunnel", "todos", "updated_age", "updated_at", "surface_confidence", "surface_source", "smoothness_confidence", "length", "offset", "_parent_highway",
+    "osm_maxspeed_forward", "osm_maxspeed_backward", "osm_maxspeed_conditional",
+    "osm_maxspeed:forward", "osm_maxspeed:backward", "osm_maxspeed:conditional",
+    "parent_maxspeed", "adjoining_maxspeed",
 ]
 
 # RVN-Buffer Cache (wird einmal geladen und wiederverwendet)
@@ -197,8 +203,9 @@ def determine_verkehrsri(row, data_source: str) -> str:
     Returns:
         Verkehrsrichtung oder TODO-Hinweis
     """
-    oneway = str(row.get("oneway", "")).strip()
-    oneway_bicycle = str(row.get("oneway_bicycle", "")).strip()
+    # TILDA schreibt fehlende Werte und oneway=no als null; pandas liest sie als NaN, str(NaN) wäre "nan".
+    oneway = "" if pd.isna(row.get("oneway")) else str(row.get("oneway")).strip()
+    oneway_bicycle = "" if pd.isna(row.get("oneway_bicycle")) else str(row.get("oneway_bicycle")).strip()
     
     if data_source == "bikelanes":
         # Spezifische Regeln für bikelanes
@@ -536,6 +543,27 @@ def determine_nutz_beschr(row, fuehr: str) -> str:
     return "keine"
 
 
+# Fahrrad-Zugang aus TILDA-`routing` (`access_bicycle`), bei dem Radfahren nicht erlaubt ist.
+ACCESS_BICYCLE_RESTRICTED = {"no", "destination", "private", "customers", "delivery", "permit", "agricultural_or_forestry"}
+
+
+def cycling_restriction(row) -> str | None:
+    """Hinweis, wenn Radfahren auf dem Weg nach OSM nicht erlaubt ist (TILDA `routing.access_bicycle`).
+
+    Solche Wege bleiben im Ergebnis, damit sichtbar wird, wo ein Weg für den Radverkehr geöffnet werden könnte.
+    """
+    value = row.get("routing_access_bicycle")
+    if isinstance(value, str) and value in ACCESS_BICYCLE_RESTRICTED:
+        return f"Radverkehr nicht erlaubt (access_bicycle={value})"
+    return None
+
+
+def combine_nutz_beschr(*parts: str | None) -> str:
+    """Mehrere Nutzungsbeschränkungen nebeneinander; "keine", wenn es keine gibt."""
+    present = [p for p in parts if p and p != "keine"]
+    return "; ".join(present) if present else "keine"
+
+
 def determine_kommentar(row, translated_row=None) -> str:
     """
     Bestimmt den Kommentar basierend auf dem lifecycle-Attribut und fehlenden Attributen.
@@ -625,11 +653,86 @@ def assign_prefix_and_remove_unnecessary_attrs(gdf: gpd.GeoDataFrame) -> gpd.Geo
     return gdf.rename(columns=rename_mapping)
 
 
+def _text_or_none(series: pd.Series) -> pd.Series:
+    """Werte als Text ohne Nachkommastelle bei ganzen Zahlen (30.0 -> "30"), leere Werte als None."""
+    def convert(value):
+        if pd.isna(value):
+            return None
+        if isinstance(value, (int, float)) and float(value).is_integer():
+            return str(int(value))
+        text = str(value).strip()
+        return text or None
+    return series.map(convert).astype(object)
+
+
+def _first_column(gdf: gpd.GeoDataFrame, *names: str) -> pd.Series:
+    """Erste vorhandene Spalte (Exporte nennen OSM-Tags mit `:` mal mit `_`), sonst leere Serie."""
+    for name in names:
+        if name in gdf.columns:
+            return _text_or_none(gdf[name])
+    return pd.Series([None] * len(gdf), index=gdf.index, dtype=object)
+
+
+def add_maxspeed_attributes(gdf: gpd.GeoDataFrame, data_source: str) -> gpd.GeoDataFrame:
+    """
+    Bildet die Höchstgeschwindigkeit der Fahrbahn für das Map-Matching ab (danach `tilda_`-Präfix):
+    - `maxspeed` / `maxspeed_source`: roads (Fahrbahn): TILDA `maxspeed` und `maxspeed_source`.
+      bikelanes: `parent_maxspeed`, sonst `adjoining_maxspeed` (Quelle = Name der Spalte).
+      Wege: `adjoining_maxspeed`.
+    - `maxspeed_forward` / `maxspeed_backward`: OSM `maxspeed:forward|backward` (roads), gelten in bzw.
+      gegen die Digitalisierungsrichtung des TILDA-Wegs. Das Map-Matching entscheidet je Teilsegment
+      über die Fahrtrichtung, ob sie `maxspeed` ersetzen.
+    - `maxspeed_conditional`: OSM `maxspeed:conditional`.
+    """
+    gdf = gdf.copy()
+    n = len(gdf)
+    empty = pd.Series([None] * n, index=gdf.index, dtype=object)
+    if data_source == "streets":
+        maxspeed = _first_column(gdf, "maxspeed")
+        source = _first_column(gdf, "maxspeed_source")
+    else:
+        parent = _first_column(gdf, "parent_maxspeed") if data_source == "bikelanes" else empty
+        adjoining = _first_column(gdf, "adjoining_maxspeed")
+        maxspeed = parent.where(parent.notna(), adjoining)
+        source = pd.Series(
+            ["parent_maxspeed" if pd.notna(p) else "adjoining_maxspeed" if pd.notna(a) else None for p, a in zip(parent, adjoining)],
+            index=gdf.index, dtype=object,
+        )
+    gdf["maxspeed"] = maxspeed
+    gdf["maxspeed_source"] = source
+    gdf["maxspeed_forward"] = _first_column(gdf, "osm_maxspeed_forward", "osm_maxspeed:forward")
+    gdf["maxspeed_backward"] = _first_column(gdf, "osm_maxspeed_backward", "osm_maxspeed:backward")
+    gdf["maxspeed_conditional"] = _first_column(gdf, "osm_maxspeed_conditional", "osm_maxspeed:conditional")
+    return gdf
+
+
 def calculate_segment_length(geometry):
     """
     Berechnet die Länge eines Segments in Metern.
     """
     return geometry.length
+
+
+def lane_implicit_oneway_to_yes(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    """
+    Schreibt `oneway=implicit_yes` an Spuren auf der Fahrbahn (Seitenlinien `…/cycleway/left|right`, keine
+    Radwege oder Wege neben der Fahrbahn) als `yes`.
+
+    An einer Spur ist die Fahrtrichtung der Seite der Standard (StVO, Wiki); TILDA schreibt dann `implicit_yes`,
+    mit Tag `yes`. Im Ergebnis soll beides gleich aussehen. Radwege und Wege (`*_adjoining`, `*_isolated`) werden
+    ausdrücklich gemappt, dort bleibt `implicit_yes` als Hinweis auf den fehlenden Tag.
+    """
+    if "oneway" not in gdf.columns or "id" not in gdf.columns or "category" not in gdf.columns:
+        return gdf
+    category = gdf["category"].fillna("").astype(str)
+    is_lane = (
+        gdf["id"].astype(str).str.contains("/cycleway/", regex=False)
+        & ~category.str.contains("_adjoining|_isolated", regex=True)
+    )
+    mask = is_lane & (gdf["oneway"] == "implicit_yes")
+    logging.info(f"{int(mask.sum())} Spuren mit oneway=implicit_yes als yes übernommen")
+    gdf.loc[mask, "oneway"] = "yes"
+    return gdf
 
 
 def translate_tilda_attributes(gdf: gpd.GeoDataFrame, data_source: str) -> gpd.GeoDataFrame:
@@ -644,9 +747,11 @@ def translate_tilda_attributes(gdf: gpd.GeoDataFrame, data_source: str) -> gpd.G
         GeoDataFrame mit RVN-Attributen
     """
     logging.info(f"Übersetze {len(gdf)} Features vom Typ '{data_source}'")
-    
+
     result_gdf = gdf.copy()
-    
+    if data_source == "bikelanes":
+        result_gdf = lane_implicit_oneway_to_yes(result_gdf)
+
     # Zähler für nicht-gefundene Zuordnungen
     not_found_counts = {
         "fuehr": 0,
@@ -655,7 +760,8 @@ def translate_tilda_attributes(gdf: gpd.GeoDataFrame, data_source: str) -> gpd.G
     }
     
     total = len(result_gdf)
-    
+    show_progress = sys.stdout.isatty()
+
     for idx, (_, row) in enumerate(result_gdf.iterrows(), 1):
         # Verkehrsrichtung (Radverkehr)
         verkehrsri = determine_verkehrsri(row, data_source)
@@ -697,7 +803,7 @@ def translate_tilda_attributes(gdf: gpd.GeoDataFrame, data_source: str) -> gpd.G
         result_gdf.loc[result_gdf.index[idx-1], "trennstreifen"] = trennstreifen
         
         # Nutzungsbeschränkung (berücksichtigt die bereits bestimmte Führung)
-        nutz_beschr = determine_nutz_beschr(row, fuehr)
+        nutz_beschr = combine_nutz_beschr(determine_nutz_beschr(row, fuehr), cycling_restriction(row))
         result_gdf.loc[result_gdf.index[idx-1], "nutz_beschr"] = nutz_beschr
         
         # Länge berechnen (gerundet, ohne Nachkommastellen)
@@ -710,8 +816,9 @@ def translate_tilda_attributes(gdf: gpd.GeoDataFrame, data_source: str) -> gpd.G
         kommentar = determine_kommentar(row, translated_row)
         result_gdf.loc[result_gdf.index[idx-1], "Kommentar"] = kommentar
         
-        # Fortschrittsanzeige
-        print_progressbar(idx, total, prefix=f"Übersetze {data_source}: ")
+        # Fortschrittsanzeige nur im Terminal; in eine Log-Datei würde jede Zeile ein Balken
+        if show_progress:
+            print_progressbar(idx, total, prefix=f"Übersetze {data_source}: ")
     
     # Logge Statistiken über nicht-gefundene Zuordnungen
     for attr, count in not_found_counts.items():
@@ -724,6 +831,9 @@ def translate_tilda_attributes(gdf: gpd.GeoDataFrame, data_source: str) -> gpd.G
         total_length = result_gdf['Länge'].sum()
         avg_length = result_gdf['Länge'].mean()
         logging.info(f"Längenstatistiken für {data_source}: Gesamtlänge={total_length:.0f}m, Durchschnitt={avg_length:.0f}m")
+    
+    # Höchstgeschwindigkeit der Fahrbahn (surface/smoothness bleiben als Rohwerte stehen)
+    result_gdf = add_maxspeed_attributes(result_gdf, data_source)
     
     # Füge tilda_ Prefix zu ursprünglichen Attributen hinzu
     result_gdf = assign_prefix_and_remove_unnecessary_attrs(result_gdf)
@@ -799,27 +909,38 @@ def main():
                        help=f"Ziel-EPSG (default: {DEFAULT_CRS})")
     parser.add_argument("--clip", type=str, choices=['neukoelln', 'norden', 'sueden'],
                        help="Regionaler Zuschnitt: 'neukoelln', 'norden' oder 'sueden'")
-    
+    parser.add_argument("--source", choices=list(INPUT_FILES),
+                       help="Nur diesen Datensatz übersetzen (default: alle drei). "
+                            "process_tilda_data.sh startet je Datensatz einen eigenen Prozess.")
+
     args = parser.parse_args()
-    
+
     logging.info("Starte TILDA-zu-RVN Attributübersetzung")
     if args.clip:
         logging.info(f"Clipping auf {args.clip} aktiviert")
-    
-    # Verarbeite alle Eingabedateien
-    for data_source, filename in INPUT_FILES.items():
-        input_path = os.path.join(args.data_dir, filename)
-        
+
+    sources = [args.source] if args.source else list(INPUT_FILES)
+    failed = []
+    for data_source in sources:
+        input_path = os.path.join(args.data_dir, INPUT_FILES[data_source])
+
         if not os.path.exists(input_path):
-            logging.warning(f"Datei nicht gefunden: {input_path}")
+            if args.source:
+                logging.error(f"Datei nicht gefunden: {input_path}")
+                failed.append(data_source)
+            else:
+                logging.warning(f"Datei nicht gefunden: {input_path}")
             continue
-        
+
         try:
             process_file(input_path, data_source, args.output_dir, args.crs, args.clip, args.data_dir)
         except Exception as e:
-            logging.error(f"Fehler beim Verarbeiten von {input_path}: {e}")
-            continue
-    
+            logging.exception(f"Fehler beim Verarbeiten von {input_path}: {e}")
+            failed.append(data_source)
+
+    if failed:
+        logging.error(f"✘ Übersetzung fehlgeschlagen für: {', '.join(failed)}")
+        sys.exit(1)
     logging.info("✔ TILDA-zu-RVN Attributübersetzung abgeschlossen")
 
 

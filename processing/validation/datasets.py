@@ -8,7 +8,7 @@ Kürzel (wie in VALIDIERUNG_OFFEN.md):
 - B  = snapping_converted_bikelanes (Radverkehrsanlagen je Kante, konvertiert)
 - C  = aggregated_rvn_final (aggregiert, Layer hinrichtung/gegenrichtung)
 - K  = Knotenpunkte, Abgabestand (knotenpunkte/output/knotenpunkte_abgabe.gpkg)
-- VK = Verzeichnis der virtuellen Knotenpunkte (data/Virtuelle-Knotenpunkte.gpkg)
+- VK = Virtuelle Knotenpunkte, Ausgabe von Schritt 3 (netzanpassungen/output/virtuelle_knoten.gpkg)
 
 Der Schlüssel `_key` muss über Läufe hinweg gleich bleiben, damit der Diff
 neue und behobene Verstöße erkennt. Zeilennummern (afid, sfid, Index) taugen
@@ -42,7 +42,7 @@ DATENSAETZE = {
     "B": "Radverkehrsanlagen (snapping_converted_bikelanes)",
     "C": "Aggregiertes Netz (aggregated_rvn_final)",
     "K": "Knotenpunkte (knotenpunkte_abgabe)",
-    "VK": "Virtuelle Knotenpunkte (Verzeichnis)",
+    "VK": "Virtuelle Knotenpunkte (Schritt 3)",
 }
 
 KP_ID = "Knotenpunkt‐ID"  # Achtung: Bindestrich ist U+2010, nicht ASCII
@@ -159,7 +159,7 @@ def _lade_k(ctx):
 
 
 def _lade_vk(ctx):
-    gdf = vk.read_all(ctx.eingabe("VK", vk.PATH))
+    gdf = vk.read_all(ctx.eingabe("VK", vk.OUTPUT_PATH))
     gdf["_key"] = stabile_schluessel(gdf, lambda g: g[vk.ID_COLUMN].fillna("ohne Nummer").astype(str))
     return gdf
 

@@ -26,7 +26,7 @@ erhalten. Die Dateien für Netlify in public/ zeigen immer den letzten Lauf.
 
 INPUT:
 - data/bikelanes.fgb (TILDA-Export "bikelanes")
-- data/ren_netz_gesamt.gpkg (Layer: ren_netz)
+- data/ren_netz.gpkg (Layer: ren_netz)
 
 OUTPUT:
 - output/<Datum>/centerline_tracks.geojson
@@ -55,7 +55,7 @@ sys.path.append(str(BASE_DIR.parent / 'bearbeitungsstand'))
 from load_status import STATUS_DONE, add_status  # noqa: E402
 
 BIKELANES_PATH = BASE_DIR / 'data' / 'bikelanes.fgb'
-NETWORK_PATH = BASE_DIR / 'data' / 'ren_netz_gesamt.gpkg'
+NETWORK_PATH = BASE_DIR / 'data' / 'ren_netz.gpkg'
 OUTPUT_DIR = BASE_DIR / 'output'
 PUBLIC_DIR = BASE_DIR / 'public'
 

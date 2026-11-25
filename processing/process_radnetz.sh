@@ -9,10 +9,13 @@ set -euo pipefail
 # 2. Element-Nummern zuweisen
 # 3. Zielnetz mit Detailnetz anreichern
 #
-# Verwendung: ./process_radnetz.sh [--netz rvn|ren]
-#   --netz ren  REN+ (Standard), alle Netzquellen gemeinsam (ren-network/output/ren_netz_gesamt.gpkg),
+# Verwendung: ./process_radnetz.sh [--netz rvn|ren] [--quelle auto|korrigiert|original]
+#   --netz ren  REN+ (Standard), alle Netzquellen gemeinsam (ren-network/output/ren_netz.gpkg),
 #               Ausgabe in output/ren/
 #   --netz rvn  Radvorrangnetz des Projekts 2025, Ausgabe in output/rvn/
+#   --quelle    Nur für ren: Eingangsnetz. auto (Standard) nimmt ren_netz_korrigiert.gpkg
+#               (App Netzanpassungen, netzanpassungen/apply_app_result.py), wenn die Datei existiert,
+#               sonst das Original. korrigiert bricht ohne die Datei ab, original ignoriert sie.
 # =============================================================================
 
 # Alle Pfade sind relativ zu processing/
@@ -20,20 +23,29 @@ cd "$(dirname "$0")"
 PYTHON="$(cd .. && pwd)/.venv/bin/python"
 
 NETZ="ren"
+QUELLE="auto"
 while [[ $# -gt 0 ]]; do
     case $1 in
         --netz)
             NETZ="$2"
             shift 2
             ;;
+        --quelle)
+            QUELLE="$2"
+            shift 2
+            ;;
         *)
-            echo "❌ Unbekanntes Argument: $1 (erlaubt: --netz rvn|ren)"
+            echo "❌ Unbekanntes Argument: $1 (erlaubt: --netz rvn|ren, --quelle auto|korrigiert|original)"
             exit 1
             ;;
     esac
 done
 if [[ ! "$NETZ" =~ ^(rvn|ren)$ ]]; then
     echo "❌ Ungültiges Netz: $NETZ. Erlaubt sind: rvn, ren"
+    exit 1
+fi
+if [[ ! "$QUELLE" =~ ^(auto|korrigiert|original)$ ]]; then
+    echo "❌ Ungültige Quelle: $QUELLE. Erlaubt sind: auto, korrigiert, original"
     exit 1
 fi
 
@@ -47,7 +59,7 @@ NC='\033[0m' # No Color
 
 # 1. Virtuelle Knotenpunkte verarbeiten
 echo -e "${BLUE}[1/3]${NC} Virtuelle Knotenpunkte verarbeiten..."
-"$PYTHON" scripts/split_rvn_at_virtual_nodes.py --netz "$NETZ"
+"$PYTHON" scripts/split_rvn_at_virtual_nodes.py --netz "$NETZ" --quelle "$QUELLE"
 echo -e "${GREEN}✓${NC} Virtuelle Knotenpunkte verarbeitet"
 echo ""
 

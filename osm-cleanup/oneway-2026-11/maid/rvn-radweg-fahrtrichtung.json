@@ -1,0 +1,2606 @@
+{
+ "type": "FeatureCollection",
+ "maid_tasks": {
+  "version": 1,
+  "list_id": "berlin-rvn-track-direction-2026-11",
+  "title": "Radvorrangnetz Berlin: Fahrtrichtung von Radwegen an der Straße angeben",
+  "description": "Radwege, die an der Straße getaggt sind (`cycleway:<Seite>=track`), ohne Fahrtrichtung. Nur Wege im Radvorrangnetz. Ohne Angabe muss TILDA die Richtung raten."
+ },
+ "features": [
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.4462612,
+      52.5023054
+     ],
+     [
+      13.4449051,
+      52.5012365
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-4686103",
+    "title": "Oberbaumbrücke: Fahrtrichtung des Radwegs rechts angeben",
+    "description": "Der Radweg rechts (`cycleway:<Seite>=track`) hat keine Fahrtrichtung. TILDA muss sie raten: einrichtig, wenn auf der anderen Seite ein Radweg oder eine Spur ist, sonst zweirichtig.\n\nLiegt im Radvorrangnetz.\n\nIn Berlin sind Radwege fast immer Einrichtungsradwege (StVO § 2 Abs. 4). `oneway` bezieht sich auf die Linienrichtung.",
+    "osm": [
+     "way/4686103"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/Key:cycleway:right:oneway",
+     "https://www.openstreetmap.org/way/4686103"
+    ],
+    "options": [
+     {
+      "id": "one-way",
+      "label": "Einrichtungsradweg in Fahrtrichtung der Fahrbahn daneben (Standard)",
+      "description": "Links fährt man gegen die Linienrichtung (`-1`), rechts mit ihr (`yes`).",
+      "set": {
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-right",
+      "label": "Radweg rechts ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:right:oneway": "no"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.4449948,
+      52.5011924
+     ],
+     [
+      13.4463572,
+      52.5022596
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-4686104",
+    "title": "Oberbaumbrücke: Fahrtrichtung des Radwegs rechts angeben",
+    "description": "Der Radweg rechts (`cycleway:<Seite>=track`) hat keine Fahrtrichtung. TILDA muss sie raten: einrichtig, wenn auf der anderen Seite ein Radweg oder eine Spur ist, sonst zweirichtig.\n\nLiegt im Radvorrangnetz.\n\nIn Berlin sind Radwege fast immer Einrichtungsradwege (StVO § 2 Abs. 4). `oneway` bezieht sich auf die Linienrichtung.",
+    "osm": [
+     "way/4686104"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/Key:cycleway:right:oneway",
+     "https://www.openstreetmap.org/way/4686104"
+    ],
+    "options": [
+     {
+      "id": "one-way",
+      "label": "Einrichtungsradweg in Fahrtrichtung der Fahrbahn daneben (Standard)",
+      "description": "Links fährt man gegen die Linienrichtung (`-1`), rechts mit ihr (`yes`).",
+      "set": {
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-right",
+      "label": "Radweg rechts ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:right:oneway": "no"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.4463572,
+      52.5022596
+     ],
+     [
+      13.4464766,
+      52.5023612
+     ],
+     [
+      13.4466654,
+      52.5025219
+     ],
+     [
+      13.4467067,
+      52.5025573
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-4686105",
+    "title": "Am Oberbaum: Fahrtrichtung des Radwegs rechts angeben",
+    "description": "Der Radweg rechts (`cycleway:<Seite>=track`) hat keine Fahrtrichtung. TILDA muss sie raten: einrichtig, wenn auf der anderen Seite ein Radweg oder eine Spur ist, sonst zweirichtig.\n\nLiegt im Radvorrangnetz.\n\nIn Berlin sind Radwege fast immer Einrichtungsradwege (StVO § 2 Abs. 4). `oneway` bezieht sich auf die Linienrichtung.",
+    "osm": [
+     "way/4686105"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/Key:cycleway:right:oneway",
+     "https://www.openstreetmap.org/way/4686105"
+    ],
+    "options": [
+     {
+      "id": "one-way",
+      "label": "Einrichtungsradweg in Fahrtrichtung der Fahrbahn daneben (Standard)",
+      "description": "Links fährt man gegen die Linienrichtung (`-1`), rechts mit ihr (`yes`).",
+      "set": {
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-right",
+      "label": "Radweg rechts ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:right:oneway": "no"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.4564825,
+      52.4423481
+     ],
+     [
+      13.4568066,
+      52.4420536
+     ],
+     [
+      13.4574149,
+      52.4415102
+     ],
+     [
+      13.4579384,
+      52.4410426
+     ],
+     [
+      13.4580605,
+      52.4409335
+     ],
+     [
+      13.458273,
+      52.4407306
+     ],
+     [
+      13.458674,
+      52.4403493
+     ],
+     [
+      13.4587798,
+      52.4402492
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-22721683",
+    "title": "Rudower Straße: Fahrtrichtung des Radwegs rechts angeben",
+    "description": "Der Radweg rechts (`cycleway:<Seite>=track`) hat keine Fahrtrichtung. TILDA muss sie raten: einrichtig, wenn auf der anderen Seite ein Radweg oder eine Spur ist, sonst zweirichtig.\n\nLiegt im Radvorrangnetz.\n\nIn Berlin sind Radwege fast immer Einrichtungsradwege (StVO § 2 Abs. 4). `oneway` bezieht sich auf die Linienrichtung.",
+    "osm": [
+     "way/22721683"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/Key:cycleway:right:oneway",
+     "https://www.openstreetmap.org/way/22721683"
+    ],
+    "options": [
+     {
+      "id": "one-way",
+      "label": "Einrichtungsradweg in Fahrtrichtung der Fahrbahn daneben (Standard)",
+      "description": "Links fährt man gegen die Linienrichtung (`-1`), rechts mit ihr (`yes`).",
+      "set": {
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-right",
+      "label": "Radweg rechts ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:right:oneway": "no"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.5737856,
+      52.401841
+     ],
+     [
+      13.5737697,
+      52.4019062
+     ],
+     [
+      13.5737434,
+      52.4020143
+     ],
+     [
+      13.5736582,
+      52.4023582
+     ],
+     [
+      13.5735871,
+      52.4026707
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-32203518",
+    "title": "Waltersdorfer Straße: Fahrtrichtung des Radwegs links und rechts angeben",
+    "description": "Der Radweg links und rechts (`cycleway:<Seite>=track`) hat keine Fahrtrichtung. TILDA muss sie raten: einrichtig, wenn auf der anderen Seite ein Radweg oder eine Spur ist, sonst zweirichtig.\n\nLiegt im Radvorrangnetz.\n\nIn Berlin sind Radwege fast immer Einrichtungsradwege (StVO § 2 Abs. 4). `oneway` bezieht sich auf die Linienrichtung.",
+    "osm": [
+     "way/32203518"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/Key:cycleway:right:oneway",
+     "https://www.openstreetmap.org/way/32203518"
+    ],
+    "options": [
+     {
+      "id": "one-way",
+      "label": "Einrichtungsradweg in Fahrtrichtung der Fahrbahn daneben (Standard)",
+      "description": "Links fährt man gegen die Linienrichtung (`-1`), rechts mit ihr (`yes`).",
+      "set": {
+       "cycleway:left:oneway": "-1",
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-left",
+      "label": "Radweg links ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:left:oneway": "no",
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-right",
+      "label": "Radweg rechts ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:left:oneway": "-1",
+       "cycleway:right:oneway": "no"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.4425811,
+      52.5702976
+     ],
+     [
+      13.4425399,
+      52.5702334
+     ],
+     [
+      13.4424828,
+      52.5701457
+     ],
+     [
+      13.4419478,
+      52.5693231
+     ],
+     [
+      13.4419088,
+      52.5692647
+     ],
+     [
+      13.4418741,
+      52.5692188
+     ],
+     [
+      13.4417964,
+      52.5691333
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-70163733",
+    "title": "Blankenburger Straße: Fahrtrichtung des Radwegs links angeben",
+    "description": "Der Radweg links (`cycleway:<Seite>=track`) hat keine Fahrtrichtung. TILDA muss sie raten: einrichtig, wenn auf der anderen Seite ein Radweg oder eine Spur ist, sonst zweirichtig.\n\nLiegt im Radvorrangnetz.\n\nIn Berlin sind Radwege fast immer Einrichtungsradwege (StVO § 2 Abs. 4). `oneway` bezieht sich auf die Linienrichtung.",
+    "osm": [
+     "way/70163733"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/Key:cycleway:right:oneway",
+     "https://www.openstreetmap.org/way/70163733"
+    ],
+    "options": [
+     {
+      "id": "one-way",
+      "label": "Einrichtungsradweg in Fahrtrichtung der Fahrbahn daneben (Standard)",
+      "description": "Links fährt man gegen die Linienrichtung (`-1`), rechts mit ihr (`yes`).",
+      "set": {
+       "cycleway:left:oneway": "-1"
+      }
+     },
+     {
+      "id": "two-way-left",
+      "label": "Radweg links ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:left:oneway": "no"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.5710035,
+      52.3899632
+     ],
+     [
+      13.5710518,
+      52.3899668
+     ],
+     [
+      13.5710958,
+      52.3899961
+     ],
+     [
+      13.5712118,
+      52.3902073
+     ],
+     [
+      13.5714354,
+      52.3906339
+     ],
+     [
+      13.5716766,
+      52.3910985
+     ],
+     [
+      13.5716488,
+      52.3911601
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-113133399",
+    "title": "path: Fahrtrichtung des Radwegs links und rechts angeben",
+    "description": "Der Radweg links und rechts (`cycleway:<Seite>=track`) hat keine Fahrtrichtung. TILDA muss sie raten: einrichtig, wenn auf der anderen Seite ein Radweg oder eine Spur ist, sonst zweirichtig.\n\nLiegt im Radvorrangnetz.\n\nIn Berlin sind Radwege fast immer Einrichtungsradwege (StVO § 2 Abs. 4). `oneway` bezieht sich auf die Linienrichtung.",
+    "osm": [
+     "way/113133399"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/Key:cycleway:right:oneway",
+     "https://www.openstreetmap.org/way/113133399"
+    ],
+    "options": [
+     {
+      "id": "one-way",
+      "label": "Einrichtungsradweg in Fahrtrichtung der Fahrbahn daneben (Standard)",
+      "description": "Links fährt man gegen die Linienrichtung (`-1`), rechts mit ihr (`yes`).",
+      "set": {
+       "cycleway:left:oneway": "-1",
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-left",
+      "label": "Radweg links ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:left:oneway": "no",
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-right",
+      "label": "Radweg rechts ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:left:oneway": "-1",
+       "cycleway:right:oneway": "no"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.566338,
+      52.4557196
+     ],
+     [
+      13.5662395,
+      52.4557804
+     ],
+     [
+      13.5658373,
+      52.4560265
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-310306835",
+    "title": "An der Wuhlheide: Fahrtrichtung des Radwegs rechts angeben",
+    "description": "Der Radweg rechts (`cycleway:<Seite>=track`) hat keine Fahrtrichtung. TILDA muss sie raten: einrichtig, wenn auf der anderen Seite ein Radweg oder eine Spur ist, sonst zweirichtig.\n\nLiegt im Radvorrangnetz.\n\nIn Berlin sind Radwege fast immer Einrichtungsradwege (StVO § 2 Abs. 4). `oneway` bezieht sich auf die Linienrichtung.",
+    "osm": [
+     "way/310306835"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/Key:cycleway:right:oneway",
+     "https://www.openstreetmap.org/way/310306835"
+    ],
+    "options": [
+     {
+      "id": "one-way",
+      "label": "Einrichtungsradweg in Fahrtrichtung der Fahrbahn daneben (Standard)",
+      "description": "Links fährt man gegen die Linienrichtung (`-1`), rechts mit ihr (`yes`).",
+      "set": {
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-right",
+      "label": "Radweg rechts ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:right:oneway": "no"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.4195713,
+      52.4963745
+     ],
+     [
+      13.4197884,
+      52.4963995
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-320178377",
+    "title": "Regina-Jonas-Straße: Fahrtrichtung des Radwegs links und rechts angeben",
+    "description": "Der Radweg links und rechts (`cycleway:<Seite>=track`) hat keine Fahrtrichtung. TILDA muss sie raten: einrichtig, wenn auf der anderen Seite ein Radweg oder eine Spur ist, sonst zweirichtig.\n\nLiegt im Radvorrangnetz.\n\nIn Berlin sind Radwege fast immer Einrichtungsradwege (StVO § 2 Abs. 4). `oneway` bezieht sich auf die Linienrichtung.",
+    "osm": [
+     "way/320178377"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/Key:cycleway:right:oneway",
+     "https://www.openstreetmap.org/way/320178377"
+    ],
+    "options": [
+     {
+      "id": "one-way",
+      "label": "Einrichtungsradweg in Fahrtrichtung der Fahrbahn daneben (Standard)",
+      "description": "Links fährt man gegen die Linienrichtung (`-1`), rechts mit ihr (`yes`).",
+      "set": {
+       "cycleway:left:oneway": "-1",
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-left",
+      "label": "Radweg links ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:left:oneway": "no",
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-right",
+      "label": "Radweg rechts ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:left:oneway": "-1",
+       "cycleway:right:oneway": "no"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.4696456,
+      52.4341185
+     ],
+     [
+      13.4694047,
+      52.4342198
+     ],
+     [
+      13.4693198,
+      52.4342628
+     ],
+     [
+      13.4692503,
+      52.4342981
+     ],
+     [
+      13.4691798,
+      52.4343339
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-431571674",
+    "title": "Rudower Straße: Fahrtrichtung des Radwegs rechts angeben",
+    "description": "Der Radweg rechts (`cycleway:<Seite>=track`) hat keine Fahrtrichtung. TILDA muss sie raten: einrichtig, wenn auf der anderen Seite ein Radweg oder eine Spur ist, sonst zweirichtig.\n\nLiegt im Radvorrangnetz.\n\nIn Berlin sind Radwege fast immer Einrichtungsradwege (StVO § 2 Abs. 4). `oneway` bezieht sich auf die Linienrichtung.",
+    "osm": [
+     "way/431571674"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/Key:cycleway:right:oneway",
+     "https://www.openstreetmap.org/way/431571674"
+    ],
+    "options": [
+     {
+      "id": "one-way",
+      "label": "Einrichtungsradweg in Fahrtrichtung der Fahrbahn daneben (Standard)",
+      "description": "Links fährt man gegen die Linienrichtung (`-1`), rechts mit ihr (`yes`).",
+      "set": {
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-right",
+      "label": "Radweg rechts ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:right:oneway": "no"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.4160434,
+      52.417989
+     ],
+     [
+      13.4165056,
+      52.4180976
+     ],
+     [
+      13.4165242,
+      52.418102
+     ],
+     [
+      13.4165972,
+      52.4181192
+     ],
+     [
+      13.4166532,
+      52.4181323
+     ],
+     [
+      13.4166982,
+      52.4181429
+     ],
+     [
+      13.4167511,
+      52.4181553
+     ],
+     [
+      13.4168127,
+      52.4181698
+     ],
+     [
+      13.4168988,
+      52.4181901
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-437191427",
+    "title": "Marienfelder Chaussee: Fahrtrichtung des Radwegs rechts angeben",
+    "description": "Der Radweg rechts (`cycleway:<Seite>=track`) hat keine Fahrtrichtung. TILDA muss sie raten: einrichtig, wenn auf der anderen Seite ein Radweg oder eine Spur ist, sonst zweirichtig.\n\nLiegt im Radvorrangnetz.\n\nIn Berlin sind Radwege fast immer Einrichtungsradwege (StVO § 2 Abs. 4). `oneway` bezieht sich auf die Linienrichtung.",
+    "osm": [
+     "way/437191427"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/Key:cycleway:right:oneway",
+     "https://www.openstreetmap.org/way/437191427"
+    ],
+    "options": [
+     {
+      "id": "one-way",
+      "label": "Einrichtungsradweg in Fahrtrichtung der Fahrbahn daneben (Standard)",
+      "description": "Links fährt man gegen die Linienrichtung (`-1`), rechts mit ihr (`yes`).",
+      "set": {
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-right",
+      "label": "Radweg rechts ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:right:oneway": "no"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.4002456,
+      52.5510925
+     ],
+     [
+      13.4003369,
+      52.5510877
+     ],
+     [
+      13.400688,
+      52.5510839
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-495001015",
+    "title": "Behmstraße: Fahrtrichtung des Radwegs rechts angeben",
+    "description": "Der Radweg rechts (`cycleway:<Seite>=track`) hat keine Fahrtrichtung. TILDA muss sie raten: einrichtig, wenn auf der anderen Seite ein Radweg oder eine Spur ist, sonst zweirichtig.\n\nLiegt im Radvorrangnetz.\n\nIn Berlin sind Radwege fast immer Einrichtungsradwege (StVO § 2 Abs. 4). `oneway` bezieht sich auf die Linienrichtung.",
+    "osm": [
+     "way/495001015"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/Key:cycleway:right:oneway",
+     "https://www.openstreetmap.org/way/495001015"
+    ],
+    "options": [
+     {
+      "id": "one-way",
+      "label": "Einrichtungsradweg in Fahrtrichtung der Fahrbahn daneben (Standard)",
+      "description": "Links fährt man gegen die Linienrichtung (`-1`), rechts mit ihr (`yes`).",
+      "set": {
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-right",
+      "label": "Radweg rechts ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:right:oneway": "no"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.5747263,
+      52.3997066
+     ],
+     [
+      13.5747026,
+      52.399747
+     ],
+     [
+      13.5745256,
+      52.4000487
+     ],
+     [
+      13.5743034,
+      52.400423
+     ],
+     [
+      13.574097,
+      52.4007823
+     ],
+     [
+      13.5740528,
+      52.4008814
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-604389703",
+    "title": "Waltersdorfer Straße: Fahrtrichtung des Radwegs links und rechts angeben",
+    "description": "Der Radweg links und rechts (`cycleway:<Seite>=track`) hat keine Fahrtrichtung. TILDA muss sie raten: einrichtig, wenn auf der anderen Seite ein Radweg oder eine Spur ist, sonst zweirichtig.\n\nLiegt im Radvorrangnetz.\n\nIn Berlin sind Radwege fast immer Einrichtungsradwege (StVO § 2 Abs. 4). `oneway` bezieht sich auf die Linienrichtung.",
+    "osm": [
+     "way/604389703"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/Key:cycleway:right:oneway",
+     "https://www.openstreetmap.org/way/604389703"
+    ],
+    "options": [
+     {
+      "id": "one-way",
+      "label": "Einrichtungsradweg in Fahrtrichtung der Fahrbahn daneben (Standard)",
+      "description": "Links fährt man gegen die Linienrichtung (`-1`), rechts mit ihr (`yes`).",
+      "set": {
+       "cycleway:left:oneway": "-1",
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-left",
+      "label": "Radweg links ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:left:oneway": "no",
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-right",
+      "label": "Radweg rechts ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:left:oneway": "-1",
+       "cycleway:right:oneway": "no"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.4366483,
+      52.4788532
+     ],
+     [
+      13.4365733,
+      52.4788401
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-634037174",
+    "title": "Werbellinstraße: Fahrtrichtung des Radwegs links angeben",
+    "description": "Der Radweg links (`cycleway:<Seite>=track`) hat keine Fahrtrichtung. TILDA muss sie raten: einrichtig, wenn auf der anderen Seite ein Radweg oder eine Spur ist, sonst zweirichtig.\n\nLiegt im Radvorrangnetz.\n\nIn Berlin sind Radwege fast immer Einrichtungsradwege (StVO § 2 Abs. 4). `oneway` bezieht sich auf die Linienrichtung.",
+    "osm": [
+     "way/634037174"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/Key:cycleway:right:oneway",
+     "https://www.openstreetmap.org/way/634037174"
+    ],
+    "options": [
+     {
+      "id": "one-way",
+      "label": "Einrichtungsradweg in Fahrtrichtung der Fahrbahn daneben (Standard)",
+      "description": "Links fährt man gegen die Linienrichtung (`-1`), rechts mit ihr (`yes`).",
+      "set": {
+       "cycleway:left:oneway": "-1"
+      }
+     },
+     {
+      "id": "two-way-left",
+      "label": "Radweg links ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:left:oneway": "no"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.4364012,
+      52.4788178
+     ],
+     [
+      13.4362273,
+      52.4787958
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-782128172",
+    "title": "Werbellinstraße: Fahrtrichtung des Radwegs links angeben",
+    "description": "Der Radweg links (`cycleway:<Seite>=track`) hat keine Fahrtrichtung. TILDA muss sie raten: einrichtig, wenn auf der anderen Seite ein Radweg oder eine Spur ist, sonst zweirichtig.\n\nLiegt im Radvorrangnetz.\n\nIn Berlin sind Radwege fast immer Einrichtungsradwege (StVO § 2 Abs. 4). `oneway` bezieht sich auf die Linienrichtung.",
+    "osm": [
+     "way/782128172"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/Key:cycleway:right:oneway",
+     "https://www.openstreetmap.org/way/782128172"
+    ],
+    "options": [
+     {
+      "id": "one-way",
+      "label": "Einrichtungsradweg in Fahrtrichtung der Fahrbahn daneben (Standard)",
+      "description": "Links fährt man gegen die Linienrichtung (`-1`), rechts mit ihr (`yes`).",
+      "set": {
+       "cycleway:left:oneway": "-1"
+      }
+     },
+     {
+      "id": "two-way-left",
+      "label": "Radweg links ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:left:oneway": "no"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.5035415,
+      52.4367741
+     ],
+     [
+      13.5034389,
+      52.4367351
+     ],
+     [
+      13.5033518,
+      52.4367273
+     ],
+     [
+      13.5029737,
+      52.4365888
+     ],
+     [
+      13.5027631,
+      52.4365061
+     ],
+     [
+      13.502665,
+      52.4364676
+     ],
+     [
+      13.5022232,
+      52.4362607
+     ],
+     [
+      13.5021231,
+      52.4362129
+     ],
+     [
+      13.5020135,
+      52.4361576
+     ],
+     [
+      13.501436,
+      52.4358534
+     ],
+     [
+      13.5008297,
+      52.4354522
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-868347083",
+    "title": "path: Fahrtrichtung des Radwegs rechts angeben",
+    "description": "Der Radweg rechts (`cycleway:<Seite>=track`) hat keine Fahrtrichtung. TILDA muss sie raten: einrichtig, wenn auf der anderen Seite ein Radweg oder eine Spur ist, sonst zweirichtig.\n\nLiegt im Radvorrangnetz.\n\nIn Berlin sind Radwege fast immer Einrichtungsradwege (StVO § 2 Abs. 4). `oneway` bezieht sich auf die Linienrichtung.",
+    "osm": [
+     "way/868347083"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/Key:cycleway:right:oneway",
+     "https://www.openstreetmap.org/way/868347083"
+    ],
+    "options": [
+     {
+      "id": "one-way",
+      "label": "Einrichtungsradweg in Fahrtrichtung der Fahrbahn daneben (Standard)",
+      "description": "Links fährt man gegen die Linienrichtung (`-1`), rechts mit ihr (`yes`).",
+      "set": {
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-right",
+      "label": "Radweg rechts ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:right:oneway": "no"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.5010654,
+      52.4352777
+     ],
+     [
+      13.5012048,
+      52.4353542
+     ],
+     [
+      13.5012626,
+      52.435387
+     ],
+     [
+      13.5013985,
+      52.4354707
+     ],
+     [
+      13.501512,
+      52.4355447
+     ],
+     [
+      13.501552,
+      52.4355708
+     ],
+     [
+      13.5016514,
+      52.4356368
+     ],
+     [
+      13.5016786,
+      52.435654
+     ],
+     [
+      13.5017555,
+      52.4357027
+     ],
+     [
+      13.5018408,
+      52.4357535
+     ],
+     [
+      13.501926,
+      52.4358026
+     ],
+     [
+      13.502013,
+      52.4358486
+     ],
+     [
+      13.5020618,
+      52.4358744
+     ],
+     [
+      13.5021634,
+      52.4359281
+     ],
+     [
+      13.5023774,
+      52.4360393
+     ],
+     [
+      13.5024359,
+      52.4360687
+     ],
+     [
+      13.5025476,
+      52.4361249
+     ],
+     [
+      13.5025951,
+      52.4361489
+     ],
+     [
+      13.502864,
+      52.4362672
+     ],
+     [
+      13.5030604,
+      52.4363448
+     ],
+     [
+      13.5032603,
+      52.4364174
+     ],
+     [
+      13.5033327,
+      52.4364417
+     ],
+     [
+      13.5034259,
+      52.4364731
+     ],
+     [
+      13.5034982,
+      52.4365106
+     ],
+     [
+      13.503668,
+      52.4365665
+     ],
+     [
+      13.503692,
+      52.4365744
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-872231972",
+    "title": "path: Fahrtrichtung des Radwegs rechts angeben",
+    "description": "Der Radweg rechts (`cycleway:<Seite>=track`) hat keine Fahrtrichtung. TILDA muss sie raten: einrichtig, wenn auf der anderen Seite ein Radweg oder eine Spur ist, sonst zweirichtig.\n\nLiegt im Radvorrangnetz.\n\nIn Berlin sind Radwege fast immer Einrichtungsradwege (StVO § 2 Abs. 4). `oneway` bezieht sich auf die Linienrichtung.",
+    "osm": [
+     "way/872231972"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/Key:cycleway:right:oneway",
+     "https://www.openstreetmap.org/way/872231972"
+    ],
+    "options": [
+     {
+      "id": "one-way",
+      "label": "Einrichtungsradweg in Fahrtrichtung der Fahrbahn daneben (Standard)",
+      "description": "Links fährt man gegen die Linienrichtung (`-1`), rechts mit ihr (`yes`).",
+      "set": {
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-right",
+      "label": "Radweg rechts ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:right:oneway": "no"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.4368002,
+      52.4788797
+     ],
+     [
+      13.4366483,
+      52.4788532
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-964589589",
+    "title": "Werbellinstraße: Fahrtrichtung des Radwegs links angeben",
+    "description": "Der Radweg links (`cycleway:<Seite>=track`) hat keine Fahrtrichtung. TILDA muss sie raten: einrichtig, wenn auf der anderen Seite ein Radweg oder eine Spur ist, sonst zweirichtig.\n\nLiegt im Radvorrangnetz.\n\nIn Berlin sind Radwege fast immer Einrichtungsradwege (StVO § 2 Abs. 4). `oneway` bezieht sich auf die Linienrichtung.",
+    "osm": [
+     "way/964589589"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/Key:cycleway:right:oneway",
+     "https://www.openstreetmap.org/way/964589589"
+    ],
+    "options": [
+     {
+      "id": "one-way",
+      "label": "Einrichtungsradweg in Fahrtrichtung der Fahrbahn daneben (Standard)",
+      "description": "Links fährt man gegen die Linienrichtung (`-1`), rechts mit ihr (`yes`).",
+      "set": {
+       "cycleway:left:oneway": "-1"
+      }
+     },
+     {
+      "id": "two-way-left",
+      "label": "Radweg links ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:left:oneway": "no"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.4690495,
+      52.4342455
+     ],
+     [
+      13.4691218,
+      52.4342075
+     ],
+     [
+      13.4692023,
+      52.4341652
+     ],
+     [
+      13.4692314,
+      52.43415
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1135871855",
+    "title": "Rudower Straße: Fahrtrichtung des Radwegs rechts angeben",
+    "description": "Der Radweg rechts (`cycleway:<Seite>=track`) hat keine Fahrtrichtung. TILDA muss sie raten: einrichtig, wenn auf der anderen Seite ein Radweg oder eine Spur ist, sonst zweirichtig.\n\nLiegt im Radvorrangnetz.\n\nIn Berlin sind Radwege fast immer Einrichtungsradwege (StVO § 2 Abs. 4). `oneway` bezieht sich auf die Linienrichtung.",
+    "osm": [
+     "way/1135871855"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/Key:cycleway:right:oneway",
+     "https://www.openstreetmap.org/way/1135871855"
+    ],
+    "options": [
+     {
+      "id": "one-way",
+      "label": "Einrichtungsradweg in Fahrtrichtung der Fahrbahn daneben (Standard)",
+      "description": "Links fährt man gegen die Linienrichtung (`-1`), rechts mit ihr (`yes`).",
+      "set": {
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-right",
+      "label": "Radweg rechts ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:right:oneway": "no"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.4464992,
+      52.5026081
+     ],
+     [
+      13.4464732,
+      52.5025785
+     ],
+     [
+      13.446423,
+      52.5025034
+     ],
+     [
+      13.44635,
+      52.5023942
+     ],
+     [
+      13.4462612,
+      52.5023054
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1171049218",
+    "title": "Am Oberbaum: Fahrtrichtung des Radwegs rechts angeben",
+    "description": "Der Radweg rechts (`cycleway:<Seite>=track`) hat keine Fahrtrichtung. TILDA muss sie raten: einrichtig, wenn auf der anderen Seite ein Radweg oder eine Spur ist, sonst zweirichtig.\n\nLiegt im Radvorrangnetz.\n\nIn Berlin sind Radwege fast immer Einrichtungsradwege (StVO § 2 Abs. 4). `oneway` bezieht sich auf die Linienrichtung.",
+    "osm": [
+     "way/1171049218"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/Key:cycleway:right:oneway",
+     "https://www.openstreetmap.org/way/1171049218"
+    ],
+    "options": [
+     {
+      "id": "one-way",
+      "label": "Einrichtungsradweg in Fahrtrichtung der Fahrbahn daneben (Standard)",
+      "description": "Links fährt man gegen die Linienrichtung (`-1`), rechts mit ihr (`yes`).",
+      "set": {
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-right",
+      "label": "Radweg rechts ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:right:oneway": "no"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.5906978,
+      52.4513364
+     ],
+     [
+      13.5901425,
+      52.4513515
+     ],
+     [
+      13.5897004,
+      52.4513654
+     ],
+     [
+      13.5878418,
+      52.4514224
+     ],
+     [
+      13.5874334,
+      52.451449
+     ],
+     [
+      13.5872526,
+      52.4514607
+     ],
+     [
+      13.586831,
+      52.4514973
+     ],
+     [
+      13.5865734,
+      52.4515279
+     ],
+     [
+      13.5861956,
+      52.451588
+     ],
+     [
+      13.5853762,
+      52.4517287
+     ],
+     [
+      13.5853108,
+      52.451739
+     ],
+     [
+      13.5852517,
+      52.4517482
+     ],
+     [
+      13.5851355,
+      52.4517584
+     ],
+     [
+      13.5850371,
+      52.4517627
+     ],
+     [
+      13.5849269,
+      52.4517641
+     ],
+     [
+      13.5843203,
+      52.4517614
+     ],
+     [
+      13.5835898,
+      52.4517553
+     ],
+     [
+      13.583337,
+      52.4517532
+     ],
+     [
+      13.5825429,
+      52.4517486
+     ],
+     [
+      13.582378,
+      52.4517637
+     ],
+     [
+      13.5823015,
+      52.4517731
+     ],
+     [
+      13.5821657,
+      52.4517951
+     ],
+     [
+      13.581843,
+      52.451863
+     ],
+     [
+      13.5811934,
+      52.4520076
+     ],
+     [
+      13.5805759,
+      52.4521371
+     ],
+     [
+      13.5780643,
+      52.4526074
+     ],
+     [
+      13.577678,
+      52.4526788
+     ],
+     [
+      13.5775884,
+      52.4526752
+     ],
+     [
+      13.5770586,
+      52.4527774
+     ],
+     [
+      13.5768834,
+      52.4528034
+     ],
+     [
+      13.576699,
+      52.4528232
+     ],
+     [
+      13.5762833,
+      52.4528596
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1218557168",
+    "title": "path: Fahrtrichtung des Radwegs links und rechts angeben",
+    "description": "Der Radweg links und rechts (`cycleway:<Seite>=track`) hat keine Fahrtrichtung. TILDA muss sie raten: einrichtig, wenn auf der anderen Seite ein Radweg oder eine Spur ist, sonst zweirichtig.\n\nLiegt im Radvorrangnetz.\n\nIn Berlin sind Radwege fast immer Einrichtungsradwege (StVO § 2 Abs. 4). `oneway` bezieht sich auf die Linienrichtung.",
+    "osm": [
+     "way/1218557168"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/Key:cycleway:right:oneway",
+     "https://www.openstreetmap.org/way/1218557168"
+    ],
+    "options": [
+     {
+      "id": "one-way",
+      "label": "Einrichtungsradweg in Fahrtrichtung der Fahrbahn daneben (Standard)",
+      "description": "Links fährt man gegen die Linienrichtung (`-1`), rechts mit ihr (`yes`).",
+      "set": {
+       "cycleway:left:oneway": "-1",
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-left",
+      "label": "Radweg links ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:left:oneway": "no",
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-right",
+      "label": "Radweg rechts ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:left:oneway": "-1",
+       "cycleway:right:oneway": "no"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.5745464,
+      52.4527315
+     ],
+     [
+      13.5746704,
+      52.4527172
+     ],
+     [
+      13.5747819,
+      52.452708
+     ],
+     [
+      13.5749152,
+      52.4527034
+     ],
+     [
+      13.575061,
+      52.452707
+     ],
+     [
+      13.5751698,
+      52.452715
+     ],
+     [
+      13.5754465,
+      52.4527489
+     ],
+     [
+      13.5756652,
+      52.4527714
+     ],
+     [
+      13.5758362,
+      52.4527744
+     ],
+     [
+      13.5760826,
+      52.4527709
+     ],
+     [
+      13.5763676,
+      52.4527549
+     ],
+     [
+      13.5765613,
+      52.452742
+     ],
+     [
+      13.5767138,
+      52.4527295
+     ],
+     [
+      13.5768948,
+      52.4527096
+     ],
+     [
+      13.577035,
+      52.4526921
+     ],
+     [
+      13.5774189,
+      52.4526218
+     ],
+     [
+      13.5775477,
+      52.4525963
+     ],
+     [
+      13.5776452,
+      52.4525778
+     ],
+     [
+      13.5777305,
+      52.45254
+     ],
+     [
+      13.5783239,
+      52.4524275
+     ],
+     [
+      13.5786327,
+      52.4523692
+     ],
+     [
+      13.5788284,
+      52.4523338
+     ],
+     [
+      13.5805577,
+      52.4520075
+     ],
+     [
+      13.5807626,
+      52.4519663
+     ],
+     [
+      13.581063,
+      52.4518989
+     ],
+     [
+      13.5821949,
+      52.4516456
+     ],
+     [
+      13.5822736,
+      52.4516322
+     ],
+     [
+      13.5823434,
+      52.4516255
+     ],
+     [
+      13.5826699,
+      52.4516288
+     ],
+     [
+      13.5830876,
+      52.4516301
+     ],
+     [
+      13.5831504,
+      52.4516447
+     ],
+     [
+      13.5831736,
+      52.4516451
+     ],
+     [
+      13.5833377,
+      52.4516477
+     ],
+     [
+      13.5833687,
+      52.451648
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1218557176",
+    "title": "path: Fahrtrichtung des Radwegs links und rechts angeben",
+    "description": "Der Radweg links und rechts (`cycleway:<Seite>=track`) hat keine Fahrtrichtung. TILDA muss sie raten: einrichtig, wenn auf der anderen Seite ein Radweg oder eine Spur ist, sonst zweirichtig.\n\nLiegt im Radvorrangnetz.\n\nIn Berlin sind Radwege fast immer Einrichtungsradwege (StVO § 2 Abs. 4). `oneway` bezieht sich auf die Linienrichtung.",
+    "osm": [
+     "way/1218557176"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/Key:cycleway:right:oneway",
+     "https://www.openstreetmap.org/way/1218557176"
+    ],
+    "options": [
+     {
+      "id": "one-way",
+      "label": "Einrichtungsradweg in Fahrtrichtung der Fahrbahn daneben (Standard)",
+      "description": "Links fährt man gegen die Linienrichtung (`-1`), rechts mit ihr (`yes`).",
+      "set": {
+       "cycleway:left:oneway": "-1",
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-left",
+      "label": "Radweg links ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:left:oneway": "no",
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-right",
+      "label": "Radweg rechts ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:left:oneway": "-1",
+       "cycleway:right:oneway": "no"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.5584585,
+      52.4554542
+     ],
+     [
+      13.558419,
+      52.4556531
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1225398108",
+    "title": "path: Fahrtrichtung des Radwegs links und rechts angeben",
+    "description": "Der Radweg links und rechts (`cycleway:<Seite>=track`) hat keine Fahrtrichtung. TILDA muss sie raten: einrichtig, wenn auf der anderen Seite ein Radweg oder eine Spur ist, sonst zweirichtig.\n\nLiegt im Radvorrangnetz.\n\nIn Berlin sind Radwege fast immer Einrichtungsradwege (StVO § 2 Abs. 4). `oneway` bezieht sich auf die Linienrichtung.",
+    "osm": [
+     "way/1225398108"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/Key:cycleway:right:oneway",
+     "https://www.openstreetmap.org/way/1225398108"
+    ],
+    "options": [
+     {
+      "id": "one-way",
+      "label": "Einrichtungsradweg in Fahrtrichtung der Fahrbahn daneben (Standard)",
+      "description": "Links fährt man gegen die Linienrichtung (`-1`), rechts mit ihr (`yes`).",
+      "set": {
+       "cycleway:left:oneway": "-1",
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-left",
+      "label": "Radweg links ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:left:oneway": "no",
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-right",
+      "label": "Radweg rechts ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:left:oneway": "-1",
+       "cycleway:right:oneway": "no"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.441707,
+      52.5690431
+     ],
+     [
+      13.441338,
+      52.5686705
+     ],
+     [
+      13.4412953,
+      52.5686274
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1226262364",
+    "title": "Blankenburger Straße: Fahrtrichtung des Radwegs links und rechts angeben",
+    "description": "Der Radweg links und rechts (`cycleway:<Seite>=track`) hat keine Fahrtrichtung. TILDA muss sie raten: einrichtig, wenn auf der anderen Seite ein Radweg oder eine Spur ist, sonst zweirichtig.\n\nLiegt im Radvorrangnetz.\n\nIn Berlin sind Radwege fast immer Einrichtungsradwege (StVO § 2 Abs. 4). `oneway` bezieht sich auf die Linienrichtung.",
+    "osm": [
+     "way/1226262364"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/Key:cycleway:right:oneway",
+     "https://www.openstreetmap.org/way/1226262364"
+    ],
+    "options": [
+     {
+      "id": "one-way",
+      "label": "Einrichtungsradweg in Fahrtrichtung der Fahrbahn daneben (Standard)",
+      "description": "Links fährt man gegen die Linienrichtung (`-1`), rechts mit ihr (`yes`).",
+      "set": {
+       "cycleway:left:oneway": "-1",
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-left",
+      "label": "Radweg links ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:left:oneway": "no",
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-right",
+      "label": "Radweg rechts ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:left:oneway": "-1",
+       "cycleway:right:oneway": "no"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.451015,
+      52.5085555
+     ],
+     [
+      13.4511877,
+      52.5085238
+     ],
+     [
+      13.4512841,
+      52.5085063
+     ],
+     [
+      13.4516144,
+      52.5084467
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1315107634",
+    "title": "Revaler Straße: Fahrtrichtung des Radwegs links angeben",
+    "description": "Der Radweg links (`cycleway:<Seite>=track`) hat keine Fahrtrichtung. TILDA muss sie raten: einrichtig, wenn auf der anderen Seite ein Radweg oder eine Spur ist, sonst zweirichtig.\n\nLiegt im Radvorrangnetz.\n\nIn Berlin sind Radwege fast immer Einrichtungsradwege (StVO § 2 Abs. 4). `oneway` bezieht sich auf die Linienrichtung.",
+    "osm": [
+     "way/1315107634"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/Key:cycleway:right:oneway",
+     "https://www.openstreetmap.org/way/1315107634"
+    ],
+    "options": [
+     {
+      "id": "one-way",
+      "label": "Einrichtungsradweg in Fahrtrichtung der Fahrbahn daneben (Standard)",
+      "description": "Links fährt man gegen die Linienrichtung (`-1`), rechts mit ihr (`yes`).",
+      "set": {
+       "cycleway:left:oneway": "-1"
+      }
+     },
+     {
+      "id": "two-way-left",
+      "label": "Radweg links ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:left:oneway": "no"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.5141363,
+      52.4686981
+     ],
+     [
+      13.5140172,
+      52.4686241
+     ],
+     [
+      13.5139308,
+      52.468563
+     ],
+     [
+      13.5138732,
+      52.4685182
+     ],
+     [
+      13.5137873,
+      52.4684364
+     ],
+     [
+      13.513733,
+      52.4683814
+     ],
+     [
+      13.5137153,
+      52.4683635
+     ],
+     [
+      13.5133459,
+      52.4679696
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1329066855",
+    "title": "path: Fahrtrichtung des Radwegs rechts angeben",
+    "description": "Der Radweg rechts (`cycleway:<Seite>=track`) hat keine Fahrtrichtung. TILDA muss sie raten: einrichtig, wenn auf der anderen Seite ein Radweg oder eine Spur ist, sonst zweirichtig.\n\nLiegt im Radvorrangnetz.\n\nIn Berlin sind Radwege fast immer Einrichtungsradwege (StVO § 2 Abs. 4). `oneway` bezieht sich auf die Linienrichtung.",
+    "osm": [
+     "way/1329066855"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/Key:cycleway:right:oneway",
+     "https://www.openstreetmap.org/way/1329066855"
+    ],
+    "options": [
+     {
+      "id": "one-way",
+      "label": "Einrichtungsradweg in Fahrtrichtung der Fahrbahn daneben (Standard)",
+      "description": "Links fährt man gegen die Linienrichtung (`-1`), rechts mit ihr (`yes`).",
+      "set": {
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-right",
+      "label": "Radweg rechts ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:right:oneway": "no"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.5035462,
+      52.4370559
+     ],
+     [
+      13.5036004,
+      52.4369867
+     ],
+     [
+      13.5036181,
+      52.4369527
+     ],
+     [
+      13.5036303,
+      52.436901
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1329849439",
+    "title": "path: Fahrtrichtung des Radwegs rechts angeben",
+    "description": "Der Radweg rechts (`cycleway:<Seite>=track`) hat keine Fahrtrichtung. TILDA muss sie raten: einrichtig, wenn auf der anderen Seite ein Radweg oder eine Spur ist, sonst zweirichtig.\n\nLiegt im Radvorrangnetz.\n\nIn Berlin sind Radwege fast immer Einrichtungsradwege (StVO § 2 Abs. 4). `oneway` bezieht sich auf die Linienrichtung.",
+    "osm": [
+     "way/1329849439"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/Key:cycleway:right:oneway",
+     "https://www.openstreetmap.org/way/1329849439"
+    ],
+    "options": [
+     {
+      "id": "one-way",
+      "label": "Einrichtungsradweg in Fahrtrichtung der Fahrbahn daneben (Standard)",
+      "description": "Links fährt man gegen die Linienrichtung (`-1`), rechts mit ihr (`yes`).",
+      "set": {
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-right",
+      "label": "Radweg rechts ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:right:oneway": "no"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.503913,
+      52.4369142
+     ],
+     [
+      13.5037272,
+      52.4371335
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1329849459",
+    "title": "path: Fahrtrichtung des Radwegs rechts angeben",
+    "description": "Der Radweg rechts (`cycleway:<Seite>=track`) hat keine Fahrtrichtung. TILDA muss sie raten: einrichtig, wenn auf der anderen Seite ein Radweg oder eine Spur ist, sonst zweirichtig.\n\nLiegt im Radvorrangnetz.\n\nIn Berlin sind Radwege fast immer Einrichtungsradwege (StVO § 2 Abs. 4). `oneway` bezieht sich auf die Linienrichtung.",
+    "osm": [
+     "way/1329849459"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/Key:cycleway:right:oneway",
+     "https://www.openstreetmap.org/way/1329849459"
+    ],
+    "options": [
+     {
+      "id": "one-way",
+      "label": "Einrichtungsradweg in Fahrtrichtung der Fahrbahn daneben (Standard)",
+      "description": "Links fährt man gegen die Linienrichtung (`-1`), rechts mit ihr (`yes`).",
+      "set": {
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-right",
+      "label": "Radweg rechts ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:right:oneway": "no"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3476679,
+      52.5670036
+     ],
+     [
+      13.3477793,
+      52.567017
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1387012307",
+    "title": "Gotthardstraße: Fahrtrichtung des Radwegs rechts angeben",
+    "description": "Der Radweg rechts (`cycleway:<Seite>=track`) hat keine Fahrtrichtung. TILDA muss sie raten: einrichtig, wenn auf der anderen Seite ein Radweg oder eine Spur ist, sonst zweirichtig.\n\nLiegt im Radvorrangnetz.\n\nIn Berlin sind Radwege fast immer Einrichtungsradwege (StVO § 2 Abs. 4). `oneway` bezieht sich auf die Linienrichtung.",
+    "osm": [
+     "way/1387012307"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/Key:cycleway:right:oneway",
+     "https://www.openstreetmap.org/way/1387012307"
+    ],
+    "options": [
+     {
+      "id": "one-way",
+      "label": "Einrichtungsradweg in Fahrtrichtung der Fahrbahn daneben (Standard)",
+      "description": "Links fährt man gegen die Linienrichtung (`-1`), rechts mit ihr (`yes`).",
+      "set": {
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-right",
+      "label": "Radweg rechts ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:right:oneway": "no"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.4365733,
+      52.4788401
+     ],
+     [
+      13.4364012,
+      52.4788178
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1409852674",
+    "title": "Werbellinstraße: Fahrtrichtung des Radwegs links angeben",
+    "description": "Der Radweg links (`cycleway:<Seite>=track`) hat keine Fahrtrichtung. TILDA muss sie raten: einrichtig, wenn auf der anderen Seite ein Radweg oder eine Spur ist, sonst zweirichtig.\n\nLiegt im Radvorrangnetz.\n\nIn Berlin sind Radwege fast immer Einrichtungsradwege (StVO § 2 Abs. 4). `oneway` bezieht sich auf die Linienrichtung.",
+    "osm": [
+     "way/1409852674"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/Key:cycleway:right:oneway",
+     "https://www.openstreetmap.org/way/1409852674"
+    ],
+    "options": [
+     {
+      "id": "one-way",
+      "label": "Einrichtungsradweg in Fahrtrichtung der Fahrbahn daneben (Standard)",
+      "description": "Links fährt man gegen die Linienrichtung (`-1`), rechts mit ihr (`yes`).",
+      "set": {
+       "cycleway:left:oneway": "-1"
+      }
+     },
+     {
+      "id": "two-way-left",
+      "label": "Radweg links ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:left:oneway": "no"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.4982927,
+      52.4340589
+     ],
+     [
+      13.4981698,
+      52.4339929
+     ],
+     [
+      13.4981152,
+      52.4339621
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1420157815",
+    "title": "path: Fahrtrichtung des Radwegs rechts angeben",
+    "description": "Der Radweg rechts (`cycleway:<Seite>=track`) hat keine Fahrtrichtung. TILDA muss sie raten: einrichtig, wenn auf der anderen Seite ein Radweg oder eine Spur ist, sonst zweirichtig.\n\nLiegt im Radvorrangnetz.\n\nIn Berlin sind Radwege fast immer Einrichtungsradwege (StVO § 2 Abs. 4). `oneway` bezieht sich auf die Linienrichtung.",
+    "osm": [
+     "way/1420157815"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/Key:cycleway:right:oneway",
+     "https://www.openstreetmap.org/way/1420157815"
+    ],
+    "options": [
+     {
+      "id": "one-way",
+      "label": "Einrichtungsradweg in Fahrtrichtung der Fahrbahn daneben (Standard)",
+      "description": "Links fährt man gegen die Linienrichtung (`-1`), rechts mit ihr (`yes`).",
+      "set": {
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-right",
+      "label": "Radweg rechts ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:right:oneway": "no"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.5735871,
+      52.4026707
+     ],
+     [
+      13.5734571,
+      52.40321
+     ],
+     [
+      13.5734366,
+      52.4032912
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1420716572",
+    "title": "Waltersdorfer Straße: Fahrtrichtung des Radwegs links und rechts angeben",
+    "description": "Der Radweg links und rechts (`cycleway:<Seite>=track`) hat keine Fahrtrichtung. TILDA muss sie raten: einrichtig, wenn auf der anderen Seite ein Radweg oder eine Spur ist, sonst zweirichtig.\n\nLiegt im Radvorrangnetz.\n\nIn Berlin sind Radwege fast immer Einrichtungsradwege (StVO § 2 Abs. 4). `oneway` bezieht sich auf die Linienrichtung.",
+    "osm": [
+     "way/1420716572"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/Key:cycleway:right:oneway",
+     "https://www.openstreetmap.org/way/1420716572"
+    ],
+    "options": [
+     {
+      "id": "one-way",
+      "label": "Einrichtungsradweg in Fahrtrichtung der Fahrbahn daneben (Standard)",
+      "description": "Links fährt man gegen die Linienrichtung (`-1`), rechts mit ihr (`yes`).",
+      "set": {
+       "cycleway:left:oneway": "-1",
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-left",
+      "label": "Radweg links ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:left:oneway": "no",
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-right",
+      "label": "Radweg rechts ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:left:oneway": "-1",
+       "cycleway:right:oneway": "no"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.5739853,
+      52.4010539
+     ],
+     [
+      13.5739708,
+      52.401111
+     ],
+     [
+      13.5737992,
+      52.4017876
+     ],
+     [
+      13.5737856,
+      52.401841
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1420716574",
+    "title": "Waltersdorfer Straße: Fahrtrichtung des Radwegs links und rechts angeben",
+    "description": "Der Radweg links und rechts (`cycleway:<Seite>=track`) hat keine Fahrtrichtung. TILDA muss sie raten: einrichtig, wenn auf der anderen Seite ein Radweg oder eine Spur ist, sonst zweirichtig.\n\nLiegt im Radvorrangnetz.\n\nIn Berlin sind Radwege fast immer Einrichtungsradwege (StVO § 2 Abs. 4). `oneway` bezieht sich auf die Linienrichtung.",
+    "osm": [
+     "way/1420716574"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/Key:cycleway:right:oneway",
+     "https://www.openstreetmap.org/way/1420716574"
+    ],
+    "options": [
+     {
+      "id": "one-way",
+      "label": "Einrichtungsradweg in Fahrtrichtung der Fahrbahn daneben (Standard)",
+      "description": "Links fährt man gegen die Linienrichtung (`-1`), rechts mit ihr (`yes`).",
+      "set": {
+       "cycleway:left:oneway": "-1",
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-left",
+      "label": "Radweg links ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:left:oneway": "no",
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-right",
+      "label": "Radweg rechts ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:left:oneway": "-1",
+       "cycleway:right:oneway": "no"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.5518872,
+      52.4300571
+     ],
+     [
+      13.5517775,
+      52.4299824
+     ],
+     [
+      13.5509869,
+      52.4294547
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1432765931",
+    "title": "path: Fahrtrichtung des Radwegs links und rechts angeben",
+    "description": "Der Radweg links und rechts (`cycleway:<Seite>=track`) hat keine Fahrtrichtung. TILDA muss sie raten: einrichtig, wenn auf der anderen Seite ein Radweg oder eine Spur ist, sonst zweirichtig.\n\nLiegt im Radvorrangnetz.\n\nIn Berlin sind Radwege fast immer Einrichtungsradwege (StVO § 2 Abs. 4). `oneway` bezieht sich auf die Linienrichtung.",
+    "osm": [
+     "way/1432765931"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/Key:cycleway:right:oneway",
+     "https://www.openstreetmap.org/way/1432765931"
+    ],
+    "options": [
+     {
+      "id": "one-way",
+      "label": "Einrichtungsradweg in Fahrtrichtung der Fahrbahn daneben (Standard)",
+      "description": "Links fährt man gegen die Linienrichtung (`-1`), rechts mit ihr (`yes`).",
+      "set": {
+       "cycleway:left:oneway": "-1",
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-left",
+      "label": "Radweg links ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:left:oneway": "no",
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-right",
+      "label": "Radweg rechts ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:left:oneway": "-1",
+       "cycleway:right:oneway": "no"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.5511066,
+      52.4291816
+     ],
+     [
+      13.5513977,
+      52.429389
+     ],
+     [
+      13.5516489,
+      52.4295651
+     ],
+     [
+      13.5521227,
+      52.4298933
+     ],
+     [
+      13.5522359,
+      52.4299717
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1432765934",
+    "title": "path: Fahrtrichtung des Radwegs links und rechts angeben",
+    "description": "Der Radweg links und rechts (`cycleway:<Seite>=track`) hat keine Fahrtrichtung. TILDA muss sie raten: einrichtig, wenn auf der anderen Seite ein Radweg oder eine Spur ist, sonst zweirichtig.\n\nLiegt im Radvorrangnetz.\n\nIn Berlin sind Radwege fast immer Einrichtungsradwege (StVO § 2 Abs. 4). `oneway` bezieht sich auf die Linienrichtung.",
+    "osm": [
+     "way/1432765934"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/Key:cycleway:right:oneway",
+     "https://www.openstreetmap.org/way/1432765934"
+    ],
+    "options": [
+     {
+      "id": "one-way",
+      "label": "Einrichtungsradweg in Fahrtrichtung der Fahrbahn daneben (Standard)",
+      "description": "Links fährt man gegen die Linienrichtung (`-1`), rechts mit ihr (`yes`).",
+      "set": {
+       "cycleway:left:oneway": "-1",
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-left",
+      "label": "Radweg links ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:left:oneway": "no",
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-right",
+      "label": "Radweg rechts ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:left:oneway": "-1",
+       "cycleway:right:oneway": "no"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.5300838,
+      52.4145558
+     ],
+     [
+      13.5302319,
+      52.4147884
+     ],
+     [
+      13.5302802,
+      52.4148643
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1449430244",
+    "title": "Schönefelder Chaussee: Fahrtrichtung des Radwegs rechts angeben",
+    "description": "Der Radweg rechts (`cycleway:<Seite>=track`) hat keine Fahrtrichtung. TILDA muss sie raten: einrichtig, wenn auf der anderen Seite ein Radweg oder eine Spur ist, sonst zweirichtig.\n\nLiegt im Radvorrangnetz.\n\nIn Berlin sind Radwege fast immer Einrichtungsradwege (StVO § 2 Abs. 4). `oneway` bezieht sich auf die Linienrichtung.",
+    "osm": [
+     "way/1449430244"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/Key:cycleway:right:oneway",
+     "https://www.openstreetmap.org/way/1449430244"
+    ],
+    "options": [
+     {
+      "id": "one-way",
+      "label": "Einrichtungsradweg in Fahrtrichtung der Fahrbahn daneben (Standard)",
+      "description": "Links fährt man gegen die Linienrichtung (`-1`), rechts mit ihr (`yes`).",
+      "set": {
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-right",
+      "label": "Radweg rechts ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:right:oneway": "no"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.5740528,
+      52.4008814
+     ],
+     [
+      13.5740313,
+      52.4009296
+     ],
+     [
+      13.574005,
+      52.4010006
+     ],
+     [
+      13.5739853,
+      52.4010539
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1451420431",
+    "title": "Waltersdorfer Straße: Fahrtrichtung des Radwegs links und rechts angeben",
+    "description": "Der Radweg links und rechts (`cycleway:<Seite>=track`) hat keine Fahrtrichtung. TILDA muss sie raten: einrichtig, wenn auf der anderen Seite ein Radweg oder eine Spur ist, sonst zweirichtig.\n\nLiegt im Radvorrangnetz.\n\nIn Berlin sind Radwege fast immer Einrichtungsradwege (StVO § 2 Abs. 4). `oneway` bezieht sich auf die Linienrichtung.",
+    "osm": [
+     "way/1451420431"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/Key:cycleway:right:oneway",
+     "https://www.openstreetmap.org/way/1451420431"
+    ],
+    "options": [
+     {
+      "id": "one-way",
+      "label": "Einrichtungsradweg in Fahrtrichtung der Fahrbahn daneben (Standard)",
+      "description": "Links fährt man gegen die Linienrichtung (`-1`), rechts mit ihr (`yes`).",
+      "set": {
+       "cycleway:left:oneway": "-1",
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-left",
+      "label": "Radweg links ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:left:oneway": "no",
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-right",
+      "label": "Radweg rechts ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:left:oneway": "-1",
+       "cycleway:right:oneway": "no"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.4417964,
+      52.5691333
+     ],
+     [
+      13.441707,
+      52.5690431
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1451586334",
+    "title": "Blankenburger Straße: Fahrtrichtung des Radwegs links und rechts angeben",
+    "description": "Der Radweg links und rechts (`cycleway:<Seite>=track`) hat keine Fahrtrichtung. TILDA muss sie raten: einrichtig, wenn auf der anderen Seite ein Radweg oder eine Spur ist, sonst zweirichtig.\n\nLiegt im Radvorrangnetz.\n\nIn Berlin sind Radwege fast immer Einrichtungsradwege (StVO § 2 Abs. 4). `oneway` bezieht sich auf die Linienrichtung.",
+    "osm": [
+     "way/1451586334"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/Key:cycleway:right:oneway",
+     "https://www.openstreetmap.org/way/1451586334"
+    ],
+    "options": [
+     {
+      "id": "one-way",
+      "label": "Einrichtungsradweg in Fahrtrichtung der Fahrbahn daneben (Standard)",
+      "description": "Links fährt man gegen die Linienrichtung (`-1`), rechts mit ihr (`yes`).",
+      "set": {
+       "cycleway:left:oneway": "-1",
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-left",
+      "label": "Radweg links ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:left:oneway": "no",
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-right",
+      "label": "Radweg rechts ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:left:oneway": "-1",
+       "cycleway:right:oneway": "no"
+      }
+     }
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.1536955,
+      52.4597985
+     ],
+     [
+      13.1535478,
+      52.4597137
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1479993420",
+    "title": "Kladower Damm: Fahrtrichtung des Radwegs links und rechts angeben",
+    "description": "Der Radweg links und rechts (`cycleway:<Seite>=track`) hat keine Fahrtrichtung. TILDA muss sie raten: einrichtig, wenn auf der anderen Seite ein Radweg oder eine Spur ist, sonst zweirichtig.\n\nLiegt im Radvorrangnetz.\n\nIn Berlin sind Radwege fast immer Einrichtungsradwege (StVO § 2 Abs. 4). `oneway` bezieht sich auf die Linienrichtung.",
+    "osm": [
+     "way/1479993420"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/Key:cycleway:right:oneway",
+     "https://www.openstreetmap.org/way/1479993420"
+    ],
+    "options": [
+     {
+      "id": "one-way",
+      "label": "Einrichtungsradweg in Fahrtrichtung der Fahrbahn daneben (Standard)",
+      "description": "Links fährt man gegen die Linienrichtung (`-1`), rechts mit ihr (`yes`).",
+      "set": {
+       "cycleway:left:oneway": "-1",
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-left",
+      "label": "Radweg links ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:left:oneway": "no",
+       "cycleway:right:oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way-right",
+      "label": "Radweg rechts ist ein Zweirichtungsradweg",
+      "description": "Nur mit Verkehrszeichen (Z 237/240/241 mit Zusatz 1000-31/33) oder eindeutiger Markierung.",
+      "set": {
+       "cycleway:left:oneway": "-1",
+       "cycleway:right:oneway": "no"
+      }
+     }
+    ]
+   }
+  }
+ ]
+}

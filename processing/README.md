@@ -48,7 +48,9 @@ cd processing
 
 ### Zielnetz (`--netz`)
 
-Die Prozessierung läuft auf dem REN+, also allen Netzquellen gemeinsam (`../ren-network/output/ren_netz_gesamt.gpkg`), oder auf dem Radvorrangnetz des Projekts 2025. `process_radnetz.sh`, `execute_processing.sh`, `run_validation.sh` und die Python-Skripte nehmen dafür `--netz rvn|ren`, Standard ist `ren`. Das Rust-Matching ruft `execute_processing.sh` mit `--netz` auf; direkt aufgerufen gilt ohne `--netz` `[paths]` aus der Konfiguration. Beide Netze werden an denselben virtuellen Knotenpunkten geteilt (`data/Virtuelle-Knotenpunkte.gpkg`).
+Die Prozessierung läuft auf dem REN+, also allen Netzquellen gemeinsam (`../ren-network/output/ren_netz.gpkg`), oder auf dem Radvorrangnetz des Projekts 2025. `process_radnetz.sh`, `execute_processing.sh`, `run_validation.sh` und die Python-Skripte nehmen dafür `--netz rvn|ren`, Standard ist `ren`. Das Rust-Matching ruft `execute_processing.sh` mit `--netz` auf; direkt aufgerufen gilt ohne `--netz` `[paths]` aus der Konfiguration. Beide Netze werden an denselben virtuellen Knotenpunkten geteilt. Diese leben in der App Netzanpassungen; `netzanpassungen/apply_app_result.py` schreibt sie nach `netzanpassungen/output/virtuelle_knoten.gpkg`, ohne diese Datei brechen `process_radnetz.sh`, `convert_knotenpunkte.py`, die Validierung und `knotenpunkte/build_knotenpunkte.py` mit einem Hinweis ab (Pfad zentral in `helpers/virtuelle_knoten.py`).
+
+Korrekturen aus der App Netzanpassungen (`netzanpassungen/apply_app_result.py`) gelten nur fürs REN+: Mit `--netz ren` nimmt `process_radnetz.sh` standardmäßig `ren_netz_korrigiert.gpkg` (`--quelle original` erzwingt das Original). **`--netz rvn` liest bis zur Lieferung des RVN weiter die Korrekturliste von 2025** (`netzanpassungen/one_time_import/2025/rvn_korrekturen.csv`, im Archiv, Verhalten unverändert); fürs REN+ stehen dieselben 18 Korrekturen von `verkehrsrichtung` als Einträge in der App. Gelöscht sind außerdem `helpers/override_edges.py`, `validation/analyse_einrichtungsfahrbahnen.py` und `qgis/erzeuge_einrichtungsfahrbahnen_projekt.py`.
 
 ```sh
 ../.venv/bin/python scripts/prepare_tilda_routing.py   # TILDA-Routing ohne RVN-Zuschnitt (Standard ren)
@@ -59,11 +61,11 @@ Die Prozessierung läuft auf dem REN+, also allen Netzquellen gemeinsam (`../ren
 ./copy_to_tilda_static.sh --netz ren   # braucht die Ordner infravelo-ren-datensatz-{a,b,c}-fortlaufend in tilda-static-data
 ```
 
-Das Radvorrangnetz 2025 wird nicht mehr aktualisiert. `copy_to_tilda_static.sh` kopiert nur noch das REN+ und lehnt `--netz rvn` ab: `infravelo-datensatz-{a,b,c}-fortlaufend` in tilda-static-data ist das Ergebnis 2025, aus dem `ren-network/unify_networks.py` `bearbeitet_2025` berechnet. Wenn überhaupt, werden diese Daten von Hand in tilda-static-data ersetzt.
+Das Radvorrangnetz 2025 wird nicht mehr aktualisiert. `copy_to_tilda_static.sh` kopiert nur noch das REN+ und lehnt `--netz rvn` ab: `infravelo-datensatz-{a,b,c}-fortlaufend` in tilda-static-data ist das Ergebnis 2025, aus dem `ren-network/merge_networks.py` `bearbeitet_2025` berechnet. Wenn überhaupt, werden diese Daten von Hand in tilda-static-data ersetzt.
 
 | | `rvn` | `ren` |
 |---|---|---|
-| Eingangsnetz | `data/Berlin Radvorrangsnetz.fgb` | `../ren-network/output/ren_netz_gesamt.gpkg` |
+| Eingangsnetz | `data/Berlin Radvorrangsnetz.fgb` | `../ren-network/output/ren_netz.gpkg` |
 | TILDA-Routing | `output/TILDA-routing/` (auf den RVN-Puffer zugeschnitten) | `output/TILDA-routing-ren/` (ganz Berlin) |
 | Netz für das Matching | `output/rvn/vorrangnetz_details_combined_rvn.fgb` | `output/ren/ren_netz_details_combined.fgb` |
 | Matching | `output/map-matching/` | `output/map-matching-ren/` |
@@ -75,7 +77,7 @@ Die Pfade je Netz stehen in `helpers/netz.py` und in `map-matching/config/defaul
 
 ### 1. TILDA-Daten vorbereiten (`process_tilda_data.sh`)
 
-Schneidet TILDA-Rohdaten (`data-raw-tilda/`) auf Berlin zu und übersetzt Attribute zu RVN-Format.
+Schneidet TILDA-Rohdaten (`data-raw-tilda/`) auf Berlin zu und übersetzt Attribute zu RVN-Format. Radwege, Straßen und Wege laufen parallel in je einem eigenen Prozess. Im Terminal steht je Datensatz eine Statuszeile, die vollständige Ausgabe mit allen Warnungen in `output/logs/process_tilda_data_<zeit>_<datensatz>.log`.
 
 **Ausgabe**: `data/TILDA *.fgb` und `output/TILDA-translated/*.fgb`
 
@@ -92,6 +94,17 @@ Matcht die TILDA-Wege per Hidden Markov Model und Viterbi auf die gerichteten RV
 
 **Ausgabe**: `output/map-matching/network_enriched_hmm.fgb` (REN+: `output/map-matching-ren/`), von `execute_processing.sh` nach `output/snapping_network_enriched.fgb` (REN+: `…_ren.fgb`) kopiert
 
+Vom gewinnenden TILDA-Weg gehen außerdem Oberfläche, Fahrqualität und Höchstgeschwindigkeit der Fahrbahn in Datensatz B (`transfer_attributes` in `map-matching/config/default.toml`):
+
+| Spalte | Inhalt |
+|---|---|
+| `tilda_surface` | OSM-`surface` des Wegs (Rohwert) |
+| `tilda_smoothness`, `tilda_smoothness_source` | `smoothness` und seine Herkunft (`tag`, `surface_to_smoothness`, `parent_highway_tag`, …) |
+| `tilda_maxspeed`, `tilda_maxspeed_source` | Höchstgeschwindigkeit der Fahrbahn in km/h und Herkunft. Straßen: TILDA `maxspeed`. Radwege: `parent_maxspeed`, sonst `adjoining_maxspeed` (Quelle = Spaltenname). Sonstige Wege: `adjoining_maxspeed`. Hat der Straßenweg OSM `maxspeed:forward` bzw. `maxspeed:backward`, ersetzt der Wert für die Fahrtrichtung `ri` den allgemeinen (Quelle `osm_maxspeed:forward|backward`). Vorwärts heißt: Fahrtrichtung auf dem Teilsegment = Linienrichtung des TILDA-Wegs (`directional_maxspeed` in `map-matching/src/pipeline.rs`). |
+| `tilda_maxspeed_conditional` | OSM `maxspeed:conditional`, z. B. `30 @ (22:00-06:00)`, nur an Straßen |
+
+`tilda_maxspeed` und `tilda_smoothness` kommen vom gewinnenden Weg: bei Radinfrastruktur die Werte des Radwegs, ohne Weg (`Keine Radinfrastruktur vorhanden`) sind alle leer. Enthält der TILDA-Export `parent_maxspeed` und `adjoining_maxspeed` nicht (so in den Exporten bis 2026-10-05), bleibt `tilda_maxspeed` an Radwegen und Wegen leer.
+
 #### Schritt 3: Schutzstreifen-Konvertierung (`start_bikelane_conversion.py`)
 Konvertiert Schutzstreifen unter bestimmten Bedingungen:
 - An Bushaltestellen → Radfahrstreifen (nur rechte Seite, benachbart zu Radfahrstreifen)
@@ -103,7 +116,11 @@ Konvertiert Schutzstreifen unter bestimmten Bedingungen:
 #### Schritt 4: Aggregation (`start_aggregation.py`)
 Aggregiert Segmente nach `element_nr` + `ri` (Fahrtrichtung). Regelbasiert: längster Abschnitt für Führungsform/Bezirk/Material, schlechteste Ausprägung für Breite/Trennstreifen.
 
+Die Aggregation nimmt alle Segmente der Kante, ohne Mindestlänge. Die geltenden Regeln und ihre gewollten Besonderheiten stehen in [REQUIREMENTS.md](REQUIREMENTS.md#aggregation-in-datensatz-c-geltende-regeln). Je Attribut zeigt `<attr>_anteile`, woraus der Wert entsteht, z. B. `8 % 0,90 m (Radweg); 86 % 1,50 m (Radweg); 6 % 2,00 m (nicht gewertet, da Kreuzungsbereich)` (der erste Eintrag ist der Wert der Kante).
+
 **Ausgabe**: `output/aggregated_rvn_final.gpkg` (Layer: `hinrichtung`, `gegenrichtung`)
+
+Die `tilda_*`-Spalten (auch die neuen) fasst die Aggregation je Kante und Richtung als sortierte, mit `;` verbundene Liste der verschiedenen Werte zusammen. Ausnahmen sind zwei einzelne Werte, beide ohne Kreuzungswege (außer die Kante besteht nur daraus): `tilda_maxspeed` (höchste numerische Geschwindigkeit, ganze km/h) und `tilda_smoothness` (Fahrqualität mit dem größten Längenanteil wie in der Bewertung, bei gleicher Länge die schlechtere nach der Reihenfolge der TILDA-Werte `excellent` < `good` < `intermediate` < `bad` < `very_bad`).
 
 ### 4. Validierung (`run_validation.sh`)
 
@@ -114,4 +131,3 @@ Prüft Datensatz B und C, die Knotenpunkte (Abgabestand) und das Verzeichnis der
 - `district_assignment.py`: Bezirkszuweisung
 - `clipping.py`: Regionale Zuschnitte
 - `convert_*.py`: Schutzstreifen-Konvertierungslogik
-- `override_edges.py`: Override-Verarbeitung

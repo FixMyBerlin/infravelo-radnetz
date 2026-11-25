@@ -1,0 +1,1030 @@
+{
+ "version": 8,
+ "name": "RVN-Matching",
+ "center": [
+  13.405,
+  52.52
+ ],
+ "zoom": 12,
+ "sources": {
+  "basemap": {
+   "type": "raster",
+   "tiles": [
+    "https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"
+   ],
+   "tileSize": 256,
+   "attribution": "© OpenStreetMap contributors © CARTO"
+  },
+  "rvn": {
+   "type": "vector",
+   "url": "http://localhost:3000/rvn"
+  },
+  "strassen": {
+   "type": "vector",
+   "url": "http://localhost:3000/strassen"
+  },
+  "radwege": {
+   "type": "vector",
+   "url": "http://localhost:3000/radwege"
+  },
+  "radweg_traces": {
+   "type": "vector",
+   "url": "http://localhost:3000/radweg_traces"
+  },
+  "strassen_mit_radwegen": {
+   "type": "vector",
+   "url": "http://localhost:3000/strassen_mit_radwegen"
+  },
+  "stubs": {
+   "type": "vector",
+   "url": "http://localhost:3000/stubs"
+  },
+  "radwege_abgelehnt": {
+   "type": "vector",
+   "url": "http://localhost:3000/radwege_abgelehnt"
+  },
+  "baseline_c": {
+   "type": "vector",
+   "url": "http://localhost:3000/baseline_c"
+  },
+  "new_c": {
+   "type": "vector",
+   "url": "http://localhost:3000/new_c"
+  },
+  "diff_c": {
+   "type": "vector",
+   "url": "http://localhost:3000/diff_c"
+  },
+  "baseline_wins": {
+   "type": "vector",
+   "url": "http://localhost:3000/baseline_wins"
+  },
+  "neu_wins": {
+   "type": "vector",
+   "url": "http://localhost:3000/neu_wins"
+  },
+  "diff_alle": {
+   "type": "vector",
+   "url": "http://localhost:3000/diff_alle"
+  },
+  "wege": {
+   "type": "vector",
+   "url": "http://localhost:3000/wege"
+  },
+  "new_b": {
+   "type": "vector",
+   "url": "http://localhost:3000/new_b"
+  },
+  "strassen_traces": {
+   "type": "vector",
+   "url": "http://localhost:3000/strassen_traces"
+  }
+ },
+ "layers": [
+  {
+   "id": "basemap",
+   "type": "raster",
+   "source": "basemap"
+  },
+  {
+   "id": "strassen",
+   "type": "line",
+   "source": "strassen",
+   "source-layer": "strassen",
+   "paint": {
+    "line-color": [
+     "match",
+     [
+      "get",
+      "richtung"
+     ],
+     "beide",
+     "#7f7f7f",
+     "#b05a00"
+    ],
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     10,
+     0.6,
+     16,
+     2.5
+    ]
+   }
+  },
+  {
+   "id": "rvn",
+   "type": "line",
+   "source": "rvn",
+   "source-layer": "rvn",
+   "paint": {
+    "line-color": "#000000",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     10,
+     2,
+     16,
+     6
+    ],
+    "line-opacity": 0.35
+   }
+  },
+  {
+   "id": "radwege",
+   "type": "line",
+   "source": "radwege",
+   "source-layer": "radwege",
+   "paint": {
+    "line-color": [
+     "match",
+     [
+      "get",
+      "status"
+     ],
+     "definiert",
+     "#9467bd",
+     "gefaltet",
+     "#2ca02c",
+     "teilweise",
+     "#ff7f0e",
+     "#d62728"
+    ],
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     10,
+     1,
+     16,
+     3
+    ],
+    "line-offset": [
+     "match",
+     [
+      "get",
+      "seite"
+     ],
+     "right",
+     [
+      "interpolate",
+      [
+       "linear"
+      ],
+      [
+       "zoom"
+      ],
+      12,
+      1,
+      16,
+      5
+     ],
+     "left",
+     [
+      "interpolate",
+      [
+       "linear"
+      ],
+      [
+       "zoom"
+      ],
+      12,
+      -1,
+      16,
+      -5
+     ],
+     0
+    ]
+   }
+  },
+  {
+   "id": "radwege_seitenobjekt_separat",
+   "type": "line",
+   "source": "radwege",
+   "source-layer": "radwege",
+   "filter": [
+    "==",
+    [
+     "get",
+     "art"
+    ],
+    "seitenobjekt_separat"
+   ],
+   "paint": {
+    "line-color": "#8c564b",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     10,
+     1.5,
+     16,
+     4
+    ],
+    "line-dasharray": [
+     2,
+     1
+    ],
+    "line-offset": [
+     "match",
+     [
+      "get",
+      "seite"
+     ],
+     "right",
+     [
+      "interpolate",
+      [
+       "linear"
+      ],
+      [
+       "zoom"
+      ],
+      12,
+      1,
+      16,
+      5
+     ],
+     "left",
+     [
+      "interpolate",
+      [
+       "linear"
+      ],
+      [
+       "zoom"
+      ],
+      12,
+      -1,
+      16,
+      -5
+     ],
+     0
+    ]
+   }
+  },
+  {
+   "id": "radweg_traces",
+   "type": "line",
+   "source": "radweg_traces",
+   "source-layer": "radweg_traces",
+   "paint": {
+    "line-color": [
+     "match",
+     [
+      "get",
+      "durchgang"
+     ],
+     "2b",
+     "#e377c2",
+     "2e",
+     "#bcbd22",
+     "#17becf"
+    ],
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     10,
+     1,
+     16,
+     3
+    ],
+    "line-opacity": 0.6
+   },
+   "layout": {
+    "visibility": "none"
+   }
+  },
+  {
+   "id": "strassen_mit_radwegen",
+   "type": "line",
+   "source": "strassen_mit_radwegen",
+   "source-layer": "strassen_mit_radwegen",
+   "paint": {
+    "line-color": [
+     "match",
+     [
+      "get",
+      "art"
+     ],
+     "seitenobjekt",
+     "#9467bd",
+     "seitenobjekt_separat",
+     "#8c564b",
+     [
+      "match",
+      [
+       "get",
+       "durchgang"
+      ],
+      "2b",
+      "#e377c2",
+      "2e",
+      "#bcbd22",
+      "#1f6fff"
+     ]
+    ],
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     10,
+     1,
+     16,
+     3
+    ],
+    "line-offset": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     12,
+     1.5,
+     16,
+     6
+    ]
+   }
+  },
+  {
+   "id": "stubs",
+   "type": "line",
+   "source": "stubs",
+   "source-layer": "stubs",
+   "paint": {
+    "line-color": "#000000",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     10,
+     2,
+     16,
+     5
+    ],
+    "line-dasharray": [
+     1,
+     1
+    ]
+   }
+  },
+  {
+   "id": "radwege_abgelehnt",
+   "type": "line",
+   "source": "radwege_abgelehnt",
+   "source-layer": "radwege_abgelehnt",
+   "paint": {
+    "line-color": [
+     "match",
+     [
+      "get",
+      "art"
+     ],
+     "seitenobjekt_separat",
+     "#8c564b",
+     "#d62728"
+    ],
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     10,
+     1.5,
+     16,
+     4
+    ]
+   }
+  },
+  {
+   "id": "baseline_c",
+   "type": "line",
+   "source": "baseline_c",
+   "source-layer": "baseline_c",
+   "layout": {
+    "visibility": "none"
+   },
+   "paint": {
+    "line-color": [
+     "match",
+     [
+      "get",
+      "fuehr"
+     ],
+     [
+      "Radweg",
+      "Radfahrstreifen",
+      "Schutzstreifen",
+      "Geschützter Radfahrstreifen",
+      "Gemeinsamer Geh- und Radweg mit Z240"
+     ],
+     "#1f6fff",
+     "Fahrradstraße /-zone (Z 244)",
+     "#17becf",
+     "Mischverkehr mit motorisiertem Verkehr",
+     "#7f7f7f",
+     "Sonstige Wege (Gehwege, Wege durch Grünflächen, Plätze)",
+     "#2ca02c",
+     "Keine Radinfrastruktur vorhanden",
+     "#d62728",
+     "#9467bd"
+    ],
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     10,
+     1.5,
+     16,
+     4
+    ],
+    "line-offset": [
+     "match",
+     [
+      "get",
+      "ri"
+     ],
+     0,
+     [
+      "interpolate",
+      [
+       "linear"
+      ],
+      [
+       "zoom"
+      ],
+      12,
+      1.5,
+      16,
+      5
+     ],
+     [
+      "interpolate",
+      [
+       "linear"
+      ],
+      [
+       "zoom"
+      ],
+      12,
+      -1.5,
+      16,
+      -5
+     ]
+    ]
+   }
+  },
+  {
+   "id": "new_c",
+   "type": "line",
+   "source": "new_c",
+   "source-layer": "new_c",
+   "layout": {
+    "visibility": "none"
+   },
+   "paint": {
+    "line-color": [
+     "match",
+     [
+      "get",
+      "fuehr"
+     ],
+     [
+      "Radweg",
+      "Radfahrstreifen",
+      "Schutzstreifen",
+      "Geschützter Radfahrstreifen",
+      "Gemeinsamer Geh- und Radweg mit Z240"
+     ],
+     "#1f6fff",
+     "Fahrradstraße /-zone (Z 244)",
+     "#17becf",
+     "Mischverkehr mit motorisiertem Verkehr",
+     "#7f7f7f",
+     "Sonstige Wege (Gehwege, Wege durch Grünflächen, Plätze)",
+     "#2ca02c",
+     "Keine Radinfrastruktur vorhanden",
+     "#d62728",
+     "#9467bd"
+    ],
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     10,
+     1.5,
+     16,
+     4
+    ],
+    "line-offset": [
+     "match",
+     [
+      "get",
+      "ri"
+     ],
+     0,
+     [
+      "interpolate",
+      [
+       "linear"
+      ],
+      [
+       "zoom"
+      ],
+      12,
+      1.5,
+      16,
+      5
+     ],
+     [
+      "interpolate",
+      [
+       "linear"
+      ],
+      [
+       "zoom"
+      ],
+      12,
+      -1.5,
+      16,
+      -5
+     ]
+    ]
+   }
+  },
+  {
+   "id": "diff_c",
+   "type": "line",
+   "source": "diff_c",
+   "source-layer": "diff_c",
+   "paint": {
+    "line-color": [
+     "match",
+     [
+      "get",
+      "urteil"
+     ],
+     "Baseline",
+     "#d62728",
+     "Kandidat",
+     "#2ca02c",
+     "unklar",
+     "#ff7f0e",
+     "#9467bd"
+    ],
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     10,
+     2,
+     16,
+     6
+    ],
+    "line-offset": [
+     "match",
+     [
+      "get",
+      "ri"
+     ],
+     0,
+     [
+      "interpolate",
+      [
+       "linear"
+      ],
+      [
+       "zoom"
+      ],
+      12,
+      1.5,
+      16,
+      5
+     ],
+     [
+      "interpolate",
+      [
+       "linear"
+      ],
+      [
+       "zoom"
+      ],
+      12,
+      -1.5,
+      16,
+      -5
+     ]
+    ]
+   }
+  },
+  {
+   "id": "baseline_wins",
+   "type": "line",
+   "source": "baseline_wins",
+   "source-layer": "baseline_wins",
+   "paint": {
+    "line-color": "#d62728",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     10,
+     2,
+     16,
+     6
+    ],
+    "line-offset": [
+     "match",
+     [
+      "get",
+      "ri"
+     ],
+     0,
+     [
+      "interpolate",
+      [
+       "linear"
+      ],
+      [
+       "zoom"
+      ],
+      12,
+      1.5,
+      16,
+      5
+     ],
+     [
+      "interpolate",
+      [
+       "linear"
+      ],
+      [
+       "zoom"
+      ],
+      12,
+      -1.5,
+      16,
+      -5
+     ]
+    ]
+   },
+   "layout": {
+    "visibility": "none"
+   }
+  },
+  {
+   "id": "neu_wins",
+   "type": "line",
+   "source": "neu_wins",
+   "source-layer": "neu_wins",
+   "paint": {
+    "line-color": "#2ca02c",
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     10,
+     2,
+     16,
+     6
+    ],
+    "line-offset": [
+     "match",
+     [
+      "get",
+      "ri"
+     ],
+     0,
+     [
+      "interpolate",
+      [
+       "linear"
+      ],
+      [
+       "zoom"
+      ],
+      12,
+      1.5,
+      16,
+      5
+     ],
+     [
+      "interpolate",
+      [
+       "linear"
+      ],
+      [
+       "zoom"
+      ],
+      12,
+      -1.5,
+      16,
+      -5
+     ]
+    ]
+   },
+   "layout": {
+    "visibility": "none"
+   }
+  },
+  {
+   "id": "diff_alle",
+   "type": "line",
+   "source": "diff_alle",
+   "source-layer": "diff_alle",
+   "paint": {
+    "line-color": [
+     "case",
+     [
+      "any",
+      [
+       "has",
+       "fuehr_baseline"
+      ],
+      [
+       "has",
+       "fuehr_neu"
+      ]
+     ],
+     "#9467bd",
+     "#ff7f0e"
+    ],
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     10,
+     2,
+     16,
+     6
+    ],
+    "line-offset": [
+     "match",
+     [
+      "get",
+      "ri"
+     ],
+     0,
+     [
+      "interpolate",
+      [
+       "linear"
+      ],
+      [
+       "zoom"
+      ],
+      12,
+      1.5,
+      16,
+      5
+     ],
+     [
+      "interpolate",
+      [
+       "linear"
+      ],
+      [
+       "zoom"
+      ],
+      12,
+      -1.5,
+      16,
+      -5
+     ]
+    ]
+   },
+   "layout": {
+    "visibility": "none"
+   }
+  },
+  {
+   "id": "wege",
+   "type": "line",
+   "source": "wege",
+   "source-layer": "wege",
+   "paint": {
+    "line-color": [
+     "match",
+     [
+      "get",
+      "art"
+     ],
+     "radweg_ungefaltet",
+     "#2ca02c",
+     "radweg_rest",
+     "#17becf",
+     "#7f7f7f"
+    ],
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     12,
+     1,
+     16,
+     3
+    ],
+    "line-opacity": [
+     "case",
+     [
+      ">",
+      [
+       "get",
+       "rvn_m"
+      ],
+      0
+     ],
+     0.9,
+     0.3
+    ]
+   },
+   "layout": {
+    "visibility": "none"
+   }
+  },
+  {
+   "id": "new_b",
+   "type": "line",
+   "source": "new_b",
+   "source-layer": "new_b",
+   "layout": {
+    "visibility": "none"
+   },
+   "paint": {
+    "line-color": [
+     "match",
+     [
+      "get",
+      "fuehr"
+     ],
+     [
+      "Radweg",
+      "Radfahrstreifen",
+      "Schutzstreifen",
+      "Geschützter Radfahrstreifen",
+      "Gemeinsamer Geh- und Radweg mit Z240"
+     ],
+     "#1f6fff",
+     "Fahrradstraße /-zone (Z 244)",
+     "#17becf",
+     "Mischverkehr mit motorisiertem Verkehr",
+     "#7f7f7f",
+     "Sonstige Wege (Gehwege, Wege durch Grünflächen, Plätze)",
+     "#2ca02c",
+     "Keine Radinfrastruktur vorhanden",
+     "#d62728",
+     "#9467bd"
+    ],
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     10,
+     1.5,
+     16,
+     4
+    ],
+    "line-offset": [
+     "match",
+     [
+      "get",
+      "ri"
+     ],
+     0,
+     [
+      "interpolate",
+      [
+       "linear"
+      ],
+      [
+       "zoom"
+      ],
+      12,
+      1.5,
+      16,
+      5
+     ],
+     [
+      "interpolate",
+      [
+       "linear"
+      ],
+      [
+       "zoom"
+      ],
+      12,
+      -1.5,
+      16,
+      -5
+     ]
+    ]
+   }
+  },
+  {
+   "id": "strassen_traces",
+   "type": "line",
+   "source": "strassen_traces",
+   "source-layer": "strassen_traces",
+   "paint": {
+    "line-color": [
+     "case",
+     [
+      ">",
+      [
+       "get",
+       "n_brueche"
+      ],
+      0
+     ],
+     "#d62728",
+     "#333333"
+    ],
+    "line-width": [
+     "interpolate",
+     [
+      "linear"
+     ],
+     [
+      "zoom"
+     ],
+     12,
+     1,
+     17,
+     3
+    ]
+   },
+   "layout": {
+    "visibility": "none",
+    "line-cap": "round"
+   }
+  }
+ ]
+}

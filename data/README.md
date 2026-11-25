@@ -12,7 +12,8 @@ Diese Dateien werden nicht von Skripten generiert und müssen manuell aktualisie
 - `Berlin_Gebiet_Süden.gpkg` – Gebietsgrenze für die Verarbeitung der südlichen Bezirke von Berlin.
 - `Bezirk Neukölln Grenze.fgb` – Bezirksgrenze von Neukölln für gezielte Testverarbeitung.
 - `Verbindungspunkte im RVN.gpkg` – Verbindungspunkte aus dem Radvorrangnetz/Detailnetz zur Netzwerkanalyse.
-- `Virtuelle-Knotenpunkte.gpkg` – Verzeichnis der virtuellen Knotenpunkte (4-stellige Nummern, gelöschte bleiben als `status = geloescht` stehen). Nur über [`virtuelle_knotenpunkte.py`](./virtuelle_knotenpunkte.py) nummerieren, übernehmen oder löschen. Regeln: [VIRTUELLE-KNOTENPUNKTE.md](./VIRTUELLE-KNOTENPUNKTE.md). Die Zuordnung der alten `V…`-Kennungen steht in `virtuelle_knotenpunkte_alt_neu.csv`.
+- Die 53 virtuellen Knotenpunkte der Lieferung 2025 (Nummern `0001`–`0053`) liegen nicht mehr hier: Die App Netzanpassungen hat sie einmalig als Einträge übernommen, die Pipeline liest sie aus ihrer KV-Datenbank (`read_registry()` in `virtuelle_knotenpunkte.py`). Die Lieferung ist Archiv in [`netzanpassungen/one_time_import/2025/Virtuelle-Knotenpunkte.gpkg`](../netzanpassungen/one_time_import/2025/Virtuelle-Knotenpunkte.gpkg). Neue virtuelle Knoten entstehen nur in der App; Schritt 3 schreibt alle zusammen nach `netzanpassungen/output/virtuelle_knoten.gpkg`. Regeln: [VIRTUELLE-KNOTENPUNKTE.md](./VIRTUELLE-KNOTENPUNKTE.md). Die Zuordnung der alten `V…`-Kennungen (Spalte `id_rvn_2025`) steht in `virtuelle_knotenpunkte_alt_neu.csv`.
+- `Berlin Straßennetz Bauwerke.geojson` – Bauwerke (Brücken, Tunnel) des Detailnetzes, Layer `b_bauwerke` des WFS `https://gdi.berlin.de/services/wfs/detailnetz` (Stand 2026-10-08). Für die Prüfung „Brücken und Tunnel“ der App (`netzanpassungen/bauwerke.py`). Erneuern: `.venv/bin/python data/download_bauwerke.py`.
 - `OSM-highway=bus_stop.geojson` – Bushaltestellen aus OpenStreetMap für Konvertierungen von Schutzstreifen.
 - `Stop-Positions-Bus-OSM.fgb` – Bushaltestellen-Positionen aus OpenStreetMap als FlatGeobuf.
 
@@ -36,8 +37,6 @@ Wir verwenden manuell gepflegte Listen von OpenStreetMap-Way-IDs, die das endgü
 
 * `exclude_ways.txt` enthält in jeder Zeile eine OSM-Way-ID, die aus dem finalen Datensatz **entfernt** werden soll.
 * `include_ways.txt` enthält in jeder Zeile eine OSM-Way-ID, die dem finalen Datensatz **hinzugefügt** werden soll.
-* `rvn_korrekturen.csv` korrigiert Attribute einzelner RVN-Kanten (bisher `verkehrsrichtung`), wo das Detailnetz falsch oder uneinheitlich ist, z. B. Einbahn-Ringe um Plätze. `processing/scripts/enrich_rvn_with_detailnetz.py` wendet sie an. Format und Begründungen stehen in der Datei, Hintergrund in `processing/map-matching/docs/einrichtungsfahrbahnen.md`.
-* `opposite_edge_overwrite_element_nr.txt` enthält in jeder Zeile eine `element_nr`, für die die entgegengesetzte Richtung (ri=1) aus dem finalen Datensatz **entfernt** werden soll. Das ist nützlich, wenn der Snapping-Prozess fälschlicherweise Infrastruktur in beide Richtungen zuordnet, in der Realität aber nur die Vorwärtsrichtung (ri=0) existiert.
 - `override_ways.gpkg` – GeoPackage mit räumlichen Override-Geometrien zur gezielten Überschreibung von Attributen nach dem Snapping.
 - `override_ways.txt` – Textdatei mit Text-Overrides im Format `tilda_id|element_nr|ri|attributes_json` für attributbasierte Überschreibungen.
 
@@ -49,7 +48,7 @@ Einige Eingangsdaten liegen nicht im Repo und werden auch von keinem Skript gela
 .venv/bin/python data/download_inputs.py
 ```
 
-- `ren-network/unify_networks.py` und `netzanpassungen/export_app_daten.py` rufen das zu Beginn jedes Laufs auf. Fehlt der Link, bricht der Lauf ab.
+- `ren-network/merge_networks.py` und `netzanpassungen/write_app_input.py` rufen das zu Beginn jedes Laufs auf. Fehlt der Link, bricht der Lauf ab.
 - Der Ordner im Drive ist flach. `INPUT_FILES` im Skript ordnet jedem Dateinamen dort seinen Pfad im Repo zu:
 
 | Datei im Drive | Pfad im Repo |
@@ -59,6 +58,7 @@ Einige Eingangsdaten liegen nicht im Repo und werden auch von keinem Skript gela
 | `netzquellen_radschnellverbindungen.gpkg` | `data/netzquellen/radschnellverbindungen.gpkg` |
 | `netzquellen_touristisches_radnetz.gpkg` | `data/netzquellen/touristisches_radnetz.gpkg` |
 | `detailnetz_strassenabschnitte_2026-10-06.fgb` | `data/Berlin Straßenabschnitte Detailnetz 2026-10-06.fgb` |
+| `Berlin Straßenabschnitte Detailnetz 2025-11-17.fgb` | `data/Berlin Straßenabschnitte Detailnetz 2025-11-17.fgb` |
 | `detailnetz_verbindungspunkte.fgb` | `data/Berlin Verbindungspunkte Detailnetz.fgb` |
 | `lor_planungsraeume_2021.geojson` | `mapping-zuteilung/data/lor_plr_2021.geojson` |
 

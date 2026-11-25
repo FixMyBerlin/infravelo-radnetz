@@ -11,3 +11,9 @@ scikit-learn
 
 # Eingangsdaten aus Google Drive (data/download_inputs.py)
 gdown
+
+# Knotenlisten aus dem OSM-Auszug (graph-interface/bikegraph/osm_nodes.py)
+osmium
+
+# Routing-Matcher zur Qualitätssicherung (graph-interface/bikegraph/routing, Teil 2s: MILP mit scipy, Datenbank mit psycopg2)
+psycopg2-binary

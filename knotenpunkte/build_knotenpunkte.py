@@ -20,10 +20,10 @@ und LSA_KP (Open Data und OSM) abgeleitet. Nur diese
 Knoten gehen an die Knotenpunkt-App und die ML-Vorhersage.
 
 INPUT:
-- ren-network/output/ren_netz_gesamt.gpkg (Layer: ren_netz)
+- ren-network/output/ren_netz.gpkg (Layer: ren_netz)
 - data/Berlin Verbindungspunkte Detailnetz.fgb
 - data/Berlin Straßenabschnitte Detailnetz.fgb (jüngster Stand)
-- data/Virtuelle-Knotenpunkte.gpkg (manuell gepflegt)
+- netzanpassungen/output/virtuelle_knoten.gpkg (apply_app_result.py, aus der App Netzanpassungen)
 - data/Berlin Bezirke.gpkg
 - data/netzquellen/knotenpunkte_2025.geojson.gz
   (tilda-static-data: region-infravelo/infravelo-datensatz-knoten-fortlaufend)
@@ -49,15 +49,15 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(ROOT / "ren-network"))
 sys.path.append(str(ROOT / "data"))
 
-import unify_networks as ren  # noqa: E402
+import merge_networks as ren  # noqa: E402
+from auto_nodes import is_proposal  # noqa: E402
 import virtuelle_knotenpunkte as vk  # noqa: E402
 from assign_node_ids import assign_node_ids_to_points  # noqa: E402
 
 CRS = f"EPSG:{ren.DEFAULT_CRS}"
 NODE_ID = ren.NODE_ID_COLUMN  # "Knotenpunkt‐ID" mit U+2010 wie in der Lieferung 2025
 
-NETWORK_PATH = ren.OUTPUT_PATH
-VIRTUAL_NODES_PATH = vk.PATH
+NETWORK_PATH = ren.OUTPUT_DIR / "ren_netz.gpkg"  # Schritt 3 (netzanpassungen/apply_app_result.py)
 NODES_2025_PATH = ROOT / "data" / "netzquellen" / "knotenpunkte_2025.geojson.gz"
 LSA_PATH = ROOT / "data" / "netzquellen" / "lsa.gpkg"
 OSM_SIGNALS_PATH = ROOT / "data" / "netzquellen" / "osm_ampeln.gpkg"
@@ -128,7 +128,8 @@ def id_text(value):
 
 def load_network():
     if not NETWORK_PATH.exists():
-        raise SystemExit(f"Fehlt: {NETWORK_PATH}\nErst ren-network/unify_networks.py ausführen.")
+        raise SystemExit(f"Fehlt: {NETWORK_PATH}\nErst ren-network/merge_networks.py, netzanpassungen/match_cycle_routes.py und \n"
+                         "netzanpassungen/apply_app_result.py (bzw. mit --ohne-export) ausführen.")
     network = gpd.read_file(NETWORK_PATH, layer=ren.OUTPUT_LAYER).to_crs(CRS)
     logging.info(f"REN+: {len(network)} Kanten")
     return network
@@ -222,6 +223,11 @@ def network_end_points(network, nodes):
 def ren_nodes(network, detail):
     """Alle Netzknoten des REN+ mit Lage und Netzattributen."""
     attributes = network_attributes(edges_by_node(network))
+    # Open node proposals of step 1 (P<x>-<y>, not yet accepted in the Netzanpassungen app) are no Knotenpunkte yet
+    proposals = [node_id for node_id in attributes.index if is_proposal(node_id)]
+    if proposals:
+        attributes = attributes.drop(index=proposals)
+        logging.info(f"{len(proposals)} offene Knotenvorschläge (P…) übersprungen: erst nach Übernahme in der App Knotenpunkte")
     points = load_connection_points(detail)
     nodes = attributes.join(points, how="left")
 

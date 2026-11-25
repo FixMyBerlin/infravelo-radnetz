@@ -126,6 +126,7 @@ mod tests {
 
     fn way(idx: u32, source: &str, fuehr: &str, sign: &str) -> TildaWay {
         TildaWay {
+            db_id: None,
             idx,
             data_source: Arc::from(source),
             tilda_id: format!("way/{idx}"),
@@ -139,6 +140,8 @@ mod tests {
             category: String::new(),
             traffic_sign: sign.into(),
             name_norm: String::new(),
+            maxspeed_forward: None,
+            maxspeed_backward: None,
         }
     }
 

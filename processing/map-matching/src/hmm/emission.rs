@@ -49,6 +49,9 @@ pub fn candidates(net: &Network, cfg: &HmmConfig, way: &TildaWay, obs: &Observat
     for h in hits {
         let edge = &net.edges[h.edge as usize];
         for ri in 0..2u8 {
+            if !edge.allowed[ri as usize] {
+                continue;
+            }
             let dir = DirEdge::new(h.edge, ri);
             let (s, heading, side_dir) = if ri == 0 {
                 (h.proj.s, h.proj.heading, h.proj.side)

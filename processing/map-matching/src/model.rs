@@ -47,6 +47,8 @@ impl AttrSchema {
 #[derive(Debug, Clone)]
 pub struct TildaWay {
     pub idx: u32,
+    /// `id` der Zeile in der PostGIS-Eingangstabelle (nur bei `--pg`).
+    pub db_id: Option<i64>,
     pub data_source: Arc<str>,
     pub tilda_id: String,
     pub line: Polyline,
@@ -61,6 +63,9 @@ pub struct TildaWay {
     pub traffic_sign: String,
     /// Normalisierter Straßenname (leer, wenn unbekannt).
     pub name_norm: String,
+    /// OSM `maxspeed:forward|backward` des Wegs: gilt in bzw. gegen dessen Digitalisierungsrichtung.
+    pub maxspeed_forward: Option<String>,
+    pub maxspeed_backward: Option<String>,
     /// Knoten am Anfang/Ende im TILDA-Routing-Netz (nur bei vorverarbeiteten Routing-Daten).
     pub from_node: Option<u64>,
     pub to_node: Option<u64>,
@@ -83,13 +88,19 @@ pub struct Observation {
     pub way: u32,
     /// Position entlang der gesamten Trace (m).
     pub trace_s: f64,
+    /// Kontext-Beobachtung (Anlauf/Auslauf auf dem Weg einer anderen Trace): zählt im Viterbi, erzeugt aber keine
+    /// Intervalle, Verbindungsstücke, Brüche oder Statistik.
+    pub kontext: bool,
 }
 
 /// Eine Trace: Folge von Beobachtungen über einen oder mehrere TILDA-Wege.
 #[derive(Debug, Clone)]
 pub struct Trace {
     pub id: u32,
+    /// Eigene Wege (Eigentümer dieser Trace), in Fahrtrichtung.
     pub ways: Vec<u32>,
+    /// Kontext-Wege (Anlauf und Auslauf aus anderen Traces), in Fahrtrichtung.
+    pub kontext_ways: Vec<u32>,
     pub obs: Vec<Observation>,
 }
 
