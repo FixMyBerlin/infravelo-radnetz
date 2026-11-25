@@ -21,16 +21,7 @@ ORANGE = '\033[38;5;214m'
 RED = '\033[91m'
 RESET = '\033[0m'
 
-# Füge processing-Verzeichnis zum Python-Pfad hinzu
-script_dir = Path(__file__).parent
-processing_dir = script_dir.parent
-sys.path.insert(0, str(processing_dir))
-
-# Importiere die Attributlisten aus start_snapping.py
-from start_snapping import FINAL_DATASET_SEGMENT_MERGE_ATTRIBUTES, FINAL_DATASET_SEGMENT_ADDITIONAL_ATTRIBUTES
-
-# Pfad zum Snapping-Datensatz
-SNAPPING_FILE = script_dir.parent / "output" / "snapping_network_enriched.fgb"
+from pfade import Pfade, argumente
 
 # Attribute die auf TODO geprüft werden sollen (hauptsächlich die Merge-Attribute)
 ATTRIBUTES_TO_CHECK = [
@@ -45,6 +36,9 @@ def contains_todo(value):
     return 'TODO' in str(value).upper()
 
 def main():
+    args = argumente("Segmente mit TODO-Werten in Attributen").parse_args()
+    SNAPPING_FILE = Pfade(args.netz, args.clip).snapping_enriched
+
     print("=" * 80)
     print("ANALYSE: Segmente mit TODO-Werten in Attributen")
     print("=" * 80)

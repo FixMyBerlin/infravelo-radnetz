@@ -11,14 +11,16 @@ die beide tilda_oneway=yes haben, aber nicht als yes_dual_carriageway markiert s
 Dies deutet darauf hin, dass in OSM das dual_carriageway=yes Attribut fehlt.
 
 Logik:
-1. Lade matched_tilda_ways.fgb
+1. Lade die TILDA-Straßen (TILDA Routing Streets Translated.fgb)
 2. Filtere auf tilda_oneway='yes' (echte Einbahnstraßen)
 3. Gruppiere nach Straßenname (tilda_name)
 4. Berechne Richtungswinkel jedes Weges
 5. Finde Straßen mit Wegen in entgegengesetzten Richtungen (~180° Unterschied)
 6. Diese sind verdächtig für fehlende dual_carriageway Markierung
 
-OUTPUT: output/analysis/potential_missing_dual_carriageway.fgb
+OUTPUT: output/analysis/potential_missing_dual_carriageway{_ren}{_clip}.fgb
+
+Aufruf aus processing/: ../.venv/bin/python analysis/analyse_dual_carriageway.py [--netz ren|rvn] [--clip ...]
 """
 
 import geopandas as gpd
@@ -27,6 +29,8 @@ import numpy as np
 from pathlib import Path
 from shapely.geometry import LineString, MultiLineString
 import logging
+
+from pfade import Pfade, argumente
 
 # ANSI Farb-Codes
 ORANGE = '\033[38;5;214m'
@@ -186,21 +190,18 @@ def analyze_street_for_dual_carriageway(street_gdf):
 
 def main():
     """Hauptfunktion."""
-    base_path = Path(__file__).parent.parent
-    
+    args = argumente("Potentiell fehlende dual_carriageway=yes in OSM").parse_args()
+    p = Pfade(args.netz, args.clip)
+
     # Input/Output Pfade
     # Nur streets-Datensatz verwenden (keine Radwege etc.)
-    input_file = base_path / "output" / "matched" / "matched_tilda_streets_ways.fgb"
-    snapping_file = base_path / "output" / "snapping_network_enriched.fgb"
-    output_dir = base_path / "output" / "analysis"
-    output_file = output_dir / "potential_missing_dual_carriageway.fgb"
+    input_file = p.tilda_routing("streets")
+    snapping_file = p.snapping_enriched
+    output_file = p.analyse("potential_missing_dual_carriageway.fgb")
     
     # Konstanten für Filterung
     BUFFER_DISTANCE = 20  # Meter für räumliche Verschneidung
     FUEHR_FILTER = "Mischverkehr"  # Substring der in fuehr enthalten sein muss
-    
-    # Output-Verzeichnis erstellen
-    output_dir.mkdir(parents=True, exist_ok=True)
     
     logger.info("="*80)
     logger.info("ANALYSE: Potentiell fehlende dual_carriageway=yes Attribute")

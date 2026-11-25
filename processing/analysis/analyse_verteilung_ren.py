@@ -37,9 +37,9 @@ OUTPUT (output/ren-verteilung/):
 - verteilung_tilda_wegeart.csv
 
 Aufruf (aus processing/):
-    ../.venv/bin/python validation/analyse_verteilung_ren.py
-    ../.venv/bin/python validation/analyse_verteilung_ren.py --netz ohne-vorrangnetz
-    ../.venv/bin/python validation/analyse_verteilung_ren.py --nur-auswertung
+    ../.venv/bin/python analysis/analyse_verteilung_ren.py
+    ../.venv/bin/python analysis/analyse_verteilung_ren.py --netz ohne-vorrangnetz
+    ../.venv/bin/python analysis/analyse_verteilung_ren.py --nur-auswertung
 """
 
 import argparse

@@ -26,6 +26,7 @@ pip install -r requirements.txt
 - `map-matching/` – HMM-/Viterbi-Map-Matching in Rust (siehe [map-matching/README.md](./map-matching/README.md))
 - `helpers/` – gemeinsame Python-Module der Verarbeitungsschritte
 - `validation/` – Validierung der Ergebnisse
+- `analysis/` – Auswertungen der Ergebnisse, keine Prüfungen (siehe [analysis/README.md](./analysis/README.md))
 - `output/` – alle erzeugten Dateien
 - `output-last-run/` – Backup der Ausgaben vom letzten Lauf
 - `QGIS QA Processing.qgz`, `QGIS Aggregated Visualization.qgz` – QGIS-Projekte zur Kontrolle

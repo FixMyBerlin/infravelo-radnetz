@@ -20,18 +20,16 @@ ORANGE = '\033[38;5;214m'
 RED = '\033[91m'
 RESET = '\033[0m'
 
-# Füge processing-Verzeichnis zum Python-Pfad hinzu
-script_dir = Path(__file__).parent
-processing_dir = script_dir.parent
-sys.path.insert(0, str(processing_dir))
+from pfade import Pfade, argumente
+from validation.checks.attribute import MISCHVERKEHR
 
-# Importiere die FUEHR_WITHOUT_WIDTH_REQUIREMENT Liste aus start_snapping.py
-from start_snapping import FUEHR_WITHOUT_WIDTH_REQUIREMENT
-
-# Pfad zum Snapping-Datensatz
-SNAPPING_FILE = script_dir.parent / "output" / "snapping_network_enriched.fgb"
+# Führungsformen ohne Pflicht zur Breite, wie in der Validierung (Prüfung NULL)
+FUEHR_WITHOUT_WIDTH_REQUIREMENT = [MISCHVERKEHR]
 
 def main():
+    args = argumente("Segmente mit breite=NULL je Führungsform").parse_args()
+    SNAPPING_FILE = Pfade(args.netz, args.clip).snapping_enriched
+
     print("=" * 80)
     print("ANALYSE: Segmente mit breite=NULL")
     print("=" * 80)

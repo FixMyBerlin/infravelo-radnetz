@@ -66,7 +66,7 @@ Die 53 von 2025 sind nach der Übernahme gewöhnliche Einträge der App: Verschi
 
 **Ältere Einträge ohne Nummer** (vorläufige Namen `neu-<n>`, alte `V…`-Namen) nummeriert die App einmalig, älteste zuerst, wenn ein Admin das Gebiet öffnet. Bis dahin zählen sie in Schritt 3 nicht (Hinweis in `korrekturen_konflikte.csv`).
 
-**Prüfen:** `.venv/bin/python data/virtuelle_knotenpunkte.py pruefen` prüft die Regeln für das Archiv der 53 (unverändert) und für `virtuelle_knoten.gpkg`. `processing/validation/validate_virtuelle_knotenpunkte.py` prüft zusätzlich die Lage am REN+ und läuft in `run_validation.sh` mit. Jedes Skript, das die Knoten liest, bricht bei Regelverstößen ab.
+**Prüfen:** `.venv/bin/python data/virtuelle_knotenpunkte.py pruefen` prüft die Regeln für das Archiv der 53 (unverändert) und für `virtuelle_knoten.gpkg`. Die Prüfungen `VK-…` in `processing/validation/checks/virtuelle_knotenpunkte.py` prüfen zusätzlich die Lage am REN+ und laufen in `run_validation.sh` mit. Jedes Skript, das die Knoten liest, bricht bei Regelverstößen ab.
 
 ## 5. element_nr
 

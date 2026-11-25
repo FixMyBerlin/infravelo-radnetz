@@ -15,6 +15,8 @@ import pandas as pd
 import numpy as np
 from shapely.geometry import Point
 
+from pfade import Pfade, argumente
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
@@ -345,11 +347,10 @@ def analyze_schutzstreifen_coverage(
 
 def main():
     """Hauptfunktion"""
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    
-    # Pfade - nutze die vorhandenen regionalen Dateien
-    input_file = os.path.join(base_dir, 'output', 'snapping_with_overrides.fgb')
-    knotenpunkte_file = os.path.join(base_dir, 'data-raw-tilda', 'knotenpunkte_mit_id_und_bezirken.gpkg')
+    args = argumente("Abdeckung von Schutzstreifen an Knotenpunkten").parse_args()
+    p = Pfade(args.netz, args.clip)
+    input_file = p.snapping_enriched
+    knotenpunkte_file = p.knotenpunkte
     
     logger.info(f"Lese Segmente: {input_file}")
     gdf = gpd.read_file(input_file)

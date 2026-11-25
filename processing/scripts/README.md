@@ -33,7 +33,7 @@ Das [`assign_node_ids.py`](./assign_node_ids.py) fügt zwei Attribute zu den *Ve
 Dieses Skript führt die drei Vorverarbeitungsschritte des Zielnetzes (RVN oder REN+) aus:
 
 ### 1. Virtuelle Knotenpunkte verarbeiten
-Die virtuellen Knotenpunkte kommen aus der App Netzanpassungen: `netzanpassungen/apply_app_result.py` schreibt `netzanpassungen/output/virtuelle_knoten.gpkg` (Pfad und Abbruch bei fehlender Datei zentral in [`helpers/virtuelle_knoten.py`](../helpers/virtuelle_knoten.py)); auch `convert_knotenpunkte.py` und `validation/validate_virtuelle_knotenpunkte.py` lesen sie von dort.
+Die virtuellen Knotenpunkte kommen aus der App Netzanpassungen: `netzanpassungen/apply_app_result.py` schreibt `netzanpassungen/output/virtuelle_knoten.gpkg` (Pfad und Abbruch bei fehlender Datei zentral in [`helpers/virtuelle_knoten.py`](../helpers/virtuelle_knoten.py)); auch `convert_knotenpunkte.py` und die Validierung (`validation/checks/virtuelle_knotenpunkte.py`) lesen sie von dort.
 
 Das [`split_rvn_at_virtual_nodes.py`](./split_rvn_at_virtual_nodes.py) teilt das Berliner Radvorrangsnetz an virtuellen Knotenpunkten auf. Virtuelle Knotenpunkte liegen mitten auf Linien und erfordern eine Aufteilung der betroffenen Linien.
 

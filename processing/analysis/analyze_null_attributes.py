@@ -10,6 +10,8 @@ import geopandas as gpd
 import pandas as pd
 from pathlib import Path
 
+from pfade import Pfade, argumente
+
 # ANSI Farb-Codes
 ORANGE = '\033[38;5;214m'
 RED = '\033[91m'
@@ -102,31 +104,12 @@ def analyze_gdf(gdf, attributes):
 
 def main():
     """Hauptfunktion."""
-    base_path = Path(__file__).parent.parent
-    
-    # Liste der zu analysierenden Dateien
+    args = argumente("NULL-Werte in Netz mit Attributen, Datensatz B und C").parse_args()
+    p = Pfade(args.netz, args.clip)
     files_to_analyze = [
-        # Snapping-Daten
-        (base_path / "output" / "snapping_network_enriched.fgb", 
-         "Snapping Network Enriched (Gesamt)"),
-        (base_path / "output" / "snapping_network_enriched_neukoelln.fgb", 
-         "Snapping Network Enriched (Neukölln)"),
-        (base_path / "output" / "snapping_network_enriched_norden.fgb", 
-         "Snapping Network Enriched (Norden)"),
-        
-        # Konvertierte Bikelanes (Input für Aggregation)
-        (base_path / "output" / "snapping_converted_bikelanes.fgb", 
-         "Snapping Converted Bikelanes (Gesamt)"),
-        (base_path / "output" / "snapping_converted_bikelanes_neukoelln.fgb", 
-         "Snapping Converted Bikelanes (Neukölln)"),
-        (base_path / "output" / "snapping_converted_bikelanes_norden.fgb", 
-         "Snapping Converted Bikelanes (Norden)"),
-        
-        # Aggregierte Daten (mehrere Layer pro Datei)
-        (base_path / "output" / "aggregated_rvn_final_neukoelln.gpkg", 
-         "Aggregated RVN Final (Neukölln)"),
-        (base_path / "output" / "aggregated_rvn_final_norden.gpkg", 
-         "Aggregated RVN Final (Norden)"),
+        (p.snapping_enriched, "Netz mit Attributen aus dem Matching (vor der Konvertierung)"),
+        (p.datensatz_b, "Datensatz B, Radverkehrsanlagen (Input für Aggregation)"),
+        (p.datensatz_c, "Datensatz C, aggregiertes Netz (mehrere Layer)"),
     ]
     
     print("="*80)

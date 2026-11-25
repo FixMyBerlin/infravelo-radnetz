@@ -14,6 +14,8 @@ import pandas as pd
 import numpy as np
 from shapely.geometry import Point
 
+from pfade import Pfade, argumente
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
@@ -56,7 +58,7 @@ def debug_segment(gdf, knotenpunkte_gdf, sfid, old_buffer_radius=25.0, old_min_o
     logger.info("=" * 80)
     
     # Finde das Segment (sfid kann String oder Int sein)
-    segment_row = gdf[gdf['sfid'] == str(sfid)]
+    segment_row = gdf[gdf['sfid'].astype(str) == str(sfid)]
     
     if len(segment_row) == 0:
         logger.error(f"Segment mit sfid={sfid} nicht gefunden!")
@@ -215,14 +217,12 @@ def debug_segment(gdf, knotenpunkte_gdf, sfid, old_buffer_radius=25.0, old_min_o
 
 def main():
     """Hauptfunktion"""
-    import sys
-    
-    # Finde base_dir richtig (validation ist auf gleicher Ebene wie output)
-    base_dir = os.path.dirname(os.path.dirname(__file__))
-    
-    # Pfade
-    input_file = os.path.join(base_dir, 'output', 'snapping_with_overrides.fgb')
-    knotenpunkte_file = os.path.join(base_dir, 'data-raw-tilda', 'knotenpunkte_mit_id_und_bezirken.gpkg')
+    parser = argumente("Konvertierung eines Segments an Knotenpunkten nachvollziehen")
+    parser.add_argument("sfid", nargs="?", type=int, help="Segment (Standard: erster Schutzstreifen < 50 m)")
+    args = parser.parse_args()
+    p = Pfade(args.netz, args.clip)
+    input_file = p.snapping_enriched
+    knotenpunkte_file = p.knotenpunkte
     
     logger.info(f"Lese Segmente: {input_file}")
     gdf = gpd.read_file(input_file)
@@ -231,8 +231,8 @@ def main():
     knotenpunkte_gdf = gpd.read_file(knotenpunkte_file)
     
     # Debug spezifisches Segment
-    if len(sys.argv) > 1:
-        sfid = int(sys.argv[1])
+    if args.sfid is not None:
+        sfid = args.sfid
     else:
         # Finde ein Beispiel-Segment: Schutzstreifen < 50m der nicht konvertiert wurde
         schutz = gdf[gdf['fuehr'] == 'Schutzstreifen'].copy()

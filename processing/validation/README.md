@@ -90,4 +90,4 @@ Geplante Prüfungen: [VALIDIERUNG_OFFEN.md](VALIDIERUNG_OFFEN.md).
 | `report.py` | Ausgabe im Terminal |
 | `checks/` | die Prüfungen |
 
-Die Skripte `analyse_*.py`, `analyze_*.py` und `debug_*.py` in diesem Ordner sind Auswertungen für die Analyse und keine Prüfungen.
+Auswertungen, die nichts prüfen, liegen in [`../analysis/`](../analysis/README.md).

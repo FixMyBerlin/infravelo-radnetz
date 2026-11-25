@@ -20,6 +20,8 @@ from pathlib import Path
 import geopandas as gpd
 import pandas as pd
 
+from pfade import Pfade, argumente
+
 # ANSI Farb-Codes
 ORANGE = '\033[38;5;214m'
 RED = '\033[91m'
@@ -48,15 +50,14 @@ KOMMENTAR_AUSSCHLUSS = [
 # PFADE
 # =============================================================================
 
-script_dir = Path(__file__).parent
-output_dir = script_dir.parent / "output"
-analysis_dir = output_dir / "analysis"
-
-SNAPPING_FILE = output_dir / "snapping_network_enriched.fgb"
-MATCHED_TILDA_FILE = output_dir / "matched" / "matched_tilda_ways.fgb"
-OUTPUT_FILE = analysis_dir / "tilda_missing_widths.geojson"
 
 def main():
+    args = argumente("Radinfrastruktur ohne Breite und die zugehörigen TILDA-Wege").parse_args()
+    p = Pfade(args.netz, args.clip)
+    SNAPPING_FILE = p.snapping_enriched
+    MATCHED_TILDA_FILE = p.matched_tilda_ways
+    OUTPUT_FILE = p.analyse("tilda_missing_widths.geojson")
+
     print("=" * 80)
     print("ANALYSE: Fehlende Breiten bei Radinfrastruktur")
     print("=" * 80)
@@ -78,9 +79,6 @@ def main():
     if not MATCHED_TILDA_FILE.exists():
         print(f"\n❌ FEHLER: Matched TILDA-Datensatz nicht gefunden: {MATCHED_TILDA_FILE}")
         return 1
-    
-    # Erstelle analysis-Verzeichnis falls nicht vorhanden
-    analysis_dir.mkdir(parents=True, exist_ok=True)
     
     print(f"\n📂 Lade Snapping-Datensatz: {SNAPPING_FILE.name}")
     snapping_gdf = gpd.read_file(SNAPPING_FILE)
