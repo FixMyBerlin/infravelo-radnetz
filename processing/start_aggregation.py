@@ -14,7 +14,8 @@ Signifikante Änderungen:
 - Jede Änderung der Benutzungspflicht und Nutzungsbeschränkung aufgrund baulicher Mängel
 - Änderung der Ausprägung von Attributen auf mindestens 50m Länge: 
   Art der RVA, Breite (>30cm), Oberflächenmaterial, Protektion, Sicherheitstrennstreifen
-  Diese Erkennung schreibt nur Log-Meldungen. Die 50-m-Regel gilt für die Erfassung;
+  Diese Erkennung schreibt nur Log-Meldungen, in eine eigene Datei neben der Ausgabe
+  (<Ausgabe>_signifikante_aenderungen.log). Die 50-m-Regel gilt für die Erfassung;
   die Aggregation nimmt alle Segmente der Kante, ohne Mindestlänge (siehe REQUIREMENTS.md).
 
 Aggregationsregeln:
@@ -31,6 +32,7 @@ OUTPUT:
 - output/aggregated_rvn_final.gpkg (finale aggregierte Netzwerkdaten als GeoPackage)
   - Layer "hinrichtung": Kanten mit ri=0 
   - Layer "gegenrichtung": Kanten mit ri=1
+- output/aggregated_rvn_final_signifikante_aenderungen.log (eine Zeile je Kante mit signifikanten Änderungen)
 """
 import argparse, sys
 from pathlib import Path
@@ -103,6 +105,15 @@ SMOOTHNESS_ORDER = [
     "excellent", "good", "intermediate", "bad", "very_bad"
 ]
 
+# Hilfsspalten, die vor der Aggregation einmal berechnet und danach gelöscht werden (siehe add_helper_columns)
+LENGTH_COLUMN = "_laenge_segment"
+CROSSING_COLUMN = "_ist_kreuzungsweg"
+HELPER_COLUMNS = [LENGTH_COLUMN, CROSSING_COLUMN]
+
+# Logger für signifikante Änderungen: schreibt in eine eigene Datei neben der Ausgabe, nicht ins Terminal
+CHANGES_LOGGER = logging.getLogger("signifikante_aenderungen")
+CHANGES_LOG_SUFFIX = "_signifikante_aenderungen.log"
+
 # Spalten, die nach der Aggregation gelöscht werden sollen
 COLUMNS_TO_DROP = [
     "okstra_id", "existenz", "ist_radvorrangnetz", "elem_nr", "gisid", "gueltig_von", 
@@ -159,6 +170,38 @@ def calculate_segment_length(geometry):
     return geometry.length
 
 
+def add_helper_columns(gdf):
+    """
+    Berechnet Länge und Kreuzungsweg-Kennung je Segment einmal für das ganze Netz (Spalten LENGTH_COLUMN und
+    CROSSING_COLUMN), statt sie je Kante und Attribut neu zu berechnen. Die Spalten werden nach der Aggregation
+    wieder entfernt (HELPER_COLUMNS).
+    """
+    gdf = gdf.copy()
+    gdf[LENGTH_COLUMN] = gdf.geometry.length
+    if 'fuehr' in gdf.columns:
+        gdf[CROSSING_COLUMN] = gdf['fuehr'].map(is_kreuzungsweg).astype(bool)
+    return gdf
+
+
+def segment_lengths(segments_group):
+    """Längen der Segmente (aus LENGTH_COLUMN, falls vorhanden) als numpy-Array in Zeilenreihenfolge."""
+    if LENGTH_COLUMN in segments_group.columns:
+        return segments_group[LENGTH_COLUMN].to_numpy()
+    return segments_group.geometry.length.to_numpy()
+
+
+def crossing_mask(segments_group):
+    """Boolesche Series: Segment ist ein Kreuzungsweg (aus CROSSING_COLUMN, falls vorhanden)."""
+    if CROSSING_COLUMN in segments_group.columns:
+        return segments_group[CROSSING_COLUMN].astype(bool)
+    return segments_group['fuehr'].apply(is_kreuzungsweg).astype(bool)
+
+
+def format_values(values):
+    """Werte für Log-Meldungen als einzeilige, kommagetrennte Liste."""
+    return ", ".join(str(v) for v in values)
+
+
 def find_worst_nutz_beschr(values):
     """
     Findet die schlechteste Nutzungsbeschränkung basierend auf der Hierarchie.
@@ -205,21 +248,21 @@ def detect_significant_changes(segments_group):
     # Prüfe Änderungen bei Benutzungspflicht
     pflicht_values = segments_group['pflicht'].dropna().unique()
     if len(pflicht_values) > 1:
-        changes.append(f"Benutzungspflicht-Änderung: {pflicht_values}")
-    
+        changes.append(f"Benutzungspflicht-Änderung: {format_values(pflicht_values)}")
+
     # Prüfe Änderungen bei Nutzungsbeschränkung
     nutz_values = segments_group['nutz_beschr'].dropna().unique()
     if len(nutz_values) > 1:
-        changes.append(f"Nutzungsbeschränkung-Änderung: {nutz_values}")
-    
+        changes.append(f"Nutzungsbeschränkung-Änderung: {format_values(nutz_values)}")
+
     # Prüfe Änderungen bei anderen Attributen auf 50m+ Abschnitten
-    long_segments = segments_group[segments_group.geometry.length >= MIN_SIGNIFICANT_LENGTH]
-    
+    long_segments = segments_group[segment_lengths(segments_group) >= MIN_SIGNIFICANT_LENGTH]
+
     if len(long_segments) > 0:
         # Art der Radverkehrsführung
         fuehr_values = long_segments['fuehr'].dropna().unique()
         if len(fuehr_values) > 1:
-            changes.append(f"RVA-Änderung auf {len(long_segments)} langen Segmenten: {fuehr_values}")
+            changes.append(f"RVA-Änderung auf {len(long_segments)} langen Segmenten: {format_values(fuehr_values)}")
         
         # Breite (Änderung >30cm)
         breite_values = long_segments['breite'].dropna()
@@ -234,17 +277,17 @@ def detect_significant_changes(segments_group):
         # Oberflächenmaterial
         ofm_values = long_segments['ofm'].dropna().unique()
         if len(ofm_values) > 1:
-            changes.append(f"Oberflächenmaterial-Änderung: {ofm_values}")
-        
+            changes.append(f"Oberflächenmaterial-Änderung: {format_values(ofm_values)}")
+
         # Protektion
         protek_values = long_segments['protek'].dropna().unique()
         if len(protek_values) > 1:
-            changes.append(f"Protektion-Änderung: {protek_values}")
-        
+            changes.append(f"Protektion-Änderung: {format_values(protek_values)}")
+
         # Sicherheitstrennstreifen
         trenn_values = long_segments['trennstreifen'].dropna().unique()
         if len(trenn_values) > 1:
-            changes.append(f"Trennstreifen-Änderung: {trenn_values}")
+            changes.append(f"Trennstreifen-Änderung: {format_values(trenn_values)}")
     
     return changes
 
@@ -271,12 +314,9 @@ def aggregate_by_longest_section(segments_group, attribute):
     if attribute not in segments_group.columns:
         return None
     
-    # Gruppiere Segmente nach Attributwert und summiere Längen
+    # Gruppiere Segmente nach Attributwert und summiere Längen (in Zeilenreihenfolge, wie bisher)
     value_lengths = {}
-    for _, segment in segments_group.iterrows():
-        value = segment[attribute]
-        length = calculate_segment_length(segment.geometry)
-        
+    for value, length in zip(segments_group[attribute].to_numpy(), segment_lengths(segments_group)):
         if pd.notna(value):
             if value not in value_lengths:
                 value_lengths[value] = 0
@@ -305,12 +345,9 @@ def aggregate_fuehr_by_longest_section(segments_group):
     if 'fuehr' not in segments_group.columns:
         return None
     
-    # Gruppiere Segmente nach Führungsform und summiere Längen
+    # Gruppiere Segmente nach Führungsform und summiere Längen (in Zeilenreihenfolge, wie bisher)
     value_lengths = {}
-    for _, segment in segments_group.iterrows():
-        value = segment['fuehr']
-        length = calculate_segment_length(segment.geometry)
-        
+    for value, length in zip(segments_group['fuehr'].to_numpy(), segment_lengths(segments_group)):
         if pd.notna(value):
             if value not in value_lengths:
                 value_lengths[value] = 0
@@ -396,7 +433,7 @@ def aggregate_breite_excluding_kreuzungsweg(segments_group):
         return float(min(numeric_values)) if len(numeric_values) > 0 else None, False
     
     # Filtere Segmente die KEINE Kreuzungswege sind (inkl. konvertierte Varianten)
-    non_kreuzungsweg_mask = ~segments_group['fuehr'].apply(is_kreuzungsweg)
+    non_kreuzungsweg_mask = ~crossing_mask(segments_group)
     non_kreuzungsweg_segments = segments_group[non_kreuzungsweg_mask]
     
     # Prüfe ob nur Kreuzungswege vorhanden sind
@@ -476,22 +513,18 @@ def aggregate_tilda_attributes(segments_group, attribute):
     if attribute not in segments_group.columns:
         return None
     
-    # Extrahiere alle nicht-leeren Werte
-    values = segments_group[attribute].dropna().astype(str)
-    
-    # Entferne leere Strings und 'nan' Werte
-    values = values[values != '']
-    values = values[values.str.lower() != 'nan']
-    values = values[values.str.lower() != 'none']
-    
-    if len(values) == 0:
-        return None
-    
-    # Ermittle einzigartige Werte und sortiere sie
-    unique_values = sorted(values.unique())
-    
-    # Kombiniere mit Semikolon
-    return ';'.join(unique_values) if len(unique_values) > 0 else None
+    # Einzigartige nicht-leere Werte als Text; leere Strings sowie 'nan'/'none' (in jeder Schreibweise) zählen nicht.
+    # Einfaches Python statt pandas-Operationen je Spalte: die Gruppen sind klein, pandas kostet hier nur Overhead.
+    unique_values = set()
+    for value in segments_group[attribute].to_numpy():
+        if pd.isna(value):
+            continue
+        text = str(value)
+        if text != '' and text.lower() not in ('nan', 'none'):
+            unique_values.add(text)
+
+    # Sortiert mit Semikolon kombinieren
+    return ';'.join(sorted(unique_values)) if unique_values else None
 
 
 def longest_smoothness(segments_group):
@@ -504,9 +537,9 @@ def longest_smoothness(segments_group):
         return None
     rank = {value: index for index, value in enumerate(SMOOTHNESS_ORDER)}
     lengths = {}
-    for value, geometry in zip(segments_group['tilda_smoothness'], segments_group.geometry):
+    for value, length in zip(segments_group['tilda_smoothness'], segment_lengths(segments_group)):
         if value in rank:
-            lengths[value] = lengths.get(value, 0) + calculate_segment_length(geometry)
+            lengths[value] = lengths.get(value, 0) + length
     if not lengths:
         return None
     return max(lengths, key=lambda value: (lengths[value], rank[value]))
@@ -548,9 +581,10 @@ def add_shares(aggregated, edge_group):
     Der Wert der Kante steht vorne, danach die übrigen Ausprägungen nach Anteil, z. B. für `breite`:
     „8 % 0,90 m (Radweg); 86 % 1,50 m (Radweg); 6 % 2,00 m (nicht gewertet, da Kreuzungsbereich)“.
     """
-    lengths = {idx: calculate_segment_length(g) for idx, g in zip(edge_group.index, edge_group.geometry)}
+    lengths = dict(zip(edge_group.index, segment_lengths(edge_group)))
     total = sum(lengths.values())
     has_fuehr = "fuehr" in edge_group.columns
+    segment_is_crossing = crossing_mask(edge_group) if has_fuehr else pd.Series(False, index=edge_group.index)
     for attr in SHARE_ATTRIBUTES:
         if attr not in edge_group.columns:
             continue
@@ -560,17 +594,19 @@ def add_shares(aggregated, edge_group):
         chosen = aggregated.get(attr)
         # Wie aggregate_breite_excluding_kreuzungsweg: Breiten von Kreuzungswegen zählen nicht, außer es gibt nur
         # Kreuzungswege (dann bleibt die Breite leer, bei einem einzelnen konvertierten Segment bleibt sie stehen)
-        crossing = (edge_group["fuehr"].apply(is_kreuzungsweg) if has_fuehr and attr in WITHOUT_CROSSINGS_ATTRIBUTES
+        crossing = (segment_is_crossing.copy() if attr in WITHOUT_CROSSINGS_ATTRIBUTES
                     else pd.Series(False, index=edge_group.index))
         if crossing.all():
             crossing[:] = False
         entries = {}
-        for idx, value, fuehr in zip(edge_group.index, edge_group[attr],
-                                     edge_group["fuehr"] if has_fuehr else [None] * len(edge_group)):
+        for idx, value, fuehr, fuehr_is_crossing in zip(
+            edge_group.index, edge_group[attr],
+            edge_group["fuehr"] if has_fuehr else [None] * len(edge_group), segment_is_crossing,
+        ):
             excluded = bool(pd.notna(value) and crossing[idx])
             entry = entries.setdefault((_share_label(attr, value), excluded), {"length": 0.0, "fuehr": []})
             entry["length"] += lengths[idx]
-            fuehr_label = CROSSING_LABEL if is_kreuzungsweg(fuehr) else fuehr
+            fuehr_label = CROSSING_LABEL if fuehr_is_crossing else fuehr
             if attr != "fuehr" and pd.notna(fuehr) and fuehr_label not in entry["fuehr"]:
                 entry["fuehr"] = sorted(entry["fuehr"] + [fuehr_label])
         parts = []
@@ -620,11 +656,13 @@ def aggregate_edge_group(edge_group):
         aggregated['geometry'] = merged_geom
         
         # Signifikante Änderungen erkennen
-        changes = detect_significant_changes(edge_group)
-        if changes:
-            element_nr = aggregated.get('element_nr', 'unknown')
-            ri = aggregated.get('ri', 'unknown')
-            logging.info(f"Signifikante Änderungen in Kante {element_nr} (Richtung: {ri}): {'; '.join(changes)}")
+        # Nur ins Log der signifikanten Änderungen (Datei), nicht ins Terminal
+        if CHANGES_LOGGER.isEnabledFor(logging.INFO):
+            changes = detect_significant_changes(edge_group)
+            if changes:
+                element_nr = aggregated.get('element_nr', 'unknown')
+                ri = aggregated.get('ri', 'unknown')
+                CHANGES_LOGGER.info(f"Kante {element_nr} (Richtung: {ri}): {'; '.join(changes)}")
         
         # Spezielle Behandlung für 'fuehr' (Führungsform) mit Kreuzungsweg-Ausschluss
         if 'fuehr' in edge_group.columns:
@@ -663,7 +701,7 @@ def aggregate_edge_group(edge_group):
     # Ein Wert je Kante und Richtung (auch bei Einzelsegmenten), ohne Kreuzungswege wie bei `fuehr`
     without_crossings = edge_group
     if 'fuehr' in edge_group.columns:
-        non_crossings = edge_group[~edge_group['fuehr'].apply(is_kreuzungsweg)]
+        non_crossings = edge_group[~crossing_mask(edge_group)]
         if len(non_crossings) > 0:
             without_crossings = non_crossings
     if 'tilda_maxspeed' in edge_group.columns:
@@ -717,24 +755,28 @@ def aggregate_network(gdf):
     total_groups = len(grouped)
     
     logging.info(f"Aggregiere {len(gdf)} Segmente in {total_groups} Richtungs-Kanten...")
-    
+
+    # Fortschrittsanzeige etwa alle 1 % statt nach jeder Kante (Ausgabe ins Terminal kostet Zeit)
+    progress_step = max(1, total_groups // 100)
+    debug_enabled = logging.getLogger().isEnabledFor(logging.DEBUG)
+
     for idx, (group_key, edge_group) in enumerate(grouped, 1):
         # Aggregiere die Segmente der aktuellen Kante mit gleicher Richtung
         aggregated_edge = aggregate_edge_group(edge_group)
         aggregated_edges.append(aggregated_edge)
-        
+
         # Erweiterte Logging-Info bei Richtungsgruppierung
-        if 'ri' in gdf.columns:
+        if debug_enabled and 'ri' in gdf.columns:
             element_nr, ri = group_key
             logging.debug(f"Aggregiere element_nr={element_nr}, ri={ri}: {len(edge_group)} Segmente")
-        
-        # Fortschrittsanzeige
-        print_progressbar(idx, total_groups, prefix="Aggregiere: ")
+
+        if idx % progress_step == 0 or idx == total_groups:
+            print_progressbar(idx, total_groups, prefix="Aggregiere: ")
     
     # Erstelle neues GeoDataFrame aus aggregierten Kanten
     result_gdf = gpd.GeoDataFrame(aggregated_edges, geometry="geometry", crs=gdf.crs)
     
-    # Entferne unerwünschte Spalten
+    # Entferne unerwünschte Spalten (Hilfsspalten werden in process entfernt)
     columns_to_drop = [col for col in COLUMNS_TO_DROP if col in result_gdf.columns]
     if columns_to_drop:
         result_gdf = result_gdf.drop(columns=columns_to_drop)
@@ -901,6 +943,45 @@ def reorder_aggregated_columns(gdf):
 
 
 # ------------------------------------------------------------- Hauptablauf --
+def regional_output_file(p, clip_region):
+    """Hängt bei regionalem Zuschnitt die Region an den Dateinamen an (vor der Endung)."""
+    if not clip_region:
+        return p
+    p_parts = p.split('.')
+    if len(p_parts) > 1:
+        return f"{'.'.join(p_parts[:-1])}_{clip_region}.{p_parts[-1]}"
+    return f"{p}_{clip_region}"
+
+
+class _CountingFilter(logging.Filter):
+    """Zählt die Meldungen, die durch einen Handler gehen."""
+    def __init__(self):
+        super().__init__()
+        self.count = 0
+
+    def filter(self, record):
+        self.count += 1
+        return True
+
+
+def open_changes_log(output_file):
+    """
+    Leitet CHANGES_LOGGER in eine Datei neben der Ausgabe um (<Ausgabe ohne Endung>_signifikante_aenderungen.log,
+    wird überschrieben). Gibt Pfad, Handler und Zähler zurück.
+    """
+    base, ext = os.path.splitext(output_file)
+    log_path = f"{base}{CHANGES_LOG_SUFFIX}"
+    os.makedirs(os.path.dirname(log_path) or ".", exist_ok=True)
+    handler = logging.FileHandler(log_path, mode="w", encoding="utf-8")
+    handler.setFormatter(logging.Formatter("%(message)s"))
+    counter = _CountingFilter()
+    handler.addFilter(counter)
+    CHANGES_LOGGER.setLevel(logging.INFO)
+    CHANGES_LOGGER.propagate = False
+    CHANGES_LOGGER.addHandler(handler)
+    return log_path, handler, counter
+
+
 def process(input_path, output_path, crs, clip_region=None, data_dir="./data", assign_districts=True):
     """
     Hauptfunktion: Lädt angereicherte Netzwerkdaten und führt finale Aggregation durch.
@@ -956,9 +1037,19 @@ def process(input_path, output_path, crs, clip_region=None, data_dir="./data", a
     else:
         logging.info(f"Richtungsattribut 'ri' gefunden. Verfügbare Richtungen: {sorted(gdf['ri'].dropna().unique())}")
 
+    output_file = regional_output_file(output_path.split(":")[0], clip_region)
+    changes_log_path, changes_handler, changes_counter = open_changes_log(output_file)
+
     # ---------- Aggregation durchführen ------------------------------------
     logging.info("Starte finale Aggregation...")
-    result_gdf = aggregate_network(gdf)
+    gdf = add_helper_columns(gdf)
+    try:
+        result_gdf = aggregate_network(gdf)
+    finally:
+        CHANGES_LOGGER.removeHandler(changes_handler)
+        changes_handler.close()
+    result_gdf = result_gdf.drop(columns=[c for c in HELPER_COLUMNS if c in result_gdf.columns])
+    logging.info(f"Signifikante Änderungen in {changes_counter.count} Kanten → {changes_log_path}")
 
     # ---------- Bezirkszuweisung durchführen -------------------------------
     if assign_districts:
@@ -1010,15 +1101,8 @@ def process(input_path, output_path, crs, clip_region=None, data_dir="./data", a
     Path(p).unlink(missing_ok=True)
     
     # Füge Suffix für regionale Dateien hinzu
-    if clip_region:
-        p_parts = p.split('.')
-        if len(p_parts) > 1:
-            p_base = '.'.join(p_parts[:-1])
-            p_ext = p_parts[-1]
-            p = f"{p_base}_{clip_region}.{p_ext}"
-        else:
-            p = f"{p}_{clip_region}"
-    
+    p = regional_output_file(p, clip_region)
+
     # Nach Richtung filtern und in separate Layer schreiben, falls ri-Attribut vorhanden
     if 'ri' in result_gdf.columns:
         # Konvertiere zu GeoPackage für Multi-Layer-Support
