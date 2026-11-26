@@ -1,0 +1,2857 @@
+{
+ "type": "FeatureCollection",
+ "maid_tasks": {
+  "version": 1,
+  "list_id": "berlin-pbl-segregated-2026-11",
+  "title": "Berlin: segregated an Protected Bike Lanes entfernen",
+  "description": "Radwege mit **Z. 237** und physischer Trennung zur Fahrbahn (Protected Bike Lanes), die `segregated` tragen. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg; TILDA erkennt diese Radwege deshalb nicht als Protected Bike Lane. Bitte `segregated` entfernen (Auszug 2026-11-24, Liste 2026-11-26)."
+ },
+ "features": [
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3845615,
+      52.4528647
+     ],
+     [
+      13.384521,
+      52.4531086
+     ],
+     [
+      13.3844591,
+      52.4534247
+     ],
+     [
+      13.3844548,
+      52.4534468
+     ],
+     [
+      13.3844487,
+      52.4534789
+     ],
+     [
+      13.3844378,
+      52.4535359
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-5363714",
+    "title": "Mariendorfer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/5363714"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/5363714"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3842586,
+      52.453494
+     ],
+     [
+      13.3842637,
+      52.4534647
+     ],
+     [
+      13.3842738,
+      52.4534121
+     ],
+     [
+      13.3842819,
+      52.4533712
+     ],
+     [
+      13.3842972,
+      52.4532902
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-5363716",
+    "title": "Mariendorfer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/5363716"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/5363716"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3841819,
+      52.4539101
+     ],
+     [
+      13.3842586,
+      52.453494
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-5363717",
+    "title": "Stubenrauchbrücke: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/5363717"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/5363717"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3860458,
+      52.4438783
+     ],
+     [
+      13.3860831,
+      52.443689
+     ],
+     [
+      13.386133,
+      52.4434359
+     ],
+     [
+      13.3861386,
+      52.4434075
+     ],
+     [
+      13.3861455,
+      52.4433729
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-28680187",
+    "title": "Mariendorfer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/28680187"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/28680187"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3862184,
+      52.4436404
+     ],
+     [
+      13.3862083,
+      52.4436963
+     ],
+     [
+      13.3861594,
+      52.4439597
+     ],
+     [
+      13.3861511,
+      52.4440097
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-28680189",
+    "title": "Mariendorfer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/28680189"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/28680189"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3857266,
+      52.4463196
+     ],
+     [
+      13.3856762,
+      52.4465764
+     ],
+     [
+      13.3856509,
+      52.4467054
+     ],
+     [
+      13.3856416,
+      52.4467525
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-28680190",
+    "title": "Mariendorfer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/28680190"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/28680190"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3854251,
+      52.4470688
+     ],
+     [
+      13.3854764,
+      52.4468054
+     ],
+     [
+      13.3854981,
+      52.4466942
+     ],
+     [
+      13.3855067,
+      52.4466499
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-30699233",
+    "title": "Mariendorfer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/30699233"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/30699233"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3852544,
+      52.448777
+     ],
+     [
+      13.3851911,
+      52.4491242
+     ],
+     [
+      13.3851633,
+      52.4492766
+     ],
+     [
+      13.3851475,
+      52.449363
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-30699234",
+    "title": "Mariendorfer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/30699234"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/30699234"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3872146,
+      52.4406864
+     ],
+     [
+      13.3871109,
+      52.4409749
+     ],
+     [
+      13.3867315,
+      52.442031
+     ],
+     [
+      13.386682,
+      52.4421687
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-30958674",
+    "title": "Mariendorfer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/30958674"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/30958674"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3839513,
+      52.4553472
+     ],
+     [
+      13.3840518,
+      52.4546516
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-31773580",
+    "title": "Tempelhofer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/31773580"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/31773580"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3842972,
+      52.4532902
+     ],
+     [
+      13.384376,
+      52.4528721
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-111048866",
+    "title": "Mariendorfer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/111048866"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/111048866"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3839579,
+      52.4573377
+     ],
+     [
+      13.3839098,
+      52.4571314
+     ],
+     [
+      13.3838961,
+      52.4570646
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-195259831",
+    "title": "Tempelhofer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/195259831"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/195259831"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3839524,
+      52.4566493
+     ],
+     [
+      13.3839619,
+      52.4567445
+     ],
+     [
+      13.3839868,
+      52.4569179
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-327627452",
+    "title": "Tempelhofer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/327627452"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/327627452"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3779204,
+      52.5346824
+     ],
+     [
+      13.3782042,
+      52.5344594
+     ],
+     [
+      13.3784158,
+      52.5342889
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-595155216",
+    "title": "Chausseestraße: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/595155216"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/595155216"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3863671,
+      52.4430429
+     ],
+     [
+      13.38634,
+      52.4431287
+     ],
+     [
+      13.3863275,
+      52.4431684
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-737375233",
+    "title": "Mariendorfer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/737375233"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/737375233"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.386682,
+      52.4421687
+     ],
+     [
+      13.3863671,
+      52.4430429
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-737671739",
+    "title": "Mariendorfer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/737671739"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/737671739"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3841536,
+      52.4540545
+     ],
+     [
+      13.3841819,
+      52.4539101
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-785566178",
+    "title": "Tempelhofer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/785566178"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/785566178"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3842124,
+      52.4584295
+     ],
+     [
+      13.3841912,
+      52.4583398
+     ],
+     [
+      13.38418,
+      52.4583035
+     ],
+     [
+      13.3841555,
+      52.458191
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1067561743",
+    "title": "Tempelhofer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1067561743"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1067561743"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.384174,
+      52.4577598
+     ],
+     [
+      13.3842376,
+      52.4580286
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1067561756",
+    "title": "Tempelhofer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1067561756"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1067561756"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3840206,
+      52.4571096
+     ],
+     [
+      13.384023,
+      52.4571211
+     ],
+     [
+      13.3840874,
+      52.4574039
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1067561757",
+    "title": "Tempelhofer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1067561757"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1067561757"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3784158,
+      52.5342889
+     ],
+     [
+      13.3785829,
+      52.5341508
+     ],
+     [
+      13.3786483,
+      52.5340983
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1105809985",
+    "title": "Chausseestraße: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1105809985"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1105809985"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3840518,
+      52.4546516
+     ],
+     [
+      13.3841536,
+      52.4540545
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1107584535",
+    "title": "Tempelhofer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1107584535"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1107584535"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3839068,
+      52.4556296
+     ],
+     [
+      13.3839513,
+      52.4553472
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1107584536",
+    "title": "Tempelhofer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1107584536"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1107584536"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3838443,
+      52.4566217
+     ],
+     [
+      13.3838382,
+      52.4564261
+     ],
+     [
+      13.3838388,
+      52.4564038
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1107584537",
+    "title": "Tempelhofer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1107584537"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1107584537"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3841555,
+      52.458191
+     ],
+     [
+      13.3841304,
+      52.4580768
+     ],
+     [
+      13.3840787,
+      52.4578555
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1107584538",
+    "title": "Tempelhofer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1107584538"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1107584538"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.4664026,
+      52.5146943
+     ],
+     [
+      13.4663377,
+      52.5146811
+     ],
+     [
+      13.4662979,
+      52.514673
+     ],
+     [
+      13.4662643,
+      52.5146662
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1132724525",
+    "title": "Frankfurter Allee: segregated entfernen",
+    "description": "Dieser separat gezeichnete Radweg ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `segregated=yes` entfernen.",
+    "osm": [
+     "way/1132724525"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1132724525"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "segregated"
+      ]
+     }
+    ],
+    "group": "separate_cycleway"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.384125,
+      52.4552344
+     ],
+     [
+      13.384056,
+      52.4555977
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1144620107",
+    "title": "Tempelhofer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1144620107"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1144620107"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3873403,
+      52.4403366
+     ],
+     [
+      13.3872146,
+      52.4406864
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1144621266",
+    "title": "Mariendorfer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1144621266"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1144621266"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.299673,
+      52.521396
+     ],
+     [
+      13.2996489,
+      52.5213542
+     ],
+     [
+      13.2996308,
+      52.5213229
+     ],
+     [
+      13.2993561,
+      52.5208674
+     ],
+     [
+      13.2993098,
+      52.5207644
+     ],
+     [
+      13.2992648,
+      52.5205615
+     ],
+     [
+      13.2992563,
+      52.5204482
+     ],
+     [
+      13.2992514,
+      52.5202497
+     ],
+     [
+      13.2993305,
+      52.5198246
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1165436289",
+    "title": "Luisenplatz: segregated entfernen",
+    "description": "Dieser separat gezeichnete Radweg ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `segregated=yes` entfernen.",
+    "osm": [
+     "way/1165436289"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1165436289"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "segregated"
+      ]
+     }
+    ],
+    "group": "separate_cycleway"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.2999798,
+      52.5213948
+     ],
+     [
+      13.3000748,
+      52.5215511
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1184736866",
+    "title": "Schlossbrücke: segregated entfernen",
+    "description": "Dieser separat gezeichnete Radweg ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `segregated=yes` entfernen.",
+    "osm": [
+     "way/1184736866"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1184736866"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "segregated"
+      ]
+     }
+    ],
+    "group": "separate_cycleway"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3848896,
+      52.4510251
+     ],
+     [
+      13.3847765,
+      52.4517236
+     ],
+     [
+      13.38473,
+      52.4519711
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1214584012",
+    "title": "Mariendorfer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1214584012"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1214584012"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3853398,
+      52.4475066
+     ],
+     [
+      13.3854251,
+      52.4470688
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1430469435",
+    "title": "Mariendorfer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1430469435"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1430469435"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3852731,
+      52.4478984
+     ],
+     [
+      13.3853398,
+      52.4475066
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1430469436",
+    "title": "Mariendorfer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1430469436"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1430469436"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3855067,
+      52.4466499
+     ],
+     [
+      13.3855811,
+      52.4462774
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1430469437",
+    "title": "Mariendorfer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1430469437"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1430469437"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3859702,
+      52.4450313
+     ],
+     [
+      13.385902,
+      52.4454151
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1430469439",
+    "title": "Mariendorfer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1430469439"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1430469439"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3861511,
+      52.4440097
+     ],
+     [
+      13.3861442,
+      52.4440514
+     ],
+     [
+      13.3861227,
+      52.4441726
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1430469440",
+    "title": "Mariendorfer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1430469440"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1430469440"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3861227,
+      52.4441726
+     ],
+     [
+      13.3859702,
+      52.4450313
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1430469441",
+    "title": "Mariendorfer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1430469441"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1430469441"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.386265,
+      52.4433823
+     ],
+     [
+      13.3862499,
+      52.4434666
+     ],
+     [
+      13.3862184,
+      52.4436404
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1430469442",
+    "title": "Mariendorfer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1430469442"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1430469442"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3865824,
+      52.4420249
+     ],
+     [
+      13.3868112,
+      52.4413609
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1430469443",
+    "title": "Mariendorfer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1430469443"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1430469443"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3863129,
+      52.4428141
+     ],
+     [
+      13.3863986,
+      52.4425613
+     ],
+     [
+      13.3865044,
+      52.4422495
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1430469446",
+    "title": "Mariendorfer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1430469446"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1430469446"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3861979,
+      52.443153
+     ],
+     [
+      13.3863129,
+      52.4428141
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1430469447",
+    "title": "Mariendorfer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1430469447"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1430469447"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3858011,
+      52.4451185
+     ],
+     [
+      13.3858347,
+      52.4449485
+     ],
+     [
+      13.3859014,
+      52.44461
+     ],
+     [
+      13.3859454,
+      52.4443871
+     ],
+     [
+      13.3860033,
+      52.4440933
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1430469449",
+    "title": "Mariendorfer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1430469449"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1430469449"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3857425,
+      52.4454157
+     ],
+     [
+      13.3858011,
+      52.4451185
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1430469450",
+    "title": "Mariendorfer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1430469450"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1430469450"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3856416,
+      52.4467525
+     ],
+     [
+      13.3856305,
+      52.4468091
+     ],
+     [
+      13.3856036,
+      52.4469465
+     ],
+     [
+      13.3855793,
+      52.4470699
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1430474632",
+    "title": "Mariendorfer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1430474632"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1430474632"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3857682,
+      52.4461076
+     ],
+     [
+      13.3857266,
+      52.4463196
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1430474633",
+    "title": "Mariendorfer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1430474633"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1430474633"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3855793,
+      52.4470699
+     ],
+     [
+      13.3855602,
+      52.4471676
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1430474636",
+    "title": "Mariendorfer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1430474636"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1430474636"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3847603,
+      52.4506896
+     ],
+     [
+      13.384834,
+      52.4502835
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1430477976",
+    "title": "Mariendorfer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1430477976"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1430477976"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3844909,
+      52.4521297
+     ],
+     [
+      13.3846521,
+      52.4512735
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1430477977",
+    "title": "Mariendorfer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1430477977"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1430477977"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3846521,
+      52.4512735
+     ],
+     [
+      13.3847144,
+      52.4509422
+     ],
+     [
+      13.3847603,
+      52.4506896
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1430477979",
+    "title": "Mariendorfer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1430477979"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1430477979"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3849186,
+      52.4508691
+     ],
+     [
+      13.3848896,
+      52.4510251
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1430477980",
+    "title": "Mariendorfer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1430477980"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1430477980"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3849965,
+      52.4502951
+     ],
+     [
+      13.3849874,
+      52.4504004
+     ],
+     [
+      13.384936,
+      52.4507646
+     ],
+     [
+      13.3849186,
+      52.4508691
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1430477981",
+    "title": "Mariendorfer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1430477981"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1430477981"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3851475,
+      52.449363
+     ],
+     [
+      13.3851063,
+      52.4495889
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1430477982",
+    "title": "Mariendorfer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1430477982"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1430477982"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3851063,
+      52.4495889
+     ],
+     [
+      13.3850726,
+      52.4497735
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1430477983",
+    "title": "Mariendorfer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1430477983"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1430477983"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3850726,
+      52.4497735
+     ],
+     [
+      13.3850511,
+      52.4498913
+     ],
+     [
+      13.3850294,
+      52.4500514
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1430477984",
+    "title": "Mariendorfer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1430477984"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1430477984"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3850294,
+      52.4500514
+     ],
+     [
+      13.3850107,
+      52.4501902
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1430477985",
+    "title": "Mariendorfer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1430477985"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1430477985"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3848757,
+      52.4500613
+     ],
+     [
+      13.3849317,
+      52.4497794
+     ],
+     [
+      13.3850098,
+      52.4493862
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1430477987",
+    "title": "Mariendorfer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1430477987"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1430477987"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3853357,
+      52.4483313
+     ],
+     [
+      13.3852932,
+      52.4485644
+     ],
+     [
+      13.3852544,
+      52.448777
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1430477989",
+    "title": "Mariendorfer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1430477989"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1430477989"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3850732,
+      52.4490385
+     ],
+     [
+      13.3851271,
+      52.4487296
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1430477993",
+    "title": "Mariendorfer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1430477993"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1430477993"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3840874,
+      52.4574039
+     ],
+     [
+      13.384174,
+      52.4577598
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1430818335",
+    "title": "Tempelhofer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1430818335"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1430818335"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3840787,
+      52.4578555
+     ],
+     [
+      13.3840542,
+      52.4577508
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1430818336",
+    "title": "Tempelhofer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1430818336"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1430818336"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3840542,
+      52.4577508
+     ],
+     [
+      13.3839579,
+      52.4573377
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1430818337",
+    "title": "Tempelhofer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1430818337"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1430818337"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3838698,
+      52.4569041
+     ],
+     [
+      13.3838483,
+      52.45675
+     ],
+     [
+      13.3838443,
+      52.4566217
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1430818338",
+    "title": "Tempelhofer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1430818338"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1430818338"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.38431,
+      52.458853
+     ],
+     [
+      13.3842124,
+      52.4584295
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1448264920",
+    "title": "Tempelhofer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1448264920"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1448264920"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3850454,
+      52.4491978
+     ],
+     [
+      13.3850732,
+      52.4490385
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1448264927",
+    "title": "Mariendorfer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1448264927"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1448264927"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3853612,
+      52.4481919
+     ],
+     [
+      13.3853357,
+      52.4483313
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1448264933",
+    "title": "Mariendorfer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1448264933"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1448264933"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3855811,
+      52.4462774
+     ],
+     [
+      13.3856097,
+      52.4461249
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1448264936",
+    "title": "Mariendorfer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1448264936"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1448264936"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3850107,
+      52.4501902
+     ],
+     [
+      13.3850001,
+      52.4502682
+     ],
+     [
+      13.3849965,
+      52.4502951
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1448264946",
+    "title": "Mariendorfer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1448264946"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1448264946"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3839481,
+      52.4564875
+     ],
+     [
+      13.3839524,
+      52.4566493
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1488568331",
+    "title": "Tempelhofer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1488568331"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1488568331"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3839622,
+      52.4562476
+     ],
+     [
+      13.3839481,
+      52.4564875
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1488568332",
+    "title": "Tempelhofer Damm: segregated entfernen",
+    "description": "Der Radweg rechts auf der Straßenlinie ist mit **Z. 237** beschildert und hat zur Fahrbahn eine physische Trennung (Poller, Leitboys o. ä.): eine Protected Bike Lane. `segregated` beschreibt die Trennung von einem Gehweg auf demselben Weg und gehört hier nicht hin.\n\nBitte `cycleway:right:segregated=yes` entfernen.",
+    "osm": [
+     "way/1488568332"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:segregated",
+     "https://www.openstreetmap.org/way/1488568332"
+    ],
+    "options": [
+     {
+      "id": "remove-segregated",
+      "label": "segregated entfernen",
+      "remove": [
+       "cycleway:right:segregated"
+      ]
+     }
+    ],
+    "group": "track_sidewalk_separate"
+   }
+  }
+ ]
+}
