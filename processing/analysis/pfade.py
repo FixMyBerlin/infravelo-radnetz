@@ -78,6 +78,12 @@ class Pfade:
         """Knotenpunkte, wie sie start_bikelane_conversion.py für die Konvertierung an Kreuzungen liest."""
         return PROCESSING / "data-raw-tilda" / "knotenpunkte_mit_id_und_bezirken.gpkg"
 
+    @property
+    def knotenpunkte_abgabe(self) -> Path:
+        """Knotenpunkte des REN+, Abgabestand (deckt auch das RVN ab); derselbe Pfad wie Datensatz K der Validierung."""
+        from validation.datasets import KNOTENPUNKTE_PATH
+        return KNOTENPUNKTE_PATH
+
     def analyse(self, name: str) -> Path:
         """Ausgabedatei unter output/analysis/, mit Suffix; legt den Ordner an."""
         ANALYSIS_DIR.mkdir(parents=True, exist_ok=True)

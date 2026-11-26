@@ -22,6 +22,7 @@ Alle Skripte außer `analyse_verteilung_ren.py` nehmen `--netz ren|rvn` (Standar
 | `analyze_todo_attributes.py` | Netz mit Attributen | TODO-Werte je Führungsform und Attribut (Terminal) |
 | `analyze_missing_widths.py` | Netz mit Attributen, `matched_tilda_ways` | TILDA-Wege der Radinfrastruktur ohne Breite (`tilda_missing_widths.geojson`) |
 | `analyse_dual_carriageway.py` | TILDA-Straßen, Netz mit Attributen | Einbahnstraßen, denen in OSM vermutlich `dual_carriageway=yes` fehlt (`potential_missing_dual_carriageway.fgb`) |
+| `analyse_kreuzungswege_auf_strecke.py` | Datensatz B, Knotenpunkte (Abgabestand), TILDA-Straßen | Kreuzungswege (auch konvertierte) weiter als `--abstand` (Standard 25 m) vom nächsten Knotenpunkt, z. B. Verschwenkungen; Spalte `quert_nebenstrasse`, wenn eine benannte Straße außerhalb des Netzes gequert wird (`kreuzungswege_auf_strecke.fgb`) |
 | `analyze_schutzstreifen_at_intersections.py` | Netz mit Attributen, Knotenpunkte | Abdeckung von Schutzstreifen an Knotenpunkten je Radius und Überlappung (Terminal) |
 | `debug_segment_conversion.py` | Netz mit Attributen, Knotenpunkte | Schritte der Konvertierung zu „Kreuzungsweg (Konvertiert)“ für ein Segment (`sfid` als Argument) |
 | `analyse_verteilung_ren.py` | REN+, TILDA-Routing | Verteilung der Führungsformen auf dem REN+ (ohne RVN); eigenes `--netz kartierung\|ohne-vorrangnetz`, rechnet das Matching selbst |
@@ -50,6 +51,6 @@ if __name__ == "__main__":
     main()
 ```
 
-[`pfade.py`](pfade.py) kennt die Ausgaben der Pipeline (`snapping_enriched`, `datensatz_b`, `datensatz_c`, `matched_tilda_ways`, `tilda_routing(quelle)`, `knotenpunkte`) und legt `processing/` in den Importpfad, sodass `helpers.…` und `validation.…` importierbar sind. Regeln, die schon die Validierung kennt, von dort importieren statt sie zu kopieren (z. B. `from validation.checks.attribute import MISCHVERKEHR`).
+[`pfade.py`](pfade.py) kennt die Ausgaben der Pipeline (`snapping_enriched`, `datensatz_b`, `datensatz_c`, `matched_tilda_ways`, `tilda_routing(quelle)`, `knotenpunkte`, `knotenpunkte_abgabe`) und legt `processing/` in den Importpfad, sodass `helpers.…` und `validation.…` importierbar sind. Regeln, die schon die Validierung kennt, von dort importieren statt sie zu kopieren (z. B. `from validation.checks.attribute import MISCHVERKEHR`).
 
 Soll aus einer Analyse eine dauerhafte Regel werden, gehört sie als Prüfung in die Validierung.
