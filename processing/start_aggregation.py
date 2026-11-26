@@ -623,14 +623,23 @@ def add_shares(aggregated, edge_group):
     return aggregated
 
 
+def first_row(edge_group):
+    """
+    Erste Zeile einer Kante als dict (Spalte → Wert, Werte unverändert wie in edge_group.iloc[0]).
+    Ein dict statt einer Series, weil die Aggregation viele neue Felder ergänzt und jedes neue Feld eine Series
+    kopiert.
+    """
+    return dict(edge_group.iloc[0].items())
+
+
 def aggregate_edge_group(edge_group):
     """
     Aggregiert alle Segmente einer Kante (gleiche element_nr und ri) zu einer finalen Kante.
-    Wendet die definierten Aggregationsregeln an.
+    Wendet die definierten Aggregationsregeln an. Gibt die Kante als dict zurück (Spalte → Wert).
     """
     if len(edge_group) == 1:
         # Nur ein Segment - keine Aggregation nötig
-        aggregated = edge_group.iloc[0].copy()
+        aggregated = first_row(edge_group)
         
         # Prüfe ob Einzelsegment ein Kreuzungsweg ist → Breite entfernen und Kommentar ergänzen
         if 'fuehr' in aggregated and aggregated.get('fuehr') == "Kreuzungsweg":
@@ -643,7 +652,7 @@ def aggregate_edge_group(edge_group):
             logging.debug(f"Einzelsegment Kreuzungsweg: Breite entfernt, Kommentar ergänzt")
     else:
         # Basis-Informationen der Kante übernehmen (erste Zeile)
-        aggregated = edge_group.iloc[0].copy()
+        aggregated = first_row(edge_group)
         
         # Geometrie zusammenführen
         
@@ -712,7 +721,7 @@ def aggregate_edge_group(edge_group):
     aggregated = add_shares(aggregated, edge_group)
 
     # Berechne die Länge für ALLE Kanten (Einzelsegmente und aggregierte Kanten)
-    aggregated['Länge'] = int(round(calculate_segment_length(aggregated.geometry)))
+    aggregated['Länge'] = int(round(calculate_segment_length(aggregated['geometry'])))
     
     # Regeneriere tilda_link für die aggregierte Geometrie
     # (tilda_link sollte auf den Mittelpunkt der aggregierten Geometrie zeigen)
@@ -720,10 +729,10 @@ def aggregate_edge_group(edge_group):
         tilda_id_value = str(aggregated['tilda_id'])
         # Nur generieren wenn tilda_id vorhanden und nicht leer/None
         if tilda_id_value and tilda_id_value.lower() not in ['none', 'nan', '']:
-            aggregated['tilda_link'] = generate_aggregation_tilda_link(tilda_id_value, aggregated.geometry)
+            aggregated['tilda_link'] = generate_aggregation_tilda_link(tilda_id_value, aggregated['geometry'])
     
     # Generiere tilda_link_mapillary basierend auf verfügbaren Mapillary-Attributen
-    aggregated['tilda_link_mapillary'] = generate_tilda_mapillary_link(aggregated, aggregated.geometry)
+    aggregated['tilda_link_mapillary'] = generate_tilda_mapillary_link(aggregated, aggregated['geometry'])
     
     # Zusätzliche Metadaten
     # DEBUG 
