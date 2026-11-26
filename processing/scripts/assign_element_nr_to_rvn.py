@@ -31,6 +31,7 @@ import pandas as pd
 import logging
 import os
 import sys
+import time
 from pathlib import Path
 from shapely.geometry import Point
 import networkx as nx
@@ -38,6 +39,7 @@ import networkx as nx
 sys.path.append(str(Path(__file__).parent.parent))
 sys.path.append(str(Path(__file__).resolve().parents[2] / "data"))
 from helpers.netz import DEFAULT_NETZ, PFADE, add_netz_argument  # noqa: E402
+from helpers.progressbar import print_progressbar  # noqa: E402
 import virtuelle_knotenpunkte as vk  # noqa: E402
 
 # Konfiguration
@@ -241,12 +243,15 @@ def assign_element_numbers(rvn_gdf, nodes_gdf):
     element_counter = 1
     segments_with_virtual_nodes = 0  # Zähler für Segmente mit virtuellen Knotenpunkten
     
-    for idx in range(len(result_gdf)):
+    total_segments = len(result_gdf)
+    start_time = time.time()
+    logging.disable(logging.WARNING)  # Warnungen der Schleife nicht anzeigen, Fortschrittsbalken bleibt sauber
+    for idx in range(total_segments):
+        if idx % 100 == 0 or idx == total_segments - 1:
+            print_progressbar(idx + 1, total_segments, prefix="Element-Nummern: ", start_time=start_time)
+
         if idx in processed_segments:
             continue
-            
-        if idx % 100 == 0:
-            logging.info(f"Verarbeite Segment {idx + 1} von {len(result_gdf)}")
         
         # Finde Endpunkte des aktuellen Segments
         current_segment = rvn_gdf.iloc[idx]
@@ -323,6 +328,7 @@ def assign_element_numbers(rvn_gdf, nodes_gdf):
     segments_with_v_in_endet = result_gdf[v_in_endet]
     segments_with_any_v = result_gdf[v_in_beginnt | v_in_endet]
     
+    logging.disable(logging.NOTSET)
     logging.info(f"Element-Nummern zugewiesen. {len(processed_segments)} Segmente verarbeitet.")
     logging.info(f"  Davon {segments_with_virtual_nodes} Segmente mit virtuellen Knotenpunkten (keine Propagierung)")
     logging.info(f"\n📊 VIRTUELLE KNOTENPUNKTE STATISTIK:")

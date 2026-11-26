@@ -21,6 +21,7 @@ set -euo pipefail
 # Alle Pfade sind relativ zu processing/
 cd "$(dirname "$0")"
 PYTHON="$(cd .. && pwd)/.venv/bin/python"
+export PYTHONWARNINGS=ignore  # Python-Warnungen nicht anzeigen
 
 NETZ="ren"
 QUELLE="auto"

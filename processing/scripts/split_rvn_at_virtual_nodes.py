@@ -34,6 +34,7 @@ import geopandas as gpd
 import logging
 import os
 import sys
+import time
 from pathlib import Path
 from shapely.geometry import LineString, MultiLineString
 from shapely.ops import split
@@ -41,6 +42,7 @@ from shapely.ops import split
 sys.path.append(str(Path(__file__).parent.parent))
 sys.path.append(str(Path(__file__).resolve().parents[2] / "data"))
 from helpers.netz import PFADE, add_netz_argument, add_quelle_argument, waehle_quelle  # noqa: E402
+from helpers.progressbar import print_progressbar  # noqa: E402
 import virtuelle_knotenpunkte as vk  # noqa: E402
 
 # Konfiguration
@@ -302,9 +304,11 @@ def split_geodataframe_at_virtual_nodes(gdf, virtual_nodes_gdf, dataset_name="Da
     lines_affected = 0
     total_lines = len(gdf)
     
-    for line_idx, line_row in gdf.iterrows():
-        if line_idx % 100 == 0:
-            logging.info(f"Verarbeite Linie {line_idx + 1} von {total_lines}")
+    start_time = time.time()
+    logging.disable(logging.WARNING)  # Warnungen der Schleife nicht anzeigen, Fortschrittsbalken bleibt sauber
+    for line_pos, (line_idx, line_row) in enumerate(gdf.iterrows(), start=1):
+        if line_pos % 100 == 0 or line_pos == total_lines:
+            print_progressbar(line_pos, total_lines, prefix="Linien teilen: ", start_time=start_time)
         
         current_geometry = line_row.geometry
         line_was_split = False
@@ -366,6 +370,8 @@ def split_geodataframe_at_virtual_nodes(gdf, virtual_nodes_gdf, dataset_name="Da
         if line_was_split:
             lines_affected += 1
     
+    logging.disable(logging.NOTSET)
+
     # Erstelle neues GeoDataFrame
     result_gdf = gpd.GeoDataFrame(result_segments, crs=gdf.crs)
     
