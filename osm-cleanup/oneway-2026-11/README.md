@@ -4,7 +4,7 @@ In the 2025 project we often tagged `cycleway:both:oneway=yes`, `cycleway:left:o
 
 This folder documents the rules and builds from them an osmChange file for the clear cases and a MAID task list for the rest. Agreed with the OSM community in Berlin; the upload is announced there only. The upload is done by hand (JOSM or similar), not from this folder.
 
-Discussion and comments: [Claude Doc "FMC-Bereinigung cycleway:*:oneway in Berlin"](https://claude.ai/artifact/THKf7vJkzGgW1KcyHHhXBY).
+Discussion and comments: [Claude Doc "FMC-Bereinigung cycleway:*:oneway in Berlin"](https://claude.ai/artifact/FzfEkwcverGMvmhsHwLVAg).
 
 ## Result (extract 2026-11-21, history up to 2026-11-18)
 
