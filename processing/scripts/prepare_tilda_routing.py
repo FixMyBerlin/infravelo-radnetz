@@ -733,13 +733,6 @@ def add_maxspeed_attributes(gdf: gpd.GeoDataFrame, data_source: str) -> gpd.GeoD
     return gdf
 
 
-def calculate_segment_length(geometry):
-    """
-    Berechnet die Länge eines Segments in Metern.
-    """
-    return geometry.length
-
-
 def lane_implicit_oneway_to_yes(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     """
     Schreibt `oneway=implicit_yes` an Spuren auf der Fahrbahn (Seitenlinien `…/cycleway/left|right`, keine
@@ -789,63 +782,45 @@ def translate_tilda_attributes(gdf: gpd.GeoDataFrame, data_source: str) -> gpd.G
     total = len(result_gdf)
     show_progress = sys.stdout.isatty()
 
-    for idx, (_, row) in enumerate(result_gdf.iterrows(), 1):
-        # Verkehrsrichtung (Radverkehr)
-        verkehrsri = determine_verkehrsri(row, data_source)
-        result_gdf.loc[result_gdf.index[idx-1], "verkehrsri"] = verkehrsri
-        
-        # Art der Radverkehrsführung
+    # Zeilen als dicts (haben `.get` wie eine Series); die Ergebnisse werden je Attribut in Listen
+    # gesammelt und am Ende einmal als Spalten gesetzt. Zuweisungen je Zelle über `.loc` sind langsam.
+    records = result_gdf.drop(columns=result_gdf.geometry.name).to_dict("records")
+    translated = {attr: [] for attr in ["verkehrsri", "fuehr", "pflicht", "breite", "ofm", "farbe", "protek", "trennstreifen", "nutz_beschr"]}
+    kommentare = []
+    for idx, row in enumerate(records, 1):
         fuehr = determine_fuehrung(row, data_source)
-        if fuehr == "NICHT-GEFUNDEN":
-            not_found_counts["fuehr"] += 1
-        result_gdf.loc[result_gdf.index[idx-1], "fuehr"] = fuehr
-        
-        # Benutzungspflicht
-        pflicht = determine_pflicht(row, data_source)
-        result_gdf.loc[result_gdf.index[idx-1], "pflicht"] = pflicht
-        
-        # Breite (width_effective falls vorhanden, sonst width)
+        # Breite: width_effective falls vorhanden, sonst width
         width_value = row.get("width_effective") if pd.notna(row.get("width_effective")) else row.get("width")
-        breite = parse_width(width_value)
-        result_gdf.loc[result_gdf.index[idx-1], "breite"] = breite
-        
-        # Oberflächenmaterial
-        ofm = determine_ofm(row)
-        if ofm == "NICHT-GEFUNDEN":
-            not_found_counts["ofm"] += 1
-        result_gdf.loc[result_gdf.index[idx-1], "ofm"] = ofm
-        
-        # Farbliche Beschichtung
-        farbe = determine_farbe(row)
-        result_gdf.loc[result_gdf.index[idx-1], "farbe"] = farbe
-        
-        # Physische Protektion
-        protek = determine_protek(row)
-        if protek == "NICHT-GEFUNDEN":
-            not_found_counts["protek"] += 1
-        result_gdf.loc[result_gdf.index[idx-1], "protek"] = protek
-        
-        # Sicherheitstrennstreifen
-        trennstreifen = determine_trennstreifen(row)
-        result_gdf.loc[result_gdf.index[idx-1], "trennstreifen"] = trennstreifen
-        
-        # Nutzungsbeschränkung (berücksichtigt die bereits bestimmte Führung)
-        nutz_beschr = combine_nutz_beschr(determine_nutz_beschr(row, fuehr), cycling_restriction(row))
-        result_gdf.loc[result_gdf.index[idx-1], "nutz_beschr"] = nutz_beschr
-        
-        # Länge berechnen (gerundet, ohne Nachkommastellen)
-        length = int(round(calculate_segment_length(row.geometry)))
-        result_gdf.loc[result_gdf.index[idx-1], "Länge"] = length
-        
-        # Kommentar (NACH allen anderen Attributen, um TODO-Attribute zu erkennen)
-        # Erstelle eine temporäre Row mit allen übersetzten Attributen
-        translated_row = result_gdf.loc[result_gdf.index[idx-1]]
-        kommentar = determine_kommentar(row, translated_row)
-        result_gdf.loc[result_gdf.index[idx-1], "Kommentar"] = kommentar
-        
+        values = {
+            "verkehrsri": determine_verkehrsri(row, data_source),
+            "fuehr": fuehr,
+            "pflicht": determine_pflicht(row, data_source),
+            "breite": parse_width(width_value),
+            "ofm": determine_ofm(row),
+            "farbe": determine_farbe(row),
+            "protek": determine_protek(row),
+            "trennstreifen": determine_trennstreifen(row),
+            # Nutzungsbeschränkung (berücksichtigt die bereits bestimmte Führung)
+            "nutz_beschr": combine_nutz_beschr(determine_nutz_beschr(row, fuehr), cycling_restriction(row)),
+        }
+        for attr in ("fuehr", "ofm", "protek"):
+            if values[attr] == "NICHT-GEFUNDEN":
+                not_found_counts[attr] += 1
+        for attr, value in values.items():
+            translated[attr].append(value)
+        # Kommentar NACH allen anderen Attributen, um TODO-Attribute zu erkennen
+        kommentare.append(determine_kommentar(row, values))
+
         # Fortschrittsanzeige nur im Terminal; in eine Log-Datei würde jede Zeile ein Balken
         if show_progress:
             print_progressbar(idx, total, prefix=f"Übersetze {data_source}: ")
+
+    for attr, values in translated.items():
+        result_gdf[attr] = pd.Series(values, index=result_gdf.index, dtype=object)
+    result_gdf["breite"] = pd.to_numeric(result_gdf["breite"], errors="coerce").astype(float)
+    # Länge in Metern, gerundet ohne Nachkommastellen
+    result_gdf["Länge"] = result_gdf.geometry.length.round().astype(float)
+    result_gdf["Kommentar"] = pd.Series(kommentare, index=result_gdf.index, dtype=object)
     
     # Logge Statistiken über nicht-gefundene Zuordnungen
     for attr, count in not_found_counts.items():
