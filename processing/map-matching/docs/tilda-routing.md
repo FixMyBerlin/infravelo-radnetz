@@ -6,8 +6,8 @@ Stand: 15.10.2026. Ziel: Map-Matching nur mit topologisch korrekten Daten.
 
 | Datei | Herkunft |
 |---|---|
-| `data/TILDA Routing Berlin.gpkg` | `GET https://tilda-geo.de/api/export/berlin/routing?format=gpkg` (Tabelle `routing`). Stand 15.10.2026 lokal mit tilda-geo gerechnet (Commit `ef5dc0473`), Ergebnis identisch zum API-Export. |
-| `data-raw-tilda/{bikelanes,roads,roadsPathClasses}.fgb` | gleiche API, Tabellen `bikelanes`, `roads`, `roadsPathClasses`. **Müssen aus demselben Verarbeitungslauf stammen wie `routing`.** |
+| `data/TILDA Routing Berlin.gpkg` | `GET https://tilda-geo.de/api/export/infravelo/routing?format=gpkg` (Tabelle `routing`). |
+| `data-raw-tilda/{bikelanes,roads,roadsPathClasses}.fgb` | gleiche API, Tabellen `bikelanes`, `roads`, `roadsPathClasses`. Beide lädt `data/download_tilda.sh processing`, Datenstände in `data-raw-tilda/tilda_export.json`. Je mehr die Stände auseinanderliegen, desto mehr Routing-Kanten finden kein Quellobjekt (Abbruch ab 1 %, siehe unten). |
 
 `routing` enthält alle drei Netzarten in einer Tabelle. Die Spalte **`source_table`** sagt, woher eine Kante stammt:
 
@@ -62,22 +62,18 @@ Zusammenhang (größte Komponente nach Länge):
 
 Außerhalb liegen fast nur Fußwege (822 km `footway`, dazu Treppen, Feldwege, Zufahrten): Gehweg-Inseln in Parks, auf Friedhöfen und Plätzen, deren Anschluss über Gehwege läuft, die tilda-geo nicht im Routing führt. Diese Kanten werden **ausgeschlossen** (`ausserhalb_hauptnetz.fgb` zum Prüfen). Abbruch, wenn weniger als 95 % der Radinfrastruktur im Hauptnetz liegen.
 
-Danach: Zuschnitt auf den RVN-Puffer (33 m, ganze Kanten) und Übersetzung in RVN-Attribute mit `translate_attributes_tilda_to_rvn.py`.
+Danach: Zuschnitt auf den RVN-Puffer (33 m, ganze Kanten) und Übersetzung in RVN-Attribute mit `translate_tilda_attributes` (in `prepare_tilda_routing.py`).
 
 ## 4. Reproduzieren
 
 ```sh
-cd processing
-# 1. Exporte laden (gleicher Verarbeitungsstand!)
-curl -o "data/TILDA Routing Berlin.gpkg"   "https://tilda-geo.de/api/export/berlin/routing?format=gpkg&apiKey=$KEY"
-for t in bikelanes roads roadsPathClasses; do
-  curl -o "data-raw-tilda/$t.fgb" "https://tilda-geo.de/api/export/berlin/$t?format=fgb&apiKey=$KEY"
-done
+# 1. Exporte laden (aus dem Projekt-Root)
+data/download_tilda.sh processing
 # 2. Join, Topologie, Hauptnetz, Übersetzung (~7 min)
-../.venv/bin/python scripts/prepare_tilda_routing.py
+cd processing && ../.venv/bin/python scripts/prepare_tilda_routing.py --netz ren
 ```
 
-Ausgabe in `output/TILDA-routing/`: `TILDA Routing {Bikelanes,Streets,Paths} Translated.fgb`, `ausserhalb_hauptnetz.fgb`, `report.json`.
+Ausgabe in `output/TILDA-routing-ren/` (ohne `--netz ren`: `output/TILDA-routing/`, auf den RVN-Puffer zugeschnitten): `TILDA Routing {Bikelanes,Streets,Paths} Translated.fgb`, `ausserhalb_hauptnetz.fgb`, `report.json`.
 
 ## 5. Map-Matching mit Topologie-Traces
 

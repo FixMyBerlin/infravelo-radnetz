@@ -21,7 +21,7 @@ pip install -r requirements.txt
 
 ## Ordner
 
-- `data-raw-tilda/` – Rohdaten aus den TILDA-Exporten (bikelanes, roads, roadsPathClasses)
+- `data-raw-tilda/` – Rohdaten aus den TILDA-Exporten (bikelanes, roads, roadsPathClasses), geladen mit `../data/download_tilda.sh processing`
 - `scripts/` – Aufbereitung von TILDA und RVN, Exporte (siehe [scripts/README.md](./scripts/README.md))
 - `map-matching/` – HMM-/Viterbi-Map-Matching in Rust (siehe [map-matching/README.md](./map-matching/README.md))
 - `helpers/` – gemeinsame Python-Module der Verarbeitungsschritte
@@ -33,19 +33,27 @@ pip install -r requirements.txt
 
 ## Verarbeitungskette
 
-```sh
-cd processing
-./process_tilda_data.sh   # 1. TILDA-Daten vorbereiten
-./process_radnetz.sh      # 2. Netz vorbereiten (RVN oder REN+)
-./execute_processing.sh   # 3. Hauptverarbeitung
-./run_validation.sh       # 4. Validierung
+Voraussetzung ist ein Lauf von `../run_pipeline.sh` (REN+-Netz und virtuelle Knoten). Danach in einem Aufruf, mit den neusten TILDA-Daten:
 
-# Optional
-../.venv/bin/python scripts/convert_to_geojson.py   # GeoJSON-Export der Datensätze A, B, C
-./copy_to_tilda_static.sh                           # Kopie nach ../../tilda-static-data/geojson/region-infravelo, danach CSV für TILDA (../tilda-pseudo-tags, einchecken)
+```sh
+processing/run_all.sh                   # aus dem Projekt-Root, oder ./run_all.sh in processing/
+processing/run_all.sh --ohne-download   # mit den vorhandenen Dateien in data-raw-tilda/
 ```
 
-`execute_processing.sh` und `run_validation.sh` akzeptieren `--clip neukoelln|norden|sueden`. `execute_processing.sh` außerdem `--start-step 1-4` und `--clean-cache`.
+`run_all.sh` führt diese Schritte aus (einzeln aufrufbar, aus `processing/`):
+
+```sh
+../data/download_tilda.sh processing                          # 1. TILDA-Exporte laden (data-raw-tilda/, data/TILDA Routing Berlin.gpkg)
+../.venv/bin/python scripts/prepare_tilda_routing.py --netz ren  # 2. TILDA-Routing verbinden und übersetzen
+./process_radnetz.sh --netz ren                               # 3. Netz vorbereiten
+./execute_processing.sh --netz ren                            # 4. Hauptverarbeitung
+../.venv/bin/python scripts/convert_to_geojson.py --netz ren  # 5. GeoJSON-Export der Datensätze A, B, C
+./run_validation.sh --netz ren                                # 6. Validierung
+```
+
+Von Hand danach: `./copy_to_tilda_static.sh --netz ren` (Kopie nach `../../tilda-static-data/geojson/region-infravelo`, danach CSV für TILDA in `../tilda-pseudo-tags`, einchecken).
+
+`execute_processing.sh` und `run_validation.sh` akzeptieren `--clip neukoelln|norden|sueden`. `execute_processing.sh` außerdem `--start-step 1-4` und `--clean-cache` (über `run_all.sh --clean-cache` durchgereicht).
 
 ### Zielnetz (`--netz`)
 
@@ -53,14 +61,7 @@ Die Prozessierung läuft auf dem REN+, also allen Netzquellen gemeinsam (`../ren
 
 Korrekturen aus der App Netzanpassungen (`netzanpassungen/apply_app_result.py`) gelten nur fürs REN+: Mit `--netz ren` nimmt `process_radnetz.sh` standardmäßig `ren_netz_korrigiert.gpkg` (`--quelle original` erzwingt das Original). **`--netz rvn` liest bis zur Lieferung des RVN weiter die Korrekturliste von 2025** (`netzanpassungen/one_time_import/2025/rvn_korrekturen.csv`, im Archiv, Verhalten unverändert); fürs REN+ stehen dieselben 18 Korrekturen von `verkehrsrichtung` als Einträge in der App. Gelöscht sind außerdem `helpers/override_edges.py`, `validation/analyse_einrichtungsfahrbahnen.py` und `qgis/erzeuge_einrichtungsfahrbahnen_projekt.py`.
 
-```sh
-../.venv/bin/python scripts/prepare_tilda_routing.py   # TILDA-Routing ohne RVN-Zuschnitt (Standard ren)
-./process_radnetz.sh --netz ren
-./execute_processing.sh --netz ren
-./run_validation.sh --netz ren
-../.venv/bin/python scripts/convert_to_geojson.py --netz ren
-./copy_to_tilda_static.sh --netz ren   # braucht die Ordner infravelo-ren-datensatz-{a,b,c}-fortlaufend in tilda-static-data
-```
+Die Befehle fürs REN+ stehen oben unter [Verarbeitungskette](#verarbeitungskette). `copy_to_tilda_static.sh --netz ren` braucht die Ordner `infravelo-ren-datensatz-{a,b,c}-fortlaufend` in tilda-static-data.
 
 Das Radvorrangnetz 2025 wird nicht mehr aktualisiert. `copy_to_tilda_static.sh` kopiert nur noch das REN+ und lehnt `--netz rvn` ab: `infravelo-datensatz-{a,b,c}-fortlaufend` in tilda-static-data ist das Ergebnis 2025, aus dem `ren-network/merge_networks.py` `bearbeitet_2025` berechnet. Wenn überhaupt, werden diese Daten von Hand in tilda-static-data ersetzt.
 
@@ -76,11 +77,13 @@ Das Radvorrangnetz 2025 wird nicht mehr aktualisiert. `copy_to_tilda_static.sh` 
 
 Die Pfade je Netz stehen in `helpers/netz.py` und in `map-matching/config/default.toml` (`[netze.*]`). Beim REN+ wird dessen `element_nr` übernommen. Nur Teilkanten an virtuellen Knotenpunkten bekommen eine neu berechnete Nummer, wie beim Radvorrangnetz.
 
-### 1. TILDA-Daten vorbereiten (`process_tilda_data.sh`)
+### 1. TILDA-Daten laden und vorbereiten (`../data/download_tilda.sh`, `scripts/prepare_tilda_routing.py`)
 
-Schneidet TILDA-Rohdaten (`data-raw-tilda/`) auf Berlin zu und übersetzt Attribute zu RVN-Format. Radwege, Straßen und Wege laufen parallel in je einem eigenen Prozess. Im Terminal steht je Datensatz eine Statuszeile, die vollständige Ausgabe mit allen Warnungen in `output/logs/process_tilda_data_<zeit>_<datensatz>.log`.
+`../data/download_tilda.sh processing` lädt die Exporte `bikelanes`, `roads`, `roadsPathClasses` (Region `infravelo`) nach `data-raw-tilda/` und `routing` nach `data/TILDA Routing Berlin.gpkg`. Die Datenstände stehen danach in `data-raw-tilda/tilda_export.json` (siehe [data-raw-tilda/README.md](./data-raw-tilda/README.md)).
 
-**Ausgabe**: `data/TILDA *.fgb` und `output/TILDA-translated/*.fgb`
+`scripts/prepare_tilda_routing.py --netz ren` verbindet jede Routing-Kante mit den Attributen ihres Quellobjekts, teilt die Wege an gemeinsamen Stützpunkten, behält das zusammenhängende Hauptnetz und übersetzt in RVN-Attribute (Details: [Workdoc](./map-matching/docs/tilda-routing.md)).
+
+**Ausgabe**: `output/TILDA-routing-ren/TILDA Routing {Bikelanes,Streets,Paths} Translated.fgb`, `ausserhalb_hauptnetz.fgb`, `report.json`
 
 ### 2. Netz vorbereiten (`process_radnetz.sh`)
 

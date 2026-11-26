@@ -10,7 +10,7 @@ in den Schemas `bikegraph`, `radweg_faltung` und `datensatz_c`.
 | Quelle | Woher | Wofür |
 |---|---|---|
 | `public.routing` | tilda-geo (`routing_infra`), mit `tunnel`, `dual_carriageway`, `roundabout`, `_oneway_flip` | welche Stücke Straßen, Wege, Radwege sind; Richtungen; Straßennetz |
-| `public.bikelanes`, `public.roads`, `public."roadsPathClasses"` | tilda-geo | Attribute je Kandidat (übersetzt wie `processing/scripts/translate_attributes_tilda_to_rvn.py`) |
+| `public.bikelanes`, `public.roads`, `public."roadsPathClasses"` | tilda-geo | Attribute je Kandidat (übersetzt wie `translate_tilda_attributes` in `processing/scripts/prepare_tilda_routing.py`) |
 | OSM-Auszug (`PBF`) | Geofabrik, Datenstand wie tilda-geo | nur die Knotenlisten: welche Wege sich berühren |
 | `matching.reference_edges` | `../load.sh` (RVN aus `processing/`, mit `data/rvn_korrekturen.csv`) | Referenznetz |
 | Baseline | `processing/output/…/aggregated.gpkg` eines früheren Laufs | nur der Vergleich |

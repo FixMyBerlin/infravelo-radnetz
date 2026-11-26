@@ -13,7 +13,7 @@ set -euo pipefail
 #   ./run_mapper_outputs.sh
 #
 # Needs the output of step 3 (ren-network/output/ren_netz.gpkg, ren_netz_kartierung.gpkg) and the inputs
-# of the single scripts: befahrungsbedarf/data/ (befahrungsbedarf/download_data.sh) and
+# of the single scripts: befahrungsbedarf/data/ (data/download_tilda.sh befahrungsbedarf) and
 # maproulette-centerline-tracks/data/ (symlinks, see the READMEs).
 # Writes only into this repo. Nothing goes to tilda-static-data or TILDA; that stays a separate step
 # (bearbeitungsstand/update.sh, processing/copy_to_tilda_static.sh).

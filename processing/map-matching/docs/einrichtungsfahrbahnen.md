@@ -109,7 +109,7 @@ Eine automatische Regel würde viele richtige Gegenrichtungen löschen. Für die
 | `TILDA Routing Berlin.gpkg` (`routing`) | `oneway = yes` (gilt schon für Rad) | `oneway = no` und `oneway_motor = yes` |
 | `TILDA Routing Streets Translated.fgb` | `tilda_oneway` | `tilda_oneway_bicycle = no` bzw. `routing_oneway_motor = yes` |
 
-Im Map-Matching kommt die Freigabe bereits über `verkehrsri` an: Bei `oneway_bicycle = no` wird `Zweirichtungsverkehr` gesetzt, siehe `scripts/translate_attributes_tilda_to_rvn.py`, `determine_verkehrsri`. `TildaWay::oneway` ist dann `false`.
+Im Map-Matching kommt die Freigabe bereits über `verkehrsri` an: Bei `oneway_bicycle = no` wird `Zweirichtungsverkehr` gesetzt, siehe `scripts/prepare_tilda_routing.py`, `determine_verkehrsri`. `TildaWay::oneway` ist dann `false`.
 
 ## 3. Lösungsansatz
 

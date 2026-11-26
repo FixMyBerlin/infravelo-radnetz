@@ -6,20 +6,17 @@ Alle Aufrufe erfolgen aus `processing/` heraus, mit aktiviertem `.venv` aus dem 
 
 ## 📁 Datenvorverarbeitung (Unabhängig)
 
-### TILDA-Daten vorbereiten
+### TILDA-Daten laden
 ```bash
-./process_tilda_data.sh
+../data/download_tilda.sh processing
 ```
-Bereitet die TILDA-Daten für die weitere Verarbeitung vor.
+Lädt die TILDA-Exporte nach `data-raw-tilda/` und `data/TILDA Routing Berlin.gpkg`.
 
 ### TILDA-Routing-Netz vorbereiten
-Das [`prepare_tilda_routing.py`](./prepare_tilda_routing.py) verknüpft `routing` mit den Attributen aus `bikelanes`/`roads`/`roadsPathClasses`, teilt die Wege an gemeinsamen Stützpunkten, behält nur das zusammenhängende Hauptnetz und übersetzt in RVN-Attribute. Siehe [Workdoc](../map-matching/docs/tilda-routing.md).
+Das [`prepare_tilda_routing.py`](./prepare_tilda_routing.py) verknüpft `routing` mit den Attributen aus `bikelanes`/`roads`/`roadsPathClasses`, teilt die Wege an gemeinsamen Stützpunkten, behält nur das zusammenhängende Hauptnetz und übersetzt die TILDA-Attribute in RVN-Attribute (`translate_tilda_attributes`, Mapping-Regeln im selben Skript). Siehe [Workdoc](../map-matching/docs/tilda-routing.md).
 
 - **Input**: `data/TILDA Routing Berlin.gpkg`, `data-raw-tilda/*.fgb`
 - **Output**: `output/TILDA-routing/`, mit `--netz ren` ohne RVN-Zuschnitt nach `output/TILDA-routing-ren/`
-
-### TILDA-Daten zuschneiden
-Das [`clip_tilda_data.py`](./clip_tilda_data.py) schneidet TILDA-Daten auf bestimmte Regionen (ganz Berlin oder einzelne Bezirke) zu.
 
 ### Bezirke zu Punkten zuweisen
 Das [`assign_node_ids.py`](./assign_node_ids.py) fügt zwei Attribute zu den *Verbindungspunkten* aus dem Detailnetz hinzu: `Knotenpunkt-ID` und `Bezirksnummer`.
@@ -73,7 +70,8 @@ Für die vollständige Verarbeitung sollten die Scripts in dieser Reihenfolge au
 
 ```bash
 # 1. Datenvorverarbeitung
-./process_tilda_data.sh
+../data/download_tilda.sh processing
+../.venv/bin/python scripts/prepare_tilda_routing.py --netz ren
 python scripts/assign_node_ids.py
 
 # 2. RVN-Verarbeitung

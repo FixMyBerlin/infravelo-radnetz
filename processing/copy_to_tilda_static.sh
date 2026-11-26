@@ -57,23 +57,22 @@ fi
 echo -e "${BLUE}Starting copy to tilda-static-data (Netz: ${NETZ})...${NC}"
 
 if [ "$USE_TILDA_DATE" = true ]; then
-    # Determine the update date from the most recent data-raw-tilda file
-    TILDA_DATE=$(stat -c %y data-raw-tilda/bikelanes.fgb | cut -d' ' -f1)
-    ROADS_DATE=$(stat -c %y data-raw-tilda/roads.fgb | cut -d' ' -f1)
-    ROADS_PATH_DATE=$(stat -c %y data-raw-tilda/roadsPathClasses.fgb | cut -d' ' -f1)
-
-    # Find the most recent date
-    LATEST_DATE=$TILDA_DATE
-    if [[ "$ROADS_DATE" > "$LATEST_DATE" ]]; then
-            LATEST_DATE=$ROADS_DATE
+    # Datenstand der TILDA-Exporte: neuestes Datum in den Dateinamen aus data-raw-tilda/tilda_export.json
+    # (geschrieben von ../data/download_tilda.sh processing, z. B. "infravelo_bikelanes_2026-11-24.fgb")
+    EXPORT_JSON="data-raw-tilda/tilda_export.json"
+    if [ ! -f "$EXPORT_JSON" ]; then
+        echo -e "${RED}ERROR: $EXPORT_JSON fehlt.${NC} TILDA-Daten mit ../data/download_tilda.sh processing laden oder ohne --use-tilda-date aufrufen."
+        exit 1
     fi
-    if [[ "$ROADS_PATH_DATE" > "$LATEST_DATE" ]]; then
-            LATEST_DATE=$ROADS_PATH_DATE
+    LATEST_DATE=$(grep -oE '_[0-9]{4}-[0-9]{2}-[0-9]{2}\.(fgb|gpkg)' "$EXPORT_JSON" | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' | sort | tail -1)
+    if [ -z "$LATEST_DATE" ]; then
+        echo -e "${RED}ERROR: Kein Datenstand in $EXPORT_JSON gefunden.${NC}"
+        exit 1
     fi
 
     # Convert from YYYY-MM-DD to DD.MM.YYYY
     UPDATE_DATE=$(date -d "$LATEST_DATE" +"%d.%m.%Y")
-    echo -e "${GREEN}Update date determined from TILDA files: ${UPDATE_DATE}${NC}"
+    echo -e "${GREEN}Update date determined from TILDA export: ${UPDATE_DATE}${NC}"
 else
     # Use today's date
     UPDATE_DATE=$(date +"%d.%m.%Y")

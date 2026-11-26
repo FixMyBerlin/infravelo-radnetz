@@ -56,7 +56,7 @@ Maske, Zuteilung (Gebiete und Kanten je Mapper), Befahrungsbedarf und MapRoulett
 | `befahrungsbedarf/build.py` | Befahrungsbedarf |
 | `maproulette-centerline-tracks/extract_centerline_tracks.py` | MapRoulette-Aufgaben |
 
-Voraussetzungen: ein Lauf von `run_pipeline.sh`, die eigenen Eingangsdaten der Skripte (`befahrungsbedarf/download_data.sh`, Symlinks in `maproulette-centerline-tracks/data/`). Ändert die Zuteilung `mapping-zuteilung/assignment.csv`, die Datei committen. Das Skript schreibt nur in dieses Repo. Das Hochladen nach tilda-static-data und TILDA bleibt ein eigener Schritt von Hand (`bearbeitungsstand/update.sh`, `processing/copy_to_tilda_static.sh`).
+Voraussetzungen: ein Lauf von `run_pipeline.sh`, die eigenen Eingangsdaten der Skripte (`data/download_tilda.sh befahrungsbedarf`, Symlinks in `maproulette-centerline-tracks/data/`). Ändert die Zuteilung `mapping-zuteilung/assignment.csv`, die Datei committen. Das Skript schreibt nur in dieses Repo. Das Hochladen nach tilda-static-data und TILDA bleibt ein eigener Schritt von Hand (`bearbeitungsstand/update.sh`, `processing/copy_to_tilda_static.sh`).
 
 ## Setup
 
@@ -73,9 +73,12 @@ Für das Map-Matching wird zusätzlich Rust (`cargo`) benötigt.
 ## Schnellstart
 
 ```sh
-# Komplette Verarbeitung (Details in processing/README.md)
-cd processing
-./process_tilda_data.sh && ./process_radnetz.sh && ./execute_processing.sh && ./run_validation.sh
+# Komplette Verarbeitung mit den neusten TILDA-Daten, nach run_pipeline.sh (Details in processing/README.md)
+processing/run_all.sh
+
+# Nur die TILDA-Exporte laden (processing: Region infravelo, befahrungsbedarf: eigene Daten)
+data/download_tilda.sh processing
+data/download_tilda.sh befahrungsbedarf
 
 # Eingangsdaten aus dem gemeinsamen Google Drive (Link in .env, siehe .env.example; läuft auch zu Beginn von merge_networks.py)
 python data/download_inputs.py

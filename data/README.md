@@ -17,17 +17,9 @@ Diese Dateien werden nicht von Skripten generiert und müssen manuell aktualisie
 - `OSM-highway=bus_stop.geojson` – Bushaltestellen aus OpenStreetMap für Konvertierungen von Schutzstreifen.
 - `Stop-Positions-Bus-OSM.fgb` – Bushaltestellen-Positionen aus OpenStreetMap als FlatGeobuf.
 
-## Generierte Dateien (durch `process_tilda_data.sh`)
-
-Diese Dateien werden durch `processing/process_tilda_data.sh` aus den Rohdaten in `processing/data-raw-tilda/` erzeugt:
-
-- `TILDA Radwege Berlin.fgb` – Auf Berlin zugeschnittene Radwege aus TILDA, basierend auf OpenStreetMap.
-- `TILDA Straßen Berlin.fgb` – Auf Berlin zugeschnittene Straßen aus TILDA, basierend auf OpenStreetMap.
-- `TILDA Wege Berlin.fgb` – Auf Berlin zugeschnittene Wege aus TILDA, basierend auf OpenStreetMap.
-
 ## TILDA-Routing-Netz
 
-- `TILDA Routing Berlin.gpkg` – Routingfähiges TILDA-Netz (Tabelle `routing`), Export von `https://tilda-geo.de/api/export/berlin/routing?format=gpkg`. Stand 15.10.2026 lokal mit tilda-geo gerechnet. Muss zum Stand von `processing/data-raw-tilda/` passen. Details: [Workdoc](../processing/map-matching/docs/tilda-routing.md).
+- `TILDA Routing Berlin.gpkg` – Routingfähiges TILDA-Netz (Tabelle `routing`), Export `https://tilda-geo.de/api/export/infravelo/routing?format=gpkg`. Laden mit `data/download_tilda.sh processing`, zusammen mit `processing/data-raw-tilda/`; die Datenstände stehen in `processing/data-raw-tilda/tilda_export.json`. Details: [Workdoc](../processing/map-matching/docs/tilda-routing.md).
 
 Für Lizenzen, siehe [LIZENZEN.md](./LIZENZEN.md)
 
@@ -70,4 +62,4 @@ Neue Eingangsdaten ins Drive bringen:
 2. `.venv/bin/python data/download_inputs.py --write-manifest`, dann `inputs.json` committen.
 3. `.venv/bin/python data/download_inputs.py --stage <ordner>` sammelt die Dateien unter ihrem Drive-Namen; den Inhalt des Ordners ins Drive kopieren und dabei die vorhandenen Dateien ersetzen.
 
-Nicht im Drive, weil ein Skript sie lädt: die TILDA-Exporte (`befahrungsbedarf/download_data.sh`) und die Ampeln (`knotenpunkte/download_lsa.py`). Für die Knotenpunkte fehlt noch `data/netzquellen/knotenpunkte_2025.geojson.gz` (liegt bei Henri).
+Nicht im Drive, weil ein Skript sie lädt: die TILDA-Exporte (`data/download_tilda.sh`, für `processing` und `befahrungsbedarf`) und die Ampeln (`knotenpunkte/download_lsa.py`). Für die Knotenpunkte fehlt noch `data/netzquellen/knotenpunkte_2025.geojson.gz` (liegt bei Henri).

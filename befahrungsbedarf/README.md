@@ -5,7 +5,7 @@ Ermittelt die OSM-Wege (TILDA) entlang des REN+-Netzes, für die es keine ausrei
 Die Verarbeitung ist vom restlichen Projekt getrennt und kann jederzeit neu ausgeführt werden. Sie nutzt eigene Eingangsdaten in `befahrungsbedarf/data/`; `data/` und `data-raw-tilda/` des Hauptprojekts bleiben unberührt.
 
 ```bash
-./befahrungsbedarf/download_data.sh
+data/download_tilda.sh befahrungsbedarf
 python befahrungsbedarf/build.py
 ```
 
@@ -40,10 +40,10 @@ Das Startdatum der Mapillary-Fotos wandert mit jedem Abgleich weiter (siehe [Fot
 | Datei | Inhalt | Herkunft |
 |---|---|---|
 | `ren_netz.gpkg` | REN+-Netz; verwendet wird nur das Kartierungs-Netz (`bearbeitet_2025` nicht `ja`) | Ausgabe von [`ren-network/merge_networks.py`](../ren-network/README.md) |
-| `bikelanes.fgb`, `roads.fgb`, `roadsPathClasses.fgb` | TILDA-Wege für die Berlin-Bounding-Box | TILDA-Export, `download_data.sh` |
-| `tilda_export.json`, `ml_metadata.json`, `osm_metadata.json` | Datenstände | `download_data.sh` |
+| `bikelanes.fgb`, `roads.fgb`, `roadsPathClasses.fgb` | TILDA-Wege für die Berlin-Bounding-Box | TILDA-Export, `data/download_tilda.sh befahrungsbedarf` |
+| `tilda_export.json`, `ml_metadata.json`, `osm_metadata.json` | Datenstände | `data/download_tilda.sh befahrungsbedarf` |
 
-`download_data.sh` braucht den TILDA-API-Key: Umgebungsvariable `ATLAS_API_KEY` oder `ATLAS_API_KEY_PRODUCTION` aus der `.env` des tilda-geo Repos (`TILDA_GEO_REPO`, Standard `../tilda-geo`).
+`data/download_tilda.sh` braucht den TILDA-API-Key: Umgebungsvariable `ATLAS_API_KEY` oder `ATLAS_API_KEY_PRODUCTION` aus der `.env` des tilda-geo Repos (`TILDA_GEO_REPO`, Standard `../tilda-geo`). Dasselbe Skript lädt mit `processing` die Exporte der Prozessierung (Region `infravelo`) in andere Ordner; die Daten hier bleiben davon unberührt.
 
 ## Fotos
 

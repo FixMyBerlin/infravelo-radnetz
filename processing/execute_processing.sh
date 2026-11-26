@@ -29,7 +29,7 @@
 #   --clean-cache       Vollständige Bereinigung aller Cache-Dateien vor der Verarbeitung
 # 
 # Voraussetzung: Python venv ist bereits erstellt und requirements.txt wurde installiert
-#               TILDA Daten sind bereits prozessiert (./process_tilda_data.sh)
+#               TILDA-Routing ist vorbereitet (scripts/prepare_tilda_routing.py --netz ren, siehe run_all.sh)
 
 set -e  # Script bei Fehlern beenden
 

@@ -6,7 +6,7 @@ build.py
 Ermittelt die OSM-Wege (TILDA) entlang des REN+-Netzes, für die neue Fotos
 aufgenommen werden müssen (Befahrungsbedarf).
 
-Eingabe (befahrungsbedarf/data/, siehe download_data.sh):
+Eingabe (befahrungsbedarf/data/, siehe data/download_tilda.sh befahrungsbedarf):
 - ren_netz.gpkg  (Ausgabe von ren-network/merge_networks.py)
 - bikelanes.fgb, roads.fgb, roadsPathClasses.fgb  (TILDA-Export)
 
