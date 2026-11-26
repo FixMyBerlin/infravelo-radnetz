@@ -16,7 +16,31 @@ https://tilda-geo.de/regionen/infravelo?map=11.4/52.434453/13.342577&data=infrav
 """
 
 import logging
+from functools import lru_cache
+
+import numpy as np
+import shapely
+from pyproj import CRS, Transformer
 from shapely.geometry import LineString, MultiLineString
+
+
+@lru_cache(maxsize=None)
+def _transformer_to_wgs84(source_crs: str = "EPSG:25833") -> Transformer:
+    """Transformer nach EPSG:4326, einmal je Quell-CRS erzeugt (wie geopandas' to_crs: always_xy=True)."""
+    return Transformer.from_crs(CRS.from_user_input(source_crs), CRS.from_user_input("EPSG:4326"), always_xy=True)
+
+
+def to_wgs84(geometry, source_crs: str = "EPSG:25833"):
+    """
+    Transformiert alle Stützpunkte einer Geometrie nach WGS84, mit demselben Ergebnis wie
+    gpd.GeoDataFrame([{'geometry': geometry}], crs=source_crs).to_crs('EPSG:4326'), aber ohne
+    je Aufruf einen GeoDataFrame und einen Transformer zu erzeugen.
+    """
+    transform = _transformer_to_wgs84(source_crs).transform
+    has_z = shapely.has_z(geometry)
+    coords = shapely.get_coordinates(geometry, include_z=has_z)
+    new_coords = transform(*(coords[:, i] for i in range(coords.shape[1])))
+    return shapely.set_coordinates(geometry, np.array(new_coords).T)
 
 
 def calculate_geometry_centroid(geometry) -> tuple:
@@ -72,25 +96,9 @@ def generate_tilda_link(geometry, zoom: float = 17.4, dataset: str = "infravelo-
         str: Vollständiger TILDA-Link oder None bei Fehlern
     """
     try:
-        # Transformiere Geometrie nach WGS84 (EPSG:4326) falls nötig
-        # TILDA-Links benötigen Lat/Lng Koordinaten
-        import geopandas as gpd
-        from shapely.geometry import mapping
-        
-        # Erstelle temporäres GeoDataFrame um CRS-Transformation zu nutzen
-        temp_gdf = gpd.GeoDataFrame([{'geometry': geometry}], crs=None)
-        
-        # Versuche das CRS zu ermitteln - wenn die Geometrie bereits aus einem GeoDataFrame kommt,
-        # sollte sie ein CRS haben. Falls nicht, gehen wir davon aus, dass es schon WGS84 ist.
-        # Typischerweise kommt die Geometrie hier aus EPSG:25833 (UTM Zone 33N)
-        if hasattr(geometry, '__geo_interface__'):
-            # Shapely-Geometrie ohne CRS-Info
-            # Wir nehmen an, dass die Koordinaten in EPSG:25833 sind (Standard für Berlin)
-            temp_gdf = gpd.GeoDataFrame([{'geometry': geometry}], crs='EPSG:25833')
-        
-        # Transformiere zu WGS84
-        temp_gdf_wgs84 = temp_gdf.to_crs('EPSG:4326')
-        geometry_wgs84 = temp_gdf_wgs84.iloc[0].geometry
+        # Transformiere Geometrie nach WGS84 (EPSG:4326), TILDA-Links benötigen Lat/Lng Koordinaten.
+        # Die Geometrie trägt kein CRS; wie bisher wird EPSG:25833 (Standard für Berlin) angenommen.
+        geometry_wgs84 = to_wgs84(geometry)
         
         # Berechne Mittelpunkt der transformierten Geometrie
         centroid = calculate_geometry_centroid(geometry_wgs84)
@@ -191,11 +199,7 @@ def generate_tilda_mapillary_link(row: dict, geometry) -> str:
             return None
         
         # Transformiere Geometrie nach WGS84 (EPSG:4326)
-        import geopandas as gpd
-        
-        temp_gdf = gpd.GeoDataFrame([{'geometry': geometry}], crs='EPSG:25833')
-        temp_gdf_wgs84 = temp_gdf.to_crs('EPSG:4326')
-        geometry_wgs84 = temp_gdf_wgs84.iloc[0].geometry
+        geometry_wgs84 = to_wgs84(geometry)
         
         # Berechne Mittelpunkt
         centroid = calculate_geometry_centroid(geometry_wgs84)
