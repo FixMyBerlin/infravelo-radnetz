@@ -39,6 +39,7 @@ Voraussetzung ist ein Lauf von `../run_pipeline.sh` (REN+-Netz und virtuelle Kno
 processing/run_all.sh                   # aus dem Projekt-Root, oder ./run_all.sh in processing/
 processing/run_all.sh --ohne-download   # mit den vorhandenen Dateien in data-raw-tilda/
 processing/run_all.sh --neu-laden       # TILDA-Daten auch laden, wenn heute schon geladen
+processing/run_all.sh --neu-uebersetzen # Schritt 2 auch, wenn seine Ausgaben neuer sind als TILDA-Dateien und Code
 ```
 
 `run_all.sh` führt diese Schritte aus (einzeln aufrufbar, aus `processing/`):
