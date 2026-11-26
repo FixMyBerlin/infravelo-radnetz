@@ -13,7 +13,7 @@ In diesem Ordner liegen die originalen TILDA-Exporte. Sie werden nicht in GitHub
 data/download_tilda.sh processing   # aus dem Projekt-Root
 ```
 
-Das Skript lädt die drei Exporte aus der TILDA-API (Region `infravelo`) hierher und den Export `routing` nach `data/TILDA Routing Berlin.gpkg`. Den API-Key nimmt es aus `ATLAS_API_KEY` oder aus `ATLAS_API_KEY_PRODUCTION` in der `.env` von tilda-geo. Erst wenn alle vier Downloads geklappt haben, ersetzt es die vorhandenen Dateien.
+Das Skript lädt die drei Exporte aus der TILDA-API (Region `infravelo`) hierher und den Export `routing` nach `data/TILDA Routing Berlin.gpkg`. Den API-Key nimmt es aus `ATLAS_API_KEY` oder aus `ATLAS_API_KEY_PRODUCTION` in der `.env` von tilda-geo. Erst wenn alle vier Downloads geklappt haben, ersetzt es die vorhandenen Dateien. TILDA rechnet die Daten einmal pro Nacht neu; wurde heute schon geladen (`geladen` in `tilda_export.json`), überspringt das Skript den Download. `--neu` lädt trotzdem.
 
 Den Datenstand liefert TILDA im Dateinamen der Antwort (`Content-Disposition`, z. B. `infravelo_bikelanes_<datum>.fgb`). Das Skript schreibt ihn nach `tilda_export.json`. Die Datenstände der Exporte dürfen sich unterscheiden. `prepare_tilda_routing.py` bricht aber ab, wenn mehr als 1 % der Routing-Kanten kein Quellobjekt in den drei Exporten finden.
 

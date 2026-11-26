@@ -16,6 +16,9 @@
 # infravelo_bikelanes_2026-11-03.fgb). Das Skript schreibt ihn je Zielordner nach tilda_export.json.
 # Die Datenstände der einzelnen Exporte dürfen sich unterscheiden.
 #
+# TILDA rechnet die Daten einmal pro Nacht neu. Steht in tilda_export.json schon ein Download von heute,
+# überspringt das Skript den Zweck. --neu lädt trotzdem.
+#
 # Der API-Key kommt aus der Umgebungsvariable ATLAS_API_KEY oder aus ATLAS_API_KEY_PRODUCTION in der
 # .env des tilda-geo Repos (TILDA_GEO_REPO, Standard: Schwesterordner ../tilda-geo).
 #
@@ -23,6 +26,7 @@
 #   data/download_tilda.sh processing
 #   data/download_tilda.sh befahrungsbedarf
 #   data/download_tilda.sh processing befahrungsbedarf   # beide nacheinander
+#   data/download_tilda.sh --neu processing              # auch wenn heute schon geladen
 
 set -euo pipefail
 
@@ -32,20 +36,29 @@ API="https://tilda-geo.de/api/export"
 TABLES=(bikelanes roads roadsPathClasses)
 
 usage() {
-    sed -n '4,25p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '4,29p' "$0" | sed 's/^# \{0,1\}//'
 }
 
-if [[ $# -eq 0 ]]; then
+FORCE=false
+TARGETS=()
+for arg in "$@"; do
+    case "$arg" in
+        processing|befahrungsbedarf) TARGETS+=("$arg") ;;
+        --neu) FORCE=true ;;
+        -h|--help) usage; exit 0 ;;
+        *) echo "❌ Unbekanntes Argument: $arg (erlaubt: processing, befahrungsbedarf, --neu)" >&2; exit 1 ;;
+    esac
+done
+if [[ ${#TARGETS[@]} -eq 0 ]]; then
     usage
     exit 1
 fi
-for target in "$@"; do
-    case "$target" in
-        processing|befahrungsbedarf) ;;
-        -h|--help) usage; exit 0 ;;
-        *) echo "❌ Unbekannter Zweck: $target (erlaubt: processing, befahrungsbedarf)" >&2; exit 1 ;;
-    esac
-done
+
+# true, wenn <ordner>/tilda_export.json einen Download von heute verzeichnet (dann nichts laden)
+loaded_today() {
+    local json="$1/tilda_export.json"
+    [[ "$FORCE" == false && -f "$json" ]] && grep -q "\"geladen\": \"$(date +%Y-%m-%d)T" "$json"
+}
 
 if [[ -z "${ATLAS_API_KEY:-}" && -f "$TILDA_GEO_REPO/.env" ]]; then
     ATLAS_API_KEY=$(grep '^ATLAS_API_KEY_PRODUCTION=' "$TILDA_GEO_REPO/.env" | cut -d= -f2- | tr -d '"' || true)
@@ -80,6 +93,10 @@ download_processing() {
     local raw_dir="$REPO_DIR/processing/data-raw-tilda"
     local routing_file="$REPO_DIR/data/TILDA Routing Berlin.gpkg"
     echo "=== processing (Region infravelo)"
+    if loaded_today "$raw_dir"; then
+        echo "⏭️  Heute schon geladen, übersprungen (--neu lädt trotzdem): $(cat "$raw_dir/tilda_export.json")"
+        return
+    fi
     TMP_DIR="$(mktemp -d "$raw_dir/.download.XXXXXX")"
     EXPORT_JSON=""
     for table in "${TABLES[@]}"; do
@@ -102,6 +119,10 @@ download_befahrungsbedarf() {
     local bbox="minlon=13.08&minlat=52.33&maxlon=13.77&maxlat=52.68"
     local network="$REPO_DIR/ren-network/output/ren_netz.gpkg"
     echo "=== befahrungsbedarf (Region deutschland, Berlin-Bounding-Box)"
+    if loaded_today "$data_dir"; then
+        echo "⏭️  Heute schon geladen, übersprungen (--neu lädt trotzdem): $(cat "$data_dir/tilda_export.json")"
+        return
+    fi
     mkdir -p "$data_dir"
     TMP_DIR="$(mktemp -d "$data_dir/.download.XXXXXX")"
     EXPORT_JSON=""
@@ -128,6 +149,6 @@ download_befahrungsbedarf() {
     echo "✅ $data_dir"
 }
 
-for target in "$@"; do
+for target in "${TARGETS[@]}"; do
     "download_$target"
 done

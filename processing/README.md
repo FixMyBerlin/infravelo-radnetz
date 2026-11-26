@@ -33,11 +33,12 @@ pip install -r requirements.txt
 
 ## Verarbeitungskette
 
-Voraussetzung ist ein Lauf von `../run_pipeline.sh` (REN+-Netz und virtuelle Knoten). Danach in einem Aufruf, mit den neusten TILDA-Daten:
+Voraussetzung ist ein Lauf von `../run_pipeline.sh` (REN+-Netz und virtuelle Knoten). Danach in einem Aufruf, mit den neusten TILDA-Daten. TILDA rechnet einmal pro Nacht neu, deshalb lädt `run_all.sh` höchstens einmal am Tag:
 
 ```sh
 processing/run_all.sh                   # aus dem Projekt-Root, oder ./run_all.sh in processing/
 processing/run_all.sh --ohne-download   # mit den vorhandenen Dateien in data-raw-tilda/
+processing/run_all.sh --neu-laden       # TILDA-Daten auch laden, wenn heute schon geladen
 ```
 
 `run_all.sh` führt diese Schritte aus (einzeln aufrufbar, aus `processing/`):

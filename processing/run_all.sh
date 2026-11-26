@@ -15,7 +15,8 @@
 # (./copy_to_tilda_static.sh --netz ren) bleibt ein eigener Schritt von Hand.
 #
 # Verwendung (von überall):
-#   processing/run_all.sh                  # mit Download
+#   processing/run_all.sh                  # mit Download, außer er lief heute schon (TILDA rechnet nachts neu)
+#   processing/run_all.sh --neu-laden      # Download auch, wenn heute schon geladen
 #   processing/run_all.sh --ohne-download  # mit den vorhandenen Dateien in data-raw-tilda/
 #   processing/run_all.sh --clean-cache    # an execute_processing.sh durchgereicht
 
@@ -25,14 +26,16 @@ SCRIPT="$(realpath "$0")"
 cd "$(dirname "$SCRIPT")"
 PYTHON="${PYTHON:-$(cd .. && pwd)/.venv/bin/python}"
 DOWNLOAD=true
+DOWNLOAD_ARGS=()
 EXECUTE_ARGS=()
 
 while [[ $# -gt 0 ]]; do
     case $1 in
         --ohne-download) DOWNLOAD=false; shift ;;
+        --neu-laden) DOWNLOAD_ARGS+=(--neu); shift ;;
         --clean-cache) EXECUTE_ARGS+=(--clean-cache); shift ;;
-        -h|--help) sed -n '4,21p' "$SCRIPT" | sed 's/^# \{0,1\}//'; exit 0 ;;
-        *) echo "❌ Unbekanntes Argument: $1 (erlaubt: --ohne-download, --clean-cache)" >&2; exit 1 ;;
+        -h|--help) sed -n '4,22p' "$SCRIPT" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        *) echo "❌ Unbekanntes Argument: $1 (erlaubt: --ohne-download, --neu-laden, --clean-cache)" >&2; exit 1 ;;
     esac
 done
 
@@ -53,7 +56,7 @@ step() {
 }
 
 if [[ "$DOWNLOAD" == true ]]; then
-    step "1. TILDA-Daten laden" ../data/download_tilda.sh processing
+    step "1. TILDA-Daten laden" ../data/download_tilda.sh "${DOWNLOAD_ARGS[@]}" processing
 else
     echo "=== 1. TILDA-Daten laden: übersprungen (--ohne-download)"
 fi
