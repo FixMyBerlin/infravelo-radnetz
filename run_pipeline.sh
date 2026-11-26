@@ -10,8 +10,8 @@ set -euo pipefail
 #                                            netzanpassungen/output/virtuelle_knoten.gpkg
 # The outputs for TILDA and the Mapper (mask, Zuteilung, Befahrungsbedarf, MapRoulette tracks) are not part
 # of it: they run only by hand with ./run_mapper_outputs.sh, after this script.
-# Stops at the first error. In a terminal the bottom line shows the running step with a spinner and its time;
-# with the output redirected (file, pipe) the script prints plain text only.
+# Stops at the first error. In a terminal the bottom line shows the running step with a spinner, its time and
+# the estimated remaining time (tools/status_line.sh); that line never ends up in a log (> file, | tee).
 #
 # Usage (repo root):
 #   ./run_pipeline.sh                       # steps 1 to 3, app entries of area berlin from the KV database
@@ -42,7 +42,7 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         -h|--help)
-            sed -n '4,22p' "$0"
+            sed -n '4,23p' "$0"
             exit 0
             ;;
         *)
@@ -59,89 +59,27 @@ fi
 
 cd "$REPO_DIR"
 
-# Status line: the terminal scrolls only above the bottom line (scroll region), a background loop redraws
-# that line every 0.1 s. The step itself runs in the foreground, so Ctrl+C reaches it as before.
-STEPS_TOTAL=5
+# Status line in the bottom line of the terminal (tools/status_line.sh): spinner, step, times, remaining time
+# from the last run. It goes to /dev/tty only, so a log of this script (> file, | tee) stays free of it.
+source "$REPO_DIR/tools/status_line.sh"
 STEP_NO=0
-SPINNER_PID=""
-STATUS_UI=0
-if [[ -t 1 && "${TERM:-dumb}" != "dumb" ]] && stty size </dev/tty >/dev/null 2>&1; then
-    STATUS_UI=1
-fi
-
-now() { date +%s; }
-
-duration() {
-    local seconds=$1
-    printf '%d:%02d' $((seconds / 60)) $((seconds % 60))
-}
-
-term_size() {
-    stty size </dev/tty 2>/dev/null || echo "24 80"
-}
-
-spinner_loop() {
-    local label=$1 start=$2 frames=(⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏) i=0 rows cols last_rows=0 text
-    trap 'exit 0' TERM
-    while :; do
-        read -r rows cols < <(term_size)
-        if (( rows != last_rows )); then
-            printf '\0337\033[1;%dr\0338' $((rows - 1))
-            last_rows=$rows
-        fi
-        text=" ${frames[i % ${#frames[@]}]} $(duration $(($(now) - start)))  [$STEP_NO/$STEPS_TOTAL] $label"
-        printf '\0337\033[%d;1H\033[2K%s\0338' "$rows" "${text:0:cols-1}"
-        i=$((i + 1))
-        sleep 0.1
-    done
-}
-
-stop_spinner() {
-    if [[ -n "$SPINNER_PID" ]]; then
-        kill "$SPINNER_PID" 2>/dev/null || true
-        wait "$SPINNER_PID" 2>/dev/null || true
-        SPINNER_PID=""
-    fi
-}
-
-status_setup() {
-    (( STATUS_UI )) || return 0
-    local rows cols
-    read -r rows cols < <(term_size)
-    # Free the bottom line, keep the cursor inside the scroll region
-    printf '\n\033[1A\0337\033[1;%dr\0338' $((rows - 1))
-}
-
-status_cleanup() {
-    stop_spinner
-    (( STATUS_UI )) || return 0
-    local rows cols
-    read -r rows cols < <(term_size)
-    printf '\0337\033[r\033[%d;1H\033[2K\0338' "$rows"
-}
-
-trap status_cleanup EXIT
-status_setup
-PIPELINE_START=$(now)
+status_init run_pipeline 5
 
 run() {
-    local label=$1 start rc=0
+    local label=$1 rc=0
     shift
     STEP_NO=$((STEP_NO + 1))
     echo ""
     echo "=== $label"
-    start=$(now)
-    if (( STATUS_UI )); then
-        spinner_loop "$label" "$start" &
-        SPINNER_PID=$!
-    fi
+    status_step_begin "$STEP_NO" "$label"
     "$@" || rc=$?
-    stop_spinner
     if (( rc != 0 )); then
-        echo "✗ $label: failed with exit code $rc after $(duration $(($(now) - start)))" >&2
+        status_cleanup
+        echo "✗ $label: failed with exit code $rc after $(status_fmt "$(status_step_elapsed)")" >&2
         exit "$rc"
     fi
-    echo "✓ $label ($(duration $(($(now) - start))))"
+    status_step_end
+    echo "✓ $label ($(status_fmt "$STATUS_STEP_SECS"))"
 }
 
 run "Step 1: merge the network" "$PYTHON" ren-network/merge_networks.py
@@ -155,4 +93,4 @@ fi
 run "Check the virtual nodes" "$PYTHON" data/virtuelle_knotenpunkte.py pruefen
 
 echo ""
-echo "Done in $(duration $(($(now) - PIPELINE_START))). Outputs for TILDA and the Mapper only by hand: ./run_mapper_outputs.sh"
+echo "Done in $(status_fmt "$(status_elapsed)"). Outputs for TILDA and the Mapper only by hand: ./run_mapper_outputs.sh"

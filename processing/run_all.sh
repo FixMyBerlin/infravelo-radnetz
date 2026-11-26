@@ -9,6 +9,8 @@
 #   5. scripts/convert_to_geojson.py --netz ren    GeoJSON der Datensätze A, B, C
 #   6. ./run_validation.sh --netz ren              Validierung
 # Bricht beim ersten Fehler ab. Schlägt nur die Validierung fehl, liegen alle Ausgaben trotzdem vor.
+# Im Terminal zeigt die unterste Zeile den laufenden Schritt mit Spinner, Zeit und geschätzter Restzeit
+# (../tools/status_line.sh); diese Zeile landet nie in einem Log (> datei, | tee).
 # Schritt 2 entfällt, wenn seine Ausgaben neuer sind als die TILDA-Dateien und der Code der Übersetzung
 # (prepare_tilda_routing.py und die genutzten helpers/), also wenn heute nichts Neues geladen wurde.
 #
@@ -39,7 +41,7 @@ while [[ $# -gt 0 ]]; do
         --neu-laden) DOWNLOAD_ARGS+=(--neu); shift ;;
         --neu-uebersetzen) FORCE_TRANSLATE=true; shift ;;
         --clean-cache) EXECUTE_ARGS+=(--clean-cache); shift ;;
-        -h|--help) sed -n '4,25p' "$SCRIPT" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h|--help) sed -n '4,27p' "$SCRIPT" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "❌ Unbekanntes Argument: $1 (erlaubt: --ohne-download, --neu-laden, --neu-uebersetzen, --clean-cache)" >&2; exit 1 ;;
     esac
 done
@@ -49,8 +51,11 @@ if [[ ! -x "$PYTHON" ]]; then
     exit 1
 fi
 
-START=$(date +%s)
 ROOT="$(cd .. && pwd)"
+# Statuszeile ganz unten im Terminal (tools/status_line.sh): Spinner, Schritt, Zeiten, Restzeit aus dem
+# letzten Lauf. Sie geht nur nach /dev/tty, ein Log dieses Skripts (> datei, | tee) bleibt frei davon.
+source "$ROOT/tools/status_line.sh"
+status_init run_all 6
 # Gibt die Skript-Datei eines Aufrufs (erstes Argument mit Endung .sh oder .py) relativ zum Projekt aus
 script_file() {
     local arg
@@ -62,18 +67,19 @@ script_file() {
     done
 }
 step() {
-    local label=$1 t0
-    shift
+    local no=$1 label="$1. $2"
+    shift 2
     echo ""
     echo "=== $label"
     script_file "$@"
-    t0=$(date +%s)
+    status_step_begin "$no" "$label"
     "$@"
-    echo "✓ $label ($(( ($(date +%s) - t0) / 60 )) min)"
+    status_step_end
+    echo "✓ $label ($(status_fmt "$STATUS_STEP_SECS"))"
 }
 
 if [[ "$DOWNLOAD" == true ]]; then
-    step "1. TILDA-Daten laden" ../data/download_tilda.sh "${DOWNLOAD_ARGS[@]}" processing
+    step 1 "TILDA-Daten laden" ../data/download_tilda.sh "${DOWNLOAD_ARGS[@]}" processing
 else
     echo "=== 1. TILDA-Daten laden: übersprungen (--ohne-download)"
 fi
@@ -102,21 +108,24 @@ if [[ "$FORCE_TRANSLATE" == false ]] && translation_up_to_date; then
     echo ""
     echo "=== 2. TILDA-Routing vorbereiten: übersprungen, Ausgaben in output/TILDA-routing-ren/ sind aktuell (--neu-uebersetzen erzwingt)"
 else
-    step "2. TILDA-Routing vorbereiten" "$PYTHON" scripts/prepare_tilda_routing.py --netz ren
+    step 2 "TILDA-Routing vorbereiten" "$PYTHON" scripts/prepare_tilda_routing.py --netz ren
 fi
-step "3. Zielnetz vorbereiten" ./process_radnetz.sh --netz ren
-step "4. Hauptverarbeitung" ./execute_processing.sh --netz ren "${EXECUTE_ARGS[@]}"
-step "5. GeoJSON-Export" "$PYTHON" scripts/convert_to_geojson.py --netz ren
+step 3 "Zielnetz vorbereiten" ./process_radnetz.sh --netz ren
+step 4 "Hauptverarbeitung" ./execute_processing.sh --netz ren "${EXECUTE_ARGS[@]}"
+step 5 "GeoJSON-Export" "$PYTHON" scripts/convert_to_geojson.py --netz ren
 
 echo ""
 echo "=== 6. Validierung"
 script_file ./run_validation.sh
+status_step_begin 6 "6. Validierung"
 if ./run_validation.sh --netz ren; then
-    echo "✓ 6. Validierung"
+    status_step_end
+    echo "✓ 6. Validierung ($(status_fmt "$STATUS_STEP_SECS"))"
 else
+    status_cleanup
     echo "❌ Validierung mit Fehlern (Ausgaben liegen trotzdem vor, Details oben)" >&2
     exit 1
 fi
 
 echo ""
-echo "Fertig in $(( ($(date +%s) - START) / 60 )) min. Kopie nach tilda-static-data von Hand: ./copy_to_tilda_static.sh --netz ren"
+echo "Fertig in $(status_fmt "$(status_elapsed)"). Kopie nach tilda-static-data von Hand: ./copy_to_tilda_static.sh --netz ren"
