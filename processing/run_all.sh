@@ -50,11 +50,23 @@ if [[ ! -x "$PYTHON" ]]; then
 fi
 
 START=$(date +%s)
+ROOT="$(cd .. && pwd)"
+# Gibt die Skript-Datei eines Aufrufs (erstes Argument mit Endung .sh oder .py) relativ zum Projekt aus
+script_file() {
+    local arg
+    for arg in "$@"; do
+        if [[ "$arg" == *.sh || "$arg" == *.py ]]; then
+            echo "Datei: $(realpath --relative-to="$ROOT" "$arg")"
+            return
+        fi
+    done
+}
 step() {
     local label=$1 t0
     shift
     echo ""
     echo "=== $label"
+    script_file "$@"
     t0=$(date +%s)
     "$@"
     echo "✓ $label ($(( ($(date +%s) - t0) / 60 )) min)"
@@ -98,6 +110,7 @@ step "5. GeoJSON-Export" "$PYTHON" scripts/convert_to_geojson.py --netz ren
 
 echo ""
 echo "=== 6. Validierung"
+script_file ./run_validation.sh
 if ./run_validation.sh --netz ren; then
     echo "✓ 6. Validierung"
 else
