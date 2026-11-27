@@ -13,14 +13,14 @@ No routing graph is needed. For each way, `scripts/build.py` puts a point every 
 
 Check: of the 9,431 ways with `yes`, 7,941 fit the traffic next to them, 36 run against it, 25 are mixed and 1,429 have no parallel road. The convention therefore holds.
 
-## Result (Geofabrik extract 2026-11-24)
+## Result (Geofabrik extract 2026-11-27)
 
-| Group | Ways | List |
-| --- | ---: | --- |
-| `yes_wrong`: `yes`, but runs against the traffic next to it | 36 | `output/berlin-radweg-richtung-falsch.json` |
-| `minus1_wrong`: `-1`, and that runs against the traffic next to it | 10 | `output/berlin-radweg-richtung-falsch.json` |
-| `reverse_ok`: `-1`, fits the traffic; reverse the way and set `yes` | 351 | `output/berlin-radweg-umdrehen.json` |
-| `reverse_unjudged`: `-1`, no parallel road found | 17 | `output/berlin-radweg-umdrehen.json` |
+| Group | Ways 2026-11-24 | Ways 2026-11-27 | List |
+| --- | ---: | ---: | --- |
+| `yes_wrong`: `yes`, but runs against the traffic next to it | 36 | 19 | `maid/berlin-radweg-richtung-falsch.json` |
+| `minus1_wrong`: `-1`, and that runs against the traffic next to it | 10 | 0 | `maid/berlin-radweg-richtung-falsch.json` |
+| `reverse_ok`: `-1`, fits the traffic; reverse the way and set `yes` | 351 | 162 | `maid/berlin-radweg-umdrehen.json` |
+| `reverse_unjudged`: `-1`, no parallel road found | 17 | 15 | `maid/berlin-radweg-umdrehen.json` |
 
 Answers in Maid (task operations since Maid a94b157):
 
@@ -42,4 +42,4 @@ curl -fL -o "$PBF_DIR/berlin-latest.osm.pbf" https://download.geofabrik.de/europ
 .venv/bin/python -I osm-cleanup/sidepath-direction-2026-11/scripts/build.py "$PBF_DIR/berlin-latest.osm.pbf" osm-cleanup/sidepath-direction-2026-11/output
 ```
 
-Run from the project root. The PBF is the shared extract cache (skill `osm-pbfs`); the lists name the extract date. `output/` is not versioned: load `output/berlin-radweg-richtung-falsch.json` and `output/berlin-radweg-umdrehen.json` in Maid (account menu → "Load task list…"). Check them with `bun run tasks-check <file>` in the Maid repository. `list_id` and `task_id` stay the same across runs, so Maid keeps the progress when a regenerated list is loaded.
+Run from the project root. The PBF is the shared extract cache (skill `osm-pbfs`); the lists name the extract date. `output/` is not versioned; copy the two lists to `maid/` (checked in for MAID) after a new run: `cp osm-cleanup/sidepath-direction-2026-11/output/berlin-radweg-*.json osm-cleanup/sidepath-direction-2026-11/maid/`. Load them in Maid (account menu → "Load task list…"). Check them with `bun run tasks-check <file>` in the Maid repository. `list_id` and `task_id` stay the same across runs, so Maid keeps the progress when a regenerated list is loaded.
