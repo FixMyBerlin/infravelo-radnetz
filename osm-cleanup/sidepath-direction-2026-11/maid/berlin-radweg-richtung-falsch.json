@@ -4,7 +4,7 @@
   "version": 1,
   "list_id": "berlin-radweg-richtung-falsch-2026-11",
   "title": "Berlin: Einbahn-Radwege gegen den Verkehr daneben",
-  "description": "Separat gezeichnete Radwege im Seitenraum, auf denen man laut `oneway`/`oneway:bicycle` gegen den Verkehr auf der Straßenseite daneben fährt. Meist ist die Linie falsch herum gezeichnet oder das `-1` falsch. Erkannt über die Geometrie: Seite und Richtung der parallelen Straße (Auszug 2026-11-27, Liste 2026-11-27)."
+  "description": "Separat gezeichnete Radwege im Seitenraum, auf denen man laut `oneway`/`oneway:bicycle` gegen den Verkehr auf der Straßenseite daneben fährt. Meist ist die Linie falsch herum gezeichnet oder das `-1` falsch. Erkannt über die Geometrie: Seite und Richtung der parallelen Straße (Auszug 2026-11-28, Liste 2026-11-28)."
  },
  "features": [
   {

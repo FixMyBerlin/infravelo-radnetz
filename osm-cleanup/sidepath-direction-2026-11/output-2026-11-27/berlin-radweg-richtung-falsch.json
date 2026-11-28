@@ -1,0 +1,1482 @@
+{
+ "type": "FeatureCollection",
+ "maid_tasks": {
+  "version": 1,
+  "list_id": "berlin-radweg-richtung-falsch-2026-11",
+  "title": "Berlin: Einbahn-Radwege gegen den Verkehr daneben",
+  "description": "Separat gezeichnete Radwege im Seitenraum, auf denen man laut `oneway`/`oneway:bicycle` gegen den Verkehr auf der Straßenseite daneben fährt. Meist ist die Linie falsch herum gezeichnet oder das `-1` falsch. Erkannt über die Geometrie: Seite und Richtung der parallelen Straße (Auszug 2026-11-27, Liste 2026-11-27)."
+ },
+ "features": [
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.2961039,
+      52.4858123
+     ],
+     [
+      13.2961268,
+      52.4857602
+     ],
+     [
+      13.296138,
+      52.4857413
+     ],
+     [
+      13.2961592,
+      52.4857117
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-24955772",
+    "title": "Radweg an Cunostraße: Einbahn-Radweg läuft gegen den Verkehr daneben",
+    "description": "Dieser Radweg hat `oneway=yes`, man fährt also in Linienrichtung. Die Linie läuft aber gegen den Verkehr auf der Straßenseite daneben (Cunostraße). So fährt der Radverkehr nur gegen die Fahrtrichtung.\n\nMeist ist die Linie andersherum gezeichnet worden: dann „Weg umdrehen“, `yes` bleibt. Ist es ein Zweirichtungsradweg (Zeichen 237/240/241 mit Zusatz 1000-31/33 in beide Richtungen), `no`. Nur wenn wirklich ein Einbahn-Radweg gegen den Verkehr ausgeschildert ist, „Richtung stimmt“.",
+    "osm": [
+     "way/24955772"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:oneway",
+     "https://www.openstreetmap.org/way/24955772"
+    ],
+    "options": [
+     {
+      "id": "reverse",
+      "label": "Weg umdrehen",
+      "description": "Dreht die Linie (wie Umkehren, Taste `V`). Danach `oneway=yes`.",
+      "operations": [
+       {
+        "op": "reverse"
+       }
+      ],
+      "set": {
+       "oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way",
+      "label": "Zweirichtungsradweg (beide Richtungen)",
+      "description": "Nur mit Verkehrszeichen für beide Richtungen.",
+      "set": {
+       "oneway": "no"
+      }
+     },
+     {
+      "id": "keep",
+      "label": "Richtung stimmt (ausgeschildert gegen den Verkehr)",
+      "action": "none"
+     }
+    ],
+    "group": "yes_wrong"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.441047,
+      52.4231585
+     ],
+     [
+      13.4410216,
+      52.4231661
+     ],
+     [
+      13.4409882,
+      52.423171
+     ],
+     [
+      13.4405602,
+      52.423165
+     ],
+     [
+      13.4404058,
+      52.4231625
+     ],
+     [
+      13.4403872,
+      52.42316
+     ],
+     [
+      13.4403699,
+      52.423156
+     ],
+     [
+      13.4403561,
+      52.4231499
+     ],
+     [
+      13.4403481,
+      52.4231443
+     ],
+     [
+      13.4403427,
+      52.4231392
+     ],
+     [
+      13.4403378,
+      52.4231321
+     ],
+     [
+      13.440335,
+      52.4231251
+     ],
+     [
+      13.4403334,
+      52.4231156
+     ],
+     [
+      13.4403341,
+      52.4230692
+     ],
+     [
+      13.4403393,
+      52.4229998
+     ],
+     [
+      13.4403444,
+      52.4229441
+     ],
+     [
+      13.4403479,
+      52.4228859
+     ],
+     [
+      13.4403499,
+      52.422873
+     ],
+     [
+      13.4403508,
+      52.4228638
+     ],
+     [
+      13.4403535,
+      52.4228556
+     ],
+     [
+      13.4403593,
+      52.4228442
+     ],
+     [
+      13.4403656,
+      52.422839
+     ],
+     [
+      13.4403747,
+      52.4228349
+     ],
+     [
+      13.4403881,
+      52.4228312
+     ],
+     [
+      13.4404007,
+      52.4228294
+     ],
+     [
+      13.4404134,
+      52.4228281
+     ],
+     [
+      13.4404432,
+      52.4228272
+     ],
+     [
+      13.4404706,
+      52.4228271
+     ],
+     [
+      13.4405456,
+      52.4228284
+     ],
+     [
+      13.4406772,
+      52.4228284
+     ],
+     [
+      13.4408799,
+      52.4228325
+     ],
+     [
+      13.4409896,
+      52.4228348
+     ],
+     [
+      13.4410219,
+      52.4228382
+     ],
+     [
+      13.4410352,
+      52.4228416
+     ],
+     [
+      13.4410463,
+      52.4228457
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-51086759",
+    "title": "Radweg an Hasenhegerweg: Einbahn-Radweg läuft gegen den Verkehr daneben",
+    "description": "Dieser Radweg hat `oneway=yes`, man fährt also in Linienrichtung. Die Linie läuft aber gegen den Verkehr auf der Straßenseite daneben (Hasenhegerweg). So fährt der Radverkehr nur gegen die Fahrtrichtung.\n\nMeist ist die Linie andersherum gezeichnet worden: dann „Weg umdrehen“, `yes` bleibt. Ist es ein Zweirichtungsradweg (Zeichen 237/240/241 mit Zusatz 1000-31/33 in beide Richtungen), `no`. Nur wenn wirklich ein Einbahn-Radweg gegen den Verkehr ausgeschildert ist, „Richtung stimmt“.",
+    "osm": [
+     "way/51086759"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:oneway",
+     "https://www.openstreetmap.org/way/51086759"
+    ],
+    "options": [
+     {
+      "id": "reverse",
+      "label": "Weg umdrehen",
+      "description": "Dreht die Linie (wie Umkehren, Taste `V`). Danach `oneway=yes`.",
+      "operations": [
+       {
+        "op": "reverse"
+       }
+      ],
+      "set": {
+       "oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way",
+      "label": "Zweirichtungsradweg (beide Richtungen)",
+      "description": "Nur mit Verkehrszeichen für beide Richtungen.",
+      "set": {
+       "oneway": "no"
+      }
+     },
+     {
+      "id": "keep",
+      "label": "Richtung stimmt (ausgeschildert gegen den Verkehr)",
+      "action": "none"
+     }
+    ],
+    "group": "yes_wrong"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.4137624,
+      52.4883521
+     ],
+     [
+      13.4139565,
+      52.4883314
+     ],
+     [
+      13.4139928,
+      52.4883263
+     ],
+     [
+      13.4140075,
+      52.4883218
+     ],
+     [
+      13.4140136,
+      52.4883115
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-236000456",
+    "title": "Radweg an Hasenheide: Einbahn-Radweg läuft gegen den Verkehr daneben",
+    "description": "Dieser Radweg hat `oneway=yes`, man fährt also in Linienrichtung. Die Linie läuft aber gegen den Verkehr auf der Straßenseite daneben (Hasenheide). So fährt der Radverkehr nur gegen die Fahrtrichtung.\n\nMeist ist die Linie andersherum gezeichnet worden: dann „Weg umdrehen“, `yes` bleibt. Ist es ein Zweirichtungsradweg (Zeichen 237/240/241 mit Zusatz 1000-31/33 in beide Richtungen), `no`. Nur wenn wirklich ein Einbahn-Radweg gegen den Verkehr ausgeschildert ist, „Richtung stimmt“.",
+    "osm": [
+     "way/236000456"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:oneway",
+     "https://www.openstreetmap.org/way/236000456"
+    ],
+    "options": [
+     {
+      "id": "reverse",
+      "label": "Weg umdrehen",
+      "description": "Dreht die Linie (wie Umkehren, Taste `V`). Danach `oneway=yes`.",
+      "operations": [
+       {
+        "op": "reverse"
+       }
+      ],
+      "set": {
+       "oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way",
+      "label": "Zweirichtungsradweg (beide Richtungen)",
+      "description": "Nur mit Verkehrszeichen für beide Richtungen.",
+      "set": {
+       "oneway": "no"
+      }
+     },
+     {
+      "id": "keep",
+      "label": "Richtung stimmt (ausgeschildert gegen den Verkehr)",
+      "action": "none"
+     }
+    ],
+    "group": "yes_wrong"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.5651642,
+      52.5252011
+     ],
+     [
+      13.5650929,
+      52.5252074
+     ],
+     [
+      13.5650553,
+      52.5252232
+     ],
+     [
+      13.5650402,
+      52.5252475
+     ],
+     [
+      13.5650939,
+      52.5254942
+     ],
+     [
+      13.5650942,
+      52.5254973
+     ],
+     [
+      13.5651007,
+      52.5255501
+     ],
+     [
+      13.565085,
+      52.5256066
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-487176056",
+    "title": "Radweg an Blumberger Damm: Einbahn-Radweg läuft gegen den Verkehr daneben",
+    "description": "Dieser Radweg hat `oneway=yes`, man fährt also in Linienrichtung. Die Linie läuft aber gegen den Verkehr auf der Straßenseite daneben (Blumberger Damm). So fährt der Radverkehr nur gegen die Fahrtrichtung.\n\nMeist ist die Linie andersherum gezeichnet worden: dann „Weg umdrehen“, `yes` bleibt. Ist es ein Zweirichtungsradweg (Zeichen 237/240/241 mit Zusatz 1000-31/33 in beide Richtungen), `no`. Nur wenn wirklich ein Einbahn-Radweg gegen den Verkehr ausgeschildert ist, „Richtung stimmt“.",
+    "osm": [
+     "way/487176056"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:oneway",
+     "https://www.openstreetmap.org/way/487176056"
+    ],
+    "options": [
+     {
+      "id": "reverse",
+      "label": "Weg umdrehen",
+      "description": "Dreht die Linie (wie Umkehren, Taste `V`). Danach `oneway=yes`.",
+      "operations": [
+       {
+        "op": "reverse"
+       }
+      ],
+      "set": {
+       "oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way",
+      "label": "Zweirichtungsradweg (beide Richtungen)",
+      "description": "Nur mit Verkehrszeichen für beide Richtungen.",
+      "set": {
+       "oneway": "no"
+      }
+     },
+     {
+      "id": "keep",
+      "label": "Richtung stimmt (ausgeschildert gegen den Verkehr)",
+      "action": "none"
+     }
+    ],
+    "group": "yes_wrong"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.4335762,
+      52.6077108
+     ],
+     [
+      13.4334457,
+      52.6077351
+     ],
+     [
+      13.4326865,
+      52.6078626
+     ],
+     [
+      13.4319261,
+      52.6079921
+     ],
+     [
+      13.431745,
+      52.6080124
+     ],
+     [
+      13.4315211,
+      52.608023
+     ],
+     [
+      13.4311657,
+      52.6080409
+     ],
+     [
+      13.4310356,
+      52.6080613
+     ],
+     [
+      13.4309102,
+      52.6080894
+     ],
+     [
+      13.4308116,
+      52.6081232
+     ],
+     [
+      13.4306386,
+      52.6081949
+     ],
+     [
+      13.4303074,
+      52.6083602
+     ],
+     [
+      13.4300752,
+      52.6084799
+     ],
+     [
+      13.4300579,
+      52.6084889
+     ],
+     [
+      13.4300195,
+      52.6085204
+     ],
+     [
+      13.4299677,
+      52.6085629
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-544644716",
+    "title": "Mühlenstraße: Einbahn-Radweg läuft gegen den Verkehr daneben",
+    "description": "Dieser Radweg hat `oneway=yes`, man fährt also in Linienrichtung. Die Linie läuft aber gegen den Verkehr auf der Straßenseite daneben (Mühlenstraße). So fährt der Radverkehr nur gegen die Fahrtrichtung.\n\nMeist ist die Linie andersherum gezeichnet worden: dann „Weg umdrehen“, `yes` bleibt. Ist es ein Zweirichtungsradweg (Zeichen 237/240/241 mit Zusatz 1000-31/33 in beide Richtungen), `no`. Nur wenn wirklich ein Einbahn-Radweg gegen den Verkehr ausgeschildert ist, „Richtung stimmt“.",
+    "osm": [
+     "way/544644716"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:oneway",
+     "https://www.openstreetmap.org/way/544644716"
+    ],
+    "options": [
+     {
+      "id": "reverse",
+      "label": "Weg umdrehen",
+      "description": "Dreht die Linie (wie Umkehren, Taste `V`). Danach `oneway=yes`.",
+      "operations": [
+       {
+        "op": "reverse"
+       }
+      ],
+      "set": {
+       "oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way",
+      "label": "Zweirichtungsradweg (beide Richtungen)",
+      "description": "Nur mit Verkehrszeichen für beide Richtungen.",
+      "set": {
+       "oneway": "no"
+      }
+     },
+     {
+      "id": "keep",
+      "label": "Richtung stimmt (ausgeschildert gegen den Verkehr)",
+      "action": "none"
+     }
+    ],
+    "group": "yes_wrong"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3534051,
+      52.514451
+     ],
+     [
+      13.3533941,
+      52.5144501
+     ],
+     [
+      13.3532934,
+      52.5144367
+     ],
+     [
+      13.3529727,
+      52.5143472
+     ],
+     [
+      13.3526838,
+      52.5143135
+     ],
+     [
+      13.3524037,
+      52.5143339
+     ],
+     [
+      13.3519959,
+      52.5143855
+     ],
+     [
+      13.3518837,
+      52.5144535
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1012806592",
+    "title": "Bremer Weg: Einbahn-Radweg läuft gegen den Verkehr daneben",
+    "description": "Dieser Gehweg hat `oneway:bicycle=yes`, man fährt also in Linienrichtung. Die Linie läuft aber gegen den Verkehr auf der Straßenseite daneben (Straße des 17. Juni). So fährt der Radverkehr nur gegen die Fahrtrichtung.\n\nMeist ist die Linie andersherum gezeichnet worden: dann „Weg umdrehen“, `yes` bleibt. Ist es ein Zweirichtungsradweg (Zeichen 237/240/241 mit Zusatz 1000-31/33 in beide Richtungen), `no`. Nur wenn wirklich ein Einbahn-Radweg gegen den Verkehr ausgeschildert ist, „Richtung stimmt“.",
+    "osm": [
+     "way/1012806592"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:oneway",
+     "https://www.openstreetmap.org/way/1012806592"
+    ],
+    "options": [
+     {
+      "id": "reverse",
+      "label": "Weg umdrehen",
+      "description": "Dreht die Linie (wie Umkehren, Taste `V`). Danach `oneway:bicycle=yes`.",
+      "operations": [
+       {
+        "op": "reverse"
+       }
+      ],
+      "set": {
+       "oneway:bicycle": "yes"
+      }
+     },
+     {
+      "id": "two-way",
+      "label": "Zweirichtungsradweg (beide Richtungen)",
+      "description": "Nur mit Verkehrszeichen für beide Richtungen.",
+      "set": {
+       "oneway:bicycle": "no"
+      }
+     },
+     {
+      "id": "keep",
+      "label": "Richtung stimmt (ausgeschildert gegen den Verkehr)",
+      "action": "none"
+     }
+    ],
+    "group": "yes_wrong"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.4055418,
+      52.4281458
+     ],
+     [
+      13.4055036,
+      52.4281003
+     ],
+     [
+      13.4052848,
+      52.4279801
+     ],
+     [
+      13.4052552,
+      52.4279642
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1101199438",
+    "title": "Radweg an Tauernallee: Einbahn-Radweg läuft gegen den Verkehr daneben",
+    "description": "Dieser Radweg hat `oneway=yes`, man fährt also in Linienrichtung. Die Linie läuft aber gegen den Verkehr auf der Straßenseite daneben (Tauernallee). So fährt der Radverkehr nur gegen die Fahrtrichtung.\n\nMeist ist die Linie andersherum gezeichnet worden: dann „Weg umdrehen“, `yes` bleibt. Ist es ein Zweirichtungsradweg (Zeichen 237/240/241 mit Zusatz 1000-31/33 in beide Richtungen), `no`. Nur wenn wirklich ein Einbahn-Radweg gegen den Verkehr ausgeschildert ist, „Richtung stimmt“.",
+    "osm": [
+     "way/1101199438"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:oneway",
+     "https://www.openstreetmap.org/way/1101199438"
+    ],
+    "options": [
+     {
+      "id": "reverse",
+      "label": "Weg umdrehen",
+      "description": "Dreht die Linie (wie Umkehren, Taste `V`). Danach `oneway=yes`.",
+      "operations": [
+       {
+        "op": "reverse"
+       }
+      ],
+      "set": {
+       "oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way",
+      "label": "Zweirichtungsradweg (beide Richtungen)",
+      "description": "Nur mit Verkehrszeichen für beide Richtungen.",
+      "set": {
+       "oneway": "no"
+      }
+     },
+     {
+      "id": "keep",
+      "label": "Richtung stimmt (ausgeschildert gegen den Verkehr)",
+      "action": "none"
+     }
+    ],
+    "group": "yes_wrong"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3742309,
+      52.500686
+     ],
+     [
+      13.3741381,
+      52.5006268
+     ],
+     [
+      13.3741163,
+      52.500598
+     ],
+     [
+      13.374099,
+      52.5005609
+     ],
+     [
+      13.3740929,
+      52.5005242
+     ],
+     [
+      13.3741097,
+      52.5004563
+     ],
+     [
+      13.3741368,
+      52.5004311
+     ],
+     [
+      13.3741961,
+      52.5004088
+     ],
+     [
+      13.3742824,
+      52.5003875
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1116876554",
+    "title": "Radweg an Luckenwalder Straße: Einbahn-Radweg läuft gegen den Verkehr daneben",
+    "description": "Dieser Radweg hat `oneway=yes`, man fährt also in Linienrichtung. Die Linie läuft aber gegen den Verkehr auf der Straßenseite daneben (Luckenwalder Straße). So fährt der Radverkehr nur gegen die Fahrtrichtung.\n\nMeist ist die Linie andersherum gezeichnet worden: dann „Weg umdrehen“, `yes` bleibt. Ist es ein Zweirichtungsradweg (Zeichen 237/240/241 mit Zusatz 1000-31/33 in beide Richtungen), `no`. Nur wenn wirklich ein Einbahn-Radweg gegen den Verkehr ausgeschildert ist, „Richtung stimmt“.",
+    "osm": [
+     "way/1116876554"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:oneway",
+     "https://www.openstreetmap.org/way/1116876554"
+    ],
+    "options": [
+     {
+      "id": "reverse",
+      "label": "Weg umdrehen",
+      "description": "Dreht die Linie (wie Umkehren, Taste `V`). Danach `oneway=yes`.",
+      "operations": [
+       {
+        "op": "reverse"
+       }
+      ],
+      "set": {
+       "oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way",
+      "label": "Zweirichtungsradweg (beide Richtungen)",
+      "description": "Nur mit Verkehrszeichen für beide Richtungen.",
+      "set": {
+       "oneway": "no"
+      }
+     },
+     {
+      "id": "keep",
+      "label": "Richtung stimmt (ausgeschildert gegen den Verkehr)",
+      "action": "none"
+     }
+    ],
+    "group": "yes_wrong"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.4146304,
+      52.5411388
+     ],
+     [
+      13.4146418,
+      52.5410887
+     ],
+     [
+      13.4145762,
+      52.5408823
+     ],
+     [
+      13.4145673,
+      52.5408543
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1119383505",
+    "title": "Radweg an Lychener Straße: Einbahn-Radweg läuft gegen den Verkehr daneben",
+    "description": "Dieser Radweg hat `oneway=yes`, man fährt also in Linienrichtung. Die Linie läuft aber gegen den Verkehr auf der Straßenseite daneben (Lychener Straße). So fährt der Radverkehr nur gegen die Fahrtrichtung.\n\nMeist ist die Linie andersherum gezeichnet worden: dann „Weg umdrehen“, `yes` bleibt. Ist es ein Zweirichtungsradweg (Zeichen 237/240/241 mit Zusatz 1000-31/33 in beide Richtungen), `no`. Nur wenn wirklich ein Einbahn-Radweg gegen den Verkehr ausgeschildert ist, „Richtung stimmt“.",
+    "osm": [
+     "way/1119383505"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:oneway",
+     "https://www.openstreetmap.org/way/1119383505"
+    ],
+    "options": [
+     {
+      "id": "reverse",
+      "label": "Weg umdrehen",
+      "description": "Dreht die Linie (wie Umkehren, Taste `V`). Danach `oneway=yes`.",
+      "operations": [
+       {
+        "op": "reverse"
+       }
+      ],
+      "set": {
+       "oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way",
+      "label": "Zweirichtungsradweg (beide Richtungen)",
+      "description": "Nur mit Verkehrszeichen für beide Richtungen.",
+      "set": {
+       "oneway": "no"
+      }
+     },
+     {
+      "id": "keep",
+      "label": "Richtung stimmt (ausgeschildert gegen den Verkehr)",
+      "action": "none"
+     }
+    ],
+    "group": "yes_wrong"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.2714566,
+      52.5101034
+     ],
+     [
+      13.2714039,
+      52.5100689
+     ],
+     [
+      13.2713344,
+      52.5100234
+     ],
+     [
+      13.2713268,
+      52.5100185
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1192422300",
+    "title": "Radweg an Reichsstraße: Einbahn-Radweg läuft gegen den Verkehr daneben",
+    "description": "Dieser Radweg hat `oneway=yes`, man fährt also in Linienrichtung. Die Linie läuft aber gegen den Verkehr auf der Straßenseite daneben (Reichsstraße). So fährt der Radverkehr nur gegen die Fahrtrichtung.\n\nMeist ist die Linie andersherum gezeichnet worden: dann „Weg umdrehen“, `yes` bleibt. Ist es ein Zweirichtungsradweg (Zeichen 237/240/241 mit Zusatz 1000-31/33 in beide Richtungen), `no`. Nur wenn wirklich ein Einbahn-Radweg gegen den Verkehr ausgeschildert ist, „Richtung stimmt“.",
+    "osm": [
+     "way/1192422300"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:oneway",
+     "https://www.openstreetmap.org/way/1192422300"
+    ],
+    "options": [
+     {
+      "id": "reverse",
+      "label": "Weg umdrehen",
+      "description": "Dreht die Linie (wie Umkehren, Taste `V`). Danach `oneway=yes`.",
+      "operations": [
+       {
+        "op": "reverse"
+       }
+      ],
+      "set": {
+       "oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way",
+      "label": "Zweirichtungsradweg (beide Richtungen)",
+      "description": "Nur mit Verkehrszeichen für beide Richtungen.",
+      "set": {
+       "oneway": "no"
+      }
+     },
+     {
+      "id": "keep",
+      "label": "Richtung stimmt (ausgeschildert gegen den Verkehr)",
+      "action": "none"
+     }
+    ],
+    "group": "yes_wrong"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3371457,
+      52.4502441
+     ],
+     [
+      13.337174,
+      52.4503085
+     ],
+     [
+      13.3371936,
+      52.4503358
+     ],
+     [
+      13.3372164,
+      52.4503605
+     ],
+     [
+      13.3375598,
+      52.4506895
+     ],
+     [
+      13.3375935,
+      52.4507324
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1221579984",
+    "title": "Radweg an Bismarckstraße: Einbahn-Radweg läuft gegen den Verkehr daneben",
+    "description": "Dieser Radweg hat `oneway=yes`, man fährt also in Linienrichtung. Die Linie läuft aber gegen den Verkehr auf der Straßenseite daneben (Bismarckstraße). So fährt der Radverkehr nur gegen die Fahrtrichtung.\n\nMeist ist die Linie andersherum gezeichnet worden: dann „Weg umdrehen“, `yes` bleibt. Ist es ein Zweirichtungsradweg (Zeichen 237/240/241 mit Zusatz 1000-31/33 in beide Richtungen), `no`. Nur wenn wirklich ein Einbahn-Radweg gegen den Verkehr ausgeschildert ist, „Richtung stimmt“.",
+    "osm": [
+     "way/1221579984"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:oneway",
+     "https://www.openstreetmap.org/way/1221579984"
+    ],
+    "options": [
+     {
+      "id": "reverse",
+      "label": "Weg umdrehen",
+      "description": "Dreht die Linie (wie Umkehren, Taste `V`). Danach `oneway=yes`.",
+      "operations": [
+       {
+        "op": "reverse"
+       }
+      ],
+      "set": {
+       "oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way",
+      "label": "Zweirichtungsradweg (beide Richtungen)",
+      "description": "Nur mit Verkehrszeichen für beide Richtungen.",
+      "set": {
+       "oneway": "no"
+      }
+     },
+     {
+      "id": "keep",
+      "label": "Richtung stimmt (ausgeschildert gegen den Verkehr)",
+      "action": "none"
+     }
+    ],
+    "group": "yes_wrong"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.325692,
+      52.5383547
+     ],
+     [
+      13.3257815,
+      52.5383773
+     ],
+     [
+      13.3258347,
+      52.5384008
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1229264922",
+    "title": "Gehweg an Seestraße: Einbahn-Radweg läuft gegen den Verkehr daneben",
+    "description": "Dieser Gehweg hat `oneway:bicycle=yes`, man fährt also in Linienrichtung. Die Linie läuft aber gegen den Verkehr auf der Straßenseite daneben (Seestraße). So fährt der Radverkehr nur gegen die Fahrtrichtung.\n\nMeist ist die Linie andersherum gezeichnet worden: dann „Weg umdrehen“, `yes` bleibt. Ist es ein Zweirichtungsradweg (Zeichen 237/240/241 mit Zusatz 1000-31/33 in beide Richtungen), `no`. Nur wenn wirklich ein Einbahn-Radweg gegen den Verkehr ausgeschildert ist, „Richtung stimmt“.",
+    "osm": [
+     "way/1229264922"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:oneway",
+     "https://www.openstreetmap.org/way/1229264922"
+    ],
+    "options": [
+     {
+      "id": "reverse",
+      "label": "Weg umdrehen",
+      "description": "Dreht die Linie (wie Umkehren, Taste `V`). Danach `oneway:bicycle=yes`.",
+      "operations": [
+       {
+        "op": "reverse"
+       }
+      ],
+      "set": {
+       "oneway:bicycle": "yes"
+      }
+     },
+     {
+      "id": "two-way",
+      "label": "Zweirichtungsradweg (beide Richtungen)",
+      "description": "Nur mit Verkehrszeichen für beide Richtungen.",
+      "set": {
+       "oneway:bicycle": "no"
+      }
+     },
+     {
+      "id": "keep",
+      "label": "Richtung stimmt (ausgeschildert gegen den Verkehr)",
+      "action": "none"
+     }
+    ],
+    "group": "yes_wrong"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3144563,
+      52.489913
+     ],
+     [
+      13.3144259,
+      52.4899293
+     ],
+     [
+      13.3143494,
+      52.4899703
+     ],
+     [
+      13.3141089,
+      52.4900901
+     ],
+     [
+      13.3140556,
+      52.4901199
+     ],
+     [
+      13.3140313,
+      52.4901387
+     ],
+     [
+      13.3140129,
+      52.4901611
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1303851498",
+    "title": "Radweg an Fehrbelliner Platz: Einbahn-Radweg läuft gegen den Verkehr daneben",
+    "description": "Dieser Radweg hat `oneway=yes`, man fährt also in Linienrichtung. Die Linie läuft aber gegen den Verkehr auf der Straßenseite daneben (Fehrbelliner Platz). So fährt der Radverkehr nur gegen die Fahrtrichtung.\n\nMeist ist die Linie andersherum gezeichnet worden: dann „Weg umdrehen“, `yes` bleibt. Ist es ein Zweirichtungsradweg (Zeichen 237/240/241 mit Zusatz 1000-31/33 in beide Richtungen), `no`. Nur wenn wirklich ein Einbahn-Radweg gegen den Verkehr ausgeschildert ist, „Richtung stimmt“.",
+    "osm": [
+     "way/1303851498"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:oneway",
+     "https://www.openstreetmap.org/way/1303851498"
+    ],
+    "options": [
+     {
+      "id": "reverse",
+      "label": "Weg umdrehen",
+      "description": "Dreht die Linie (wie Umkehren, Taste `V`). Danach `oneway=yes`.",
+      "operations": [
+       {
+        "op": "reverse"
+       }
+      ],
+      "set": {
+       "oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way",
+      "label": "Zweirichtungsradweg (beide Richtungen)",
+      "description": "Nur mit Verkehrszeichen für beide Richtungen.",
+      "set": {
+       "oneway": "no"
+      }
+     },
+     {
+      "id": "keep",
+      "label": "Richtung stimmt (ausgeschildert gegen den Verkehr)",
+      "action": "none"
+     }
+    ],
+    "group": "yes_wrong"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.198216,
+      52.5392862
+     ],
+     [
+      13.1981795,
+      52.5393832
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1320159033",
+    "title": "Radweg an Moritzstraße: Einbahn-Radweg läuft gegen den Verkehr daneben",
+    "description": "Dieser Radweg hat `oneway=yes`, man fährt also in Linienrichtung. Die Linie läuft aber gegen den Verkehr auf der Straßenseite daneben (Moritzstraße). So fährt der Radverkehr nur gegen die Fahrtrichtung.\n\nMeist ist die Linie andersherum gezeichnet worden: dann „Weg umdrehen“, `yes` bleibt. Ist es ein Zweirichtungsradweg (Zeichen 237/240/241 mit Zusatz 1000-31/33 in beide Richtungen), `no`. Nur wenn wirklich ein Einbahn-Radweg gegen den Verkehr ausgeschildert ist, „Richtung stimmt“.",
+    "osm": [
+     "way/1320159033"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:oneway",
+     "https://www.openstreetmap.org/way/1320159033"
+    ],
+    "options": [
+     {
+      "id": "reverse",
+      "label": "Weg umdrehen",
+      "description": "Dreht die Linie (wie Umkehren, Taste `V`). Danach `oneway=yes`.",
+      "operations": [
+       {
+        "op": "reverse"
+       }
+      ],
+      "set": {
+       "oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way",
+      "label": "Zweirichtungsradweg (beide Richtungen)",
+      "description": "Nur mit Verkehrszeichen für beide Richtungen.",
+      "set": {
+       "oneway": "no"
+      }
+     },
+     {
+      "id": "keep",
+      "label": "Richtung stimmt (ausgeschildert gegen den Verkehr)",
+      "action": "none"
+     }
+    ],
+    "group": "yes_wrong"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.4090248,
+      52.5710782
+     ],
+     [
+      13.409259,
+      52.5711218
+     ],
+     [
+      13.4095332,
+      52.5711376
+     ],
+     [
+      13.4096062,
+      52.5711424
+     ],
+     [
+      13.4096714,
+      52.5711482
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1491157193",
+    "title": "Radweg an Breite Straße: Einbahn-Radweg läuft gegen den Verkehr daneben",
+    "description": "Dieser Radweg hat `oneway=yes`, man fährt also in Linienrichtung. Die Linie läuft aber gegen den Verkehr auf der Straßenseite daneben (Breite Straße). So fährt der Radverkehr nur gegen die Fahrtrichtung.\n\nMeist ist die Linie andersherum gezeichnet worden: dann „Weg umdrehen“, `yes` bleibt. Ist es ein Zweirichtungsradweg (Zeichen 237/240/241 mit Zusatz 1000-31/33 in beide Richtungen), `no`. Nur wenn wirklich ein Einbahn-Radweg gegen den Verkehr ausgeschildert ist, „Richtung stimmt“.",
+    "osm": [
+     "way/1491157193"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:oneway",
+     "https://www.openstreetmap.org/way/1491157193"
+    ],
+    "options": [
+     {
+      "id": "reverse",
+      "label": "Weg umdrehen",
+      "description": "Dreht die Linie (wie Umkehren, Taste `V`). Danach `oneway=yes`.",
+      "operations": [
+       {
+        "op": "reverse"
+       }
+      ],
+      "set": {
+       "oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way",
+      "label": "Zweirichtungsradweg (beide Richtungen)",
+      "description": "Nur mit Verkehrszeichen für beide Richtungen.",
+      "set": {
+       "oneway": "no"
+      }
+     },
+     {
+      "id": "keep",
+      "label": "Richtung stimmt (ausgeschildert gegen den Verkehr)",
+      "action": "none"
+     }
+    ],
+    "group": "yes_wrong"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.5622186,
+      52.4375816
+     ],
+     [
+      13.5622303,
+      52.4375409
+     ],
+     [
+      13.5622535,
+      52.4375048
+     ],
+     [
+      13.5623169,
+      52.4374279
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1525777479",
+    "title": "Radweg an Spindlersfelder Straße: Einbahn-Radweg läuft gegen den Verkehr daneben",
+    "description": "Dieser Radweg hat `oneway=yes`, man fährt also in Linienrichtung. Die Linie läuft aber gegen den Verkehr auf der Straßenseite daneben (Spindlersfelder Straße). So fährt der Radverkehr nur gegen die Fahrtrichtung.\n\nMeist ist die Linie andersherum gezeichnet worden: dann „Weg umdrehen“, `yes` bleibt. Ist es ein Zweirichtungsradweg (Zeichen 237/240/241 mit Zusatz 1000-31/33 in beide Richtungen), `no`. Nur wenn wirklich ein Einbahn-Radweg gegen den Verkehr ausgeschildert ist, „Richtung stimmt“.",
+    "osm": [
+     "way/1525777479"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:oneway",
+     "https://www.openstreetmap.org/way/1525777479"
+    ],
+    "options": [
+     {
+      "id": "reverse",
+      "label": "Weg umdrehen",
+      "description": "Dreht die Linie (wie Umkehren, Taste `V`). Danach `oneway=yes`.",
+      "operations": [
+       {
+        "op": "reverse"
+       }
+      ],
+      "set": {
+       "oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way",
+      "label": "Zweirichtungsradweg (beide Richtungen)",
+      "description": "Nur mit Verkehrszeichen für beide Richtungen.",
+      "set": {
+       "oneway": "no"
+      }
+     },
+     {
+      "id": "keep",
+      "label": "Richtung stimmt (ausgeschildert gegen den Verkehr)",
+      "action": "none"
+     }
+    ],
+    "group": "yes_wrong"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.2546011,
+      52.5619746
+     ],
+     [
+      13.2546837,
+      52.561998
+     ],
+     [
+      13.2549308,
+      52.5620469
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1528095897",
+    "title": "Radweg an Maienwerderweg: Einbahn-Radweg läuft gegen den Verkehr daneben",
+    "description": "Dieser Radweg hat `oneway=yes`, man fährt also in Linienrichtung. Die Linie läuft aber gegen den Verkehr auf der Straßenseite daneben (Maienwerderweg). So fährt der Radverkehr nur gegen die Fahrtrichtung.\n\nMeist ist die Linie andersherum gezeichnet worden: dann „Weg umdrehen“, `yes` bleibt. Ist es ein Zweirichtungsradweg (Zeichen 237/240/241 mit Zusatz 1000-31/33 in beide Richtungen), `no`. Nur wenn wirklich ein Einbahn-Radweg gegen den Verkehr ausgeschildert ist, „Richtung stimmt“.",
+    "osm": [
+     "way/1528095897"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:oneway",
+     "https://www.openstreetmap.org/way/1528095897"
+    ],
+    "options": [
+     {
+      "id": "reverse",
+      "label": "Weg umdrehen",
+      "description": "Dreht die Linie (wie Umkehren, Taste `V`). Danach `oneway=yes`.",
+      "operations": [
+       {
+        "op": "reverse"
+       }
+      ],
+      "set": {
+       "oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way",
+      "label": "Zweirichtungsradweg (beide Richtungen)",
+      "description": "Nur mit Verkehrszeichen für beide Richtungen.",
+      "set": {
+       "oneway": "no"
+      }
+     },
+     {
+      "id": "keep",
+      "label": "Richtung stimmt (ausgeschildert gegen den Verkehr)",
+      "action": "none"
+     }
+    ],
+    "group": "yes_wrong"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.3599889,
+      52.5373348
+     ],
+     [
+      13.3601208,
+      52.5373481
+     ],
+     [
+      13.3602009,
+      52.5373561
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1575463882",
+    "title": "Radweg an Perleberger Straße: Einbahn-Radweg läuft gegen den Verkehr daneben",
+    "description": "Dieser Radweg hat `oneway=yes`, man fährt also in Linienrichtung. Die Linie läuft aber gegen den Verkehr auf der Straßenseite daneben (Perleberger Straße). So fährt der Radverkehr nur gegen die Fahrtrichtung.\n\nMeist ist die Linie andersherum gezeichnet worden: dann „Weg umdrehen“, `yes` bleibt. Ist es ein Zweirichtungsradweg (Zeichen 237/240/241 mit Zusatz 1000-31/33 in beide Richtungen), `no`. Nur wenn wirklich ein Einbahn-Radweg gegen den Verkehr ausgeschildert ist, „Richtung stimmt“.",
+    "osm": [
+     "way/1575463882"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:oneway",
+     "https://www.openstreetmap.org/way/1575463882"
+    ],
+    "options": [
+     {
+      "id": "reverse",
+      "label": "Weg umdrehen",
+      "description": "Dreht die Linie (wie Umkehren, Taste `V`). Danach `oneway=yes`.",
+      "operations": [
+       {
+        "op": "reverse"
+       }
+      ],
+      "set": {
+       "oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way",
+      "label": "Zweirichtungsradweg (beide Richtungen)",
+      "description": "Nur mit Verkehrszeichen für beide Richtungen.",
+      "set": {
+       "oneway": "no"
+      }
+     },
+     {
+      "id": "keep",
+      "label": "Richtung stimmt (ausgeschildert gegen den Verkehr)",
+      "action": "none"
+     }
+    ],
+    "group": "yes_wrong"
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      13.4324388,
+      52.499281
+     ],
+     [
+      13.4323723,
+      52.4992975
+     ],
+     [
+      13.4323217,
+      52.4993052
+     ],
+     [
+      13.4322578,
+      52.4993122
+     ],
+     [
+      13.4320675,
+      52.4993331
+     ]
+    ]
+   },
+   "properties": {
+    "task_id": "way-1577911411",
+    "title": "Radweg an Skalitzer Straße: Einbahn-Radweg läuft gegen den Verkehr daneben",
+    "description": "Dieser Radweg hat `oneway=yes`, man fährt also in Linienrichtung. Die Linie läuft aber gegen den Verkehr auf der Straßenseite daneben (Skalitzer Straße). So fährt der Radverkehr nur gegen die Fahrtrichtung.\n\nMeist ist die Linie andersherum gezeichnet worden: dann „Weg umdrehen“, `yes` bleibt. Ist es ein Zweirichtungsradweg (Zeichen 237/240/241 mit Zusatz 1000-31/33 in beide Richtungen), `no`. Nur wenn wirklich ein Einbahn-Radweg gegen den Verkehr ausgeschildert ist, „Richtung stimmt“.",
+    "osm": [
+     "way/1577911411"
+    ],
+    "links": [
+     "https://wiki.openstreetmap.org/wiki/DE:Key:oneway",
+     "https://www.openstreetmap.org/way/1577911411"
+    ],
+    "options": [
+     {
+      "id": "reverse",
+      "label": "Weg umdrehen",
+      "description": "Dreht die Linie (wie Umkehren, Taste `V`). Danach `oneway=yes`.",
+      "operations": [
+       {
+        "op": "reverse"
+       }
+      ],
+      "set": {
+       "oneway": "yes"
+      }
+     },
+     {
+      "id": "two-way",
+      "label": "Zweirichtungsradweg (beide Richtungen)",
+      "description": "Nur mit Verkehrszeichen für beide Richtungen.",
+      "set": {
+       "oneway": "no"
+      }
+     },
+     {
+      "id": "keep",
+      "label": "Richtung stimmt (ausgeschildert gegen den Verkehr)",
+      "action": "none"
+     }
+    ],
+    "group": "yes_wrong"
+   }
+  }
+ ]
+}

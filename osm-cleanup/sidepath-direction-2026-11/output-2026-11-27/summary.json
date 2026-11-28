@@ -1,0 +1,14 @@
+{
+ "groups": {
+  "yes_wrong": 19,
+  "minus1_wrong": 0,
+  "reverse_ok": 162,
+  "reverse_unjudged": 15
+ },
+ "bicycle_ways": {
+  "oneway:bicycle=yes": 3469,
+  "oneway=yes": 6327,
+  "oneway:bicycle=-1": 161,
+  "oneway=-1": 16
+ }
+}

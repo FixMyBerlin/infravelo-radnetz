@@ -13,14 +13,14 @@ No routing graph is needed. For each way, `scripts/build.py` puts a point every 
 
 Check: of the 9,431 ways with `yes`, 7,941 fit the traffic next to them, 36 run against it, 25 are mixed and 1,429 have no parallel road. The convention therefore holds.
 
-## Result (Geofabrik extract 2026-11-27)
+## Result (Geofabrik extract 2026-11-28)
 
-| Group | Ways 2026-11-24 | Ways 2026-11-27 | List |
-| --- | ---: | ---: | --- |
-| `yes_wrong`: `yes`, but runs against the traffic next to it | 36 | 19 | `maid/berlin-radweg-richtung-falsch.json` |
-| `minus1_wrong`: `-1`, and that runs against the traffic next to it | 10 | 0 | `maid/berlin-radweg-richtung-falsch.json` |
-| `reverse_ok`: `-1`, fits the traffic; reverse the way and set `yes` | 351 | 162 | `maid/berlin-radweg-umdrehen.json` |
-| `reverse_unjudged`: `-1`, no parallel road found | 17 | 15 | `maid/berlin-radweg-umdrehen.json` |
+| Group | Ways 2026-11-24 | Ways 2026-11-27 | Ways 2026-11-28 | List |
+| --- | ---: | ---: | ---: | --- |
+| `yes_wrong`: `yes`, but runs against the traffic next to it | 36 | 19 | 19 | `maid/berlin-radweg-richtung-falsch.json` |
+| `minus1_wrong`: `-1`, and that runs against the traffic next to it | 10 | 0 | 0 | `maid/berlin-radweg-richtung-falsch.json` |
+| `reverse_ok`: `-1`, fits the traffic; reverse the way and set `yes` | 351 | 162 | 157 | `maid/berlin-radweg-umdrehen.json` |
+| `reverse_unjudged`: `-1`, no parallel road found | 17 | 15 | 14 | `maid/berlin-radweg-umdrehen.json` |
 
 Answers in Maid (task operations since Maid a94b157):
 
